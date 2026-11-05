@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Thème Officiel Gendarmerie : Bleu Foncé Militaire */
+:root {
+    --p-primary-50: #f0f7ff;
+    --p-primary-100: #e0effe;
+    --p-primary-200: #bae0fd;
+    --p-primary-300: #7cc5fb;
+    --p-primary-400: #38a5f8;
+    --p-primary-500: #0284c7;
+    --p-primary-600: #075985;
+    --p-primary-700: #0c4a6e;
+    --p-primary-800: #082f49;
+    --p-primary-900: #0f172a;
+    --p-primary-950: #020617;
+    --p-primary-color: #075985;
+    --p-primary-hover-color: #0c4a6e;
+    --p-primary-active-color: #082f49;
+}
+
+/* Texte et icônes toujours blancs sur les boutons d'action avec text-white ou danger */
+.p-button.text-white,
+.p-button.\!text-white,
+.p-button-danger,
+.p-button.p-button-danger {
+    color: #ffffff !important;
+}
+
+.p-button.text-white .p-button-icon,
+.p-button.text-white .p-button-label,
+.p-button.\!text-white .p-button-icon,
+.p-button.\!text-white .p-button-label,
+.p-button-danger .p-button-icon,
+.p-button-danger .p-button-label {
+    color: #ffffff !important;
+}

@@ -1,0 +1,430 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Alerte;
+use App\Models\Contrat;
+use App\Models\Militaire;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
+
+class AlerteController extends Controller
+{
+    /**
+     * Afficher la liste des alertes.
+     */
+    public function index(Request $request)
+    {
+        $query = Alerte::with('militaire');
+
+        // Filtre par type
+        if ($request->filled('type')) {
+            $query->where('type_alerte', $request->type);
+        }
+
+        // Filtre par statut (vue/non vue)
+        if ($request->filled('statut')) {
+            if ($request->statut === 'vue') {
+                $query->where('est_vue', true);
+            } elseif ($request->statut === 'non_vue') {
+                $query->where('est_vue', false);
+            }
+        }
+
+        // Recherche multi-colonnes améliorée
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+            
+            // Conversion éventuelle de format de date JJ/MM/AAAA en AAAA-MM-JJ
+            $dateConverted = null;
+            if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $search, $matches)) {
+                $dateConverted = sprintf('%04d-%02d-%02d', $matches[3], $matches[2], $matches[1]);
+            }
+
+            $query->where(function($q) use ($search, $dateConverted) {
+                // 1. Recherche par Militaire (nom, prénom, matricule)
+                $q->whereHas('militaire', function($mQ) use ($search) {
+                    $mQ->where('nom', 'like', "%{$search}%")
+                       ->orWhere('prenom', 'like', "%{$search}%")
+                       ->orWhere('matricule', 'like', "%{$search}%");
+                })
+                // 2. Recherche par Type d'alerte (promotion, formation, contrat, mutation, retraite)
+                ->orWhere('type_alerte', 'like', "%{$search}%")
+                // 3. Recherche par Message / Description
+                ->orWhere('message', 'like', "%{$search}%")
+                // 4. Recherche par Date d'échéance (texte brut ou converti)
+                ->orWhere('date_echeance', 'like', "%{$search}%")
+                // 5. Recherche par Date de création
+                ->orWhere('created_at', 'like', "%{$search}%");
+
+                if ($dateConverted) {
+                    $q->orWhere('date_echeance', 'like', "%{$dateConverted}%")
+                      ->orWhere('created_at', 'like', "%{$dateConverted}%");
+                }
+            });
+        }
+
+        $alertes = $query->orderBy('created_at', 'desc')
+            ->paginate(20)
+            ->withQueryString()
+            ->through(fn ($alerte) => [
+                'id' => $alerte->id,
+                'type_alerte' => $alerte->type_alerte,
+                'message' => $alerte->message,
+                'date_echeance' => $alerte->date_echeance?->format('Y-m-d'),
+                'date_echeance_formatted' => $alerte->date_echeance?->format('d/m/Y'),
+                'est_vue' => $alerte->est_vue,
+                'created_at' => $alerte->created_at?->format('d/m/Y H:i'),
+                'militaire' => $alerte->militaire ? [
+                    'id' => $alerte->militaire->id,
+                    'nom' => $alerte->militaire->nom,
+                    'prenom' => $alerte->militaire->prenom,
+                    'matricule' => $alerte->militaire->matricule,
+                    'grade_actuel' => $alerte->militaire->grade_actuel,
+                ] : null,
+            ]);
+
+        // Statistiques globales
+        $statistiques = [
+            'total' => Alerte::count(),
+            'non_vues' => Alerte::where('est_vue', false)->count(),
+            'vues' => Alerte::where('est_vue', true)->count(),
+            'promotions' => Alerte::where('type_alerte', 'promotion')->count(),
+            'formations' => Alerte::where('type_alerte', 'formation')->count(),
+            'retraites' => Alerte::where('type_alerte', 'retraite')->count(),
+            'contrats' => Alerte::where('type_alerte', 'contrat')->count(),
+            'mutations' => Alerte::where('type_alerte', 'mutation')->count(),
+        ];
+
+        return Inertia::render('alertes/index', [
+            'alertes' => $alertes,
+            'statistiques' => $statistiques,
+            'filters' => $request->only(['search', 'type', 'statut']),
+        ]);
+    }
+
+    /**
+     * Marquer une alerte comme vue (supprimée)
+     */
+    public function marquerVue(Alerte $alerte)
+    {
+        $alerte->delete();
+
+        if (request()->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
+
+        return redirect()->back()->with('success', 'Alerte supprimée avec succès.');
+    }
+
+    /**
+     * Supprimer toutes les alertes non vues
+     */
+    public function marquerToutVue()
+    {
+        $alertes = Alerte::where('est_vue', false);
+        $count = $alertes->count();
+
+        if ($count > 0) {
+            $alertes->delete();
+            $message = "{$count} alerte(s) ont été supprimées avec succès.";
+        } else {
+            $message = "Aucune alerte à supprimer.";
+        }
+
+        return redirect()->back()->with('success', $message);
+    }
+
+    /**
+     * GRADES ÉLIGIBLES POUR LES ALERTES DE CONTRAT
+     * Sous-officiers jusqu'à 1ère classe uniquement
+     */
+    private function getGradesEligiblesContrat(): array
+    {
+        return [
+            'Soldat 2',
+            'Soldat 1',
+            'Caporal',
+            'Caporal-chef',
+            'Sergent',
+            'Sergent-Chef',
+            'Adjudant',
+            'Adjudant-Chef',
+            'Major'
+        ];
+    }
+
+    /**
+     * Vérifier et créer les alertes pour les renouvellements de contrat
+     */
+    public function checkRenouvellements()
+    {
+        $gradesEligibles = $this->getGradesEligiblesContrat();
+
+        $militaires = Militaire::whereIn('grade_actuel', $gradesEligibles)->get();
+
+        $createdCount = 0;
+        $alreadyExists = 0;
+        $moins5ans = 0;
+        $sansDateEntree = 0;
+
+        foreach ($militaires as $militaire) {
+            if (!$militaire->date_entree_service) {
+                $sansDateEntree++;
+                continue;
+            }
+
+            $serviceYears = floor($militaire->date_entree_service->diffInYears(now()));
+
+            if ($serviceYears < 5) {
+                $moins5ans++;
+                Alerte::where('militaire_id', $militaire->id)
+                    ->where('type_alerte', 'contrat')
+                    ->delete();
+                continue;
+            }
+
+            $alerteExiste = Alerte::where('militaire_id', $militaire->id)
+                ->where('type_alerte', 'contrat')
+                ->exists();
+
+            if ($alerteExiste) {
+                $alreadyExists++;
+            } else {
+                Alerte::create([
+                    'militaire_id' => $militaire->id,
+                    'type_alerte' => 'contrat',
+                    'message' => "Renouvellement de contrat requis pour {$militaire->prenom} {$militaire->nom} ({$serviceYears} ans de service) - Grade: {$militaire->grade_actuel}",
+                    'date_echeance' => now()->addMonths(6),
+                    'est_vue' => false,
+                ]);
+                $createdCount++;
+            }
+        }
+
+        if ($createdCount > 0) {
+            $message = "✅ {$createdCount} nouvelle(s) alerte(s) de contrat créée(s) avec succès !";
+        } elseif ($alreadyExists > 0) {
+            $message = "ℹ️ Tous les militaires éligibles ({$alreadyExists}) ont déjà une alerte de contrat.";
+        } else {
+            $message = "ℹ️ Aucun militaire éligible trouvé (grade éligible + 5 ans de service).";
+        }
+
+        return redirect()->back()->with('success', $message);
+    }
+
+    /**
+     * Vérifier et créer les alertes pour les mutations (durée d'affectation >= 3 ans)
+     */
+    public function checkMutations()
+    {
+        $militaires = Militaire::where('statut', 'actif')->with(['affectations' => function($q) {
+            $q->orderBy('date_mutation', 'desc');
+        }])->get();
+        $createdCount = 0;
+        $alreadyExists = 0;
+
+        foreach ($militaires as $militaire) {
+            // Récupérer l'affectation ayant la date de mutation la plus récente
+            $plusRecenteAff = $militaire->affectations->sortByDesc('date_mutation')->first();
+            $dateMutation = $plusRecenteAff?->date_mutation 
+                ?? $militaire->date_mutation 
+                ?? $militaire->date_entree_service;
+
+            if (!$dateMutation) {
+                continue;
+            }
+
+            // Synchroniser le militaire si nécessaire avec sa plus récente affectation
+            if ($plusRecenteAff && ($militaire->date_mutation != $plusRecenteAff->date_mutation || $militaire->unite != $plusRecenteAff->unite)) {
+                $militaire->update([
+                    'unite' => $plusRecenteAff->unite,
+                    'region' => $plusRecenteAff->region,
+                    'date_mutation' => $plusRecenteAff->date_mutation,
+                ]);
+            }
+
+            $anneesMutation = floor(Carbon::parse($dateMutation)->diffInYears(now()));
+
+            if ($anneesMutation < 3) {
+                // Supprimer toute alerte mutation si durée < 3 ans (ex: mutation en 2025)
+                Alerte::where('militaire_id', $militaire->id)
+                    ->where('type_alerte', 'mutation')
+                    ->delete();
+                continue;
+            }
+
+            // Vérifier si une alerte mutation non vue existe déjà ce mois-ci
+            $alerteExistanteCeMois = Alerte::where('militaire_id', $militaire->id)
+                ->where('type_alerte', 'mutation')
+                ->where('est_vue', false)
+                ->whereMonth('created_at', now()->month)
+                ->whereYear('created_at', now()->year)
+                ->exists();
+
+            if ($alerteExistanteCeMois) {
+                $alreadyExists++;
+            } else {
+                $unite = $plusRecenteAff?->unite ?? $militaire->unite ?? 'Unité non précisée';
+                $region = $plusRecenteAff?->region ?? $militaire->region ?? '-';
+                $dateMutFormatted = Carbon::parse($dateMutation)->format('d/m/Y');
+
+                Alerte::create([
+                    'militaire_id' => $militaire->id,
+                    'type_alerte' => 'mutation',
+                    'message' => "Alerte Mutation : {$militaire->grade_actuel} {$militaire->prenom} {$militaire->nom} en poste depuis {$anneesMutation} ans à {$unite} ({$region}) (dernière mutation le {$dateMutFormatted})",
+                    'date_echeance' => now()->endOfMonth(),
+                    'est_vue' => false,
+                ]);
+                $createdCount++;
+            }
+        }
+
+        if ($createdCount > 0) {
+            $message = "✅ {$createdCount} alerte(s) de mutation créée(s) / rappelées avec succès !";
+        } elseif ($alreadyExists > 0) {
+            $message = "ℹ️ Tous les militaires avec >= 3 ans de présence ({$alreadyExists}) ont déjà une alerte ce mois-ci.";
+        } else {
+            $message = "ℹ️ Aucun militaire avec une affectation de 3 ans ou plus trouvé.";
+        }
+
+        return redirect()->back()->with('success', $message);
+    }
+
+    /**
+     * Vérifier les alertes pour un militaire spécifique
+     */
+    public function verifierAlertesMilitaire(int $militaireId): bool
+    {
+        $militaire = Militaire::find($militaireId);
+
+        if (!$militaire) {
+            return false;
+        }
+
+        $gradesEligibles = $this->getGradesEligiblesContrat();
+
+        Alerte::where('militaire_id', $militaire->id)
+            ->where('type_alerte', 'contrat')
+            ->delete();
+
+        if (!in_array($militaire->grade_actuel, $gradesEligibles)) {
+            return false;
+        }
+
+        if (!$militaire->date_entree_service) {
+            return false;
+        }
+
+        $serviceYears = floor($militaire->date_entree_service->diffInYears(now()));
+
+        if ($serviceYears < 5) {
+            return false;
+        }
+
+        Alerte::create([
+            'militaire_id' => $militaire->id,
+            'type_alerte' => 'contrat',
+            'message' => "Renouvellement de contrat requis pour {$militaire->prenom} {$militaire->nom} ({$serviceYears} ans de service) - Grade: {$militaire->grade_actuel}",
+            'date_echeance' => now()->addMonths(6),
+            'est_vue' => false,
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Générer toutes les alertes automatiquement
+     */
+    public function genererAlertes()
+    {
+        $this->actualiserStatutRetraites();
+        $this->genererAlertesPromotion();
+        $this->genererAlertesRetraite();
+        $this->checkRenouvellements();
+
+        return redirect()->back()->with('success', 'Toutes les alertes ont été générées et les statuts des militaires retraités actualisés.');
+    }
+
+    /**
+     * Bascule automatiquement en 'retraité' les militaires ayant dépassé la limite d'âge
+     */
+    private function actualiserStatutRetraites(): int
+    {
+        $militaires = Militaire::where('statut', 'actif')->get();
+        $count = 0;
+        foreach ($militaires as $m) {
+            if ($m->estRetraiteDepassee()) {
+                $m->statut = 'retraité';
+                $m->save();
+                $count++;
+            }
+        }
+        return $count;
+    }
+
+    /**
+     * Générer les alertes de promotion
+     */
+    private function genererAlertesPromotion(): int
+    {
+        $militaires = Militaire::all();
+        $createdCount = 0;
+
+        foreach ($militaires as $militaire) {
+            if ($militaire->aAncienneteGradeMin(3)) {
+                $alerteExiste = Alerte::where('militaire_id', $militaire->id)
+                    ->where('type_alerte', 'promotion')
+                    ->where('est_vue', false)
+                    ->exists();
+
+                if (!$alerteExiste) {
+                    Alerte::create([
+                        'militaire_id' => $militaire->id,
+                        'type_alerte' => 'promotion',
+                        'message' => "{$militaire->prenom} {$militaire->nom} est éligible pour une promotion",
+                        'date_echeance' => now()->addMonths(6),
+                        'est_vue' => false,
+                    ]);
+                    $createdCount++;
+                }
+            }
+        }
+
+        return $createdCount;
+    }
+
+    /**
+     * Générer les alertes de retraite
+     */
+    private function genererAlertesRetraite(): int
+    {
+        $militaires = Militaire::all();
+        $createdCount = 0;
+
+        foreach ($militaires as $militaire) {
+            if ($militaire->estEligibleRetraite()) {
+                $alerteExiste = Alerte::where('militaire_id', $militaire->id)
+                    ->where('type_alerte', 'retraite')
+                    ->where('est_vue', false)
+                    ->exists();
+
+                if (!$alerteExiste) {
+                    $dateRetraite = $militaire->calculerDateRetraite();
+                    Alerte::create([
+                        'militaire_id' => $militaire->id,
+                        'type_alerte' => 'retraite',
+                        'message' => "{$militaire->prenom} {$militaire->nom} est éligible à la retraite",
+                        'date_echeance' => $dateRetraite,
+                        'est_vue' => false,
+                    ]);
+                    $createdCount++;
+                }
+            }
+        }
+
+        return $createdCount;
+    }
+}
