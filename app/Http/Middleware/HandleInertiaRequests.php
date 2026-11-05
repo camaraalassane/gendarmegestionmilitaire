@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use App\Models\Alerte;
+use Illuminate\Support\Facades\Cache;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -42,9 +43,11 @@ class HandleInertiaRequests extends Middleware
             ],
         ];
 
-        // Ajouter le compteur d'alertes si l'utilisateur est connecté
+        // Ajouter le compteur d'alertes si l'utilisateur est connecté (mis en cache 60s pour la rapidité)
         if ($request->user()) {
-            $sharedData['alertesCount'] = Alerte::where('est_vue', false)->count();
+            $sharedData['alertesCount'] = Cache::remember('alertes:non_vues_count_gendarme', 60, function () {
+                return Alerte::where('est_vue', false)->count();
+            });
         }
 
         return $sharedData;

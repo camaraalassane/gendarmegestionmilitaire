@@ -40,21 +40,41 @@
 
                 <!-- Statistiques -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-white rounded-lg shadow-sm p-4 border-l-4 border-sky-900">
-                        <div class="text-sm text-gray-500">Total militaires</div>
+                    <div @click="setStatutFilter('all')" 
+                         :class="filters.statut === 'all' ? 'ring-2 ring-sky-800 shadow-md bg-sky-50/50' : 'bg-white shadow-sm hover:shadow-md'"
+                         class="rounded-lg p-4 border-l-4 border-sky-900 cursor-pointer transition-all">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Total militaires</span>
+                            <i class="pi pi-users text-sky-800 text-sm"></i>
+                        </div>
                         <div class="text-xl md:text-2xl font-bold text-sky-950">{{ statistiques.total }}</div>
                     </div>
-                    <div class="bg-white rounded-lg shadow-sm p-4 border-l-4 border-emerald-500">
-                        <div class="text-sm text-gray-500">Militaires actifs</div>
+                    <div @click="setStatutFilter('actif')" 
+                         :class="filters.statut === 'actif' ? 'ring-2 ring-emerald-500 shadow-md bg-emerald-50/50' : 'bg-white shadow-sm hover:shadow-md'"
+                         class="rounded-lg p-4 border-l-4 border-emerald-500 cursor-pointer transition-all">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Militaires actifs</span>
+                            <i class="pi pi-check-circle text-emerald-600 text-sm"></i>
+                        </div>
                         <div class="text-xl md:text-2xl font-bold text-emerald-600">{{ statistiques.actifs }}</div>
                     </div>
-                    <div class="bg-white rounded-lg shadow-sm p-4 border-l-4 border-amber-500">
-                        <div class="text-sm text-gray-500">Retraités</div>
-                        <div class="text-xl md:text-2xl font-bold text-amber-600">{{ statistiques.retraites }}</div>
+                    <div @click="setStatutFilter('retraites_n')" 
+                         :class="filters.statut === 'retraites_n' ? 'ring-2 ring-purple-500 shadow-md bg-purple-50/50' : 'bg-white shadow-sm hover:shadow-md'"
+                         class="rounded-lg p-4 border-l-4 border-purple-500 cursor-pointer transition-all">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Retraites N</span>
+                            <i class="pi pi-calendar text-purple-600 text-sm"></i>
+                        </div>
+                        <div class="text-xl md:text-2xl font-bold text-purple-700">{{ statistiques.retraites_n }}</div>
                     </div>
-                    <div class="bg-white rounded-lg shadow-sm p-4 border-l-4 border-red-500">
-                        <div class="text-sm text-gray-500">Alertes non vues</div>
-                        <div class="text-xl md:text-2xl font-bold text-red-600">{{ statistiques.alertes }}</div>
+                    <div @click="setStatutFilter('retraites_n1')" 
+                         :class="filters.statut === 'retraites_n1' ? 'ring-2 ring-indigo-500 shadow-md bg-indigo-50/50' : 'bg-white shadow-sm hover:shadow-md'"
+                         class="rounded-lg p-4 border-l-4 border-indigo-500 cursor-pointer transition-all">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Retraites N+1</span>
+                            <i class="pi pi-calendar text-indigo-600 text-sm"></i>
+                        </div>
+                        <div class="text-xl md:text-2xl font-bold text-indigo-700">{{ statistiques.retraites_n1 }}</div>
                     </div>
                 </div>
 
@@ -667,7 +687,10 @@ const printBatchCertificats = () => {
 const gradeOptions = ref([]);
 const regionOptions = ref([]);
 const statutOptions = [
+    { label: 'Tous les statuts', value: 'all' },
     { label: 'Actif', value: 'actif' },
+    { label: 'Retraites N', value: 'retraites_n' },
+    { label: 'Retraites N+1', value: 'retraites_n1' },
     { label: 'Retraité', value: 'retraité' },
     { label: 'Déserteur', value: 'déserteur' },
     { label: 'Décédé', value: 'décédé' },
@@ -704,8 +727,13 @@ const filters = reactive({
     search: props.filters?.search || '',
     grade: props.filters?.grade || null,
     region: props.filters?.region || null,
-    statut: props.filters?.statut || null
+    statut: props.filters?.statut || 'actif'
 });
+
+const setStatutFilter = (statut) => {
+    filters.statut = statut;
+    loadMilitaires(1);
+};
 
 const exportFilters = reactive({
     grade: null,
@@ -765,7 +793,8 @@ const resetFilters = () => {
     filters.search = '';
     filters.grade = null;
     filters.region = null;
-    filters.statut = null;
+    filters.statut = 'actif';
+    loadMilitaires(1);
 };
 
 const onPageChange = (event) => changePage(event.page + 1);

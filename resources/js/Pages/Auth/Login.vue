@@ -102,7 +102,7 @@
                             :label="form.processing ? 'Connexion...' : 'Se connecter'"
                             :icon="form.processing ? 'pi pi-spinner pi-spin' : 'pi pi-sign-in'"
                             :loading="form.processing"
-                            class="w-full bg-gradient-to-r from-sky-800 to-sky-700 border-0 text-white py-2 text-sm font-semibold hover:from-sky-900 hover:to-sky-800 shadow-xs" />
+                            class="w-full !bg-gradient-to-r !from-sky-800 !to-sky-700 hover:!from-sky-900 hover:!to-sky-800 !border-0 text-white py-2 text-sm font-semibold shadow-md cursor-pointer" />
                         
                         <!-- Footer compact -->
                         <div class="text-center pt-2 border-t border-gray-100">

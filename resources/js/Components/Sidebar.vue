@@ -159,16 +159,6 @@ const isActive = (href) => {
 const logout = () => {
     router.post(route('logout'));
 };
-
-onMounted(() => {
-    fetch(logoUrl.value, { method: 'HEAD' })
-        .then(res => {
-            logoExists.value = res.ok;
-        })
-        .catch(() => {
-            logoExists.value = false;
-        });
-});
 </script>
 
 <style scoped>

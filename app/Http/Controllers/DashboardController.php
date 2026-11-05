@@ -55,15 +55,19 @@ class DashboardController extends Controller
             ];
         });
 
-        $statistiques = [
-            'total_militaires' => Militaire::count(),
-            'militaires_actifs' => Militaire::where('statut', 'actif')->count(),
-            'alertes_non_vues' => Alerte::where('est_vue', false)->count(),
-            'total_retraites_n' => $stats['total_retraites_n'] ?? 0,
-            'total_retraites_n1' => $stats['total_retraites_n1'] ?? 0,
-            'total_proposables_n' => $stats['total_proposables_n'] ?? 0,
-            'total_proposables_n1' => $stats['total_proposables_n1'] ?? 0,
-        ];
+        $statistiques = Cache::remember('dashboard:statistiques_cards', 120, function () use ($stats) {
+            return [
+                'total_militaires' => Militaire::count(),
+                'militaires_actifs' => Militaire::where('statut', 'actif')->count(),
+                'total_retraites' => Militaire::where('statut', 'retraité')->count(),
+                'total_decedes' => Militaire::where('statut', 'décédé')->count(),
+                'alertes_non_vues' => Alerte::where('est_vue', false)->count(),
+                'total_retraites_n' => $stats['total_retraites_n'] ?? 0,
+                'total_retraites_n1' => $stats['total_retraites_n1'] ?? 0,
+                'total_proposables_n' => $stats['total_proposables_n'] ?? 0,
+                'total_proposables_n1' => $stats['total_proposables_n1'] ?? 0,
+            ];
+        });
 
         $grades = Grade::withCount(['militaires' => fn($q) => $q->where('statut', 'actif')])
             ->get(['id', 'nom_grade', 'type_grade'])

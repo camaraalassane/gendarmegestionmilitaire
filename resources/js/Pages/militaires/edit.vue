@@ -208,7 +208,7 @@
                                         <!-- Téléphone contact -->
                                         <div class="field">
                                             <label for="telephone_personne_contacter" class="block text-sm font-medium text-gray-700 mb-1">
-                                                Téléphone du contact
+                                                Téléphone de la personne à contacter
                                             </label>
                                             <InputText id="telephone_personne_contacter" v-model="form.telephone_personne_contacter" class="w-full" placeholder="Ex: +223 66 XX XX XX" />
                                         </div>
@@ -219,14 +219,9 @@
                             <!-- 3. AFFECTATIONS & MAILLAGE TERRITORIAL -->
                             <Card class="mb-6 shadow-sm border border-slate-100">
                                 <template #title>
-                                    <div class="flex items-center justify-between border-b pb-3">
-                                        <div class="flex items-center gap-2 text-sky-900 text-lg font-bold">
-                                            <i class="pi pi-building text-sky-800"></i>
-                                            <span>Affectation & Maillage Territorial</span>
-                                        </div>
-                                        <Button type="button" label="Ajouter une affectation" icon="pi pi-plus"
-                                            class="p-button-sm !bg-gradient-to-r !from-sky-800 !to-sky-700 hover:!from-sky-900 hover:!to-sky-800 !text-white !border-0 shadow-xs font-semibold"
-                                            @click="addAffectation" />
+                                    <div class="flex items-center gap-2 text-sky-900 border-b pb-3 text-lg font-bold">
+                                        <i class="pi pi-building text-sky-800"></i>
+                                        <span>Affectation & Maillage Territorial</span>
                                     </div>
                                 </template>
 

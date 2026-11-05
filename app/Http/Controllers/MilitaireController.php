@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 use App\Models\Militaire;
 use App\Models\Grade;
 use App\Models\Alerte;
@@ -61,15 +62,28 @@ class MilitaireController extends Controller
             $query->where('militaires.unite', 'LIKE', "%{$request->unite}%");
         }
 
-        if ($request->filled('statut') && $request->statut !== 'all') {
-            $query->where('militaires.statut', $request->statut);
+        $anneeN = Carbon::now()->year;
+        $anneeN1 = $anneeN + 1;
+        $idsN = $this->getIdsRetraitePourAnnee($anneeN);
+        $idsN1 = $this->getIdsRetraitePourAnnee($anneeN1);
+
+        $statutFilter = $request->input('statut', 'actif');
+
+        if ($statutFilter === 'all') {
+            // Afficher tous les militaires (sans restriction de statut)
+        } elseif ($statutFilter === 'retraites_n') {
+            $query->whereIn('militaires.id', $idsN);
+        } elseif ($statutFilter === 'retraites_n1') {
+            $query->whereIn('militaires.id', $idsN1);
+        } elseif (!empty($statutFilter)) {
+            $query->where('militaires.statut', $statutFilter);
         }
 
         $statistiques = [
-            'total'     => Militaire::count(),
-            'actifs'    => Militaire::where('statut', 'actif')->count(),
-            'retraites' => Militaire::where('statut', 'retraité')->count(),
-            'alertes'   => Alerte::where('est_vue', false)->count(),
+            'total'        => Cache::remember('gendarme:militaires_total', 120, fn() => Militaire::count()),
+            'actifs'       => Cache::remember('gendarme:militaires_actifs', 120, fn() => Militaire::where('statut', 'actif')->count()),
+            'retraites_n'  => count($idsN),
+            'retraites_n1' => count($idsN1),
         ];
 
         $query->orderByRaw('COALESCE(grades.ordre, -1) DESC')
@@ -120,7 +134,13 @@ class MilitaireController extends Controller
         return Inertia::render('militaires/index', [
             'militaires'   => $militaires,
             'statistiques' => $statistiques,
-            'filters'      => $request->only(['search', 'grade', 'statut', 'region', 'unite']),
+            'filters'      => [
+                'search' => $request->search,
+                'grade'  => $request->grade,
+                'statut' => $statutFilter,
+                'region' => $request->region,
+                'unite'  => $request->unite,
+            ],
             'grades'       => $grades,
             'regions'      => $regions,
         ]);
@@ -1462,5 +1482,41 @@ class MilitaireController extends Controller
                 'date_echeance' => $echeance,
             ]);
         }
+    }
+
+    /**
+     * Retourne la liste des IDs des militaires partant à la retraite pour une année cible.
+     */
+    private function getIdsRetraitePourAnnee(int $anneeCible): array
+    {
+        return Cache::remember("gendarme:ids_retraite_{$anneeCible}", 300, function () use ($anneeCible) {
+            $grades = Grade::pluck('retraite_obligatoire', 'nom_grade')->toArray();
+            $militaires = Militaire::whereNotNull('date_naissance')
+                ->whereNotNull('grade_actuel')
+                ->select('id', 'date_naissance', 'grade_actuel', 'statut')
+                ->get();
+
+            $ids = [];
+            $anneeCourante = (int) Carbon::now()->year;
+
+            foreach ($militaires as $m) {
+                $ageRetraite = $grades[$m->grade_actuel] ?? null;
+                if (!$ageRetraite) continue;
+
+                $anneeRetraite = (int) (Carbon::parse($m->date_naissance)->year + $ageRetraite);
+
+                if ($anneeCible === $anneeCourante) {
+                    if ($anneeRetraite === $anneeCible || ($m->statut === 'actif' && $anneeRetraite < $anneeCible)) {
+                        $ids[] = $m->id;
+                    }
+                } else {
+                    if ($m->statut === 'actif' && $anneeRetraite === $anneeCible) {
+                        $ids[] = $m->id;
+                    }
+                }
+            }
+
+            return $ids;
+        });
     }
 }

@@ -9,8 +9,12 @@
                 <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                     <div class="p-6">
                         
-                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
-                            <div class="bg-white rounded-xl shadow-xs p-4 border border-slate-200 border-l-4 border-sky-800">
+                        <!-- Cartes Principales (Redirection vers les pages correspondantes) -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
+                            <!-- 1. Total Militaires -> renvoie sur /militaires -->
+                            <div @click="router.visit(route('militaires.index', { statut: 'all' }))"
+                                 class="bg-white rounded-xl shadow-xs p-4 border border-slate-200 border-l-4 border-sky-800 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
+                                 title="Voir tous les militaires">
                                 <div class="flex items-center justify-between mb-2">
                                     <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Total Militaires</span>
                                     <div class="w-8 h-8 rounded-full bg-sky-50 flex items-center justify-center text-sky-800">
@@ -18,9 +22,15 @@
                                     </div>
                                 </div>
                                 <div class="text-2xl md:text-3xl font-extrabold text-sky-950">{{ statistiques.total_militaires }}</div>
+                                <div class="text-[11px] text-sky-700 mt-1 flex items-center gap-1 font-medium">
+                                    <span>Consulter</span> <i class="pi pi-arrow-right text-[9px]"></i>
+                                </div>
                             </div>
                             
-                            <div class="bg-white rounded-xl shadow-xs p-4 border border-slate-200 border-l-4 border-emerald-500">
+                            <!-- 2. Militaires Actifs -> renvoie sur /militaires?statut=actif -->
+                            <div @click="router.visit(route('militaires.index', { statut: 'actif' }))"
+                                 class="bg-white rounded-xl shadow-xs p-4 border border-slate-200 border-l-4 border-emerald-500 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
+                                 title="Voir les militaires actifs">
                                 <div class="flex items-center justify-between mb-2">
                                     <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Militaires Actifs</span>
                                     <div class="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
@@ -28,9 +38,47 @@
                                     </div>
                                 </div>
                                 <div class="text-2xl md:text-3xl font-extrabold text-emerald-600">{{ statistiques.militaires_actifs }}</div>
+                                <div class="text-[11px] text-emerald-700 mt-1 flex items-center gap-1 font-medium">
+                                    <span>Consulter</span> <i class="pi pi-arrow-right text-[9px]"></i>
+                                </div>
+                            </div>
+
+                            <!-- 3. Retraités -> renvoie sur /militaires?statut=retraité -->
+                            <div @click="router.visit(route('militaires.index', { statut: 'retraité' }))"
+                                 class="bg-white rounded-xl shadow-xs p-4 border border-slate-200 border-l-4 border-slate-500 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
+                                 title="Voir les retraités archivés">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Retraités</span>
+                                    <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
+                                        <i class="pi pi-history text-base"></i>
+                                    </div>
+                                </div>
+                                <div class="text-2xl md:text-3xl font-extrabold text-slate-700">{{ statistiques.total_retraites || 0 }}</div>
+                                <div class="text-[11px] text-slate-600 mt-1 flex items-center gap-1 font-medium">
+                                    <span>Consulter</span> <i class="pi pi-arrow-right text-[9px]"></i>
+                                </div>
+                            </div>
+
+                            <!-- 4. Décédés -> renvoie sur /militaires?statut=décédé -->
+                            <div @click="router.visit(route('militaires.index', { statut: 'décédé' }))"
+                                 class="bg-white rounded-xl shadow-xs p-4 border border-slate-200 border-l-4 border-rose-500 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
+                                 title="Voir les militaires décédés">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Décédés</span>
+                                    <div class="w-8 h-8 rounded-full bg-rose-50 flex items-center justify-center text-rose-600">
+                                        <i class="pi pi-heart text-base"></i>
+                                    </div>
+                                </div>
+                                <div class="text-2xl md:text-3xl font-extrabold text-rose-700">{{ statistiques.total_decedes || 0 }}</div>
+                                <div class="text-[11px] text-rose-700 mt-1 flex items-center gap-1 font-medium">
+                                    <span>Consulter</span> <i class="pi pi-arrow-right text-[9px]"></i>
+                                </div>
                             </div>
                             
-                            <div class="bg-white rounded-xl shadow-xs p-4 border border-slate-200 border-l-4 border-amber-500">
+                            <!-- 5. Alertes Non Vues -> renvoie sur /alertes -->
+                            <div @click="router.visit(route('alertes.index'))"
+                                 class="bg-white rounded-xl shadow-xs p-4 border border-slate-200 border-l-4 border-amber-500 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all"
+                                 title="Voir les alertes">
                                 <div class="flex items-center justify-between mb-2">
                                     <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Alertes Non Vues</span>
                                     <div class="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center text-amber-600">
@@ -38,9 +86,19 @@
                                     </div>
                                 </div>
                                 <div class="text-2xl md:text-3xl font-extrabold text-amber-600">{{ statistiques.alertes_non_vues }}</div>
+                                <div class="text-[11px] text-amber-700 mt-1 flex items-center gap-1 font-medium">
+                                    <span>Consulter</span> <i class="pi pi-arrow-right text-[9px]"></i>
+                                </div>
                             </div>
-                            
-                            <div class="bg-white rounded-xl shadow-xs p-4 border border-slate-200 border-l-4 border-purple-500">
+                        </div>
+
+                        <!-- 2ème groupe : Suivi des départs et avancements (clic affiche direct dans le tableau en bas) -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+                            <!-- Retraites N -->
+                            <div @click="loadSection('retraitesN')"
+                                 :class="activeSection === 'retraitesN' ? 'ring-2 ring-purple-500 shadow-md bg-purple-50/40' : 'bg-white shadow-xs hover:shadow-md'"
+                                 class="rounded-xl p-4 border border-slate-200 border-l-4 border-purple-500 cursor-pointer transition-all"
+                                 title="Afficher dans le tableau en bas">
                                 <div class="flex items-center justify-between mb-2">
                                     <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Retraites N</span>
                                     <div class="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center text-purple-600">
@@ -48,9 +106,16 @@
                                     </div>
                                 </div>
                                 <div class="text-2xl md:text-3xl font-extrabold text-purple-700">{{ retraitesNTotal }}</div>
+                                <div class="text-[11px] text-purple-600 mt-1 flex items-center gap-1 font-medium">
+                                    <i class="pi pi-table text-[10px]"></i> <span>Afficher dans le tableau</span>
+                                </div>
                             </div>
                             
-                            <div class="bg-white rounded-xl shadow-xs p-4 border border-slate-200 border-l-4 border-indigo-500">
+                            <!-- Retraites N+1 -->
+                            <div @click="loadSection('retraitesN1')"
+                                 :class="activeSection === 'retraitesN1' ? 'ring-2 ring-indigo-500 shadow-md bg-indigo-50/40' : 'bg-white shadow-xs hover:shadow-md'"
+                                 class="rounded-xl p-4 border border-slate-200 border-l-4 border-indigo-500 cursor-pointer transition-all"
+                                 title="Afficher dans le tableau en bas">
                                 <div class="flex items-center justify-between mb-2">
                                     <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Retraites N+1</span>
                                     <div class="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
@@ -58,9 +123,16 @@
                                     </div>
                                 </div>
                                 <div class="text-2xl md:text-3xl font-extrabold text-indigo-700">{{ retraitesN1Total }}</div>
+                                <div class="text-[11px] text-indigo-600 mt-1 flex items-center gap-1 font-medium">
+                                    <i class="pi pi-table text-[10px]"></i> <span>Afficher dans le tableau</span>
+                                </div>
                             </div>
                             
-                            <div class="bg-white rounded-xl shadow-xs p-4 border border-slate-200 border-l-4 border-sky-600">
+                            <!-- Proposables N -->
+                            <div @click="loadSection('proposablesN')"
+                                 :class="activeSection === 'proposablesN' ? 'ring-2 ring-sky-600 shadow-md bg-sky-50/40' : 'bg-white shadow-xs hover:shadow-md'"
+                                 class="rounded-xl p-4 border border-slate-200 border-l-4 border-sky-600 cursor-pointer transition-all"
+                                 title="Afficher dans le tableau en bas">
                                 <div class="flex items-center justify-between mb-2">
                                     <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Proposables N</span>
                                     <div class="w-8 h-8 rounded-full bg-sky-50 flex items-center justify-center text-sky-600">
@@ -68,9 +140,16 @@
                                     </div>
                                 </div>
                                 <div class="text-2xl md:text-3xl font-extrabold text-sky-800">{{ proposablesNTotal }}</div>
+                                <div class="text-[11px] text-sky-700 mt-1 flex items-center gap-1 font-medium">
+                                    <i class="pi pi-table text-[10px]"></i> <span>Afficher dans le tableau</span>
+                                </div>
                             </div>
                             
-                            <div class="bg-white rounded-xl shadow-xs p-4 border border-slate-200 border-l-4 border-teal-600">
+                            <!-- Proposables N+1 -->
+                            <div @click="loadSection('proposablesN1')"
+                                 :class="activeSection === 'proposablesN1' ? 'ring-2 ring-teal-600 shadow-md bg-teal-50/40' : 'bg-white shadow-xs hover:shadow-md'"
+                                 class="rounded-xl p-4 border border-slate-200 border-l-4 border-teal-600 cursor-pointer transition-all"
+                                 title="Afficher dans le tableau en bas">
                                 <div class="flex items-center justify-between mb-2">
                                     <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Proposables N+1</span>
                                     <div class="w-8 h-8 rounded-full bg-teal-50 flex items-center justify-center text-teal-600">
@@ -78,26 +157,15 @@
                                     </div>
                                 </div>
                                 <div class="text-2xl md:text-3xl font-extrabold text-teal-700">{{ proposablesN1Total }}</div>
+                                <div class="text-[11px] text-teal-700 mt-1 flex items-center gap-1 font-medium">
+                                    <i class="pi pi-table text-[10px]"></i> <span>Afficher dans le tableau</span>
+                                </div>
                             </div>
                         </div>
 
-                        <div class="flex items-center gap-2.5 mb-6 border-b pb-4 overflow-x-auto shrink-0 flex-nowrap">
-                            <Button label="Retraites N" 
-                                    :class="activeSection === 'retraitesN' ? '!bg-gradient-to-r !from-sky-800 !to-sky-700 !text-white !border-0 shadow-xs whitespace-nowrap shrink-0' : '!bg-white !text-slate-700 !border !border-slate-200 hover:!bg-sky-50 hover:!text-sky-900 whitespace-nowrap shrink-0'"
-                                    @click="loadSection('retraitesN')" />
-                            <Button label="Retraites N+1" 
-                                    :class="activeSection === 'retraitesN1' ? '!bg-gradient-to-r !from-sky-800 !to-sky-700 !text-white !border-0 shadow-xs whitespace-nowrap shrink-0' : '!bg-white !text-slate-700 !border !border-slate-200 hover:!bg-sky-50 hover:!text-sky-900 whitespace-nowrap shrink-0'"
-                                    @click="loadSection('retraitesN1')" />
-                            <Button label="Proposables N" 
-                                    :class="activeSection === 'proposablesN' ? '!bg-gradient-to-r !from-sky-800 !to-sky-700 !text-white !border-0 shadow-xs whitespace-nowrap shrink-0' : '!bg-white !text-slate-700 !border !border-slate-200 hover:!bg-sky-50 hover:!text-sky-900 whitespace-nowrap shrink-0'"
-                                    @click="loadSection('proposablesN')" />
-                            <Button label="Proposables N+1" 
-                                    :class="activeSection === 'proposablesN1' ? '!bg-gradient-to-r !from-sky-800 !to-sky-700 !text-white !border-0 shadow-xs whitespace-nowrap shrink-0' : '!bg-white !text-slate-700 !border !border-slate-200 hover:!bg-sky-50 hover:!text-sky-900 whitespace-nowrap shrink-0'"
-                                    @click="loadSection('proposablesN1')" />
-                        </div>
 
                         <div v-if="loading" class="text-center py-12">
-                            <i class="pi pi-spin pi-spinner text-3xl text-sky-800"></i>
+                            <i class="pi pi-spin pi-spinner text-3xl text-sky-600"></i>
                             <p class="mt-2 text-gray-500">Chargement...</p>
                         </div>
                         <div v-else-if="sectionData">
@@ -105,7 +173,7 @@
                                 <h3 class="text-lg font-semibold text-gray-800">{{ sectionTitle }}</h3>
                                 <Button label="Exporter en Excel" 
                                         icon="pi pi-file-excel" 
-                                        class="p-button-sm !bg-white hover:!bg-sky-50 !text-sky-900 !border !border-sky-300 font-semibold shadow-2xs"
+                                        class="p-button-success p-button-sm"
                                         @click="exportCurrentSection" />
                             </div>
                             <Card>
