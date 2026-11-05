@@ -7,6 +7,7 @@ use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithColumnWidths;
 use Maatwebsite\Excel\Concerns\WithStyles;
+use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Illuminate\Support\Collection;
 
@@ -36,14 +37,9 @@ class EligibilitesExport implements WithMultipleSheets
     {
         $sheets = [];
 
-        // 🔥 VÉRIFICATION : Si pas de données, retourner un tableau vide
-        if (empty($this->data)) {
-            return [];
-        }
-
-        // 🔥 VÉRIFICATION : S'assurer que les données sont un tableau
-        if (!is_array($this->data)) {
-            return [];
+        // 🔥 VÉRIFICATION : Si pas de données, retourner une feuille vide
+        if (empty($this->data) || !is_array($this->data)) {
+            return [new EmptySheet()];
         }
 
         if ($this->type === 'promotions' || $this->type === 'all') {
@@ -112,7 +108,7 @@ class EligibilitesExport implements WithMultipleSheets
 /**
  * 🔥 NOUVELLE FEUILLE : Contrats à renouveler
  */
-class ContratSheet implements FromCollection, WithHeadings, WithColumnWidths, WithStyles
+class ContratSheet implements FromCollection, WithHeadings, WithColumnWidths, WithStyles, WithTitle
 {
     protected $contrats;
 
@@ -188,7 +184,7 @@ class ContratSheet implements FromCollection, WithHeadings, WithColumnWidths, Wi
 /**
  * Feuille vide pour éviter les erreurs
  */
-class EmptySheet implements FromCollection, WithHeadings
+class EmptySheet implements FromCollection, WithHeadings, WithTitle
 {
     public function collection()
     {
@@ -209,7 +205,7 @@ class EmptySheet implements FromCollection, WithHeadings
 /**
  * Feuille pour les promotions par grade cible
  */
-class PromotionSheet implements FromCollection, WithHeadings, WithColumnWidths, WithStyles
+class PromotionSheet implements FromCollection, WithHeadings, WithColumnWidths, WithStyles, WithTitle
 {
     protected $gradeCible;
     protected $promotions;
@@ -296,7 +292,7 @@ class PromotionSheet implements FromCollection, WithHeadings, WithColumnWidths, 
 /**
  * Feuille pour les formations par nom de formation
  */
-class FormationSheet implements FromCollection, WithHeadings, WithColumnWidths, WithStyles
+class FormationSheet implements FromCollection, WithHeadings, WithColumnWidths, WithStyles, WithTitle
 {
     protected $nomFormation;
     protected $formations;
@@ -397,7 +393,7 @@ class FormationSheet implements FromCollection, WithHeadings, WithColumnWidths, 
 /**
  * Feuille pour les retraites
  */
-class RetraiteSheet implements FromCollection, WithHeadings, WithColumnWidths, WithStyles
+class RetraiteSheet implements FromCollection, WithHeadings, WithColumnWidths, WithStyles, WithTitle
 {
     protected $retraites;
 
@@ -466,7 +462,7 @@ class RetraiteSheet implements FromCollection, WithHeadings, WithColumnWidths, W
 /**
  * 🔥 NOUVELLE FEUILLE : Éligibles à la mutation (>= 3 ans d'affectation)
  */
-class MutationSheet implements FromCollection, WithHeadings, WithColumnWidths, WithStyles
+class MutationSheet implements FromCollection, WithHeadings, WithColumnWidths, WithStyles, WithTitle
 {
     protected $mutations;
 

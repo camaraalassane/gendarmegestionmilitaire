@@ -15,12 +15,16 @@ class MilitairesExport implements FromQuery, WithHeadings, WithMapping, ShouldAu
     protected $search;
     protected $grade;
     protected $statut;
+    protected $idsN;
+    protected $idsN1;
 
-    public function __construct($search = null, $grade = null, $statut = null)
+    public function __construct($search = null, $grade = null, $statut = null, $idsN = [], $idsN1 = [])
     {
         $this->search = $search;
         $this->grade = $grade;
         $this->statut = $statut;
+        $this->idsN = $idsN;
+        $this->idsN1 = $idsN1;
     }
 
     public function query()
@@ -49,7 +53,13 @@ class MilitairesExport implements FromQuery, WithHeadings, WithMapping, ShouldAu
             $query->where('grade_actuel', $this->grade);
         }
 
-        if ($this->statut) {
+        if ($this->statut === 'all') {
+            // Tous les militaires (sans restriction de statut)
+        } elseif ($this->statut === 'retraites_n') {
+            $query->whereIn('id', $this->idsN ?: [0]);
+        } elseif ($this->statut === 'retraites_n1') {
+            $query->whereIn('id', $this->idsN1 ?: [0]);
+        } elseif ($this->statut) {
             $query->where('statut', $this->statut);
         }
 

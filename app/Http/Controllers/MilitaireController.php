@@ -661,8 +661,13 @@ class MilitaireController extends Controller
             \Log::info('📊 Nombre de militaires avec grade "' . $grade . '" : ' . $count);
         }
 
+        $anneeN = \Carbon\Carbon::now()->year;
+        $anneeN1 = $anneeN + 1;
+        $idsN = $this->getIdsRetraitePourAnnee($anneeN);
+        $idsN1 = $this->getIdsRetraitePourAnnee($anneeN1);
+
         return Excel::download(
-            new MilitairesExport($search, $grade, $statut),
+            new MilitairesExport($search, $grade, $statut, $idsN, $idsN1),
             'militaires_' . date('Y-m-d') . '.xlsx'
         );
     }
