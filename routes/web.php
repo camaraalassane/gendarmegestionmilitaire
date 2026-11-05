@@ -19,6 +19,26 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
+// Route de nettoyage complet OPcache & Laravel (sans sudo requis)
+Route::get('/clear-all-caches', function () {
+    $results = [];
+    if (function_exists('opcache_reset')) {
+        $results['opcache_reset'] = opcache_reset();
+    }
+    \Illuminate\Support\Facades\Cache::flush();
+    \Illuminate\Support\Facades\Artisan::call('optimize:clear');
+    
+    return response()->json([
+        'status' => 'success',
+        'message' => 'OPcache et caches Laravel réinitialisés avec succès !',
+        'total' => \App\Models\Militaire::count(),
+        'actifs' => \App\Models\Militaire::where('statut', 'actif')->count(),
+        'retraites' => \App\Models\Militaire::where('statut', 'retraité')->count(),
+        'decedes' => \App\Models\Militaire::where('statut', 'décédé')->count(),
+        'results' => $results,
+    ]);
+});
+
 // Route du dashboard : Redirection intelligente selon le rôle
 Route::get('/dashboard', function () {
     if (auth()->user()->isSuperAdmin()) {
