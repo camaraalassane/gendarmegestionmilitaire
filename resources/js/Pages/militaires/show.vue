@@ -301,17 +301,29 @@
                         </div>
                         <div class="space-y-4">
                             <div>
-                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Décorations Militaires</span>
-                                <div class="p-3 bg-amber-50/60 rounded-lg border border-amber-200/60 text-sm font-medium text-amber-900">
-                                    <i class="pi pi-award text-amber-600 mr-2"></i>
-                                    {{ militaire.decorations || 'Aucune décoration enregistrée' }}
+                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Décorations Militaires</span>
+                                <div v-if="decorationsList.length > 0" class="flex flex-wrap gap-2">
+                                    <span v-for="(dec, idx) in decorationsList" :key="idx"
+                                          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-200/80 text-xs font-semibold shadow-2xs">
+                                        <i class="pi pi-award text-amber-600 text-sm"></i>
+                                        <span>{{ dec }}</span>
+                                    </span>
+                                </div>
+                                <div v-else class="p-3 bg-amber-50/40 rounded-lg border border-amber-100 text-xs text-slate-500 italic">
+                                    Aucune décoration enregistrée
                                 </div>
                             </div>
                             <div>
-                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Diplômes Académiques</span>
-                                <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-sm font-medium text-slate-800">
-                                    <i class="pi pi-graduation-cap text-sky-800 mr-2"></i>
-                                    {{ militaire.diplomes_academiques || 'Aucun diplôme civil renseigné' }}
+                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Diplômes Académiques (Civils / Universitaires)</span>
+                                <div v-if="diplomesList.length > 0" class="flex flex-wrap gap-2">
+                                    <span v-for="(dip, idx) in diplomesList" :key="idx"
+                                          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-50 text-sky-900 border border-sky-200/80 text-xs font-semibold shadow-2xs">
+                                        <i class="pi pi-graduation-cap text-sky-700 text-sm"></i>
+                                        <span>{{ dip }}</span>
+                                    </span>
+                                </div>
+                                <div v-else class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-500 italic">
+                                    Aucun diplôme civil renseigné
                                 </div>
                             </div>
                             <div>
@@ -648,6 +660,34 @@ const props = defineProps({
     alertes: { type: Array, default: () => [] },
     contratActif: { type: Object, default: null }
 });
+
+// Helper pour parser les listes JSON ou texte
+const parseList = (val) => {
+    if (!val) return [];
+    if (Array.isArray(val)) return val.map(s => String(s).trim()).filter(Boolean);
+    if (typeof val === 'string') {
+        const trimmed = val.trim();
+        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+            try {
+                const parsed = JSON.parse(trimmed);
+                if (Array.isArray(parsed)) {
+                    return parsed.map(s => String(s).trim()).filter(Boolean);
+                }
+            } catch (e) {}
+        }
+        if (trimmed.includes('\n')) {
+            return trimmed.split('\n').map(s => s.trim().replace(/^[-•*]\s*/, '')).filter(Boolean);
+        }
+        if (trimmed.includes(',')) {
+            return trimmed.split(',').map(s => s.trim()).filter(Boolean);
+        }
+        return [trimmed].filter(Boolean);
+    }
+    return [];
+};
+
+const decorationsList = computed(() => parseList(props.militaire.decorations));
+const diplomesList = computed(() => parseList(props.militaire.diplomes_academiques));
 
 // Trier les affectations de la plus récente à la plus ancienne (l'actuelle est toujours la plus récente)
 const sortedAffectations = computed(() => {

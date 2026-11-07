@@ -110,6 +110,18 @@ class MilitairesExport implements FromQuery, WithHeadings, WithMapping, ShouldAu
         // Récupération des certificats (niveaux)
         $certificats = $militaire->certificats->pluck('niveau_certificat')->filter()->implode(', ');
 
+        $formatList = function($val) {
+            if (!$val) return '';
+            $trimmed = trim((string)$val);
+            if (str_starts_with($trimmed, '[') && str_ends_with($trimmed, ']')) {
+                $decoded = json_decode($trimmed, true);
+                if (is_array($decoded)) {
+                    return implode(', ', array_filter(array_map('trim', $decoded)));
+                }
+            }
+            return $trimmed;
+        };
+
         $row = [
             $militaire->matricule,
             $militaire->mle_grm ?? '',
@@ -138,8 +150,8 @@ class MilitairesExport implements FromQuery, WithHeadings, WithMapping, ShouldAu
             $militaire->specialite ?? '',
             $militaire->a_permis_conduire ? 'Oui' : 'Non',
             $certificats,
-            $militaire->diplomes_academiques ?? '',
-            $militaire->decorations ?? '',
+            $formatList($militaire->diplomes_academiques),
+            $formatList($militaire->decorations),
             $militaire->observations ?? '',
         ];
 

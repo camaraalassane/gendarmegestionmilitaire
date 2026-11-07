@@ -418,25 +418,73 @@
                                 </template>
 
                                 <template #content>
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                                        <!-- Décorations -->
+                                    <div class="space-y-5 pt-2">
+                                        <!-- Décorations & Médailles dynamiques -->
                                         <div class="field">
-                                            <label for="decorations" class="block text-sm font-medium text-gray-700 mb-1">
-                                                Décorations & Médailles
-                                            </label>
-                                            <InputText id="decorations" v-model="form.decorations" class="w-full" placeholder="Ex: Médaille Commémorative, MMM, CVN..." />
+                                            <div class="flex items-center justify-between mb-2">
+                                                <label class="block text-sm font-semibold text-slate-700">
+                                                    <i class="pi pi-award text-amber-600 mr-1.5"></i>
+                                                    Décorations & Médailles
+                                                </label>
+                                                <button type="button" @click="addDecoration"
+                                                    class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition-colors cursor-pointer shadow-2xs">
+                                                    <i class="pi pi-plus text-[10px]"></i>
+                                                    <span>Ajouter une médaille</span>
+                                                </button>
+                                            </div>
+
+                                            <div v-if="decorationsList.length > 0" class="space-y-2 mb-2">
+                                                <div v-for="(dec, idx) in decorationsList" :key="idx" class="flex items-center gap-2">
+                                                    <div class="w-7 h-7 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 text-xs font-bold">
+                                                        {{ idx + 1 }}
+                                                    </div>
+                                                    <InputText v-model="decorationsList[idx]" class="w-full text-sm" placeholder="Ex: Médaille du Mérite Militaire, Croix de la Valeur..." />
+                                                    <button type="button" @click="removeDecoration(idx)"
+                                                        class="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors shrink-0 cursor-pointer"
+                                                        title="Supprimer cette médaille">
+                                                        <i class="pi pi-trash text-sm"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div v-else class="text-xs text-slate-400 italic p-3 border border-dashed border-slate-200 rounded-lg text-center bg-slate-50/50">
+                                                Aucune médaille ajoutée. Cliquez sur « Ajouter une médaille » pour en ajouter.
+                                            </div>
                                         </div>
 
-                                        <!-- Diplômes académiques civils -->
+                                        <!-- Diplômes académiques civils dynamiques -->
                                         <div class="field">
-                                            <label for="diplomes_academiques" class="block text-sm font-medium text-gray-700 mb-1">
-                                                Diplômes académiques (civils / universitaires)
-                                            </label>
-                                            <InputText id="diplomes_academiques" v-model="form.diplomes_academiques" class="w-full" placeholder="Ex: Baccalauréat, DEUG, Licence, Maîtrise, Technicien..." />
+                                            <div class="flex items-center justify-between mb-2">
+                                                <label class="block text-sm font-semibold text-slate-700">
+                                                    <i class="pi pi-graduation-cap text-sky-700 mr-1.5"></i>
+                                                    Diplômes académiques (civils / universitaires)
+                                                </label>
+                                                <button type="button" @click="addDiplome"
+                                                    class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md bg-sky-50 text-sky-800 border border-sky-300 hover:bg-sky-100 transition-colors cursor-pointer shadow-2xs">
+                                                    <i class="pi pi-plus text-[10px]"></i>
+                                                    <span>Ajouter un diplôme</span>
+                                                </button>
+                                            </div>
+
+                                            <div v-if="diplomesList.length > 0" class="space-y-2 mb-2">
+                                                <div v-for="(dip, idx) in diplomesList" :key="idx" class="flex items-center gap-2">
+                                                    <div class="w-7 h-7 rounded-full bg-sky-100 text-sky-800 flex items-center justify-center shrink-0 text-xs font-bold">
+                                                        {{ idx + 1 }}
+                                                    </div>
+                                                    <InputText v-model="diplomesList[idx]" class="w-full text-sm" placeholder="Ex: Baccalauréat, Licence en Droit, Master en Gestion..." />
+                                                    <button type="button" @click="removeDiplome(idx)"
+                                                        class="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors shrink-0 cursor-pointer"
+                                                        title="Supprimer ce diplôme">
+                                                        <i class="pi pi-trash text-sm"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div v-else class="text-xs text-slate-400 italic p-3 border border-dashed border-slate-200 rounded-lg text-center bg-slate-50/50">
+                                                Aucun diplôme ajouté. Cliquez sur « Ajouter un diplôme » pour en ajouter.
+                                            </div>
                                         </div>
 
                                         <!-- Observations -->
-                                        <div class="field md:col-span-2">
+                                        <div class="field">
                                             <label for="observations" class="block text-sm font-medium text-gray-700 mb-1">
                                                 Observations particulières
                                             </label>
@@ -766,6 +814,26 @@ const removeAffectation = (index) => {
     }
 };
 
+// --- Gestion dynamique Décorations & Diplômes ---
+const decorationsList = ref([]);
+const diplomesList = ref([]);
+
+const addDecoration = () => {
+    decorationsList.value.push('');
+};
+
+const removeDecoration = (index) => {
+    decorationsList.value.splice(index, 1);
+};
+
+const addDiplome = () => {
+    diplomesList.value.push('');
+};
+
+const removeDiplome = (index) => {
+    diplomesList.value.splice(index, 1);
+};
+
 const formationsOfficiers = [
     'APLI', 'CFCU', 'Certificat État-major', 'Certificat d\'état-major', 'École d\'État-Major', 'EEM',
     'Cours supérieur d\'état-major', 'École de guerre', 'Brevet Supérieur de Second Degré',
@@ -889,6 +957,12 @@ const submitForm = () => {
             formData.append(`affectations[${idx}][date_mutation]`, aff.date_mutation ? formatDateForServer(aff.date_mutation) : '');
         });
     }
+
+    // Sérialisation des listes dynamiques Décorations & Diplômes
+    const cleanDecorations = decorationsList.value.map(s => s.trim()).filter(Boolean);
+    const cleanDiplomes = diplomesList.value.map(s => s.trim()).filter(Boolean);
+    form.decorations = cleanDecorations.length > 0 ? JSON.stringify(cleanDecorations) : '';
+    form.diplomes_academiques = cleanDiplomes.length > 0 ? JSON.stringify(cleanDiplomes) : '';
 
     const textFields = [
         'matricule', 'mle_grm', 'numero_info', 'numero_nina', 'grade_actuel', 'categorie',

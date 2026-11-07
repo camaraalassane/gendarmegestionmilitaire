@@ -696,7 +696,12 @@ class MilitaireController extends Controller
         foreach ($fields as $field) {
             if ($request->has($field)) {
                 $val = $request->input($field);
-                $data[$field] = ($val === '' || $val === 'null' || $val === null) ? null : $val;
+                if (in_array($field, ['decorations', 'diplomes_academiques']) && is_array($val)) {
+                    $clean = array_values(array_filter(array_map('trim', $val)));
+                    $data[$field] = !empty($clean) ? json_encode($clean, JSON_UNESCAPED_UNICODE) : null;
+                } else {
+                    $data[$field] = ($val === '' || $val === 'null' || $val === null) ? null : $val;
+                }
             }
         }
 
