@@ -58,9 +58,11 @@ class DashboardController extends Controller
         $statistiques = Cache::remember('dashboard:statistiques_cards', 120, function () use ($stats) {
             return [
                 'total_militaires' => Militaire::count(),
-                'militaires_actifs' => Militaire::where('statut', 'actif')->count(),
-                'total_retraites' => Militaire::where('statut', 'retraité')->count(),
-                'total_decedes' => Militaire::where('statut', 'décédé')->count(),
+                'militaires_actifs' => Militaire::where('statut', 'LIKE', 'actif%')->count(),
+                'total_retraites' => Militaire::where('statut', 'LIKE', 'retrait%')->count(),
+                'total_decedes' => Militaire::where(function($q) {
+                    $q->where('statut', 'LIKE', 'd%c%d%')->orWhere('statut', 'LIKE', 'mort%');
+                })->count(),
                 'alertes_non_vues' => Alerte::where('est_vue', false)->count(),
                 'total_retraites_n' => $stats['total_retraites_n'] ?? 0,
                 'total_retraites_n1' => $stats['total_retraites_n1'] ?? 0,
@@ -227,9 +229,12 @@ class DashboardController extends Controller
         // Si année future (N+1) : seuls les militaires actuellement 'actif' sont concernés
         $query = Militaire::query();
         if ($decalageAnnees === 0) {
-            $query->whereIn('statut', ['actif', 'retraité']);
+            $query->where(function($q) {
+                $q->where('statut', 'LIKE', 'actif%')
+                  ->orWhere('statut', 'LIKE', 'retrait%');
+            });
         } else {
-            $query->where('statut', 'actif');
+            $query->where('statut', 'LIKE', 'actif%');
         }
 
         $militaires = $query->get();
@@ -254,7 +259,7 @@ class DashboardController extends Controller
                     $doitInclure = true;
                 }
                 // 2. Militaires encore 'actifs' ayant dépassé la limite avant l'année N
-                elseif ($militaire->statut === 'actif' && $anneeRetraite < $anneeCible) {
+                elseif (str_starts_with(mb_strtolower($militaire->statut ?? ''), 'actif') && $anneeRetraite < $anneeCible) {
                     $doitInclure = true;
                 }
             } else {

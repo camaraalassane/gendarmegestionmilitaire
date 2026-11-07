@@ -39,7 +39,7 @@ class SyncRetraites extends Command
 
             // 1. Départs passés (2025, 2024, 2023...) : doivent avoir le statut 'retraité'
             if ($anneeRetraite < $anneeCourante) {
-                if ($militaire->statut === 'actif') {
+                if (str_starts_with(mb_strtolower($militaire->statut ?? ''), 'actif')) {
                     $militaire->statut = 'retraité';
                     $militaire->save();
                     $basculesEnRetraite++;
@@ -50,7 +50,7 @@ class SyncRetraites extends Command
             }
             // 2. Départs de cette année (2026) ou futurs : NE DOIVENT PAS avoir le statut 'retraité' avant le 31/12
             else {
-                if ($militaire->statut === 'retraité') {
+                if (str_starts_with(mb_strtolower($militaire->statut ?? ''), 'retrait')) {
                     $militaire->statut = 'actif';
                     $militaire->save();
                     $retablisEnActif++;

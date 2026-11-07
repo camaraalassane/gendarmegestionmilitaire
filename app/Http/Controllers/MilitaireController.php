@@ -75,13 +75,17 @@ class MilitaireController extends Controller
             $query->whereIn('militaires.id', $idsN);
         } elseif ($statutFilter === 'retraites_n1') {
             $query->whereIn('militaires.id', $idsN1);
+        } elseif (str_starts_with(mb_strtolower($statutFilter), 'retrait')) {
+            $query->where('militaires.statut', 'LIKE', 'retrait%');
+        } elseif (str_starts_with(mb_strtolower($statutFilter), 'd')) {
+            $query->where('militaires.statut', 'LIKE', 'd%c%d%');
         } elseif (!empty($statutFilter)) {
             $query->where('militaires.statut', $statutFilter);
         }
 
         $statistiques = [
             'total'        => Cache::remember('gendarme:militaires_total', 120, fn() => Militaire::count()),
-            'actifs'       => Cache::remember('gendarme:militaires_actifs', 120, fn() => Militaire::where('statut', 'actif')->count()),
+            'actifs'       => Cache::remember('gendarme:militaires_actifs', 120, fn() => Militaire::where('statut', 'LIKE', 'actif%')->count()),
             'retraites_n'  => count($idsN),
             'retraites_n1' => count($idsN1),
         ];
@@ -1500,7 +1504,6 @@ class MilitaireController extends Controller
     private function getIdsRetraitePourAnnee(int $anneeCible): array
     {
         return Cache::remember("gendarme:ids_retraite_{$anneeCible}", 300, function () use ($anneeCible) {
-            $grades = Grade::pluck('retraite_obligatoire', 'nom_grade')->toArray();
             $militaires = Militaire::whereNotNull('date_naissance')
                 ->whereNotNull('grade_actuel')
                 ->select('id', 'date_naissance', 'grade_actuel', 'statut')
@@ -1510,17 +1513,18 @@ class MilitaireController extends Controller
             $anneeCourante = (int) Carbon::now()->year;
 
             foreach ($militaires as $m) {
-                $ageRetraite = $grades[$m->grade_actuel] ?? null;
+                $ageRetraite = Grade::getRetraiteForGrade($m->grade_actuel);
                 if (!$ageRetraite) continue;
 
                 $anneeRetraite = (int) (Carbon::parse($m->date_naissance)->year + $ageRetraite);
+                $estActif = str_starts_with(mb_strtolower($m->statut ?? ''), 'actif');
 
                 if ($anneeCible === $anneeCourante) {
-                    if ($anneeRetraite === $anneeCible || ($m->statut === 'actif' && $anneeRetraite < $anneeCible)) {
+                    if ($anneeRetraite === $anneeCible || ($estActif && $anneeRetraite < $anneeCible)) {
                         $ids[] = $m->id;
                     }
                 } else {
-                    if ($m->statut === 'actif' && $anneeRetraite === $anneeCible) {
+                    if ($estActif && $anneeRetraite === $anneeCible) {
                         $ids[] = $m->id;
                     }
                 }

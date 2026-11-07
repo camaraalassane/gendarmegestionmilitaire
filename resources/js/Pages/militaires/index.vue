@@ -65,7 +65,7 @@
                             <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Retraites N</span>
                             <i class="pi pi-calendar text-purple-600 text-sm"></i>
                         </div>
-                        <div class="text-xl md:text-2xl font-bold text-purple-700">{{ statistiques.retraites_n }}</div>
+                        <div class="text-xl md:text-2xl font-bold text-purple-700">{{ statistiques.retraites_n ?? 0 }}</div>
                     </div>
                     <div @click="setStatutFilter('retraites_n1')" 
                          :class="filters.statut === 'retraites_n1' ? 'ring-2 ring-indigo-500 shadow-md bg-indigo-50/50' : 'bg-white shadow-sm hover:shadow-md'"
@@ -74,7 +74,7 @@
                             <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Retraites N+1</span>
                             <i class="pi pi-calendar text-indigo-600 text-sm"></i>
                         </div>
-                        <div class="text-xl md:text-2xl font-bold text-indigo-700">{{ statistiques.retraites_n1 }}</div>
+                        <div class="text-xl md:text-2xl font-bold text-indigo-700">{{ statistiques.retraites_n1 ?? 0 }}</div>
                     </div>
                 </div>
 

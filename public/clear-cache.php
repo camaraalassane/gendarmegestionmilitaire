@@ -81,9 +81,9 @@ try {
 
 // 6. Statistiques réelles depuis la base de données
 $totalMilitaires = \App\Models\Militaire::count();
-$militairesActifs = \App\Models\Militaire::where('statut', 'actif')->count();
-$militairesRetraites = \App\Models\Militaire::where('statut', 'retraité')->count();
-$militairesDecedes = \App\Models\Militaire::where('statut', 'décédé')->count();
+$militairesActifs = \App\Models\Militaire::where('statut', 'LIKE', 'actif%')->count();
+$militairesRetraites = \App\Models\Militaire::where('statut', 'LIKE', 'retrait%')->count();
+$militairesDecedes = \App\Models\Militaire::where(function($q) { $q->where('statut', 'LIKE', 'd%c%d%')->orWhere('statut', 'LIKE', 'mort%'); })->count();
 ?>
 <!DOCTYPE html>
 <html lang="fr">

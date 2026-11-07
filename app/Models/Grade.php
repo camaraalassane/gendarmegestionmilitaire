@@ -146,18 +146,57 @@ class Grade extends Model
 
     public static function getRetraiteForGrade(?string $nomGrade): ?int
     {
-        if (!$nomGrade) return null;
+        if (!$nomGrade || trim($nomGrade) === '') return null;
+        $nomGrade = trim($nomGrade);
+
         if (self::$retraiteCache === null) {
-            self::$retraiteCache = self::pluck('retraite_obligatoire', 'nom_grade')->toArray();
-        }
-        if (!isset(self::$retraiteCache[$nomGrade])) {
-            $val = self::where('nom_grade', $nomGrade)->value('retraite_obligatoire');
-            if ($val !== null) {
-                self::$retraiteCache[$nomGrade] = (int)$val;
-                return (int)$val;
+            self::$retraiteCache = [];
+            $all = self::all(['nom_grade', 'code_grade', 'type_grade', 'retraite_obligatoire']);
+            foreach ($all as $g) {
+                if ($g->retraite_obligatoire !== null) {
+                    $age = (int) $g->retraite_obligatoire;
+                    if ($g->nom_grade) {
+                        self::$retraiteCache[trim($g->nom_grade)] = $age;
+                        self::$retraiteCache[mb_strtolower(trim($g->nom_grade))] = $age;
+                    }
+                    if ($g->code_grade) {
+                        self::$retraiteCache[trim($g->code_grade)] = $age;
+                        self::$retraiteCache[mb_strtolower(trim($g->code_grade))] = $age;
+                        self::$retraiteCache[mb_strtoupper(trim($g->code_grade))] = $age;
+                    }
+                }
             }
         }
-        return self::$retraiteCache[$nomGrade] ?? null;
+
+        // 1. Recherche exacte
+        if (isset(self::$retraiteCache[$nomGrade])) {
+            return self::$retraiteCache[$nomGrade];
+        }
+
+        // 2. Recherche insensible à la casse
+        $lower = mb_strtolower($nomGrade);
+        if (isset(self::$retraiteCache[$lower])) {
+            return self::$retraiteCache[$lower];
+        }
+
+        // 3. Recherche partielle dans le cache (ex: "Soldat 2ème classe" contient "soldat 2")
+        foreach (self::$retraiteCache as $key => $age) {
+            if ($key !== '' && (str_contains($lower, $key) || str_contains($key, $lower))) {
+                return $age;
+            }
+        }
+
+        // 4. Fallback statutaire par catégorie militaire si le grade n'est pas dans la table
+        $categorie = self::determinerCategorie($nomGrade);
+        return match ($categorie) {
+            'Militaire du Rang' => 50,
+            'Sous-officier Subalterne' => 53,
+            'Sous-officier Supérieur' => 56,
+            'Officier Subalterne' => 60,
+            'Officier Supérieur' => 62,
+            'Officier Général' => 64,
+            default => null,
+        };
     }
 
     public static function getAllCached()
