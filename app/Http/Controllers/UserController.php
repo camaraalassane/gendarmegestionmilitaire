@@ -83,6 +83,10 @@ class UserController extends Controller
             'password' => ['nullable', 'confirmed', Rules\Password::defaults()],
         ]);
 
+        if ($user->role === 1 && (int) $request->role !== 1 && User::where('role', 1)->count() <= 1) {
+            return redirect()->route('users.index')->with('error', 'Impossible de rétrograder le dernier Super-Administrateur du système.');
+        }
+
         $user->name = $request->name;
         $user->email = $request->email;
         $user->role = (int) $request->role;

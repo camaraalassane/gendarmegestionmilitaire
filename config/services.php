@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'carte_pvc' => [
+        'key' => env('CARTE_PVC_API_KEY'),
+    ],
+
 ];

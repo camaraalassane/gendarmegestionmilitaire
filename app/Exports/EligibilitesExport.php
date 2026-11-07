@@ -220,7 +220,7 @@ class PromotionSheet implements FromCollection, WithHeadings, WithColumnWidths, 
     {
         $rows = [];
         foreach ($this->promotions as $item) {
-            $rows[] = [
+            $row = [
                 $item['militaire']['matricule'] ?? '',
                 $item['militaire']['nom'] ?? '',
                 $item['militaire']['prenom'] ?? '',
@@ -229,6 +229,7 @@ class PromotionSheet implements FromCollection, WithHeadings, WithColumnWidths, 
                 $item['annee_proposition'] ?? $this->extractAnnee($item['date_estimation'] ?? ''),
                 $this->formatDate($item['date_anciennete'] ?? ''),
             ];
+            $rows[] = array_map([EligibilitesExport::class, 'sanitizeCell'], $row);
         }
         return new Collection($rows);
     }
@@ -307,7 +308,7 @@ class FormationSheet implements FromCollection, WithHeadings, WithColumnWidths, 
     {
         $rows = [];
         foreach ($this->formations as $item) {
-            $rows[] = [
+            $row = [
                 $item['militaire']['matricule'] ?? '',
                 $item['militaire']['nom'] ?? '',
                 $item['militaire']['prenom'] ?? '',
@@ -316,6 +317,7 @@ class FormationSheet implements FromCollection, WithHeadings, WithColumnWidths, 
                 $item['annee_proposition'] ?? $this->extractAnnee($item['date_estimation'] ?? ''),
                 $this->formatDate($item['date_conditions'] ?? ''),
             ];
+            $rows[] = array_map([EligibilitesExport::class, 'sanitizeCell'], $row);
         }
         return new Collection($rows);
     }
@@ -406,7 +408,7 @@ class RetraiteSheet implements FromCollection, WithHeadings, WithColumnWidths, W
     {
         $rows = [];
         foreach ($this->retraites as $item) {
-            $rows[] = [
+            $row = [
                 $item['militaire']['matricule'] ?? '',
                 $item['militaire']['nom'] ?? '',
                 $item['militaire']['prenom'] ?? '',
@@ -414,6 +416,7 @@ class RetraiteSheet implements FromCollection, WithHeadings, WithColumnWidths, W
                 $item['date_retraite_formatted'] ?? '',
                 $item['mois_restants'] ?? '',
             ];
+            $rows[] = array_map([EligibilitesExport::class, 'sanitizeCell'], $row);
         }
         return new Collection($rows);
     }

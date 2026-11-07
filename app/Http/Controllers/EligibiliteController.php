@@ -54,7 +54,7 @@ class EligibiliteController extends Controller
         $formation = $request->input('formation', '');
         $grade = $request->input('grade', '');
         $page = max(1, (int) $request->input('page', 1));
-        $perPage = max(1, (int) $request->input('per_page', 30));
+        $perPage = min(max((int) $request->input('per_page', 30), 5), 100);
 
         $allComputed = $this->getAllComputedData();
 

@@ -69,7 +69,9 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
     protected function getCertificatsCache(): Collection
     {
         if ($this->certificatsCache === null) {
-            $this->certificatsCache = Certificat::all()->keyBy('nom');
+            $this->certificatsCache = Certificat::all()->keyBy(function ($item) {
+                return mb_strtolower(trim($item->nom_certificat));
+            });
         }
         return $this->certificatsCache;
     }
@@ -511,7 +513,7 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
                 continue;
             }
 
-            $certificat = $certificatsCache->get($nomCertificat);
+            $certificat = $certificatsCache->get(mb_strtolower(trim($nomCertificat)));
             if (!$certificat) {
                 continue;
             }

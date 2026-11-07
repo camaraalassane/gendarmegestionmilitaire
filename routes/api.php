@@ -14,12 +14,12 @@ use App\Http\Middleware\CheckCartePvcApiKey;
 |
 */
 
-Route::prefix('v1/cartes-pvc')->group(function () {
+Route::prefix('v1/cartes-pvc')->middleware(['throttle:60,1'])->group(function () {
 
     // 1. Route de diagnostic sans clé (Ping pour valider la connectivité réseau depuis Angular)
     Route::get('/ping', [CartePvcApiController::class, 'ping']);
 
-    // 2. Routes protégées par clé API (X-API-KEY ou ?api_key=...)
+    // 2. Routes protégées par clé API (X-API-KEY dans les headers)
     Route::middleware([CheckCartePvcApiKey::class])->group(function () {
 
         // Statistiques globales

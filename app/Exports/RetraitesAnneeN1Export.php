@@ -37,12 +37,13 @@ class RetraitesAnneeN1Export implements FromArray, WithHeadings, WithStyles, Sho
                 $currentGrade = $retraite['grade_actuel'];
             }
             
-            $data[] = [
+            $row = [
                 $retraite['grade_actuel'],
                 $retraite['matricule'],
                 $retraite['nom'] . ' ' . $retraite['prenom'],
                 $retraite['date_retraite_formatted'],
             ];
+            $data[] = array_map([$this, 'sanitizeCell'], $row);
         }
         
         $data[] = [''];
@@ -124,5 +125,13 @@ class RetraitesAnneeN1Export implements FromArray, WithHeadings, WithStyles, Sho
         }
         
         return [];
+    }
+
+    private function sanitizeCell($val): mixed
+    {
+        if (is_string($val) && $val !== '' && in_array($val[0], ['=', '+', '-', '@', "\t", "\r"])) {
+            return "'" . $val;
+        }
+        return $val;
     }
 }

@@ -28,3 +28,5 @@ database/*.sqlite-journal
 database/*.sqlite-wal
 database/*.sqlite-shm
 *.sqlite
+
+test_import_militaires.csv

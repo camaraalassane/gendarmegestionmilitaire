@@ -38,7 +38,7 @@ class ProposablesAnneeN1Export implements FromArray, WithHeadings, WithStyles, S
                 $currentGrade = $proposable['grade_actuel'];
             }
             
-            $data[] = [
+            $row = [
                 $proposable['grade_actuel'],
                 $proposable['anciennete_grade_formatted'] ?? '-',
                 $proposable['matricule'],
@@ -47,6 +47,7 @@ class ProposablesAnneeN1Export implements FromArray, WithHeadings, WithStyles, S
                 $proposable['date_anciennete_formatted'],
                 $proposable['date_proposition_formatted'],
             ];
+            $data[] = array_map([$this, 'sanitizeCell'], $row);
         }
         
         $data[] = [''];
@@ -128,5 +129,13 @@ class ProposablesAnneeN1Export implements FromArray, WithHeadings, WithStyles, S
         }
         
         return [];
+    }
+
+    private function sanitizeCell($val): mixed
+    {
+        if (is_string($val) && $val !== '' && in_array($val[0], ['=', '+', '-', '@', "\t", "\r"])) {
+            return "'" . $val;
+        }
+        return $val;
     }
 }

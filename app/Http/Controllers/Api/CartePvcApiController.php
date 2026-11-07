@@ -19,12 +19,9 @@ class CartePvcApiController extends Controller
     {
         return response()->json([
             'success' => true,
-            'message' => 'API Cartes PVC opérationnelle.',
+            'status' => 'ok',
+            'service' => 'API Cartes PVC',
             'timestamp' => Carbon::now()->toIso8601String(),
-            'total_militaires' => Militaire::count(),
-            'actifs' => Militaire::where('statut', 'LIKE', 'actif%')->count(),
-            'avec_photo' => Militaire::whereNotNull('photo')->where('photo', '!=', '')->count(),
-            'version' => '1.0',
         ]);
     }
 
