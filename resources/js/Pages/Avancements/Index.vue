@@ -382,7 +382,7 @@
                                     <td class="py-2 px-2 overflow-hidden">
                                         <div class="flex items-center gap-1.5">
                                             <div class="w-6 h-6 rounded-full bg-sky-100 border border-sky-300 overflow-hidden shrink-0 flex items-center justify-center text-sky-800 font-bold text-[10px] print:hidden">
-                                                <img v-if="item.photo_url" :src="item.photo_url" class="w-full h-full object-cover" />
+                                                <img v-if="item.photo_url" :src="item.photo_url" @error="item.photo_url = null" class="w-full h-full object-cover" />
                                                 <span v-else>{{ (item.nom?.[0] || 'M') }}</span>
                                             </div>
                                             <div class="min-w-0 flex-1">
@@ -625,7 +625,7 @@
                                     <td class="py-2.5 px-2 overflow-hidden">
                                         <div class="flex items-center gap-2">
                                             <div class="w-6 h-6 rounded-full bg-sky-100 border border-sky-300 overflow-hidden shrink-0 flex items-center justify-center text-sky-800 font-bold text-[10px] print:hidden">
-                                                <img v-if="item.photo_url" :src="item.photo_url" class="w-full h-full object-cover" />
+                                                <img v-if="item.photo_url" :src="item.photo_url" @error="item.photo_url = null" class="w-full h-full object-cover" />
                                                 <span v-else>{{ (item.nom?.[0] || 'M') }}</span>
                                             </div>
                                             <div class="min-w-0 flex-1">
