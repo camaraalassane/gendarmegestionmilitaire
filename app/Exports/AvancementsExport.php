@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithColumnWidths;
@@ -11,7 +12,61 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 
-class AvancementsExport implements FromArray, WithStyles, WithColumnWidths, WithTitle
+class AvancementsExport implements WithMultipleSheets
+{
+    protected array $items;
+    protected int $annee;
+    protected ?string $gradeFiltre;
+    protected string $tab;
+
+    public function __construct(array $items, int $annee, ?string $gradeFiltre = null, string $tab = 'all')
+    {
+        $this->items = $items;
+        $this->annee = $annee;
+        $this->gradeFiltre = $gradeFiltre;
+        $this->tab = $tab;
+    }
+
+    public static function sanitizeCell($val): mixed
+    {
+        if (is_string($val) && $val !== '' && in_array($val[0], ['=', '+', '-', '@', "\t", "\r"])) {
+            return "'" . $val;
+        }
+        return $val;
+    }
+
+    public function sheets(): array
+    {
+        $officiers = array_values(array_filter($this->items, fn($c) => !empty($c['is_officier'])));
+        $sousOfficiers = array_values(array_filter($this->items, fn($c) => empty($c['is_officier'])));
+
+        $sheets = [];
+
+        if ($this->tab === 'officiers') {
+            $sheets[] = new AvancementOfficiersSheet($officiers, $this->annee, $this->gradeFiltre);
+        } elseif ($this->tab === 'sous_officiers') {
+            $sheets[] = new AvancementSousOfficiersSheet($sousOfficiers, $this->annee, $this->gradeFiltre);
+        } else {
+            // 'all' : les deux feuilles
+            if (!empty($officiers)) {
+                $sheets[] = new AvancementOfficiersSheet($officiers, $this->annee, $this->gradeFiltre);
+            }
+            if (!empty($sousOfficiers)) {
+                $sheets[] = new AvancementSousOfficiersSheet($sousOfficiers, $this->annee, $this->gradeFiltre);
+            }
+            if (empty($sheets)) {
+                $sheets[] = new AvancementOfficiersSheet([], $this->annee, $this->gradeFiltre);
+            }
+        }
+
+        return $sheets;
+    }
+}
+
+/**
+ * Feuille d'avancement pour les OFFICIERS (Notation par points)
+ */
+class AvancementOfficiersSheet implements FromArray, WithStyles, WithColumnWidths, WithTitle
 {
     protected array $items;
     protected int $annee;
@@ -25,33 +80,23 @@ class AvancementsExport implements FromArray, WithStyles, WithColumnWidths, With
         $this->gradeFiltre = $gradeFiltre;
     }
 
-    /**
-     * Neutralise les injections de formules CSV/Excel (CWE-1236)
-     */
-    public static function sanitizeCell($val): mixed
+    public function title(): string
     {
-        if (is_string($val) && $val !== '' && in_array($val[0], ['=', '+', '-', '@', "\t", "\r"])) {
-            return "'" . $val;
-        }
-        return $val;
+        return 'Officiers - Notation';
     }
 
     public function array(): array
     {
         $data = [];
 
-        // 1. Titre officiel
-        $titre = "TABLEAU D'AVANCEMENT - SESSION " . $this->annee . " (ANNÉE DE CLÔTURE)";
+        $titre = "TABLEAU D'AVANCEMENT OFFICIERS - SESSION " . $this->annee;
         if (!empty($this->gradeFiltre) && $this->gradeFiltre !== 'all') {
             $titre .= " - GRADE : " . mb_strtoupper($this->gradeFiltre);
         }
         $data[] = [$titre];
-
-        // 2. Sous-titre & Instructions claires pour la commission
-        $data[] = ["Généré le : " . date('d/m/Y à H:i') . " | Remplissez les colonnes F à L (Points & Punitions), puis réimportez ce fichier dans l'application."];
+        $data[] = ["Généré le : " . date('d/m/Y à H:i') . " | Grille de notation : Total = Rendement + Fonction + Bonus + Diplômes + Décorations + Ancienneté - Punitions - Limite d'âge"];
         $data[] = ["Règles : Punition = -0,1 pt/jour | Limite d'âge : -1 pt (2 ans restants avant retraite), -2 pts (1 an restant)"];
 
-        // 4. Ligne d'en-tête (Ligne 4)
         $headers = [
             'Rang',
             'Matricule',
@@ -71,11 +116,9 @@ class AvancementsExport implements FromArray, WithStyles, WithColumnWidths, With
         ];
         $data[] = $headers;
 
-        // Regrouper par grade
         $currentGrade = null;
-        $currentRowIndex = 4; // Headers are on row 4
+        $currentRowIndex = 4;
 
-        // Calculer les effectifs par grade
         $gradeCounts = [];
         foreach ($this->items as $it) {
             $g = $it['grade_actuel'] ?? 'Non défini';
@@ -119,175 +162,268 @@ class AvancementsExport implements FromArray, WithStyles, WithColumnWidths, With
                 (float) ($item['total_points'] ?? 0),
             ];
 
-            $data[] = $row;
+            $data[] = array_map([AvancementsExport::class, 'sanitizeCell'], $row);
         }
 
         return $data;
     }
 
-    public function title(): string
+    public function styles(Worksheet $sheet): array
     {
-        return 'Avancement_' . $this->annee;
+        $lastRow = max(5, count($sheet->toArray()));
+
+        $sheet->mergeCells('A1:O1');
+        $sheet->mergeCells('A2:O2');
+        $sheet->mergeCells('A3:O3');
+
+        foreach ($this->gradeBannerRows as $bRow) {
+            $sheet->mergeCells("A{$bRow}:O{$bRow}");
+            $sheet->getStyle("A{$bRow}:O{$bRow}")->applyFromArray([
+                'font' => ['bold' => true, 'color' => ['rgb' => '0C4A6E'], 'size' => 11],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'E0F2FE']],
+                'alignment' => ['vertical' => Alignment::VERTICAL_CENTER, 'horizontal' => Alignment::HORIZONTAL_LEFT],
+            ]);
+            $sheet->getRowDimension($bRow)->setRowHeight(24);
+        }
+
+        $styles = [
+            1 => [
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 15],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '0284C7']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+            ],
+            2 => [
+                'font' => ['italic' => true, 'color' => ['rgb' => '475569'], 'size' => 9],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_RIGHT, 'vertical' => Alignment::VERTICAL_CENTER],
+            ],
+            3 => [
+                'font' => ['italic' => true, 'color' => ['rgb' => '64748B'], 'size' => 8.5],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_RIGHT, 'vertical' => Alignment::VERTICAL_CENTER],
+            ],
+            4 => [
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 10],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '0F172A']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+            ],
+        ];
+
+        $sheet->getRowDimension(1)->setRowHeight(32);
+        $sheet->getRowDimension(2)->setRowHeight(18);
+        $sheet->getRowDimension(3)->setRowHeight(16);
+        $sheet->getRowDimension(4)->setRowHeight(30);
+
+        if ($lastRow >= 5) {
+            $dataRange = "A5:O{$lastRow}";
+            $sheet->getStyle($dataRange)->applyFromArray([
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'CBD5E1']]],
+                'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
+            ]);
+            $sheet->getStyle("A5:A{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("B5:B{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("D5:E{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("F5:N{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle("O5:O{$lastRow}")->applyFromArray([
+                'font' => ['bold' => true, 'color' => ['rgb' => '0369A1']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_RIGHT],
+            ]);
+        }
+
+        return $styles;
     }
 
     public function columnWidths(): array
     {
         return [
-            'A' => 9,   // Rang
-            'B' => 15,  // Matricule
-            'C' => 28,  // Nom & Prénom
-            'D' => 18,  // Grade actuel
-            'E' => 18,  // Grade cible
-            'F' => 17,  // Fonction Pts
-            'G' => 17,  // Rendement Pts
-            'H' => 18,  // Bonus emploi
-            'I' => 16,  // Diplômes
-            'J' => 17,  // Décorations
-            'K' => 17,  // Anc. Grade
-            'L' => 14,  // Jours Punit.
-            'M' => 20,  // Malus Punit.
-            'N' => 15,  // Malus Limite Âge
-            'O' => 18,  // TOTAL POINTS
+            'A' => 8,
+            'B' => 12,
+            'C' => 30,
+            'D' => 20,
+            'E' => 20,
+            'F' => 14,
+            'G' => 14,
+            'H' => 15,
+            'I' => 13,
+            'J' => 14,
+            'K' => 14,
+            'L' => 12,
+            'M' => 14,
+            'N' => 12,
+            'O' => 16,
         ];
     }
+}
 
-    public function styles(Worksheet $sheet)
+/**
+ * Feuille d'avancement pour les SOUS-OFFICIERS & RANG (Classement automatique par Ancienneté)
+ */
+class AvancementSousOfficiersSheet implements FromArray, WithStyles, WithColumnWidths, WithTitle
+{
+    protected array $items;
+    protected int $annee;
+    protected ?string $gradeFiltre;
+    protected array $gradeBannerRows = [];
+
+    public function __construct(array $items, int $annee, ?string $gradeFiltre = null)
     {
-        // 1. Titre principal (Ligne 1)
-        $sheet->mergeCells('A1:O1');
-        $sheet->getRowDimension(1)->setRowHeight(32);
-        $sheet->getStyle('A1')->applyFromArray([
-            'font' => ['bold' => true, 'size' => 13, 'color' => ['rgb' => 'FFFFFF']],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => '075985'] // Bleu Militaire Officiel
-            ],
-            'alignment' => [
-                'horizontal' => Alignment::HORIZONTAL_CENTER,
-                'vertical' => Alignment::VERTICAL_CENTER,
-            ]
-        ]);
+        $this->items = $items;
+        $this->annee = $annee;
+        $this->gradeFiltre = $gradeFiltre;
+    }
 
-        // 2. Sous-titre & Instructions (Lignes 2 et 3)
-        $sheet->mergeCells('A2:O2');
-        $sheet->mergeCells('A3:O3');
-        $sheet->getRowDimension(2)->setRowHeight(18);
-        $sheet->getRowDimension(3)->setRowHeight(18);
+    public function title(): string
+    {
+        return 'Sous-Officiers - Ancienneté';
+    }
 
-        $sheet->getStyle('A2')->applyFromArray([
-            'font' => ['bold' => true, 'size' => 9, 'color' => ['rgb' => '0C4A6E']],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => 'F0F9FF']
-            ],
-            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER]
-        ]);
+    public function array(): array
+    {
+        $data = [];
 
-        $sheet->getStyle('A3')->applyFromArray([
-            'font' => ['italic' => true, 'size' => 8.5, 'color' => ['rgb' => '475569']],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => 'F0F9FF']
-            ],
-            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER]
-        ]);
+        $titre = "TABLEAU D'AVANCEMENT SOUS-OFFICIERS & RANG - SESSION " . $this->annee;
+        if (!empty($this->gradeFiltre) && $this->gradeFiltre !== 'all') {
+            $titre .= " - GRADE : " . mb_strtoupper($this->gradeFiltre);
+        }
+        $data[] = [$titre];
+        $data[] = ["Généré le : " . date('d/m/Y à H:i') . " | Règle : Classement automatique par ancienneté statutaire dans le grade (comme dans Éligibilités)"];
+        $data[] = ["Critères de départage : 1. Date nomination grade | 2. Date entrée en service | 3. Âge (le plus âgé en premier)"];
 
-        // 3. En-têtes de colonnes (Ligne 4)
-        $sheet->getRowDimension(4)->setRowHeight(28);
+        $headers = [
+            'Rang',
+            'Matricule',
+            'Nom & Prénom',
+            'Grade actuel',
+            'Grade cible',
+            'Date Nomination Grade',
+            'Ancienneté dans le Grade',
+            'Date Incorporation',
+            'Ancienneté de Service',
+            'Diplômes / Certificats',
+            'Statut Éligibilité'
+        ];
+        $data[] = $headers;
 
-        // A-E : Infos militaires (Bleu Foncé)
-        $sheet->getStyle('A4:E4')->applyFromArray([
-            'font' => ['bold' => true, 'size' => 10, 'color' => ['rgb' => 'FFFFFF']],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => '075985']
-            ],
-            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER]
-        ]);
+        $currentGrade = null;
+        $currentRowIndex = 4;
 
-        // F-L : Saisie des Points & Punitions (Bleu Clair distinctif pour la saisie)
-        $sheet->getStyle('F4:L4')->applyFromArray([
-            'font' => ['bold' => true, 'size' => 10, 'color' => ['rgb' => 'FFFFFF']],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => '0284C7']
-            ],
-            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER]
-        ]);
-
-        // M-O : Calculs & Total (Bleu Marine Foncé)
-        $sheet->getStyle('M4:O4')->applyFromArray([
-            'font' => ['bold' => true, 'size' => 10, 'color' => ['rgb' => 'FFFFFF']],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['rgb' => '082F49']
-            ],
-            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER]
-        ]);
-
-        $highestRow = $sheet->getHighestRow();
-
-        // Style des séparateurs de grade et des cellules de données
-        for ($r = 5; $r <= $highestRow; $r++) {
-            $sheet->getRowDimension($r)->setRowHeight(21);
-
-            if (in_array($r, $this->gradeBannerRows, true)) {
-                $sheet->mergeCells("A{$r}:O{$r}");
-                $sheet->getStyle("A{$r}")->applyFromArray([
-                    'font' => ['bold' => true, 'size' => 10.5, 'color' => ['rgb' => '075985']],
-                    'fill' => [
-                        'fillType' => Fill::FILL_SOLID,
-                        'startColor' => ['rgb' => 'E0F2FE'] // Bleu ciel doux
-                    ],
-                    'alignment' => [
-                        'horizontal' => Alignment::HORIZONTAL_LEFT,
-                        'vertical' => Alignment::VERTICAL_CENTER,
-                        'indent' => 1
-                    ],
-                    'borders' => [
-                        'top' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => '0284C7']],
-                        'bottom' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => '0284C7']],
-                    ]
-                ]);
-            } else {
-                // Rang & Matricule
-                $sheet->getStyle("A{$r}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("A{$r}")->getFont()->setBold(true);
-                $sheet->getStyle("B{$r}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("C{$r}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-                $sheet->getStyle("D{$r}:E{$r}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-
-                // Colonnes de notes F à K (format 0.00)
-                $sheet->getStyle("F{$r}:K{$r}")->getNumberFormat()->setFormatCode('#,##0.00');
-                $sheet->getStyle("F{$r}:K{$r}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-
-                // Jours Punition L (format entier centré)
-                $sheet->getStyle("L{$r}")->getNumberFormat()->setFormatCode('#,##0');
-                $sheet->getStyle("L{$r}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-
-                // Malus M & N
-                $sheet->getStyle("M{$r}:N{$r}")->getNumberFormat()->setFormatCode('#,##0.00');
-                $sheet->getStyle("M{$r}:N{$r}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-
-                // Total Points O : Mis en valeur
-                $sheet->getStyle("O{$r}")->applyFromArray([
-                    'font' => ['bold' => true, 'color' => ['rgb' => '075985']],
-                    'fill' => [
-                        'fillType' => Fill::FILL_SOLID,
-                        'startColor' => ['rgb' => 'F0F9FF']
-                    ],
-                    'alignment' => ['horizontal' => Alignment::HORIZONTAL_RIGHT]
-                ]);
-                $sheet->getStyle("O{$r}")->getNumberFormat()->setFormatCode('#,##0.00');
-
-                // Bordures légères
-                $sheet->getStyle("A{$r}:O{$r}")->getBorders()->getAllBorders()->applyFromArray([
-                    'borderStyle' => Border::BORDER_THIN,
-                    'color' => ['rgb' => 'E2E8F0']
-                ]);
-            }
+        $gradeCounts = [];
+        foreach ($this->items as $it) {
+            $g = $it['grade_actuel'] ?? 'Non défini';
+            $gradeCounts[$g] = ($gradeCounts[$g] ?? 0) + 1;
         }
 
-        return [];
+        foreach ($this->items as $item) {
+            $grade = $item['grade_actuel'] ?? 'Non défini';
+            if ($this->gradeFiltre === 'all' || empty($this->gradeFiltre)) {
+                if ($currentGrade !== $grade) {
+                    $currentGrade = $grade;
+                    $currentRowIndex++;
+                    $countForGrade = $gradeCounts[$grade] ?? 0;
+                    $bannerText = "GRADE : " . mb_strtoupper($grade) . " ({$countForGrade} Candidat" . ($countForGrade > 1 ? 's' : '') . ")";
+                    $data[] = [$bannerText];
+                    $this->gradeBannerRows[] = $currentRowIndex;
+                }
+            }
+
+            $currentRowIndex++;
+            $nomComplet = trim(($item['nom'] ?? '') . ' ' . ($item['prenom'] ?? ''));
+
+            $certs = $item['certificats_texte'] ?: ($item['diplomes_texte'] ?: '-');
+
+            $row = [
+                $item['rang'] ? (int) $item['rang'] : '-',
+                $item['matricule'] ?? '',
+                $nomComplet,
+                $item['grade_actuel'] ?? '',
+                $item['grade_cible'] ?? '',
+                $item['date_derniere_promotion'] ?: '-',
+                $item['anciennete_grade_texte'] ?: '-',
+                $item['date_entree_service'] ?: '-',
+                $item['anciennete_service_texte'] ?: '-',
+                $certs,
+                $item['message_eligibilite'] ?: "Proposable {$this->annee}",
+            ];
+
+            $data[] = array_map([AvancementsExport::class, 'sanitizeCell'], $row);
+        }
+
+        return $data;
+    }
+
+    public function styles(Worksheet $sheet): array
+    {
+        $lastRow = max(5, count($sheet->toArray()));
+
+        $sheet->mergeCells('A1:K1');
+        $sheet->mergeCells('A2:K2');
+        $sheet->mergeCells('A3:K3');
+
+        foreach ($this->gradeBannerRows as $bRow) {
+            $sheet->mergeCells("A{$bRow}:K{$bRow}");
+            $sheet->getStyle("A{$bRow}:K{$bRow}")->applyFromArray([
+                'font' => ['bold' => true, 'color' => ['rgb' => '065F46'], 'size' => 11],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'D1FAE5']],
+                'alignment' => ['vertical' => Alignment::VERTICAL_CENTER, 'horizontal' => Alignment::HORIZONTAL_LEFT],
+            ]);
+            $sheet->getRowDimension($bRow)->setRowHeight(24);
+        }
+
+        $styles = [
+            1 => [
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 15],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '047857']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
+            ],
+            2 => [
+                'font' => ['italic' => true, 'color' => ['rgb' => '475569'], 'size' => 9],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_RIGHT, 'vertical' => Alignment::VERTICAL_CENTER],
+            ],
+            3 => [
+                'font' => ['italic' => true, 'color' => ['rgb' => '64748B'], 'size' => 8.5],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_RIGHT, 'vertical' => Alignment::VERTICAL_CENTER],
+            ],
+            4 => [
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 10],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '064E3B']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+            ],
+        ];
+
+        $sheet->getRowDimension(1)->setRowHeight(32);
+        $sheet->getRowDimension(2)->setRowHeight(18);
+        $sheet->getRowDimension(3)->setRowHeight(16);
+        $sheet->getRowDimension(4)->setRowHeight(30);
+
+        if ($lastRow >= 5) {
+            $dataRange = "A5:K{$lastRow}";
+            $sheet->getStyle($dataRange)->applyFromArray([
+                'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'CBD5E1']]],
+                'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
+            ]);
+            $sheet->getStyle("A5:A{$lastRow}")->applyFromArray([
+                'font' => ['bold' => true, 'color' => ['rgb' => '047857']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+            ]);
+            $sheet->getStyle("B5:B{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("D5:I{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        }
+
+        return $styles;
+    }
+
+    public function columnWidths(): array
+    {
+        return [
+            'A' => 8,
+            'B' => 13,
+            'C' => 30,
+            'D' => 20,
+            'E' => 20,
+            'F' => 18,
+            'G' => 20,
+            'H' => 18,
+            'I' => 20,
+            'J' => 25,
+            'K' => 28,
+        ];
     }
 }

@@ -63,25 +63,7 @@ class Grade extends Model
         $cleanCode = mb_strtoupper(trim($codeGrade ?? ''));
         $cleanType = mb_strtolower(trim($typeGrade ?? ''));
 
-        // 1. Sous-officier Supérieur
-        if (in_array($cleanCode, ['ACM', 'ADC', 'ADJ', 'ADM', 'MAJOR'])
-            || str_contains($cleanNom, 'adjudant')
-            || str_contains($cleanNom, 'major')) {
-            return 'Sous-officier Supérieur';
-        }
-
-        // 2. Sous-officier Subalterne
-        if (in_array($cleanCode, ['SGT', 'SCH', 'MDL', 'MDC', 'ESOA'])
-            || str_contains($cleanNom, 'sergent')
-            || str_contains($cleanNom, 'maréchal')
-            || str_contains($cleanNom, 'marechal')
-            || str_contains($cleanNom, 'eleve sous officier')
-            || str_contains($cleanNom, 'élève sous officier')
-            || $cleanType === 'sous-officier') {
-            return 'Sous-officier Subalterne';
-        }
-
-        // 3. Officier Général
+        // 1. Officier Général
         if (in_array($cleanCode, ['GBR', 'GDB', 'GDV', 'GDD', 'GCA', 'GAR'])
             || str_contains($cleanNom, 'général')
             || str_contains($cleanNom, 'general')
@@ -89,8 +71,10 @@ class Grade extends Model
             return 'Officier Général';
         }
 
-        // 4. Officier Supérieur
+        // 2. Officier Supérieur
         if (in_array($cleanCode, ['CDT', 'CES', 'LCL', 'COL', 'CLM'])
+            || str_contains($cleanNom, 'colonel-major')
+            || str_contains($cleanNom, 'colonel major')
             || str_contains($cleanNom, 'commandant')
             || str_contains($cleanNom, 'chef d\'escadron')
             || str_contains($cleanNom, 'lieutenant-colonel')
@@ -99,7 +83,7 @@ class Grade extends Model
             return 'Officier Supérieur';
         }
 
-        // 5. Officier Subalterne
+        // 3. Officier Subalterne
         if (in_array($cleanCode, ['SLT', 'LTN', 'CNE', 'ASP', 'EOA', 'EOA2'])
             || str_contains($cleanNom, 'sous-lieutenant')
             || str_contains($cleanNom, 'lieutenant')
@@ -109,6 +93,24 @@ class Grade extends Model
             || str_contains($cleanNom, 'élève officier')
             || $cleanType === 'officier subalterne') {
             return 'Officier Subalterne';
+        }
+
+        // 4. Sous-officier Supérieur
+        if (in_array($cleanCode, ['ACM', 'ADC', 'ADJ', 'ADM', 'MAJOR'])
+            || str_contains($cleanNom, 'adjudant')
+            || str_contains($cleanNom, 'major')) {
+            return 'Sous-officier Supérieur';
+        }
+
+        // 5. Sous-officier Subalterne
+        if (in_array($cleanCode, ['SGT', 'SCH', 'MDL', 'MDC', 'ESOA'])
+            || str_contains($cleanNom, 'sergent')
+            || str_contains($cleanNom, 'maréchal')
+            || str_contains($cleanNom, 'marechal')
+            || str_contains($cleanNom, 'eleve sous officier')
+            || str_contains($cleanNom, 'élève sous officier')
+            || $cleanType === 'sous-officier') {
+            return 'Sous-officier Subalterne';
         }
 
         // 6. Militaire du Rang
@@ -124,6 +126,23 @@ class Grade extends Model
         }
 
         return null;
+    }
+
+    /**
+     * Vérifie si un grade appartient à la catégorie des Officiers
+     */
+    public static function isOfficier(?string $nomGrade, ?string $codeGrade = null): bool
+    {
+        $cat = self::determinerCategorie($nomGrade, $codeGrade);
+        return in_array($cat, ['Officier Subalterne', 'Officier Supérieur', 'Officier Général'], true);
+    }
+
+    /**
+     * Vérifie si un grade appartient à la catégorie des Sous-officiers ou Militaires du rang
+     */
+    public static function isSousOfficierOuMdr(?string $nomGrade, ?string $codeGrade = null): bool
+    {
+        return !self::isOfficier($nomGrade, $codeGrade);
     }
 
     /**

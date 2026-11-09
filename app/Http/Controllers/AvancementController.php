@@ -17,13 +17,14 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 class AvancementController extends Controller
 {
     /**
-     * Affiche le tableau d'avancement avec classement automatique par grade (plus haut grade en premier)
+     * Affiche le tableau d'avancement avec onglets Officiers / Sous-Officiers
      */
     public function index(Request $request): Response
     {
         // Session : toujours l'année en clôture
         $annee = (int) $request->input('annee', date('Y'));
         $gradeFiltre = $request->input('grade', 'all');
+        $tab = $request->input('tab', 'officiers'); // 'officiers' | 'sous_officiers'
         $search = trim((string) $request->input('search', ''));
 
         // Récupérer la hiérarchie des grades pour le tri du plus élevé au plus bas
@@ -31,45 +32,57 @@ class AvancementController extends Controller
 
         $candidates = $this->buildCandidatesList($annee);
 
-        // Liste des grades uniques présents parmi les candidats, triés du plus élevé au moins élevé
-        $availableGrades = collect($candidates)->pluck('grade_actuel')->filter()->unique()->values()->all();
-        usort($availableGrades, function ($a, $b) use ($gradesHierarchy) {
-            $orderA = $gradesHierarchy[$a] ?? 0;
-            $orderB = $gradesHierarchy[$b] ?? 0;
-            return $orderB <=> $orderA; // Décroissant : grade le plus élevé en premier
-        });
+        // Séparer les grades disponibles par catégorie
+        $availableGradesOfficiers = [];
+        $availableGradesSousOfficiers = [];
 
-        // Filtrage par grade si demandé
-        if (!empty($gradeFiltre) && $gradeFiltre !== 'all') {
-            $candidates = array_values(array_filter($candidates, fn($c) => ($c['grade_actuel'] ?? '') === $gradeFiltre));
+        foreach ($candidates as $c) {
+            $g = $c['grade_actuel'] ?? null;
+            if (!$g) continue;
+            if (!empty($c['is_officier'])) {
+                $availableGradesOfficiers[$g] = true;
+            } else {
+                $availableGradesSousOfficiers[$g] = true;
+            }
         }
 
-        // Recherche par nom, prénom ou matricule
-        if (!empty($search)) {
-            $lowerSearch = mb_strtolower($search);
-            $candidates = array_values(array_filter($candidates, function ($c) use ($lowerSearch) {
-                return str_contains(mb_strtolower($c['nom'] ?? ''), $lowerSearch)
-                    || str_contains(mb_strtolower($c['prenom'] ?? ''), $lowerSearch)
-                    || str_contains(mb_strtolower($c['matricule'] ?? ''), $lowerSearch);
-            }));
-        }
+        $sortGradesDesc = function ($list) use ($gradesHierarchy) {
+            $keys = array_keys($list);
+            usort($keys, function ($a, $b) use ($gradesHierarchy) {
+                $orderA = $gradesHierarchy[$a] ?? 0;
+                $orderB = $gradesHierarchy[$b] ?? 0;
+                return $orderB <=> $orderA; // Décroissant : plus haut grade en premier
+            });
+            return $keys;
+        };
+
+        $gradesOfficiers = $sortGradesDesc($availableGradesOfficiers);
+        $gradesSousOfficiers = $sortGradesDesc($availableGradesSousOfficiers);
+
+        $countOfficiers = count(array_filter($candidates, fn($c) => !empty($c['is_officier'])));
+        $countSousOfficiers = count(array_filter($candidates, fn($c) => empty($c['is_officier'])));
 
         return Inertia::render('Avancements/Index', [
             'candidates' => $candidates,
-            'grades' => $availableGrades,
+            'gradesOfficiers' => $gradesOfficiers,
+            'gradesSousOfficiers' => $gradesSousOfficiers,
             'selectedAnnee' => $annee,
             'selectedGrade' => $gradeFiltre,
+            'initialTab' => $tab,
             'search' => $search,
             'stats' => [
                 'total_candidats' => count($candidates),
-                'total_grades' => count($availableGrades),
+                'total_officiers' => $countOfficiers,
+                'total_sous_officiers' => $countSousOfficiers,
+                'total_grades_officiers' => count($gradesOfficiers),
+                'total_grades_sous_officiers' => count($gradesSousOfficiers),
                 'total_enregistres' => count(array_filter($candidates, fn($c) => !empty($c['est_enregistre']))),
             ]
         ]);
     }
 
     /**
-     * Sauvegarde en lot des notes du tableau d'avancement
+     * Sauvegarde en lot des notes du tableau d'avancement (Officiers)
      */
     public function save(Request $request)
     {
@@ -160,6 +173,7 @@ class AvancementController extends Controller
     {
         $annee = (int) $request->input('annee', date('Y'));
         $gradeFiltre = $request->input('grade', 'all');
+        $tab = $request->input('tab', 'all'); // 'officiers', 'sous_officiers', 'all'
 
         $candidates = $this->buildCandidatesList($annee);
 
@@ -167,17 +181,26 @@ class AvancementController extends Controller
             $candidates = array_values(array_filter($candidates, fn($c) => ($c['grade_actuel'] ?? '') === $gradeFiltre));
         }
 
-        $fileName = 'Tableau_Avancement_' . $annee;
+        $suffix = '';
+        if ($tab === 'officiers') {
+            $candidates = array_values(array_filter($candidates, fn($c) => !empty($c['is_officier'])));
+            $suffix = '_Officiers';
+        } elseif ($tab === 'sous_officiers') {
+            $candidates = array_values(array_filter($candidates, fn($c) => empty($c['is_officier'])));
+            $suffix = '_Sous_Officiers';
+        }
+
+        $fileName = 'Tableau_Avancement_' . $annee . $suffix;
         if (!empty($gradeFiltre) && $gradeFiltre !== 'all') {
             $fileName .= '_' . str_replace(' ', '_', $gradeFiltre);
         }
         $fileName .= '_' . date('Ymd_His') . '.xlsx';
 
-        return Excel::download(new AvancementsExport($candidates, $annee, $gradeFiltre), $fileName);
+        return Excel::download(new AvancementsExport($candidates, $annee, $gradeFiltre, $tab), $fileName);
     }
 
     /**
-     * Importe un fichier Excel complété avec les notes du tableau d'avancement
+     * Importe un fichier Excel complété avec les notes du tableau d'avancement (Officiers)
      */
     public function import(Request $request)
     {
@@ -344,7 +367,7 @@ class AvancementController extends Controller
     }
 
     /**
-     * Construit la liste optimisée des candidats avec mise en cache pour chargement instantané
+     * Construit la liste optimisée des candidats avec mise en cache
      */
     protected function buildCandidatesList(int $annee): array
     {
@@ -394,6 +417,26 @@ class AvancementController extends Controller
                 $gradeCible = $saved->grade_cible ?? ($promoInfo['grade_cible'] ?? '');
                 $fonctionNom = $m->fonction_actuelle ?: $m->position_actuelle ?: 'En fonction';
 
+                $isOfficier = Grade::isOfficier($gradeActuel);
+                $categorieStatutaire = Grade::determinerCategorie($gradeActuel);
+
+                // Dates militaires et anciennetés
+                $datePromoObj = $m->date_derniere_promotion ? Carbon::parse($m->date_derniere_promotion) : null;
+                $dateEntreeObj = $m->date_entree_service ? Carbon::parse($m->date_entree_service) : null;
+                $dateNaissObj = $m->date_naissance ? Carbon::parse($m->date_naissance) : null;
+
+                $datePromoTexte = $datePromoObj ? $datePromoObj->format('d/m/Y') : '-';
+                $datePromoRaw = $datePromoObj ? $datePromoObj->format('Y-m-d') : '';
+
+                $dateEntreeTexte = $dateEntreeObj ? $dateEntreeObj->format('d/m/Y') : '-';
+                $dateEntreeRaw = $dateEntreeObj ? $dateEntreeObj->format('Y-m-d') : '';
+
+                $dateNaissTexte = $dateNaissObj ? $dateNaissObj->format('d/m/Y') : '-';
+                $dateNaissRaw = $dateNaissObj ? $dateNaissObj->format('Y-m-d') : '';
+
+                $ancGradeTexte = $m->anciennete_grade_detaillee ?: ($m->anciennete_grade ? $m->anciennete_grade . ' ans' : '-');
+                $ancServiceTexte = $m->anciennete_detaillee ?: ($m->anciennete ? $m->anciennete . ' ans' : '-');
+
                 // Calcul limite d'âge et retraite : si reste <= 1 an = -2 pts, si reste 2 ans = -1 pt, sinon 0
                 $ageRetraite = Grade::getRetraiteForGrade($gradeActuel);
                 $anneesRestantes = null;
@@ -412,8 +455,9 @@ class AvancementController extends Controller
 
                 $diplomesFormates = $this->formatList($m->diplomes_academiques);
                 $decorationsFormatees = $this->formatList($m->decorations);
+                $certificatsFormates = $this->formatCertificats($m);
 
-                // Notes
+                // Notes (Officiers)
                 $ptsFonction = $saved ? (float) $saved->points_fonction_actuelle : 0.0;
                 $noteRendement = $saved ? (float) $saved->note_rendement : 0.0;
                 $bonusEmploi = $saved ? (float) $saved->bonus_dernier_emploi : 0.0;
@@ -439,10 +483,24 @@ class AvancementController extends Controller
                     'grade_actuel' => $gradeActuel,
                     'grade_ordre' => $gradesHierarchy[$gradeActuel] ?? 0,
                     'grade_cible' => $gradeCible,
+                    'is_officier' => $isOfficier,
+                    'categorie_personnel' => $isOfficier ? 'officier' : 'sous_officier',
+                    'categorie_statutaire' => $categorieStatutaire,
                     'fonction_nom' => $fonctionNom,
+                    'date_derniere_promotion' => $datePromoTexte,
+                    'date_derniere_promotion_raw' => $datePromoRaw,
+                    'date_entree_service' => $dateEntreeTexte,
+                    'date_entree_service_raw' => $dateEntreeRaw,
+                    'date_naissance' => $dateNaissTexte,
+                    'date_naissance_raw' => $dateNaissRaw,
+                    'anciennete_grade_texte' => $ancGradeTexte,
+                    'anciennete_grade_annees' => $m->anciennete_grade ?? 0,
+                    'anciennete_service_texte' => $ancServiceTexte,
+                    'anciennete_service_annees' => $m->anciennete ?? 0,
+                    'certificats_texte' => $certificatsFormates,
                     'diplomes_texte' => $diplomesFormates,
                     'decorations_texte' => $decorationsFormatees,
-                    'anciennete_grade_annees' => $m->anciennete_grade ?? 0,
+                    'message_eligibilite' => $promoInfo['message'] ?? ("Proposable pour " . $annee),
                     'age' => $m->age ?? 0,
                     'annees_restantes_retraite' => $anneesRestantes,
                     // Champs de notation éditables
@@ -467,7 +525,9 @@ class AvancementController extends Controller
     }
 
     /**
-     * Classe les candidats au sein de chaque grade, et ordonne les grades du plus élevé au plus bas
+     * Classe les candidats au sein de chaque grade :
+     * - Pour Officiers : classement par total_points décroissant
+     * - Pour Sous-Officiers : classement par ancienneté (date nomination, date entrée, âge)
      */
     protected function classerParGrade(array $candidates, array $gradesHierarchy): array
     {
@@ -487,16 +547,50 @@ class AvancementController extends Controller
         $finalList = [];
 
         foreach ($grouped as $grade => &$list) {
-            // Au sein du grade, tri par total_points décroissant
-            usort($list, function ($a, $b) {
-                if ($b['total_points'] != $a['total_points']) {
-                    return ($b['total_points'] > $a['total_points']) ? 1 : -1;
-                }
-                if ($b['anciennete_grade_annees'] != $a['anciennete_grade_annees']) {
-                    return $b['anciennete_grade_annees'] <=> $a['anciennete_grade_annees'];
-                }
-                return strcmp($a['nom'], $b['nom']);
-            });
+            $isOfficier = Grade::isOfficier($grade);
+
+            if ($isOfficier) {
+                // Au sein du grade d'officier : tri par total_points décroissant
+                usort($list, function ($a, $b) {
+                    if ($b['total_points'] != $a['total_points']) {
+                        return ($b['total_points'] > $a['total_points']) ? 1 : -1;
+                    }
+                    if ($b['anciennete_grade_annees'] != $a['anciennete_grade_annees']) {
+                        return $b['anciennete_grade_annees'] <=> $a['anciennete_grade_annees'];
+                    }
+                    return strcmp($a['nom'], $b['nom']);
+                });
+            } else {
+                // Au sein du grade de sous-officier / MDR : tri strict par ANCIENNETÉ
+                // 1. Date nomination au grade (date la plus ancienne = premier rang)
+                // 2. Date entrée en service (date la plus ancienne = premier rang)
+                // 3. Date de naissance (le plus âgé en premier)
+                // 4. Nom alphabétique
+                usort($list, function ($a, $b) {
+                    $promoA = $a['date_derniere_promotion_raw'] ?: ($a['date_entree_service_raw'] ?: '9999-12-31');
+                    $promoB = $b['date_derniere_promotion_raw'] ?: ($b['date_entree_service_raw'] ?: '9999-12-31');
+                    $cmpPromo = strcmp($promoA, $promoB);
+                    if ($cmpPromo !== 0) {
+                        return $cmpPromo;
+                    }
+
+                    $entreeA = $a['date_entree_service_raw'] ?: '9999-12-31';
+                    $entreeB = $b['date_entree_service_raw'] ?: '9999-12-31';
+                    $cmpEntree = strcmp($entreeA, $entreeB);
+                    if ($cmpEntree !== 0) {
+                        return $cmpEntree;
+                    }
+
+                    $naissA = $a['date_naissance_raw'] ?: '9999-12-31';
+                    $naissB = $b['date_naissance_raw'] ?: '9999-12-31';
+                    $cmpNaiss = strcmp($naissA, $naissB);
+                    if ($cmpNaiss !== 0) {
+                        return $cmpNaiss;
+                    }
+
+                    return strcmp($a['nom'], $b['nom']);
+                });
+            }
 
             // Rangs 1, 2, 3...
             $rank = 1;
@@ -517,17 +611,39 @@ class AvancementController extends Controller
         $grades = Avancement::where('annee', $annee)->pluck('grade_actuel')->unique();
 
         foreach ($grades as $grade) {
-            $items = Avancement::where('annee', $annee)
-                ->where('grade_actuel', $grade)
-                ->orderByDesc('total_points')
-                ->orderByDesc('points_anciennete_grade')
-                ->get();
+            $isOfficier = Grade::isOfficier($grade);
+
+            if ($isOfficier) {
+                $items = Avancement::where('annee', $annee)
+                    ->where('grade_actuel', $grade)
+                    ->orderByDesc('total_points')
+                    ->orderByDesc('points_anciennete_grade')
+                    ->get();
+            } else {
+                $items = Avancement::where('avancements.annee', $annee)
+                    ->where('avancements.grade_actuel', $grade)
+                    ->leftJoin('militaires', 'avancements.militaire_id', '=', 'militaires.id')
+                    ->orderByRaw("COALESCE(militaires.date_derniere_promotion, militaires.date_entree_service, '9999-12-31') ASC")
+                    ->orderByRaw("COALESCE(militaires.date_entree_service, '9999-12-31') ASC")
+                    ->orderByRaw("COALESCE(militaires.date_naissance, '9999-12-31') ASC")
+                    ->select('avancements.*')
+                    ->get();
+            }
 
             $rank = 1;
             foreach ($items as $item) {
                 $item->update(['rang' => $rank++]);
             }
         }
+    }
+
+    protected function formatCertificats($militaire): string
+    {
+        if (!$militaire || !$militaire->relationLoaded('certificats')) {
+            return '';
+        }
+        $certs = $militaire->certificats->pluck('niveau_certificat')->filter()->values()->all();
+        return implode(', ', $certs);
     }
 
     protected function formatList($val): string
