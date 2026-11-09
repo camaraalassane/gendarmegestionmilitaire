@@ -246,6 +246,15 @@
                             <span>{{ saving ? 'Enregistrement...' : 'Sauvegarder notes' }}</span>
                         </button>
 
+                        <!-- Bouton Classer maintenant (visible si saisie en cours) -->
+                        <button v-if="activeTab === 'officiers' && countdownActive" @click="forcerReclassement"
+                            type="button"
+                            class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-all text-xs cursor-pointer animate-pulse"
+                            title="Appliquer immédiatement le classement sans attendre la fin du compte à rebours">
+                            <i class="pi pi-bolt"></i>
+                            <span>Classer ({{ countdownSeconds }}s)</span>
+                        </button>
+
                         <!-- Exporter Excel (Bleu Projet pour les deux onglets) -->
                         <button @click="exportExcel" :disabled="exporting"
                             class="px-3 py-1.5 bg-sky-700 hover:bg-sky-800 text-white font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-all text-xs disabled:opacity-50 cursor-pointer">
@@ -290,6 +299,29 @@
                 <p class="text-sm text-slate-400 mt-1">
                     Vérifiez le filtre de grade ou les propositions d'avancement de la session {{ currentAnnee }}.
                 </p>
+            </div>
+
+            <!-- ========================================================================================= -->
+            <!-- BANDEAU DE TEMPORISATION SAISIE PAR COLONNE (OFFICIERS)                                  -->
+            <!-- ========================================================================================= -->
+            <div v-if="activeTab === 'officiers' && countdownActive"
+                class="mb-3 p-3 bg-gradient-to-r from-amber-50 via-sky-50 to-amber-50 border border-amber-300 rounded-xl flex items-center justify-between shadow-xs print:hidden animate-fade-in">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-extrabold text-sm shadow-xs shrink-0 animate-pulse">
+                        {{ countdownSeconds }}s
+                    </div>
+                    <div class="text-xs">
+                        <span class="font-extrabold text-amber-950 uppercase tracking-wide">Mode Saisie par Colonne Actif :</span>
+                        <span class="text-slate-700 ml-1.5 font-medium">L'ordre des lignes reste fixe pour vous permettre de renseigner toute la colonne sans perturbation. Réorganisation automatique du classement dans <strong>{{ countdownSeconds }} secondes</strong>.</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 shrink-0 ml-3">
+                    <button type="button" @click="forcerReclassement"
+                        class="px-3 py-1.5 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer">
+                        <i class="pi pi-bolt text-[11px]"></i>
+                        <span>Classer maintenant</span>
+                    </button>
+                </div>
             </div>
 
             <!-- ========================================================================================= -->
@@ -413,6 +445,8 @@
                                         <input type="number" step="0.5" min="0" max="100"
                                             v-model.number="item.points_fonction_actuelle"
                                             @input="handleInputChange(item)"
+                                            @keydown="onCellKeydown($event, 'col-fonction')"
+                                            data-col="col-fonction"
                                             class="w-12 px-1 py-0.5 text-center font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded focus:bg-white focus:ring-1 focus:ring-sky-500 text-xs shadow-2xs" />
                                     </td>
 
@@ -421,6 +455,8 @@
                                         <input type="number" step="0.5" min="0" max="100"
                                             v-model.number="item.note_rendement"
                                             @input="handleInputChange(item)"
+                                            @keydown="onCellKeydown($event, 'col-rendement')"
+                                            data-col="col-rendement"
                                             class="w-12 px-1 py-0.5 text-center font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded focus:bg-white focus:ring-1 focus:ring-sky-500 text-xs shadow-2xs" />
                                     </td>
 
@@ -429,6 +465,8 @@
                                         <input type="number" step="0.5" min="0" max="100"
                                             v-model.number="item.bonus_dernier_emploi"
                                             @input="handleInputChange(item)"
+                                            @keydown="onCellKeydown($event, 'col-bonus')"
+                                            data-col="col-bonus"
                                             class="w-12 px-1 py-0.5 text-center font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded focus:bg-white focus:ring-1 focus:ring-sky-500 text-xs shadow-2xs" />
                                     </td>
 
@@ -437,6 +475,8 @@
                                         <input type="number" step="0.5" min="0" max="100"
                                             v-model.number="item.points_diplomes"
                                             @input="handleInputChange(item)"
+                                            @keydown="onCellKeydown($event, 'col-diplomes')"
+                                            data-col="col-diplomes"
                                             class="w-12 px-1 py-0.5 text-center font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded focus:bg-white focus:ring-1 focus:ring-sky-500 text-xs shadow-2xs" />
                                     </td>
 
@@ -445,6 +485,8 @@
                                         <input type="number" step="0.5" min="0" max="100"
                                             v-model.number="item.points_decorations"
                                             @input="handleInputChange(item)"
+                                            @keydown="onCellKeydown($event, 'col-decorations')"
+                                            data-col="col-decorations"
                                             class="w-12 px-1 py-0.5 text-center font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded focus:bg-white focus:ring-1 focus:ring-sky-500 text-xs shadow-2xs" />
                                     </td>
 
@@ -453,6 +495,8 @@
                                         <input type="number" step="0.5" min="0" max="100"
                                             v-model.number="item.points_anciennete_grade"
                                             @input="handleInputChange(item)"
+                                            @keydown="onCellKeydown($event, 'col-anc-grade')"
+                                            data-col="col-anc-grade"
                                             class="w-12 px-1 py-0.5 text-center font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded focus:bg-white focus:ring-1 focus:ring-sky-500 text-xs shadow-2xs" />
                                         <div class="text-[9px] text-slate-500 mt-0.5 print:hidden">
                                             {{ item.anciennete_grade_annees }} a
@@ -465,6 +509,8 @@
                                             <input type="number" step="1" min="0" max="365"
                                                 v-model.number="item.jours_punition"
                                                 @input="handleInputChange(item)"
+                                                @keydown="onCellKeydown($event, 'col-punition')"
+                                                data-col="col-punition"
                                                 placeholder="0 j"
                                                 class="w-11 px-1 py-0.5 text-center font-bold text-red-700 bg-white border border-red-300 rounded focus:ring-1 focus:ring-red-500 text-xs" />
                                             <span class="text-[9px] text-slate-400 font-semibold print:hidden">j</span>
@@ -823,7 +869,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onUnmounted } from 'vue';
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
@@ -882,10 +928,83 @@ const activeAvailableGrades = computed(() => {
     return activeTab.value === 'officiers' ? props.gradesOfficiers : props.gradesSousOfficiers;
 });
 
+// =========================================================================
+// GESTION DE LA TEMPORISATION DU CLASSEMENT (SAISIE PAR COLONNE FLUIDE)
+// =========================================================================
+const DELAY_RECLASSEMENT = 45; // 45 secondes de battement avant réorganisation
+const countdownSeconds = ref(DELAY_RECLASSEMENT);
+const countdownActive = ref(false);
+const sortVersion = ref(0);
+let countdownInterval = null;
+
+const demarrerOuReinitialiserCompteARebours = () => {
+    countdownSeconds.value = DELAY_RECLASSEMENT;
+    countdownActive.value = true;
+
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+    }
+
+    countdownInterval = setInterval(() => {
+        if (countdownSeconds.value > 1) {
+            countdownSeconds.value--;
+        } else {
+            arreterCompteARebours();
+            recalculerRangsOfficiers();
+            showNotification('info', 'Classement actualisé', 'Le tableau a été réorganisé selon les nouvelles notes saisies.');
+        }
+    }, 1000);
+};
+
+const arreterCompteARebours = () => {
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+    }
+    countdownActive.value = false;
+    countdownSeconds.value = DELAY_RECLASSEMENT;
+};
+
+const forcerReclassement = () => {
+    arreterCompteARebours();
+    recalculerRangsOfficiers();
+    showNotification('success', 'Classement actualisé', 'Les rangs et l\'ordre des officiers ont été mis à jour.');
+};
+
+// Navigation fluide au clavier dans les colonnes (Touche Entrée / Flèche Bas / Flèche Haut)
+const onCellKeydown = (event, colName) => {
+    if (event.key === 'ArrowDown' || event.key === 'Enter') {
+        event.preventDefault();
+        const inputs = Array.from(document.querySelectorAll(`input[data-col="${colName}"]`));
+        const idx = inputs.indexOf(event.target);
+        if (idx !== -1 && idx < inputs.length - 1) {
+            inputs[idx + 1].focus();
+            inputs[idx + 1].select();
+        }
+    } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        const inputs = Array.from(document.querySelectorAll(`input[data-col="${colName}"]`));
+        const idx = inputs.indexOf(event.target);
+        if (idx > 0) {
+            inputs[idx - 1].focus();
+            inputs[idx - 1].select();
+        }
+    }
+};
+
+onUnmounted(() => {
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+    }
+});
+
 /**
  * Changement d'onglet
  */
 const switchTab = (tab) => {
+    if (countdownActive.value) {
+        forcerReclassement();
+    }
     activeTab.value = tab;
     currentGrade.value = 'all';
     currentPage.value = 1;
@@ -921,14 +1040,15 @@ const handleInputChange = (item) => {
     const decos = parseFloat(item.points_decorations) || 0;
     const ancGrade = parseFloat(item.points_anciennete_grade) || 0;
 
-    // 4. Total général
+    // 4. Total général (mis à jour immédiatement sur la ligne)
     const total = rendement + ptsFonction + bonus + diplomes + decos + ancGrade - item.malus_limite_age - item.malus_punition;
     item.total_points = Math.round(Math.max(0, total) * 100) / 100;
 
     hasUnsavedChanges.value = true;
 
-    // 5. Recalculer instantanément les rangs par grade
-    recalculerRangsOfficiers();
+    // 5. Ne pas réordonner la table immédiatement !
+    // Lancer ou réinitialiser le compte à rebours de 45 secondes pour laisser l'utilisateur saisir par colonne
+    demarrerOuReinitialiserCompteARebours();
 };
 
 /**
@@ -957,6 +1077,8 @@ const recalculerRangsOfficiers = () => {
             candidat.rang = index + 1;
         });
     });
+
+    sortVersion.value++;
 };
 
 /**
@@ -1029,6 +1151,9 @@ const paginationInfo = computed(() => {
  * Regroupement par Grade
  */
 const paginatedGroupedByGrade = computed(() => {
+    // Dépendance réactive explicite pour re-trier lors de l'expiration du décompte ou forçage
+    const _ = sortVersion.value;
+
     const map = {};
     paginatedCandidates.value.forEach(c => {
         const grade = c.grade_actuel || 'Non défini';
@@ -1075,6 +1200,12 @@ const closeNotification = () => {
  * Sauvegarde des notes (Officiers)
  */
 const saveNotes = async () => {
+    // S'assurer que le classement est à jour et arrêter le compte à rebours
+    if (countdownActive.value) {
+        arreterCompteARebours();
+    }
+    recalculerRangsOfficiers();
+
     saving.value = true;
     try {
         const itemsToSave = localCandidates.value.filter(c => c.is_officier).map(c => ({

@@ -371,7 +371,7 @@ class AvancementController extends Controller
      */
     protected function buildCandidatesList(int $annee): array
     {
-        return Cache::remember("avancements:candidates_list_{$annee}", 600, function () use ($annee) {
+        return Cache::remember("avancements:candidates_list_{$annee}", 60, function () use ($annee) {
             // 1. Récupération des promotions éligibles depuis EligibiliteController
             $eligibiliteController = app(EligibiliteController::class);
             $computedData = $eligibiliteController->getAllComputedData();
@@ -399,7 +399,10 @@ class AvancementController extends Controller
                 return [];
             }
 
+            // Exclusion formelle des militaires déjà en retraite ou décédés
             $militaires = Militaire::whereIn('id', $allIds)
+                ->where('statut', 'actif')
+                ->whereNull('date_deces')
                 ->with(['certificats'])
                 ->get()
                 ->keyBy('id');
@@ -409,6 +412,11 @@ class AvancementController extends Controller
             foreach ($allIds as $mId) {
                 $m = $militaires->get($mId);
                 if (!$m) continue;
+
+                // Double vérification stricte : statut actif, non décédé et limite d'âge non dépassée
+                if ($m->statut !== 'actif' || !empty($m->date_deces) || $m->estRetraiteDepassee()) {
+                    continue;
+                }
 
                 $saved = $savedAvancements->get($mId);
                 $promoInfo = $promotionsMap[$mId] ?? null;
@@ -608,6 +616,14 @@ class AvancementController extends Controller
      */
     protected function recalculerRangsEnBase(int $annee): void
     {
+        // Nettoyer les avancements des militaires déjà retraités ou décédés
+        Avancement::where('annee', $annee)
+            ->whereHas('militaire', function ($q) {
+                $q->where('statut', '!=', 'actif')
+                  ->orWhereNotNull('date_deces');
+            })
+            ->delete();
+
         $grades = Avancement::where('annee', $annee)->pluck('grade_actuel')->unique();
 
         foreach ($grades as $grade) {
