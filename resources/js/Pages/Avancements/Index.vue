@@ -291,20 +291,10 @@
                 </p>
             </div>
 
-            <!-- Liste vide -->
-            <div v-if="paginatedCandidates.length === 0"
-                class="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs">
-                <i class="pi pi-inbox text-5xl text-slate-300 mb-3"></i>
-                <h3 class="text-base font-semibold text-slate-700">Aucun candidat trouvé pour cette sélection</h3>
-                <p class="text-sm text-slate-400 mt-1">
-                    Vérifiez le filtre de grade ou les propositions d'avancement de la session {{ currentAnnee }}.
-                </p>
-            </div>
-
             <!-- ========================================================================================= -->
             <!-- BANDEAU DE TEMPORISATION SAISIE PAR COLONNE (OFFICIERS)                                  -->
             <!-- ========================================================================================= -->
-            <div v-if="activeTab === 'officiers' && countdownActive"
+            <div v-if="paginatedCandidates.length > 0 && activeTab === 'officiers' && countdownActive"
                 class="mb-3 p-3 bg-gradient-to-r from-amber-50 via-sky-50 to-amber-50 border border-amber-300 rounded-xl flex items-center justify-between shadow-xs print:hidden animate-fade-in">
                 <div class="flex items-center gap-3">
                     <div class="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-extrabold text-sm shadow-xs shrink-0 animate-pulse">
@@ -322,6 +312,16 @@
                         <span>Classer maintenant</span>
                     </button>
                 </div>
+            </div>
+
+            <!-- Liste vide -->
+            <div v-if="paginatedCandidates.length === 0"
+                class="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs">
+                <i class="pi pi-inbox text-5xl text-slate-300 mb-3"></i>
+                <h3 class="text-base font-semibold text-slate-700">Aucun candidat trouvé pour cette sélection</h3>
+                <p class="text-sm text-slate-400 mt-1">
+                    Vérifiez le filtre de grade ou les propositions d'avancement de la session {{ currentAnnee }}.
+                </p>
             </div>
 
             <!-- ========================================================================================= -->
