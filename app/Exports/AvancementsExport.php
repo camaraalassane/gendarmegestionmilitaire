@@ -102,7 +102,7 @@ class AvancementsExport implements FromArray, WithStyles, WithColumnWidths, With
             $malusAge = (float) ($item['malus_limite_age'] ?? 0);
 
             $row = [
-                $item['rang'] ? '#' . $item['rang'] : '-',
+                $item['rang'] ? (int) $item['rang'] : '-',
                 $item['matricule'] ?? '',
                 $nomComplet,
                 $item['grade_actuel'] ?? '',

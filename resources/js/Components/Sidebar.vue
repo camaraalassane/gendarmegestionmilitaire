@@ -1,7 +1,7 @@
 <template>
     <!-- Menu version desktop -->
     <aside :class="[
-        'bg-gradient-to-b from-sky-800 via-sky-700 to-sky-800 text-white h-screen fixed left-0 top-0 z-40 transition-all duration-300 shadow-2xl border-r border-sky-600/40',
+        'print:hidden bg-gradient-to-b from-sky-800 via-sky-700 to-sky-800 text-white h-screen fixed left-0 top-0 z-40 transition-all duration-300 shadow-2xl border-r border-sky-600/40',
         isOpen && !isMobile ? 'w-64' : (isMobile ? 'w-64' : 'w-20'),
         isMobile && !isOpen ? '-translate-x-full' : 'translate-x-0'
     ]">

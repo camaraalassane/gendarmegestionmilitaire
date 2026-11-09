@@ -453,6 +453,99 @@
                 </div>
             </div>
         </div>
+
+        <!-- MODAL DE CONFIRMATION D'IMPORTATION EXCEL -->
+        <div v-if="showImportConfirmModal"
+            class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden transform transition-all">
+                <!-- En-tête -->
+                <div class="px-5 py-4 bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 text-white flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center">
+                            <i class="pi pi-file-import text-white text-sm"></i>
+                        </div>
+                        <h3 class="font-bold text-sm tracking-wide">Confirmation d'importation</h3>
+                    </div>
+                    <button @click="cancelImport" class="text-white/80 hover:text-white transition-colors cursor-pointer">
+                        <i class="pi pi-times text-sm"></i>
+                    </button>
+                </div>
+
+                <!-- Corps -->
+                <div class="p-5">
+                    <p class="text-xs text-slate-600 mb-3 leading-relaxed">
+                        Voulez-vous importer ce fichier pour mettre à jour les notes et recalculer les classements de la <strong>session {{ currentAnnee }}</strong> ?
+                    </p>
+
+                    <!-- Fichier sélectionné -->
+                    <div v-if="pendingImportFile"
+                        class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 rounded-lg bg-sky-100 text-sky-800 flex items-center justify-center shrink-0">
+                            <i class="pi pi-file-excel text-lg"></i>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="text-xs font-bold text-slate-800 truncate" :title="pendingImportFile.name">
+                                {{ pendingImportFile.name }}
+                            </div>
+                            <div class="text-[11px] text-slate-400">
+                                {{ (pendingImportFile.size / 1024).toFixed(1) }} Ko
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-[11px] leading-tight flex items-start gap-2">
+                        <i class="pi pi-info-circle text-amber-600 shrink-0 mt-0.5"></i>
+                        <span>Les notes actuelles des militaires présents dans le fichier seront mises à jour avec les valeurs importées.</span>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="px-5 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                    <button @click="cancelImport" :disabled="importing"
+                        class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg text-xs transition-colors cursor-pointer">
+                        Annuler
+                    </button>
+
+                    <button @click="confirmAndExecuteImport" :disabled="importing"
+                        class="px-4 py-2 bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 hover:from-sky-900 hover:to-sky-900 text-white font-bold rounded-lg text-xs shadow-xs flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50">
+                        <i :class="importing ? 'pi pi-spin pi-spinner' : 'pi pi-check'"></i>
+                        <span>{{ importing ? 'Import en cours...' : 'Confirmer l\'importation' }}</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL DE NOTIFICATION (SUCCÈS / ERREUR) -->
+        <div v-if="notification.show"
+            class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full border border-slate-200 overflow-hidden p-6 text-center">
+                <!-- Icône -->
+                <div v-if="notification.type === 'success'"
+                    class="w-14 h-14 rounded-full bg-sky-100 text-sky-800 flex items-center justify-center mx-auto mb-3 shadow-inner">
+                    <i class="pi pi-check text-2xl font-bold"></i>
+                </div>
+                <div v-else
+                    class="w-14 h-14 rounded-full bg-red-100 text-red-700 flex items-center justify-center mx-auto mb-3 shadow-inner">
+                    <i class="pi pi-exclamation-triangle text-2xl font-bold"></i>
+                </div>
+
+                <!-- Titre -->
+                <h3 class="text-base font-extrabold text-slate-900 mb-1">
+                    {{ notification.title }}
+                </h3>
+
+                <!-- Message -->
+                <p class="text-xs text-slate-600 mb-5 leading-relaxed">
+                    {{ notification.message }}
+                </p>
+
+                <!-- Bouton -->
+                <button @click="closeNotification"
+                    class="w-full py-2.5 bg-sky-800 hover:bg-sky-900 text-white font-bold rounded-xl text-xs shadow-xs transition-all cursor-pointer">
+                    Continuer
+                </button>
+            </div>
+        </div>
     </AuthenticatedLayout>
 </template>
 
@@ -661,7 +754,33 @@ const handleGradeChange = () => {
 };
 
 /**
- * Sauvegarde
+ * Modals & Notifications
+ */
+const showImportConfirmModal = ref(false);
+const pendingImportFile = ref(null);
+
+const notification = ref({
+    show: false,
+    type: 'success',
+    title: '',
+    message: ''
+});
+
+const showNotification = (type, title, message) => {
+    notification.value = {
+        show: true,
+        type,
+        title,
+        message
+    };
+};
+
+const closeNotification = () => {
+    notification.value.show = false;
+};
+
+/**
+ * Sauvegarde des notes
  */
 const saveNotes = async () => {
     saving.value = true;
@@ -690,11 +809,13 @@ const saveNotes = async () => {
         if (response.data?.success) {
             hasUnsavedChanges.value = false;
             localCandidates.value.forEach(c => c.est_enregistre = true);
-            alert('✅ Notes et classements enregistrés avec succès !');
+            showNotification('success', 'Enregistrement réussi', 'Les notes et classements du tableau d\'avancement ont été enregistrés avec succès.');
+        } else {
+            showNotification('error', 'Erreur d\'enregistrement', response.data?.message || 'Une erreur est survenue lors de l\'enregistrement.');
         }
     } catch (error) {
         console.error('Erreur sauvegarde avancements:', error);
-        alert('❌ Erreur lors de la sauvegarde. Veuillez vérifier les valeurs.');
+        showNotification('error', 'Erreur d\'enregistrement', 'Impossible d\'enregistrer les notes. Veuillez vérifier les valeurs saisies.');
     } finally {
         saving.value = false;
     }
@@ -733,7 +854,7 @@ const exportExcel = async () => {
 };
 
 /**
- * Import Excel
+ * Import Excel via Modal de Confirmation
  */
 const fileInputRef = ref(null);
 const importing = ref(false);
@@ -742,17 +863,27 @@ const triggerFileInput = () => {
     fileInputRef.value?.click();
 };
 
-const onFileSelected = async (e) => {
+const onFileSelected = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!confirm(`Voulez-vous importer le fichier "${file.name}" pour mettre à jour les notes de la session ${currentAnnee.value} ?`)) {
-        e.target.value = '';
-        return;
+    pendingImportFile.value = file;
+    showImportConfirmModal.value = true;
+};
+
+const cancelImport = () => {
+    showImportConfirmModal.value = false;
+    pendingImportFile.value = null;
+    if (fileInputRef.value) {
+        fileInputRef.value.value = '';
     }
+};
+
+const confirmAndExecuteImport = async () => {
+    if (!pendingImportFile.value) return;
 
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', pendingImportFile.value);
     formData.append('annee', currentAnnee.value);
 
     importing.value = true;
@@ -761,37 +892,87 @@ const onFileSelected = async (e) => {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
 
+        showImportConfirmModal.value = false;
+        pendingImportFile.value = null;
+        if (fileInputRef.value) fileInputRef.value.value = '';
+
         if (response.data?.success) {
-            alert('✅ ' + (response.data.message || 'Importation terminée avec succès.'));
-            router.reload();
+            showNotification('success', 'Importation terminée', response.data.message || 'Notes et classements mis à jour avec succès.');
+            // Recharger les données du tableau
+            router.reload({ preserveScroll: true });
         } else {
-            alert('⚠️ ' + (response.data?.message || 'Erreur lors de l\'importation.'));
+            showNotification('error', 'Erreur d\'importation', response.data?.message || 'Erreur lors de l\'importation.');
         }
     } catch (err) {
+        showImportConfirmModal.value = false;
         console.error('Erreur import avancements:', err);
         const msg = err.response?.data?.message || 'Erreur lors de l\'importation du fichier Excel.';
-        alert('❌ ' + msg);
+        showNotification('error', 'Échec de l\'importation', msg);
     } finally {
         importing.value = false;
-        e.target.value = '';
     }
 };
 
+/**
+ * Impression officielle paysage plein écran
+ */
 const printTable = () => {
-    window.print();
+    const prevPerPage = perPage.value;
+    perPage.value = 9999; // Affiche tous les candidats pour l'impression complète
+    setTimeout(() => {
+        window.print();
+        setTimeout(() => {
+            perPage.value = prevPerPage;
+        }, 800);
+    }, 200);
 };
 </script>
 
 <style scoped>
 @media print {
-    body {
+    @page {
+        size: landscape;
+        margin: 8mm 6mm;
+    }
+    :deep(aside),
+    :deep(header),
+    :deep(nav),
+    .print\:hidden {
+        display: none !important;
+    }
+    body, html {
         background: white !important;
-        font-size: 9px !important;
+        color: #0f172a !important;
+        font-size: 8.5px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+    }
+    table {
+        width: 100% !important;
+        table-layout: auto !important;
+        border-collapse: collapse !important;
+    }
+    th, td {
+        padding: 3px 4px !important;
+        font-size: 8.5px !important;
+        border: 1px solid #cbd5e1 !important;
     }
     input {
         border: none !important;
         background: transparent !important;
         padding: 0 !important;
+        text-align: center !important;
+        font-weight: bold !important;
+        font-size: 9px !important;
+        width: auto !important;
+        box-shadow: none !important;
+    }
+    thead {
+        display: table-header-group !important;
+    }
+    tr {
+        page-break-inside: avoid !important;
     }
 }
 </style>
