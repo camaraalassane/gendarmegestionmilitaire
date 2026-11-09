@@ -103,6 +103,8 @@ class AvancementController extends Controller
 
         $annee = (int) $request->input('annee', date('Y'));
         $items = $request->input('items', []);
+        $now = now();
+        $records = [];
 
         foreach ($items as $item) {
             $joursPunition = max(0, (int) ($item['jours_punition'] ?? 0));
@@ -126,28 +128,42 @@ class AvancementController extends Controller
             // Total = Rendement + Fonction + Bonus + Diplômes + Décorations + Ancienneté Grade - Malus Limite Âge - Malus Punition
             $total = round($noteRendement + $ptsFonction + $bonusEmploi + $ptsDiplomes + $ptsDecos + $ptsAncGrade - $malusLimiteAge - $malusPunition, 2);
 
-            Avancement::updateOrCreate(
-                [
-                    'militaire_id' => $item['militaire_id'],
-                    'annee' => $annee,
-                ],
-                [
-                    'grade_actuel' => $item['grade_actuel'] ?? null,
-                    'grade_cible' => $item['grade_cible'] ?? null,
-                    'fonction_actuelle' => $item['fonction_actuelle'] ?? null,
-                    'points_fonction_actuelle' => $ptsFonction,
-                    'note_rendement' => $noteRendement,
-                    'bonus_dernier_emploi' => $bonusEmploi,
-                    'points_diplomes' => $ptsDiplomes,
-                    'points_decorations' => $ptsDecos,
-                    'points_anciennete_grade' => $ptsAncGrade,
-                    'jours_punition' => $joursPunition,
-                    'malus_punition' => $malusPunition,
-                    'annees_restantes_retraite' => $anneesRestantes,
-                    'malus_limite_age' => $malusLimiteAge,
-                    'total_points' => max(0, $total),
-                ]
-            );
+            $records[] = [
+                'militaire_id' => (int) $item['militaire_id'],
+                'annee' => $annee,
+                'grade_actuel' => $item['grade_actuel'] ?? null,
+                'grade_cible' => $item['grade_cible'] ?? null,
+                'fonction_actuelle' => $item['fonction_actuelle'] ?? null,
+                'points_fonction_actuelle' => $ptsFonction,
+                'note_rendement' => $noteRendement,
+                'bonus_dernier_emploi' => $bonusEmploi,
+                'points_diplomes' => $ptsDiplomes,
+                'points_decorations' => $ptsDecos,
+                'points_anciennete_grade' => $ptsAncGrade,
+                'jours_punition' => $joursPunition,
+                'malus_punition' => $malusPunition,
+                'points_limite_age' => $malusLimiteAge,
+                'total_points' => max(0, $total),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        // Écriture optimisée en une seule requête SQL upsert de masse
+        if (!empty($records)) {
+            foreach (array_chunk($records, 200) as $chunk) {
+                Avancement::upsert(
+                    $chunk,
+                    ['militaire_id', 'annee'],
+                    [
+                        'grade_actuel', 'grade_cible', 'fonction_actuelle',
+                        'points_fonction_actuelle', 'note_rendement', 'bonus_dernier_emploi',
+                        'points_diplomes', 'points_decorations', 'points_anciennete_grade',
+                        'jours_punition', 'malus_punition', 'points_limite_age',
+                        'total_points', 'updated_at'
+                    ]
+                );
+            }
         }
 
         // Recalcul des rangs par grade en base de données
@@ -242,6 +258,28 @@ class AvancementController extends Controller
 
             $dataRows = array_slice($rows, $headerRowIndex + 1);
 
+            // Précharger tous les militaires actifs et vivants en mémoire pour éliminer les requêtes SQL N+1
+            $allMilitaires = Militaire::where('statut', 'actif')
+                ->whereNull('date_deces')
+                ->select('id', 'matricule', 'nom', 'prenom', 'grade_actuel', 'date_naissance')
+                ->get();
+
+            $byMatricule = [];
+            $byFullName = [];
+            foreach ($allMilitaires as $m) {
+                $mat = strtolower(trim((string)$m->matricule));
+                if ($mat !== '') {
+                    $byMatricule[$mat] = $m;
+                }
+                $nomPrenom = strtolower(preg_replace('/\s+/', ' ', trim($m->nom . ' ' . $m->prenom)));
+                $prenomNom = strtolower(preg_replace('/\s+/', ' ', trim($m->prenom . ' ' . $m->nom)));
+                $byFullName[$nomPrenom] = $m;
+                $byFullName[$prenomNom] = $m;
+            }
+
+            $now = now();
+            $recordsToUpsert = [];
+
             foreach ($dataRows as $row) {
                 if (empty($row) || !is_array($row)) {
                     continue;
@@ -260,25 +298,17 @@ class AvancementController extends Controller
                     continue;
                 }
 
-                // Recherche du militaire par matricule en priorité
+                // Recherche en mémoire O(1) par matricule en priorité
                 $militaire = null;
                 if (!empty($colB)) {
-                    $cleanMatricule = ltrim($colB, "'");
-                    $militaire = Militaire::where('matricule', $cleanMatricule)->first();
+                    $cleanMatricule = strtolower(trim(ltrim($colB, "'")));
+                    $militaire = $byMatricule[$cleanMatricule] ?? null;
                 }
 
-                // Fallback par nom complet si non trouvé
+                // Fallback en mémoire O(1) par nom complet si non trouvé
                 if (!$militaire && !empty($colC)) {
-                    $cleanNom = trim(ltrim($colC, "'"));
-                    $parts = explode(' ', $cleanNom, 2);
-                    if (count($parts) === 2) {
-                        $militaire = Militaire::where('nom', $parts[0])
-                            ->where('prenom', $parts[1])
-                            ->first();
-                    }
-                    if (!$militaire) {
-                        $militaire = Militaire::whereRaw("TRIM(CONCAT(nom, ' ', prenom)) = ?", [$cleanNom])->first();
-                    }
+                    $cleanNom = strtolower(preg_replace('/\s+/', ' ', trim(ltrim($colC, "'"))));
+                    $militaire = $byFullName[$cleanNom] ?? null;
                 }
 
                 if (!$militaire) {
@@ -324,28 +354,41 @@ class AvancementController extends Controller
 
                 $total = $noteRendement + $ptsFonction + $bonusEmploi + $ptsDiplomes + $ptsDeco + $ptsAncGrade - $malusLimiteAge - $malusPunition;
 
-                Avancement::updateOrCreate(
-                    [
-                        'militaire_id' => $militaire->id,
-                        'annee' => $annee,
-                    ],
-                    [
-                        'grade_actuel' => $militaire->grade_actuel,
-                        'points_fonction_actuelle' => $ptsFonction,
-                        'note_rendement' => $noteRendement,
-                        'bonus_dernier_emploi' => $bonusEmploi,
-                        'points_diplomes' => $ptsDiplomes,
-                        'points_decorations' => $ptsDeco,
-                        'points_anciennete_grade' => $ptsAncGrade,
-                        'jours_punition' => $joursPunition,
-                        'malus_punition' => $malusPunition,
-                        'annees_restantes_retraite' => $anneesRestantes,
-                        'malus_limite_age' => $malusLimiteAge,
-                        'total_points' => max(0, $total),
-                    ]
-                );
+                $recordsToUpsert[] = [
+                    'militaire_id' => $militaire->id,
+                    'annee' => $annee,
+                    'grade_actuel' => $militaire->grade_actuel,
+                    'points_fonction_actuelle' => $ptsFonction,
+                    'note_rendement' => $noteRendement,
+                    'bonus_dernier_emploi' => $bonusEmploi,
+                    'points_diplomes' => $ptsDiplomes,
+                    'points_decorations' => $ptsDeco,
+                    'points_anciennete_grade' => $ptsAncGrade,
+                    'jours_punition' => $joursPunition,
+                    'malus_punition' => $malusPunition,
+                    'points_limite_age' => $malusLimiteAge,
+                    'total_points' => max(0, round($total, 2)),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
 
                 $updatedCount++;
+            }
+
+            // Écriture par lot optimisée en une seule requête SQL upsert
+            if (!empty($recordsToUpsert)) {
+                foreach (array_chunk($recordsToUpsert, 200) as $chunk) {
+                    Avancement::upsert(
+                        $chunk,
+                        ['militaire_id', 'annee'],
+                        [
+                            'grade_actuel', 'points_fonction_actuelle',
+                            'note_rendement', 'bonus_dernier_emploi', 'points_diplomes',
+                            'points_decorations', 'points_anciennete_grade', 'jours_punition',
+                            'malus_punition', 'points_limite_age', 'total_points', 'updated_at'
+                        ]
+                    );
+                }
             }
 
             // Recalcul des rangs et purge du cache
@@ -371,7 +414,7 @@ class AvancementController extends Controller
      */
     protected function buildCandidatesList(int $annee): array
     {
-        return Cache::remember("avancements:candidates_list_{$annee}", 60, function () use ($annee) {
+        return Cache::remember("avancements:candidates_list_{$annee}", 3600, function () use ($annee) {
             // 1. Récupération des promotions éligibles depuis EligibiliteController
             $eligibiliteController = app(EligibiliteController::class);
             $computedData = $eligibiliteController->getAllComputedData();
@@ -648,7 +691,10 @@ class AvancementController extends Controller
 
             $rank = 1;
             foreach ($items as $item) {
-                $item->update(['rang' => $rank++]);
+                if ($item->rang !== $rank) {
+                    $item->update(['rang' => $rank]);
+                }
+                $rank++;
             }
         }
     }

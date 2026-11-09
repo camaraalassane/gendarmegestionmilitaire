@@ -265,18 +265,7 @@ class MilitaireController extends Controller
             $q->orderBy('created_at', 'desc')->limit(10);
         }]);
 
-        // S'assurer que le militaire est synchronisé avec son affectation la plus récente (par date_mutation)
         $plusRecenteAff = $militaire->affectations->sortByDesc('date_mutation')->first();
-        if ($plusRecenteAff && $plusRecenteAff->date_mutation) {
-            if ($militaire->date_mutation != $plusRecenteAff->date_mutation || $militaire->unite != $plusRecenteAff->unite) {
-                $militaire->update([
-                    'unite' => $plusRecenteAff->unite,
-                    'region' => $plusRecenteAff->region,
-                    'date_mutation' => $plusRecenteAff->date_mutation,
-                ]);
-                $this->verifierAlerteMutation($militaire);
-            }
-        }
 
         $contratActif = $militaire->contrats()->where('statut', 'actif')->latest('date_debut')->first();
 
@@ -308,8 +297,14 @@ class MilitaireController extends Controller
             'created_at' => $alerte->created_at?->format('d/m/Y H:i'),
         ]);
 
-        $certificats = $militaire->certificats->map(function ($certificat) {
-            $document = CertificatDocument::where('militaire_certificat_id', $certificat->pivot->id)->first();
+        // Précharger les documents de certificats pour éliminer les requêtes N+1
+        $pivotIds = $militaire->certificats->pluck('pivot.id')->filter()->all();
+        $documentsByPivot = !empty($pivotIds)
+            ? CertificatDocument::whereIn('militaire_certificat_id', $pivotIds)->get()->keyBy('militaire_certificat_id')
+            : collect();
+
+        $certificats = $militaire->certificats->map(function ($certificat) use ($documentsByPivot) {
+            $document = $documentsByPivot->get($certificat->pivot->id);
 
             return [
                 'id' => $certificat->id,
@@ -411,8 +406,13 @@ class MilitaireController extends Controller
         ]);
 
         $certificatsDuMilitaire = [];
+        $pivotIds = $militaire->certificats->pluck('pivot.id')->filter()->all();
+        $documentsByPivot = !empty($pivotIds)
+            ? CertificatDocument::whereIn('militaire_certificat_id', $pivotIds)->get()->keyBy('militaire_certificat_id')
+            : collect();
+
         foreach ($militaire->certificats as $certificat) {
-            $document = CertificatDocument::where('militaire_certificat_id', $certificat->pivot->id)->first();
+            $document = $documentsByPivot->get($certificat->pivot->id);
 
             $certificatsDuMilitaire[$certificat->id] = [
                 'obtenu' => true,

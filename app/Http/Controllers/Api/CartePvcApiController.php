@@ -243,13 +243,27 @@ class CartePvcApiController extends Controller
     // =========================================================================
 
     /**
+     * Cache mémoire des grades pour éviter le problème N+1 requêtes sur les lots
+     */
+    private ?\Illuminate\Support\Collection $cachedGrades = null;
+
+    private function getGradeForMilitaire(Militaire $m): ?Grade
+    {
+        if ($this->cachedGrades === null) {
+            $this->cachedGrades = Grade::all();
+        }
+
+        return $this->cachedGrades->first(function ($g) use ($m) {
+            return $g->nom_grade === $m->grade_actuel || $g->code_grade === $m->grade_actuel;
+        });
+    }
+
+    /**
      * Formate un militaire en objet prêt pour l'impression de carte PVC (Recto & Verso).
      */
     private function formatCarteMilitaire(Militaire $m, bool $includeBase64 = false): array
     {
-        $gradeObj = Grade::where('nom_grade', $m->grade_actuel)
-            ->orWhere('code_grade', $m->grade_actuel)
-            ->first();
+        $gradeObj = $this->getGradeForMilitaire($m);
 
         $codeGrade = $gradeObj?->code_grade ?? $m->grade_actuel;
         $categorie = Grade::determinerCategorie($m->grade_actuel, $gradeObj?->code_grade, $gradeObj?->type_grade);

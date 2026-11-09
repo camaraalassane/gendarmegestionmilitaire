@@ -53,15 +53,10 @@ class AlerteController extends Controller
                 // 2. Recherche par Type d'alerte (promotion, formation, contrat, mutation, retraite)
                 ->orWhere('type_alerte', 'like', "%{$search}%")
                 // 3. Recherche par Message / Description
-                ->orWhere('message', 'like', "%{$search}%")
-                // 4. Recherche par Date d'échéance (texte brut ou converti)
-                ->orWhere('date_echeance', 'like', "%{$search}%")
-                // 5. Recherche par Date de création
-                ->orWhere('created_at', 'like', "%{$search}%");
+                ->orWhere('message', 'like', "%{$search}%");
 
                 if ($dateConverted) {
-                    $q->orWhere('date_echeance', 'like', "%{$dateConverted}%")
-                      ->orWhere('created_at', 'like', "%{$dateConverted}%");
+                    $q->orWhere('date_echeance', $dateConverted);
                 }
             });
         }
@@ -353,78 +348,108 @@ class AlerteController extends Controller
      */
     private function actualiserStatutRetraites(): int
     {
-        $militaires = Militaire::where('statut', 'actif')->get();
-        $count = 0;
+        $militaires = Militaire::where('statut', 'actif')
+            ->select('id', 'date_naissance', 'grade_actuel', 'statut')
+            ->get();
+
+        $retraitesIds = [];
         foreach ($militaires as $m) {
             if ($m->estRetraiteDepassee()) {
-                $m->statut = 'retraité';
-                $m->save();
-                $count++;
+                $retraitesIds[] = $m->id;
             }
         }
-        return $count;
+
+        if (!empty($retraitesIds)) {
+            Militaire::whereIn('id', $retraitesIds)->update(['statut' => 'retraité']);
+        }
+
+        return count($retraitesIds);
     }
 
     /**
-     * Générer les alertes de promotion
+     * Générer les alertes de promotion (requêtes de masse optimisées)
      */
     private function genererAlertesPromotion(): int
     {
-        $militaires = Militaire::all();
-        $createdCount = 0;
+        $militaires = Militaire::where('statut', 'actif')
+            ->whereNull('date_deces')
+            ->select('id', 'nom', 'prenom', 'grade_actuel', 'date_grade_actuel', 'date_derniere_promotion', 'date_entree_service')
+            ->get();
+
+        $existingAlertes = Alerte::where('type_alerte', 'promotion')
+            ->where('est_vue', false)
+            ->pluck('militaire_id')
+            ->all();
+        $existingMap = array_flip($existingAlertes);
+
+        $toInsert = [];
+        $now = now();
+        $dateEcheance = $now->copy()->addMonths(6);
 
         foreach ($militaires as $militaire) {
-            if ($militaire->aAncienneteGradeMin(3)) {
-                $alerteExiste = Alerte::where('militaire_id', $militaire->id)
-                    ->where('type_alerte', 'promotion')
-                    ->where('est_vue', false)
-                    ->exists();
-
-                if (!$alerteExiste) {
-                    Alerte::create([
-                        'militaire_id' => $militaire->id,
-                        'type_alerte' => 'promotion',
-                        'message' => "{$militaire->prenom} {$militaire->nom} est éligible pour une promotion",
-                        'date_echeance' => now()->addMonths(6),
-                        'est_vue' => false,
-                    ]);
-                    $createdCount++;
-                }
+            if (!isset($existingMap[$militaire->id]) && $militaire->aAncienneteGradeMin(3)) {
+                $toInsert[] = [
+                    'militaire_id' => $militaire->id,
+                    'type_alerte' => 'promotion',
+                    'message' => "{$militaire->prenom} {$militaire->nom} est éligible pour une promotion",
+                    'date_echeance' => $dateEcheance,
+                    'est_vue' => false,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
             }
         }
 
-        return $createdCount;
+        if (!empty($toInsert)) {
+            foreach (array_chunk($toInsert, 500) as $chunk) {
+                Alerte::insert($chunk);
+            }
+        }
+
+        return count($toInsert);
     }
 
     /**
-     * Générer les alertes de retraite
+     * Générer les alertes de retraite (requêtes de masse optimisées)
      */
     private function genererAlertesRetraite(): int
     {
-        $militaires = Militaire::all();
-        $createdCount = 0;
+        $militaires = Militaire::where('statut', 'actif')
+            ->whereNull('date_deces')
+            ->whereNotNull('date_naissance')
+            ->select('id', 'nom', 'prenom', 'grade_actuel', 'date_naissance', 'statut')
+            ->get();
+
+        $existingAlertes = Alerte::where('type_alerte', 'retraite')
+            ->where('est_vue', false)
+            ->pluck('militaire_id')
+            ->all();
+        $existingMap = array_flip($existingAlertes);
+
+        $toInsert = [];
+        $now = now();
 
         foreach ($militaires as $militaire) {
-            if ($militaire->estEligibleRetraite()) {
-                $alerteExiste = Alerte::where('militaire_id', $militaire->id)
-                    ->where('type_alerte', 'retraite')
-                    ->where('est_vue', false)
-                    ->exists();
-
-                if (!$alerteExiste) {
-                    $dateRetraite = $militaire->calculerDateRetraite();
-                    Alerte::create([
-                        'militaire_id' => $militaire->id,
-                        'type_alerte' => 'retraite',
-                        'message' => "{$militaire->prenom} {$militaire->nom} est éligible à la retraite",
-                        'date_echeance' => $dateRetraite,
-                        'est_vue' => false,
-                    ]);
-                    $createdCount++;
-                }
+            if (!isset($existingMap[$militaire->id]) && $militaire->estEligibleRetraite()) {
+                $dateRetraite = $militaire->calculerDateRetraite();
+                $toInsert[] = [
+                    'militaire_id' => $militaire->id,
+                    'type_alerte' => 'retraite',
+                    'message' => "{$militaire->prenom} {$militaire->nom} est éligible à la retraite",
+                    'date_echeance' => $dateRetraite,
+                    'est_vue' => false,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
             }
         }
 
-        return $createdCount;
+        if (!empty($toInsert)) {
+            foreach (array_chunk($toInsert, 500) as $chunk) {
+                Alerte::insert($chunk);
+            }
+        }
+
+        return count($toInsert);
     }
 }
