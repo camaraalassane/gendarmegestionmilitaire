@@ -36,7 +36,7 @@
             </div>
 
             <!-- Navigation -->
-            <nav class="flex-1 overflow-y-auto py-2 px-2 no-scrollbar">
+            <nav class="flex-1 overflow-y-auto py-2 px-2 no-scrollbar" style="scrollbar-width: none; -ms-overflow-style: none;">
                 <ul class="space-y-0.5">
                     <li v-for="item in menuItems" :key="item.name" class="relative group">
                         <NavLink :href="item.href" :active="isActive(item.href)" @click="handleNavClick">
@@ -164,18 +164,18 @@ const logout = () => {
 
 <style scoped>
 .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
 }
 .no-scrollbar::-webkit-scrollbar {
-    display: none;
-    width: 0;
-    height: 0;
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
 }
 
 .sidebar-scroll::-webkit-scrollbar {
-    display: none;
-    width: 0;
+    display: none !important;
+    width: 0 !important;
 }
 
 .sidebar-scroll::-webkit-scrollbar-track {

@@ -36,3 +36,14 @@
 .p-button-danger .p-button-label {
     color: #ffffff !important;
 }
+
+/* Cache la barre de défilement tout en conservant le défilement si nécessaire */
+.no-scrollbar {
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
+}
+.no-scrollbar::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+}
