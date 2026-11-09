@@ -9,9 +9,9 @@
         <title inertia>{{ config('app.name', 'Gestion Militaire - Gendarmerie') }}</title>
 
         <!-- Favicon Gendarmerie -->
-        <link rel="icon" type="image/png" href="{{ asset('images/logo-gendarmerie.png') }}">
-        <link rel="shortcut icon" type="image/png" href="{{ asset('images/logo-gendarmerie.png') }}">
-        <link rel="apple-touch-icon" href="{{ asset('images/logo-gendarmerie.png') }}">
+        <link rel="icon" type="image/png" href="{{ asset('images/logo-gendarmerie-officiel.png?v=2026') }}">
+        <link rel="shortcut icon" type="image/png" href="{{ asset('images/logo-gendarmerie-officiel.png?v=2026') }}">
+        <link rel="apple-touch-icon" href="{{ asset('images/logo-gendarmerie-officiel.png?v=2026') }}">
         
         <!-- Scripts -->
         @routes

@@ -10,7 +10,7 @@
             <!-- Logo et titre -->
             <div class="text-center mb-4 animate-fade-in-down">
                 <div class="inline-flex items-center justify-center w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full shadow-lg mb-2 transition-all duration-300 hover:scale-105 p-2">
-                    <img src="/images/logo-gendarmerie.png" alt="Gendarmerie Nationale" class="w-full h-full object-contain" />
+                    <img src="/images/logo-gendarmerie-officiel.png?v=2026" alt="Gendarmerie Nationale" class="w-full h-full object-contain" />
                 </div>
                 <h1 class="text-white text-xl font-bold tracking-tight">Gestion Militaire</h1>
                 <p class="text-white/80 text-xs mt-0.5 font-semibold uppercase">Gendarmerie Nationale du Mali</p>

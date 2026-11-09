@@ -117,7 +117,7 @@ const alertesCount = computed(() => page.props.alertesCount || 0);
 
 // Logo Gendarmerie
 const logoExists = ref(true);
-const logoUrl = ref('/images/logo-gendarmerie.png');
+const logoUrl = ref('/images/logo-gendarmerie-officiel.png?v=2026');
 
 const toggleSidebar = () => {
     emit('update:isOpen', !props.isOpen);
