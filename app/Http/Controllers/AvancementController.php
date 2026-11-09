@@ -6,7 +6,9 @@ use App\Models\Militaire;
 use App\Models\Avancement;
 use App\Models\Grade;
 use App\Exports\AvancementsExport;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
@@ -15,19 +17,27 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 class AvancementController extends Controller
 {
     /**
-     * Affiche le tableau d'avancement avec classement automatique par grade
+     * Affiche le tableau d'avancement avec classement automatique par grade (plus haut grade en premier)
      */
     public function index(Request $request): Response
     {
+        // Session : toujours l'année en clôture
         $annee = (int) $request->input('annee', date('Y'));
         $gradeFiltre = $request->input('grade', 'all');
         $search = trim((string) $request->input('search', ''));
 
+        // Récupérer la hiérarchie des grades pour le tri du plus élevé au plus bas
+        $gradesHierarchy = Grade::pluck('ordre', 'nom_grade')->all();
+
         $candidates = $this->buildCandidatesList($annee);
 
-        // Liste de tous les grades disponibles parmi les candidats
+        // Liste des grades uniques présents parmi les candidats, triés du plus élevé au moins élevé
         $availableGrades = collect($candidates)->pluck('grade_actuel')->filter()->unique()->values()->all();
-        sort($availableGrades);
+        usort($availableGrades, function ($a, $b) use ($gradesHierarchy) {
+            $orderA = $gradesHierarchy[$a] ?? 0;
+            $orderB = $gradesHierarchy[$b] ?? 0;
+            return $orderB <=> $orderA; // Décroissant : grade le plus élevé en premier
+        });
 
         // Filtrage par grade si demandé
         if (!empty($gradeFiltre) && $gradeFiltre !== 'all') {
@@ -50,12 +60,6 @@ class AvancementController extends Controller
             'selectedAnnee' => $annee,
             'selectedGrade' => $gradeFiltre,
             'search' => $search,
-            'anneesDisponibles' => [
-                (int) date('Y') - 1,
-                (int) date('Y'),
-                (int) date('Y') + 1,
-                (int) date('Y') + 2,
-            ],
             'stats' => [
                 'total_candidats' => count($candidates),
                 'total_grades' => count($availableGrades),
@@ -65,7 +69,7 @@ class AvancementController extends Controller
     }
 
     /**
-     * Sauvegarde en lot ou unitaire des notes du tableau d'avancement
+     * Sauvegarde en lot des notes du tableau d'avancement
      */
     public function save(Request $request)
     {
@@ -73,14 +77,15 @@ class AvancementController extends Controller
             'annee' => 'required|integer',
             'items' => 'required|array',
             'items.*.militaire_id' => 'required|exists:militaires,id',
+            'items.*.points_fonction_actuelle' => 'nullable|numeric|min:0|max:100',
             'items.*.note_rendement' => 'nullable|numeric|min:0|max:100',
             'items.*.bonus_dernier_emploi' => 'nullable|numeric|min:0|max:100',
             'items.*.points_diplomes' => 'nullable|numeric|min:0|max:100',
             'items.*.points_decorations' => 'nullable|numeric|min:0|max:100',
             'items.*.points_anciennete_grade' => 'nullable|numeric|min:0|max:100',
             'items.*.jours_punition' => 'nullable|integer|min:0',
-            'items.*.points_limite_age' => 'nullable|numeric|min:0|max:100',
-            'items.*.observations' => 'nullable|string|max:500',
+            'items.*.annees_restantes_retraite' => 'nullable|integer',
+            'items.*.malus_limite_age' => 'nullable|numeric|min:0|max:100',
         ]);
 
         $annee = (int) $request->input('annee', date('Y'));
@@ -91,13 +96,22 @@ class AvancementController extends Controller
             $malusPunition = round($joursPunition * 0.1, 2);
 
             $noteRendement = (float) ($item['note_rendement'] ?? 0);
+            $ptsFonction = (float) ($item['points_fonction_actuelle'] ?? 0);
             $bonusEmploi = (float) ($item['bonus_dernier_emploi'] ?? 0);
             $ptsDiplomes = (float) ($item['points_diplomes'] ?? 0);
             $ptsDecos = (float) ($item['points_decorations'] ?? 0);
             $ptsAncGrade = (float) ($item['points_anciennete_grade'] ?? 0);
-            $ptsLimiteAge = (float) ($item['points_limite_age'] ?? 0);
 
-            $total = round($noteRendement + $bonusEmploi + $ptsDiplomes + $ptsDecos + $ptsAncGrade + $ptsLimiteAge - $malusPunition, 2);
+            // Règle limite d'âge : si reste <= 1 an = -2 pts, si reste 2 ans = -1 pt
+            $anneesRestantes = isset($item['annees_restantes_retraite']) ? (int) $item['annees_restantes_retraite'] : null;
+            if (isset($item['malus_limite_age'])) {
+                $malusLimiteAge = (float) $item['malus_limite_age'];
+            } else {
+                $malusLimiteAge = ($anneesRestantes !== null && $anneesRestantes <= 1) ? 2.0 : (($anneesRestantes !== null && $anneesRestantes == 2) ? 1.0 : 0.0);
+            }
+
+            // Total = Rendement + Fonction + Bonus + Diplômes + Décorations + Ancienneté Grade - Malus Limite Âge - Malus Punition
+            $total = round($noteRendement + $ptsFonction + $bonusEmploi + $ptsDiplomes + $ptsDecos + $ptsAncGrade - $malusLimiteAge - $malusPunition, 2);
 
             Avancement::updateOrCreate(
                 [
@@ -108,6 +122,7 @@ class AvancementController extends Controller
                     'grade_actuel' => $item['grade_actuel'] ?? null,
                     'grade_cible' => $item['grade_cible'] ?? null,
                     'fonction_actuelle' => $item['fonction_actuelle'] ?? null,
+                    'points_fonction_actuelle' => $ptsFonction,
                     'note_rendement' => $noteRendement,
                     'bonus_dernier_emploi' => $bonusEmploi,
                     'points_diplomes' => $ptsDiplomes,
@@ -115,15 +130,18 @@ class AvancementController extends Controller
                     'points_anciennete_grade' => $ptsAncGrade,
                     'jours_punition' => $joursPunition,
                     'malus_punition' => $malusPunition,
-                    'points_limite_age' => $ptsLimiteAge,
-                    'total_points' => $total,
-                    'observations' => $item['observations'] ?? null,
+                    'annees_restantes_retraite' => $anneesRestantes,
+                    'malus_limite_age' => $malusLimiteAge,
+                    'total_points' => max(0, $total),
                 ]
             );
         }
 
         // Recalcul des rangs par grade en base de données
         $this->recalculerRangsEnBase($annee);
+
+        // Vider le cache de l'avancement pour prise en compte immédiate
+        Cache::forget("avancements:candidates_list_{$annee}");
 
         if ($request->wantsJson()) {
             return response()->json([
@@ -159,126 +177,150 @@ class AvancementController extends Controller
     }
 
     /**
-     * Construit la liste des candidats inspirée en premier lieu des Promotions éligibles
+     * Construit la liste optimisée des candidats avec mise en cache pour chargement instantané
      */
     protected function buildCandidatesList(int $annee): array
     {
-        // 1. Récupération des promotions éligibles depuis EligibiliteController
-        $eligibiliteController = app(EligibiliteController::class);
-        $computedData = $eligibiliteController->getAllComputedData();
-        $promotions = $computedData['promotions'] ?? [];
+        return Cache::remember("avancements:candidates_list_{$annee}", 600, function () use ($annee) {
+            // 1. Récupération des promotions éligibles depuis EligibiliteController
+            $eligibiliteController = app(EligibiliteController::class);
+            $computedData = $eligibiliteController->getAllComputedData();
+            $promotions = $computedData['promotions'] ?? [];
 
-        // Extraire les infos des éligibles
-        $promotionsMap = [];
-        $promoMilitaireIds = [];
-        foreach ($promotions as $promo) {
-            $mId = $promo['militaire']['id'] ?? null;
-            if ($mId) {
-                $promoMilitaireIds[] = $mId;
-                $promotionsMap[$mId] = $promo;
-            }
-        }
+            // Hiérarchie des grades
+            $gradesHierarchy = Grade::pluck('ordre', 'nom_grade')->all();
 
-        // 2. Récupération des avancements déjà enregistrés pour cette année
-        $savedAvancements = Avancement::where('annee', $annee)->get()->keyBy('militaire_id');
-
-        // Réunir tous les militaires concernés (éligibles à la promotion + ceux déjà enregistrés dans l'avancement)
-        $allIds = array_unique(array_merge($promoMilitaireIds, $savedAvancements->keys()->all()));
-
-        if (empty($allIds)) {
-            return [];
-        }
-
-        $militaires = Militaire::whereIn('id', $allIds)
-            ->with(['certificats'])
-            ->get()
-            ->keyBy('id');
-
-        $candidates = [];
-
-        foreach ($allIds as $mId) {
-            $m = $militaires->get($mId);
-            if (!$m) {
-                continue;
+            $promotionsMap = [];
+            $promoMilitaireIds = [];
+            foreach ($promotions as $promo) {
+                $mId = $promo['militaire']['id'] ?? null;
+                if ($mId) {
+                    $promoMilitaireIds[] = $mId;
+                    $promotionsMap[$mId] = $promo;
+                }
             }
 
-            $saved = $savedAvancements->get($mId);
-            $promoInfo = $promotionsMap[$mId] ?? null;
+            // 2. Récupération des avancements déjà enregistrés
+            $savedAvancements = Avancement::where('annee', $annee)->get()->keyBy('militaire_id');
 
-            $gradeActuel = $saved->grade_actuel ?? $m->grade_actuel;
-            $gradeCible = $saved->grade_cible ?? ($promoInfo['grade_cible'] ?? '');
-            $fonction = $saved->fonction_actuelle ?? ($m->fonction_actuelle ?: $m->position_actuelle ?: 'En fonction');
+            $allIds = array_unique(array_merge($promoMilitaireIds, $savedAvancements->keys()->all()));
 
-            // Formatage des diplômes et décorations
-            $diplomesFormates = $this->formatList($m->diplomes_academiques);
-            $decorationsFormatees = $this->formatList($m->decorations);
+            if (empty($allIds)) {
+                return [];
+            }
 
-            // Points
-            $noteRendement = $saved ? (float) $saved->note_rendement : 0.0;
-            $bonusEmploi = $saved ? (float) $saved->bonus_dernier_emploi : 0.0;
-            $ptsDiplomes = $saved ? (float) $saved->points_diplomes : 0.0;
-            $ptsDecos = $saved ? (float) $saved->points_decorations : 0.0;
-            $ptsAncGrade = $saved ? (float) $saved->points_anciennete_grade : 0.0;
-            $joursPunition = $saved ? (int) $saved->jours_punition : 0;
-            $malusPunition = round($joursPunition * 0.1, 2);
-            $ptsLimiteAge = $saved ? (float) $saved->points_limite_age : 0.0;
+            $militaires = Militaire::whereIn('id', $allIds)
+                ->with(['certificats'])
+                ->get()
+                ->keyBy('id');
 
-            $total = round($noteRendement + $bonusEmploi + $ptsDiplomes + $ptsDecos + $ptsAncGrade + $ptsLimiteAge - $malusPunition, 2);
+            $candidates = [];
 
-            $candidates[] = [
-                'militaire_id' => $m->id,
-                'avancement_id' => $saved?->id,
-                'matricule' => $m->matricule,
-                'mle_grm' => $m->mle_grm ?? '',
-                'nom' => $m->nom,
-                'prenom' => $m->prenom,
-                'nom_complet' => trim($m->nom . ' ' . $m->prenom),
-                'photo_url' => $m->photo_url,
-                'grade_actuel' => $gradeActuel,
-                'grade_cible' => $gradeCible,
-                'fonction_actuelle' => $fonction,
-                'diplomes_texte' => $diplomesFormates,
-                'decorations_texte' => $decorationsFormatees,
-                'anciennete_grade_annees' => $m->anciennete_grade ?? 0,
-                'anciennete_service_annees' => $m->anciennete ?? 0,
-                'age' => $m->age ?? 0,
-                // Notes modifiables
-                'note_rendement' => $noteRendement,
-                'bonus_dernier_emploi' => $bonusEmploi,
-                'points_diplomes' => $ptsDiplomes,
-                'points_decorations' => $ptsDecos,
-                'points_anciennete_grade' => $ptsAncGrade,
-                'jours_punition' => $joursPunition,
-                'malus_punition' => $malusPunition,
-                'points_limite_age' => $ptsLimiteAge,
-                'total_points' => $total,
-                'rang' => $saved?->rang ?? 0,
-                'observations' => $saved?->observations ?? '',
-                'est_enregistre' => (bool) $saved,
-                'has_antecedents' => (bool) ($m->antecedent_judiciaire || $m->antecedent_disciplinaire),
-            ];
-        }
+            foreach ($allIds as $mId) {
+                $m = $militaires->get($mId);
+                if (!$m) continue;
 
-        // Classement PAR GRADE : au sein de chaque grade, tri décroissant par total_points
-        return $this->classerParGrade($candidates);
+                $saved = $savedAvancements->get($mId);
+                $promoInfo = $promotionsMap[$mId] ?? null;
+
+                $gradeActuel = $saved->grade_actuel ?? $m->grade_actuel;
+                $gradeCible = $saved->grade_cible ?? ($promoInfo['grade_cible'] ?? '');
+                $fonctionNom = $m->fonction_actuelle ?: $m->position_actuelle ?: 'En fonction';
+
+                // Calcul limite d'âge et retraite : si reste <= 1 an = -2 pts, si reste 2 ans = -1 pt, sinon 0
+                $ageRetraite = Grade::getRetraiteForGrade($gradeActuel);
+                $anneesRestantes = null;
+                $malusLimiteAgeDefaut = 0.0;
+                if ($ageRetraite && $m->date_naissance) {
+                    $anneeRetraite = (int) Carbon::parse($m->date_naissance)->year + $ageRetraite;
+                    $anneesRestantes = max(0, $anneeRetraite - $annee);
+                    if ($anneesRestantes <= 1) {
+                        $malusLimiteAgeDefaut = 2.0; // -2 pts
+                    } elseif ($anneesRestantes == 2) {
+                        $malusLimiteAgeDefaut = 1.0; // -1 pt
+                    } else {
+                        $malusLimiteAgeDefaut = 0.0;
+                    }
+                }
+
+                $diplomesFormates = $this->formatList($m->diplomes_academiques);
+                $decorationsFormatees = $this->formatList($m->decorations);
+
+                // Notes
+                $ptsFonction = $saved ? (float) $saved->points_fonction_actuelle : 0.0;
+                $noteRendement = $saved ? (float) $saved->note_rendement : 0.0;
+                $bonusEmploi = $saved ? (float) $saved->bonus_dernier_emploi : 0.0;
+                $ptsDiplomes = $saved ? (float) $saved->points_diplomes : 0.0;
+                $ptsDecos = $saved ? (float) $saved->points_decorations : 0.0;
+                $ptsAncGrade = $saved ? (float) $saved->points_anciennete_grade : 0.0;
+                $joursPunition = $saved ? (int) $saved->jours_punition : 0;
+                $malusPunition = round($joursPunition * 0.1, 2);
+                $malusLimiteAge = $saved ? (float) $saved->malus_limite_age : $malusLimiteAgeDefaut;
+
+                // Total = Rendement + Fonction + Bonus + Diplômes + Décorations + Ancienneté Grade - Malus Limite Âge - Malus Punition
+                $total = round($noteRendement + $ptsFonction + $bonusEmploi + $ptsDiplomes + $ptsDecos + $ptsAncGrade - $malusLimiteAge - $malusPunition, 2);
+
+                $candidates[] = [
+                    'militaire_id' => $m->id,
+                    'avancement_id' => $saved?->id,
+                    'matricule' => $m->matricule,
+                    'mle_grm' => $m->mle_grm ?? '',
+                    'nom' => $m->nom,
+                    'prenom' => $m->prenom,
+                    'nom_complet' => trim($m->nom . ' ' . $m->prenom),
+                    'photo_url' => $m->photo_url,
+                    'grade_actuel' => $gradeActuel,
+                    'grade_ordre' => $gradesHierarchy[$gradeActuel] ?? 0,
+                    'grade_cible' => $gradeCible,
+                    'fonction_nom' => $fonctionNom,
+                    'diplomes_texte' => $diplomesFormates,
+                    'decorations_texte' => $decorationsFormatees,
+                    'anciennete_grade_annees' => $m->anciennete_grade ?? 0,
+                    'age' => $m->age ?? 0,
+                    'annees_restantes_retraite' => $anneesRestantes,
+                    // Champs de notation éditables
+                    'points_fonction_actuelle' => $ptsFonction,
+                    'note_rendement' => $noteRendement,
+                    'bonus_dernier_emploi' => $bonusEmploi,
+                    'points_diplomes' => $ptsDiplomes,
+                    'points_decorations' => $ptsDecos,
+                    'points_anciennete_grade' => $ptsAncGrade,
+                    'jours_punition' => $joursPunition,
+                    'malus_punition' => $malusPunition,
+                    'malus_limite_age' => $malusLimiteAge,
+                    'total_points' => max(0, $total),
+                    'rang' => $saved?->rang ?? 0,
+                    'est_enregistre' => (bool) $saved,
+                ];
+            }
+
+            // Classement PAR GRADE avec ordre hiérarchique décroissant des grades
+            return $this->classerParGrade($candidates, $gradesHierarchy);
+        });
     }
 
     /**
-     * Classe les candidats au sein de chaque grade par ordre décroissant de total_points
+     * Classe les candidats au sein de chaque grade, et ordonne les grades du plus élevé au plus bas
      */
-    protected function classerParGrade(array $candidates): array
+    protected function classerParGrade(array $candidates, array $gradesHierarchy): array
     {
-        // Grouper par grade
         $grouped = [];
         foreach ($candidates as $c) {
             $g = $c['grade_actuel'] ?? 'Non défini';
             $grouped[$g][] = $c;
         }
 
+        // Trier les grades du plus élevé au moins élevé (ordre décroissant)
+        uksort($grouped, function ($gradeA, $gradeB) use ($gradesHierarchy) {
+            $orderA = $gradesHierarchy[$gradeA] ?? 0;
+            $orderB = $gradesHierarchy[$gradeB] ?? 0;
+            return $orderB <=> $orderA;
+        });
+
         $finalList = [];
 
         foreach ($grouped as $grade => &$list) {
-            // Tri décroissant : points total en premier, puis ancienneté grade en cas d'égalité, puis nom
+            // Au sein du grade, tri par total_points décroissant
             usort($list, function ($a, $b) {
                 if ($b['total_points'] != $a['total_points']) {
                     return ($b['total_points'] > $a['total_points']) ? 1 : -1;
@@ -289,7 +331,7 @@ class AvancementController extends Controller
                 return strcmp($a['nom'], $b['nom']);
             });
 
-            // Attribution du rang (1er, 2e, 3e...)
+            // Rangs 1, 2, 3...
             $rank = 1;
             foreach ($list as &$item) {
                 $item['rang'] = $rank++;
@@ -321,9 +363,6 @@ class AvancementController extends Controller
         }
     }
 
-    /**
-     * Helper de formatage de tableau JSON ou chaîne de texte
-     */
     protected function formatList($val): string
     {
         if (!$val) return '';

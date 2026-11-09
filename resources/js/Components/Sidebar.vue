@@ -7,17 +7,17 @@
     ]">
         <div class="flex flex-col h-full">
             <!-- Logo et titre -->
-            <div class="flex items-center justify-between p-4 border-b border-white/15">
+            <div class="flex items-center justify-between p-3 border-b border-white/15">
                 <!-- Logo toujours visible -->
                 <div class="flex items-center overflow-hidden">
                     <img v-if="logoExists" :src="logoUrl" alt="Gendarmerie Nationale"
-                        class="h-10 w-10 object-contain rounded-full bg-white p-0.5 transition-all duration-300 shrink-0 shadow-sm" />
+                        class="h-9 w-9 object-contain rounded-full bg-white p-0.5 transition-all duration-300 shrink-0 shadow-sm" />
                     <!-- Titre visible uniquement quand menu ouvert OU sur mobile -->
                     <h3 v-if="(isOpen || !isMobile) && !isMobile"
-                        class="text-white font-bold text-lg ml-2 whitespace-nowrap tracking-wide" translate="no">
+                        class="text-white font-bold text-base ml-2 whitespace-nowrap tracking-wide" translate="no">
                         Gestion Militaire
                     </h3>
-                    <h3 v-if="isMobile" class="text-white font-bold text-lg ml-2 whitespace-nowrap tracking-wide" translate="no">
+                    <h3 v-if="isMobile" class="text-white font-bold text-base ml-2 whitespace-nowrap tracking-wide" translate="no">
                         Gestion Militaire
                     </h3>
                 </div>
@@ -25,42 +25,42 @@
                 <!-- Bouton toggle (caché sur mobile) -->
                 <button v-if="!isMobile" @click="toggleSidebar"
                     class="bg-white/15 rounded-full p-1 text-white hover:bg-white/25 transition-colors shrink-0 ml-2">
-                    <i :class="isOpen ? 'pi pi-chevron-left' : 'pi pi-chevron-right'" class="text-sm"></i>
+                    <i :class="isOpen ? 'pi pi-chevron-left' : 'pi pi-chevron-right'" class="text-xs"></i>
                 </button>
 
                 <!-- Bouton fermeture mobile -->
                 <button v-if="isMobile" @click="closeMobileMenu"
                     class="bg-white/15 rounded-full p-1 text-white hover:bg-white/25 transition-colors shrink-0 ml-2">
-                    <i class="pi pi-times text-sm"></i>
+                    <i class="pi pi-times text-xs"></i>
                 </button>
             </div>
 
             <!-- Navigation -->
-            <nav class="flex-1 overflow-y-auto py-4">
-                <ul class="space-y-1">
+            <nav class="flex-1 overflow-y-auto py-2 px-2 no-scrollbar">
+                <ul class="space-y-0.5">
                     <li v-for="item in menuItems" :key="item.name" class="relative group">
                         <NavLink :href="item.href" :active="isActive(item.href)" @click="handleNavClick">
                             <template #default>
-                                <div class="flex items-center justify-between w-full px-3 py-2">
+                                <div class="flex items-center justify-between w-full px-2.5 py-1.5">
                                     <div class="flex items-center">
                                         <!-- Icône toujours visible -->
-                                        <i :class="item.icon + ' text-xl w-5 shrink-0'"></i>
+                                        <i :class="item.icon + ' text-lg w-5 shrink-0'"></i>
 
                                         <!-- Texte : visible sur mobile ou quand menu ouvert -->
-                                        <span v-if="isMobile || isOpen" class="ml-3 whitespace-nowrap">
+                                        <span v-if="isMobile || isOpen" class="ml-2.5 whitespace-nowrap text-sm">
                                             {{ item.name }}
                                         </span>
 
                                         <!-- Tooltip au survol quand menu réduit (desktop uniquement) -->
                                         <div v-if="!isMobile && !isOpen"
-                                            class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                                            class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
                                             {{ item.name }}
                                         </div>
                                     </div>
 
                                     <!-- Badge alertes -->
                                     <span v-if="item.name === 'Alertes' && alertesCount > 0 && (isMobile || isOpen)"
-                                        class="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full ml-2 shrink-0">
+                                        class="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full ml-2 shrink-0">
                                         {{ alertesCount > 99 ? '99+' : alertesCount }}
                                     </span>
                                 </div>
@@ -71,17 +71,17 @@
             </nav>
 
             <!-- Déconnexion -->
-            <div class="border-t border-white/15 p-4">
+            <div class="border-t border-white/15 p-2.5">
                 <button @click="logout"
-                    class="w-full flex items-center text-white hover:bg-white/15 rounded-lg px-3 py-2 transition-colors relative group">
-                    <i class="pi pi-sign-out text-xl shrink-0"></i>
+                    class="w-full flex items-center text-white hover:bg-white/15 rounded-lg px-2.5 py-1.5 transition-colors relative group">
+                    <i class="pi pi-sign-out text-lg shrink-0"></i>
 
                     <!-- Texte : visible sur mobile ou quand menu ouvert -->
-                    <span v-if="isMobile || isOpen" class="ml-3 whitespace-nowrap">Déconnexion</span>
+                    <span v-if="isMobile || isOpen" class="ml-2.5 whitespace-nowrap text-sm">Déconnexion</span>
 
                     <!-- Tooltip au survol quand menu réduit (desktop uniquement) -->
                     <div v-if="!isMobile && !isOpen"
-                        class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-sm rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                        class="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
                         Déconnexion
                     </div>
                 </button>
@@ -163,8 +163,19 @@ const logout = () => {
 </script>
 
 <style scoped>
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+
 .sidebar-scroll::-webkit-scrollbar {
-    width: 5px;
+    display: none;
+    width: 0;
 }
 
 .sidebar-scroll::-webkit-scrollbar-track {
