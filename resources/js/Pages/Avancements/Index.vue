@@ -136,18 +136,29 @@
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
-                        <!-- Sauvegarder les notes (Bleu officiel projet Gendarmerie) -->
+                        <!-- Input fichier masqué pour l'import Excel -->
+                        <input type="file" ref="fileInputRef" accept=".xlsx,.xls,.csv" class="hidden" @change="onFileSelected" />
+
+                        <!-- Sauvegarder les notes (Bleu officiel projet) -->
                         <button @click="saveNotes" :disabled="saving"
-                            class="flex-1 min-w-[150px] px-3.5 py-1.5 bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 hover:from-sky-900 hover:to-sky-900 text-white font-bold rounded-lg shadow-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50 text-xs">
+                            class="flex-1 min-w-[135px] px-3.5 py-1.5 bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 hover:from-sky-900 hover:to-sky-900 text-white font-bold rounded-lg shadow-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50 text-xs">
                             <i :class="saving ? 'pi pi-spin pi-spinner' : 'pi pi-save'"></i>
                             <span>{{ saving ? 'Enregistrement...' : 'Sauvegarder les notes' }}</span>
                         </button>
 
                         <!-- Exporter Excel (Bleu projet Sky-700, icône sky claire) -->
-                        <button @click="exportExcel"
-                            class="px-3.5 py-1.5 bg-sky-700 hover:bg-sky-800 text-white font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-all text-xs">
-                            <i class="pi pi-file-excel text-sky-200"></i>
-                            <span>Exporter Excel</span>
+                        <button @click="exportExcel" :disabled="exporting"
+                            class="px-3.5 py-1.5 bg-sky-700 hover:bg-sky-800 text-white font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-all text-xs disabled:opacity-50">
+                            <i :class="exporting ? 'pi pi-spin pi-spinner' : 'pi pi-file-excel text-sky-200'"></i>
+                            <span>{{ exporting ? 'Export en cours...' : 'Exporter Excel' }}</span>
+                        </button>
+
+                        <!-- Importer Excel -->
+                        <button @click="triggerFileInput" :disabled="importing"
+                            class="px-3.5 py-1.5 bg-sky-900 hover:bg-sky-950 text-white font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-all text-xs disabled:opacity-50"
+                            title="Importer un fichier Excel complété avec les notes et punitions">
+                            <i :class="importing ? 'pi pi-spin pi-spinner' : 'pi pi-upload text-sky-300'"></i>
+                            <span>{{ importing ? 'Importation...' : 'Importer Excel' }}</span>
                         </button>
 
                         <!-- Imprimer (Slate-700) -->
@@ -689,12 +700,81 @@ const saveNotes = async () => {
     }
 };
 
-const exportExcel = () => {
-    const params = new URLSearchParams({
-        annee: currentAnnee.value,
-        grade: currentGrade.value
-    });
-    window.location.href = `/avancements/export?${params.toString()}`;
+const exporting = ref(false);
+const exportExcel = async () => {
+    try {
+        exporting.value = true;
+        const params = new URLSearchParams({
+            annee: currentAnnee.value,
+            grade: currentGrade.value
+        });
+        const url = `/avancements/export?${params.toString()}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Erreur lors du téléchargement');
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = `Tableau_Avancement_${currentAnnee.value}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+        console.error(e);
+        const params = new URLSearchParams({
+            annee: currentAnnee.value,
+            grade: currentGrade.value
+        });
+        window.open(`/avancements/export?${params.toString()}`, '_blank');
+    } finally {
+        exporting.value = false;
+    }
+};
+
+/**
+ * Import Excel
+ */
+const fileInputRef = ref(null);
+const importing = ref(false);
+
+const triggerFileInput = () => {
+    fileInputRef.value?.click();
+};
+
+const onFileSelected = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!confirm(`Voulez-vous importer le fichier "${file.name}" pour mettre à jour les notes de la session ${currentAnnee.value} ?`)) {
+        e.target.value = '';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('annee', currentAnnee.value);
+
+    importing.value = true;
+    try {
+        const response = await axios.post('/avancements/import', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+
+        if (response.data?.success) {
+            alert('✅ ' + (response.data.message || 'Importation terminée avec succès.'));
+            router.reload();
+        } else {
+            alert('⚠️ ' + (response.data?.message || 'Erreur lors de l\'importation.'));
+        }
+    } catch (err) {
+        console.error('Erreur import avancements:', err);
+        const msg = err.response?.data?.message || 'Erreur lors de l\'importation du fichier Excel.';
+        alert('❌ ' + msg);
+    } finally {
+        importing.value = false;
+        e.target.value = '';
+    }
 };
 
 const printTable = () => {

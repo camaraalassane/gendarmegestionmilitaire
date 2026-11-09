@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Thème Officiel Gendarmerie : Bleu Foncé Militaire */
+/* Thème Officiel : Bleu Foncé Militaire */
 :root {
     --p-primary-50: #f0f7ff;
     --p-primary-100: #e0effe;

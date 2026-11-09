@@ -10,8 +10,8 @@
             <div class="flex items-center justify-between p-3 border-b border-white/15">
                 <!-- Logo toujours visible -->
                 <div class="flex items-center overflow-hidden">
-                    <img v-if="logoExists" :src="logoUrl" alt="Gendarmerie Nationale"
-                        class="h-9 w-9 object-contain rounded-full bg-white p-0.5 transition-all duration-300 shrink-0 shadow-sm" />
+                    <img v-if="logoExists" :src="logoUrl" alt="Gestion Militaire"
+                        class="h-9 w-9 object-contain rounded-full bg-white/10 p-0.5 transition-all duration-300 shrink-0 shadow-sm" />
                     <!-- Titre visible uniquement quand menu ouvert OU sur mobile -->
                     <h3 v-if="(isOpen || !isMobile) && !isMobile"
                         class="text-white font-bold text-base ml-2 whitespace-nowrap tracking-wide" translate="no">
@@ -115,9 +115,9 @@ const emit = defineEmits(['update:isOpen', 'closeMobile']);
 const page = usePage();
 const alertesCount = computed(() => page.props.alertesCount || 0);
 
-// Logo Gendarmerie
+// Logo Application
 const logoExists = ref(true);
-const logoUrl = ref('/images/logo-gendarmerie.png');
+const logoUrl = ref('/images/logo-dttia.png');
 
 const toggleSidebar = () => {
     emit('update:isOpen', !props.isOpen);

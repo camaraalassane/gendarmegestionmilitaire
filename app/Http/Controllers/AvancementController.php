@@ -177,6 +177,173 @@ class AvancementController extends Controller
     }
 
     /**
+     * Importe un fichier Excel complété avec les notes du tableau d'avancement
+     */
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+            'annee' => 'required|integer',
+        ]);
+
+        $annee = (int) $request->input('annee');
+        $file = $request->file('file');
+
+        try {
+            $data = Excel::toArray([], $file);
+            $rows = $data[0] ?? [];
+
+            if (empty($rows)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Le fichier Excel est vide.'
+                ], 422);
+            }
+
+            $updatedCount = 0;
+            $skippedCount = 0;
+
+            // Détection de la ligne d'en-tête
+            $headerRowIndex = null;
+            foreach ($rows as $idx => $row) {
+                $rowStr = implode(' ', array_map('strval', $row));
+                if (stripos($rowStr, 'Matricule') !== false && stripos($rowStr, 'Nom') !== false) {
+                    $headerRowIndex = $idx;
+                    break;
+                }
+            }
+
+            if ($headerRowIndex === null) {
+                $headerRowIndex = 3;
+            }
+
+            $dataRows = array_slice($rows, $headerRowIndex + 1);
+
+            foreach ($dataRows as $row) {
+                if (empty($row) || !is_array($row)) {
+                    continue;
+                }
+
+                // Ignorer les séparateurs de grade
+                $colA = trim((string)($row[0] ?? ''));
+                $colB = trim((string)($row[1] ?? ''));
+                $colC = trim((string)($row[2] ?? ''));
+
+                if (str_starts_with($colA, 'GRADE :') || str_starts_with($colA, '--- GRADE')) {
+                    continue;
+                }
+
+                if (empty($colB) && empty($colC)) {
+                    continue;
+                }
+
+                // Recherche du militaire par matricule en priorité
+                $militaire = null;
+                if (!empty($colB)) {
+                    $cleanMatricule = ltrim($colB, "'");
+                    $militaire = Militaire::where('matricule', $cleanMatricule)->first();
+                }
+
+                // Fallback par nom complet si non trouvé
+                if (!$militaire && !empty($colC)) {
+                    $cleanNom = trim(ltrim($colC, "'"));
+                    $parts = explode(' ', $cleanNom, 2);
+                    if (count($parts) === 2) {
+                        $militaire = Militaire::where('nom', $parts[0])
+                            ->where('prenom', $parts[1])
+                            ->first();
+                    }
+                    if (!$militaire) {
+                        $militaire = Militaire::whereRaw("TRIM(CONCAT(nom, ' ', prenom)) = ?", [$cleanNom])->first();
+                    }
+                }
+
+                if (!$militaire) {
+                    $skippedCount++;
+                    continue;
+                }
+
+                // Extraction des notes numériques
+                $cleanNum = function ($val) {
+                    if (is_numeric($val)) return (float) $val;
+                    if (is_string($val)) {
+                        $cleaned = str_replace([' ', ','], ['', '.'], trim(ltrim($val, "'")));
+                        return is_numeric($cleaned) ? (float) $cleaned : 0.0;
+                    }
+                    return 0.0;
+                };
+
+                $ptsFonction = max(0, $cleanNum($row[5] ?? 0));
+                $noteRendement = max(0, $cleanNum($row[6] ?? 0));
+                $bonusEmploi = max(0, $cleanNum($row[7] ?? 0));
+                $ptsDiplomes = max(0, $cleanNum($row[8] ?? 0));
+                $ptsDeco = max(0, $cleanNum($row[9] ?? 0));
+                $ptsAncGrade = max(0, $cleanNum($row[10] ?? 0));
+                $joursPunition = max(0, (int) round($cleanNum($row[11] ?? 0)));
+
+                $malusPunition = round($joursPunition * 0.1, 2);
+
+                // Calcul limite d'âge
+                $ageRetraite = Grade::getRetraiteForGrade($militaire->grade_actuel);
+                $anneesRestantes = null;
+                $malusLimiteAge = 0.0;
+
+                if ($ageRetraite && $militaire->date_naissance) {
+                    $birthYear = Carbon::parse($militaire->date_naissance)->year;
+                    $anneeRetraite = $birthYear + $ageRetraite;
+                    $anneesRestantes = max(0, $anneeRetraite - $annee);
+                    if ($anneesRestantes <= 1) {
+                        $malusLimiteAge = 2.0;
+                    } elseif ($anneesRestantes === 2) {
+                        $malusLimiteAge = 1.0;
+                    }
+                }
+
+                $total = $noteRendement + $ptsFonction + $bonusEmploi + $ptsDiplomes + $ptsDeco + $ptsAncGrade - $malusLimiteAge - $malusPunition;
+
+                Avancement::updateOrCreate(
+                    [
+                        'militaire_id' => $militaire->id,
+                        'annee' => $annee,
+                    ],
+                    [
+                        'grade_actuel' => $militaire->grade_actuel,
+                        'points_fonction_actuelle' => $ptsFonction,
+                        'note_rendement' => $noteRendement,
+                        'bonus_dernier_emploi' => $bonusEmploi,
+                        'points_diplomes' => $ptsDiplomes,
+                        'points_decorations' => $ptsDeco,
+                        'points_anciennete_grade' => $ptsAncGrade,
+                        'jours_punition' => $joursPunition,
+                        'malus_punition' => $malusPunition,
+                        'annees_restantes_retraite' => $anneesRestantes,
+                        'malus_limite_age' => $malusLimiteAge,
+                        'total_points' => max(0, $total),
+                    ]
+                );
+
+                $updatedCount++;
+            }
+
+            // Recalcul des rangs et purge du cache
+            $this->recalculerRangsEnBase($annee);
+            Cache::forget("avancements:candidates_list_{$annee}");
+
+            return response()->json([
+                'success' => true,
+                'message' => "Importation réussie : {$updatedCount} dossiers d'avancement mis à jour avec succès.",
+                'updated_count' => $updatedCount,
+                'skipped_count' => $skippedCount,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'importation : ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Construit la liste optimisée des candidats avec mise en cache pour chargement instantané
      */
     protected function buildCandidatesList(int $annee): array

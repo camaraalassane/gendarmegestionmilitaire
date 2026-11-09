@@ -94,6 +94,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('/avancements', [AvancementController::class, 'index'])->name('avancements.index');
     Route::post('/avancements/save', [AvancementController::class, 'save'])->name('avancements.save');
     Route::get('/avancements/export', [AvancementController::class, 'export'])->name('avancements.export');
+    Route::post('/avancements/import', [AvancementController::class, 'import'])->name('avancements.import');
 });
 
 // Routes réservées au Super Administrateur
