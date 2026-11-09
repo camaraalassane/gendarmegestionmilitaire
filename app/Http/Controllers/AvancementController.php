@@ -402,9 +402,10 @@ class AvancementController extends Controller
                 'skipped_count' => $skippedCount,
             ]);
         } catch (\Throwable $e) {
+            \Log::error('Erreur import avancements : ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de l\'importation : ' . $e->getMessage()
+                'message' => 'Une erreur est survenue lors de l\'importation. Veuillez vérifier la structure du fichier.'
             ], 500);
         }
     }

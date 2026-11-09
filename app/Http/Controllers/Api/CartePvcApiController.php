@@ -176,7 +176,7 @@ class CartePvcApiController extends Controller
         }
 
         $militaires = $query->get();
-        $withBase64 = $request->boolean('with_base64', true);
+        $withBase64 = $request->boolean('with_base64', false);
 
         $cartes = $militaires->map(function ($m) use ($withBase64) {
             return $this->formatCarteMilitaire($m, $withBase64);
