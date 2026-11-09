@@ -145,6 +145,7 @@ const menuItems = computed(() => {
             { name: 'Militaires', href: '/militaires', icon: 'pi pi-users' },
             { name: 'Alertes', href: '/alertes', icon: 'pi pi-bell' },
             { name: 'Éligibilités', href: '/eligibilites', icon: 'pi pi-check-circle' },
+            { name: 'Avancement', href: '/avancements', icon: 'pi pi-sort-amount-down' },
             { name: 'Contrats', href: '/contrats', icon: 'pi pi-file' },
             { name: 'Grades', href: '/grades', icon: 'pi pi-star' },
             { name: 'Certificats', href: '/certificats', icon: 'pi pi-file-pdf' }

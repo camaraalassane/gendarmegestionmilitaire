@@ -147,6 +147,11 @@ class Militaire extends Model
         return $this->belongsTo(Grade::class, 'grade_actuel', 'nom_grade');
     }
 
+    public function avancements(): HasMany
+    {
+        return $this->hasMany(Avancement::class);
+    }
+
     // =========================================================
     // MÉTHODES D'ANCIENNETÉ
     // =========================================================

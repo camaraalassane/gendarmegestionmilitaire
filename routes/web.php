@@ -8,6 +8,7 @@ use App\Http\Controllers\GradeController;
 use App\Http\Controllers\AlerteController;
 use App\Http\Controllers\EligibiliteController;
 use App\Http\Controllers\ContratController;
+use App\Http\Controllers\AvancementController;
 use App\Http\Controllers\CertificatDocumentController;
 use App\Http\Controllers\MilitairesImportController;
 use Illuminate\Foundation\Application;
@@ -88,6 +89,11 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('/eligibilites', [EligibiliteController::class, 'index'])->name('eligibilites.index');
     Route::get('/eligibilites/filtered', [EligibiliteController::class, 'getFiltered'])->name('eligibilites.filtered');
     Route::get('/eligibilites/export', [EligibiliteController::class, 'export'])->name('eligibilites.export');
+
+    // Tableau d'avancement
+    Route::get('/avancements', [AvancementController::class, 'index'])->name('avancements.index');
+    Route::post('/avancements/save', [AvancementController::class, 'save'])->name('avancements.save');
+    Route::get('/avancements/export', [AvancementController::class, 'export'])->name('avancements.export');
 });
 
 // Routes réservées au Super Administrateur
