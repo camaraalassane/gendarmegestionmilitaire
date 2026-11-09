@@ -42,7 +42,7 @@
                 <!-- Grades concernés -->
                 <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-800 flex items-center justify-center shrink-0">
+                        <div class="w-10 h-10 rounded-lg bg-sky-100 text-sky-800 flex items-center justify-center shrink-0">
                             <i class="pi pi-star text-lg"></i>
                         </div>
                         <div>
@@ -50,7 +50,7 @@
                             <h3 class="text-xl font-extrabold text-slate-800">{{ stats.total_grades }}</h3>
                         </div>
                     </div>
-                    <span class="text-xs text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded font-medium">Du + élevé au - élevé</span>
+                    <span class="text-xs text-sky-800 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded font-bold">Du + élevé au - élevé</span>
                 </div>
 
                 <!-- Règle Limite d'âge -->
@@ -76,10 +76,15 @@
                 </div>
             </div>
 
-            <!-- Barre d'action et filtres (Boutons placés en bas du header, juste au-dessus du tableau) -->
-            <div class="bg-white rounded-xl border border-slate-200 shadow-xs p-3.5 mb-5 print:hidden">
-                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                    <!-- Filtres Grade & Recherche -->
+            <!-- DEUX CARTES ALIGNÉES : 1) Filtres & Affichage  2) Actions & Sauvegarde -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-5 print:hidden">
+                <!-- Carte 1 : Filtres & Recherche (7 colonnes sur grand écran) -->
+                <div class="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-xs p-3.5 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-2.5 pb-2 border-b border-slate-100">
+                        <i class="pi pi-filter text-sky-800 text-xs font-bold"></i>
+                        <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">Filtres & Affichage</span>
+                    </div>
+
                     <div class="flex flex-wrap items-center gap-3">
                         <!-- Filtre par Grade -->
                         <div class="flex items-center gap-2">
@@ -94,7 +99,7 @@
                         </div>
 
                         <!-- Recherche -->
-                        <div class="relative w-full sm:w-60">
+                        <div class="relative flex-1 min-w-[190px]">
                             <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
                             <input type="text" v-model="searchQuery" placeholder="Rechercher nom, matricule..."
                                 class="w-full pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-sky-500 focus:border-sky-500" />
@@ -104,7 +109,7 @@
                         <div class="flex items-center gap-1.5 text-xs text-slate-600">
                             <label class="font-bold">Afficher :</label>
                             <select v-model.number="perPage" @change="currentPage = 1"
-                                class="px-2 py-1 bg-slate-50 border border-slate-300 rounded text-xs font-semibold">
+                                class="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-sky-500">
                                 <option :value="15">15 / page</option>
                                 <option :value="25">25 / page</option>
                                 <option :value="50">50 / page</option>
@@ -112,32 +117,43 @@
                                 <option :value="9999">Tout afficher</option>
                             </select>
                         </div>
+                    </div>
+                </div>
 
-                        <!-- Badge non sauvegardé -->
+                <!-- Carte 2 : Actions & Sauvegarde (5 colonnes sur grand écran) -->
+                <div class="lg:col-span-5 bg-white rounded-xl border border-slate-200 shadow-xs p-3.5 flex flex-col justify-between">
+                    <div class="flex items-center justify-between mb-2.5 pb-2 border-b border-slate-100">
+                        <div class="flex items-center gap-2">
+                            <i class="pi pi-cog text-sky-800 text-xs font-bold"></i>
+                            <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">Actions</span>
+                        </div>
+                        <!-- Badge modifications non enregistrées -->
                         <span v-if="hasUnsavedChanges"
-                            class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">
-                            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
-                            Modifications non enregistrées
+                            class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">
+                            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                            Non enregistré
                         </span>
                     </div>
 
-                    <!-- Boutons d'action (Sauvegarder, Exporter Excel, Imprimer) -->
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <!-- Sauvegarder les notes (Bleu officiel projet Gendarmerie) -->
                         <button @click="saveNotes" :disabled="saving"
-                            class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-xs flex items-center gap-2 transition-all disabled:opacity-50 text-xs">
+                            class="flex-1 min-w-[150px] px-3.5 py-1.5 bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 hover:from-sky-900 hover:to-sky-900 text-white font-bold rounded-lg shadow-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50 text-xs">
                             <i :class="saving ? 'pi pi-spin pi-spinner' : 'pi pi-save'"></i>
                             <span>{{ saving ? 'Enregistrement...' : 'Sauvegarder les notes' }}</span>
                         </button>
 
+                        <!-- Exporter Excel (Bleu projet Sky-700, icône sky claire) -->
                         <button @click="exportExcel"
                             class="px-3.5 py-1.5 bg-sky-700 hover:bg-sky-800 text-white font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-all text-xs">
-                            <i class="pi pi-file-excel text-emerald-300"></i>
+                            <i class="pi pi-file-excel text-sky-200"></i>
                             <span>Exporter Excel</span>
                         </button>
 
+                        <!-- Imprimer (Slate-700) -->
                         <button @click="printTable"
                             class="px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-all text-xs">
-                            <i class="pi pi-print"></i>
+                            <i class="pi pi-print text-slate-200"></i>
                             <span>Imprimer</span>
                         </button>
                     </div>
@@ -273,7 +289,7 @@
                                             <span class="inline-block px-1.5 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-200">
                                                 {{ item.grade_actuel }}
                                             </span>
-                                            <span v-if="item.grade_cible" class="text-[10px] text-emerald-700 font-bold flex items-center gap-1">
+                                            <span v-if="item.grade_cible" class="text-[10px] text-sky-800 font-bold flex items-center gap-1">
                                                 ➔ {{ item.grade_cible }}
                                             </span>
                                         </div>
@@ -355,7 +371,7 @@
                                                 class="inline-block px-1.5 py-0.2 rounded text-[10px] font-extrabold bg-red-100 text-red-800 border border-red-200">
                                                 -{{ item.malus_punition }} pt
                                             </span>
-                                            <span v-else class="text-[10px] text-emerald-600 font-bold">
+                                            <span v-else class="text-[10px] text-slate-500 font-bold">
                                                 0 pt
                                             </span>
                                         </div>
@@ -368,7 +384,7 @@
                                                 class="inline-block px-2 py-0.5 rounded text-xs font-extrabold bg-red-100 text-red-800 border border-red-200">
                                                 -{{ item.malus_limite_age }} pt{{ item.malus_limite_age > 1 ? 's' : '' }}
                                             </span>
-                                            <span v-else class="inline-block px-1.5 py-0.5 rounded text-[11px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200">
+                                            <span v-else class="inline-block px-1.5 py-0.5 rounded text-[11px] font-bold text-slate-600 bg-slate-100 border border-slate-200">
                                                 0 pt
                                             </span>
                                         </div>
