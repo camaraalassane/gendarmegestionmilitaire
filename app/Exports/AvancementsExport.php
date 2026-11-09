@@ -360,8 +360,8 @@ class AvancementSousOfficiersSheet implements FromArray, WithStyles, WithColumnW
         foreach ($this->gradeBannerRows as $bRow) {
             $sheet->mergeCells("A{$bRow}:K{$bRow}");
             $sheet->getStyle("A{$bRow}:K{$bRow}")->applyFromArray([
-                'font' => ['bold' => true, 'color' => ['rgb' => '065F46'], 'size' => 11],
-                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'D1FAE5']],
+                'font' => ['bold' => true, 'color' => ['rgb' => '0F172A'], 'size' => 11],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F1F5F9']],
                 'alignment' => ['vertical' => Alignment::VERTICAL_CENTER, 'horizontal' => Alignment::HORIZONTAL_LEFT],
             ]);
             $sheet->getRowDimension($bRow)->setRowHeight(24);
@@ -370,7 +370,7 @@ class AvancementSousOfficiersSheet implements FromArray, WithStyles, WithColumnW
         $styles = [
             1 => [
                 'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 15],
-                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '047857']],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '0F172A']],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER],
             ],
             2 => [
@@ -383,7 +383,7 @@ class AvancementSousOfficiersSheet implements FromArray, WithStyles, WithColumnW
             ],
             4 => [
                 'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 10],
-                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '064E3B']],
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '1E293B']],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
             ],
         ];
@@ -400,7 +400,7 @@ class AvancementSousOfficiersSheet implements FromArray, WithStyles, WithColumnW
                 'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
             ]);
             $sheet->getStyle("A5:A{$lastRow}")->applyFromArray([
-                'font' => ['bold' => true, 'color' => ['rgb' => '047857']],
+                'font' => ['bold' => true, 'color' => ['rgb' => '0284C7']],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
             ]);
             $sheet->getStyle("B5:B{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);

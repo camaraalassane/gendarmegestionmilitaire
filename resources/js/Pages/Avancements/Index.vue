@@ -20,14 +20,14 @@
             </div>
         </template>
 
-        <div class="py-5 max-w-[98%] mx-auto">
+        <div class="py-4 max-w-[99%] mx-auto">
             <!-- SÉLECTEUR D'ONGLETS MAJEUR : OFFICIERS vs SOUS-OFFICIERS & RANG -->
-            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-5 print:hidden">
-                <div class="inline-flex p-1 bg-slate-200/80 rounded-2xl border border-slate-300 shadow-inner">
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-4 print:hidden">
+                <div class="inline-flex p-1 bg-slate-200/90 rounded-2xl border border-slate-300 shadow-inner">
                     <!-- Onglet Officiers -->
                     <button @click="switchTab('officiers')"
                         :class="[
-                            'flex items-center gap-2.5 px-5 py-2.5 rounded-xl font-extrabold text-xs transition-all cursor-pointer',
+                            'flex items-center gap-2.5 px-5 py-2 rounded-xl font-extrabold text-xs transition-all cursor-pointer',
                             activeTab === 'officiers'
                                 ? 'bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 text-white shadow-md'
                                 : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
@@ -42,15 +42,15 @@
                         </span>
                     </button>
 
-                    <!-- Onglet Sous-Officiers & Rang -->
+                    <!-- Onglet Sous-Officiers & Rang (COULEURS DU PROJET SLATE/NAVY - AUCUN VERT) -->
                     <button @click="switchTab('sous_officiers')"
                         :class="[
-                            'flex items-center gap-2.5 px-5 py-2.5 rounded-xl font-extrabold text-xs transition-all cursor-pointer',
+                            'flex items-center gap-2.5 px-5 py-2 rounded-xl font-extrabold text-xs transition-all cursor-pointer',
                             activeTab === 'sous_officiers'
-                                ? 'bg-gradient-to-r from-emerald-800 via-emerald-700 to-emerald-800 text-white shadow-md'
+                                ? 'bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 text-white shadow-md'
                                 : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                         ]">
-                        <i class="pi pi-list text-sm" :class="activeTab === 'sous_officiers' ? 'text-emerald-200' : 'text-slate-400'"></i>
+                        <i class="pi pi-list text-sm" :class="activeTab === 'sous_officiers' ? 'text-sky-300' : 'text-slate-400'"></i>
                         <span class="tracking-wide uppercase">Sous-Officiers & Rang (Ancienneté)</span>
                         <span :class="[
                             'px-2 py-0.5 rounded-full text-[10px] font-black',
@@ -61,29 +61,29 @@
                     </button>
                 </div>
 
-                <div class="text-xs text-slate-500 font-medium hidden md:block">
+                <div class="text-xs text-slate-600 font-medium hidden md:block">
                     <span v-if="activeTab === 'officiers'" class="inline-flex items-center gap-1.5 bg-sky-50 text-sky-800 px-3 py-1.5 rounded-lg border border-sky-200 font-bold">
                         <i class="pi pi-info-circle text-sky-600"></i>
-                        Officiers : Notation manuelle, malus punitions & limite d'âge, calcul automatique du total
+                        Officiers : Notation manuelle des critères, malus punitions & limite d'âge
                     </span>
-                    <span v-else class="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 px-3 py-1.5 rounded-lg border border-emerald-200 font-bold">
-                        <i class="pi pi-check-circle text-emerald-600"></i>
-                        Sous-Officiers : Classement 100% automatique par Ancienneté dans le grade
+                    <span v-else class="inline-flex items-center gap-1.5 bg-slate-100 text-slate-800 px-3 py-1.5 rounded-lg border border-slate-300 font-bold">
+                        <i class="pi pi-check-circle text-sky-700"></i>
+                        Sous-Officiers : Classement statutaire 100% automatique à l'ancienneté
                     </span>
                 </div>
             </div>
 
             <!-- Bandeau de synthèse KPI : Adapté à l'onglet actif -->
             <!-- CAS 1 : OFFICIERS -->
-            <div v-if="activeTab === 'officiers'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-5 print:hidden">
-                <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs flex items-center justify-between">
+            <div v-if="activeTab === 'officiers'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4 print:hidden">
+                <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-lg bg-sky-100 text-sky-800 flex items-center justify-center shrink-0">
-                            <i class="pi pi-users text-lg"></i>
+                        <div class="w-9 h-9 rounded-lg bg-sky-100 text-sky-800 flex items-center justify-center shrink-0">
+                            <i class="pi pi-users text-base"></i>
                         </div>
                         <div>
                             <p class="text-xs text-slate-500 font-medium">Officiers éligibles</p>
-                            <h3 class="text-xl font-extrabold text-slate-800">{{ stats.total_officiers }}</h3>
+                            <h3 class="text-lg font-extrabold text-slate-800">{{ stats.total_officiers }}</h3>
                         </div>
                     </div>
                     <span class="text-xs px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-200 font-bold">
@@ -91,14 +91,14 @@
                     </span>
                 </div>
 
-                <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs flex items-center justify-between">
+                <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-lg bg-sky-100 text-sky-800 flex items-center justify-center shrink-0">
-                            <i class="pi pi-star text-lg"></i>
+                        <div class="w-9 h-9 rounded-lg bg-sky-100 text-sky-800 flex items-center justify-center shrink-0">
+                            <i class="pi pi-star text-base"></i>
                         </div>
                         <div>
                             <p class="text-xs text-slate-500 font-medium">Grades Officiers</p>
-                            <h3 class="text-xl font-extrabold text-slate-800">{{ activeAvailableGrades.length }}</h3>
+                            <h3 class="text-lg font-extrabold text-slate-800">{{ activeAvailableGrades.length }}</h3>
                         </div>
                     </div>
                     <span class="text-xs text-sky-800 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded font-bold">Du + élevé au - élevé</span>
@@ -127,65 +127,65 @@
                 </div>
             </div>
 
-            <!-- CAS 2 : SOUS-OFFICIERS & RANG -->
-            <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 mb-5 print:hidden">
-                <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs flex items-center justify-between">
+            <!-- CAS 2 : SOUS-OFFICIERS & RANG (AUCUN VERT - SLATE/NAVY PROJET) -->
+            <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4 print:hidden">
+                <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
-                            <i class="pi pi-users text-lg"></i>
+                        <div class="w-9 h-9 rounded-lg bg-sky-100 text-sky-800 flex items-center justify-center shrink-0">
+                            <i class="pi pi-users text-base"></i>
                         </div>
                         <div>
                             <p class="text-xs text-slate-500 font-medium">Sous-Officiers & Rang éligibles</p>
-                            <h3 class="text-xl font-extrabold text-slate-800">{{ stats.total_sous_officiers }}</h3>
+                            <h3 class="text-lg font-extrabold text-slate-800">{{ stats.total_sous_officiers }}</h3>
                         </div>
                     </div>
-                    <span class="text-xs px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
+                    <span class="text-xs px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-200 font-bold">
                         Session {{ currentAnnee }}
                     </span>
                 </div>
 
-                <div class="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs flex items-center justify-between">
+                <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
-                            <i class="pi pi-star text-lg"></i>
+                        <div class="w-9 h-9 rounded-lg bg-sky-100 text-sky-800 flex items-center justify-center shrink-0">
+                            <i class="pi pi-star text-base"></i>
                         </div>
                         <div>
                             <p class="text-xs text-slate-500 font-medium">Grades représentés</p>
-                            <h3 class="text-xl font-extrabold text-slate-800">{{ activeAvailableGrades.length }}</h3>
+                            <h3 class="text-lg font-extrabold text-slate-800">{{ activeAvailableGrades.length }}</h3>
                         </div>
                     </div>
-                    <span class="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded font-bold">Du + élevé au - élevé</span>
+                    <span class="text-xs text-sky-800 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded font-bold">Du + élevé au - élevé</span>
                 </div>
 
-                <!-- Explication Ancienneté -->
-                <div class="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-3 border border-emerald-200 shadow-xs flex items-center gap-2.5">
-                    <div class="w-9 h-9 rounded-lg bg-emerald-200 text-emerald-900 flex items-center justify-center shrink-0">
+                <!-- Explication Ancienneté (Projet Slate/Sky) -->
+                <div class="bg-gradient-to-r from-slate-50 to-sky-50 rounded-xl p-3 border border-slate-200 shadow-xs flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-lg bg-sky-100 text-sky-800 flex items-center justify-center shrink-0">
                         <i class="pi pi-history text-base"></i>
                     </div>
-                    <div class="text-[11px] leading-tight text-emerald-900">
-                        <strong class="uppercase font-bold block text-emerald-950">Règle Statutaire d'Ancienneté</strong>
+                    <div class="text-[11px] leading-tight text-slate-800">
+                        <strong class="uppercase font-bold block text-slate-900">Règle Statutaire d'Ancienneté</strong>
                         <span>1. Date nomination au grade ➔ 2. Date entrée service ➔ 3. Âge</span>
                     </div>
                 </div>
             </div>
 
             <!-- DEUX CARTES ALIGNÉES : 1) Filtres & Affichage  2) Actions -->
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-5 print:hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 mb-4 print:hidden">
                 <!-- Carte 1 : Filtres & Recherche -->
-                <div class="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-xs p-3.5 flex flex-col justify-between">
-                    <div class="flex items-center gap-2 mb-2.5 pb-2 border-b border-slate-100">
+                <div class="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-xs p-3 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-2 pb-1.5 border-b border-slate-100">
                         <i class="pi pi-filter text-sky-800 text-xs font-bold"></i>
                         <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                            Filtres & Affichage ({{ activeTab === 'officiers' ? 'Officiers' : 'Sous-Officiers' }})
+                            Filtres ({{ activeTab === 'officiers' ? 'Officiers' : 'Sous-Officiers' }})
                         </span>
                     </div>
 
-                    <div class="flex flex-wrap items-center gap-3">
+                    <div class="flex flex-wrap items-center gap-2.5">
                         <!-- Filtre par Grade -->
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-1.5">
                             <label class="text-xs font-bold text-slate-600 uppercase">Grade :</label>
                             <select v-model="currentGrade" @change="currentPage = 1"
-                                class="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 focus:ring-2 focus:ring-sky-500">
+                                class="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 focus:ring-2 focus:ring-sky-500">
                                 <option value="all">Tous les grades ({{ activeAvailableGrades.length }})</option>
                                 <option v-for="g in activeAvailableGrades" :key="g" :value="g">
                                     {{ g }}
@@ -194,17 +194,17 @@
                         </div>
 
                         <!-- Recherche -->
-                        <div class="relative flex-1 min-w-[190px]">
-                            <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <div class="relative flex-1 min-w-[170px]">
+                            <i class="pi pi-search absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
                             <input type="text" v-model="searchQuery" @input="currentPage = 1" placeholder="Rechercher nom, matricule..."
-                                class="w-full pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-sky-500 focus:border-sky-500" />
+                                class="w-full pl-7 pr-2.5 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-sky-500 focus:border-sky-500" />
                         </div>
 
                         <!-- Éléments par page -->
                         <div class="flex items-center gap-1.5 text-xs text-slate-600">
                             <label class="font-bold">Afficher :</label>
                             <select v-model.number="perPage" @change="currentPage = 1"
-                                class="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-sky-500">
+                                class="px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-sky-500">
                                 <option :value="15">15 / page</option>
                                 <option :value="25">25 / page</option>
                                 <option :value="50">50 / page</option>
@@ -216,20 +216,20 @@
                 </div>
 
                 <!-- Carte 2 : Actions -->
-                <div class="lg:col-span-5 bg-white rounded-xl border border-slate-200 shadow-xs p-3.5 flex flex-col justify-between">
-                    <div class="flex items-center justify-between mb-2.5 pb-2 border-b border-slate-100">
+                <div class="lg:col-span-5 bg-white rounded-xl border border-slate-200 shadow-xs p-3 flex flex-col justify-between">
+                    <div class="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-100">
                         <div class="flex items-center gap-2">
                             <i class="pi pi-cog text-sky-800 text-xs font-bold"></i>
                             <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">Actions</span>
                         </div>
-                        <!-- Badge modifications non enregistrées (uniquement Officiers) -->
+                        <!-- Badge modifications non enregistrées -->
                         <span v-if="activeTab === 'officiers' && hasUnsavedChanges"
-                            class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">
+                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 animate-pulse">
                             <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
                             Notes non enregistrées
                         </span>
                         <span v-else-if="activeTab === 'sous_officiers'"
-                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-300">
                             <i class="pi pi-check text-[9px]"></i>
                             Ancienneté automatique
                         </span>
@@ -241,24 +241,21 @@
 
                         <!-- Sauvegarder les notes (Uniquement Officiers) -->
                         <button v-if="activeTab === 'officiers'" @click="saveNotes" :disabled="saving"
-                            class="flex-1 min-w-[135px] px-3.5 py-1.5 bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 hover:from-sky-900 hover:to-sky-900 text-white font-bold rounded-lg shadow-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50 text-xs cursor-pointer">
+                            class="flex-1 min-w-[130px] px-3 py-1.5 bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 hover:from-sky-900 hover:to-sky-900 text-white font-bold rounded-lg shadow-xs flex items-center justify-center gap-1.5 transition-all disabled:opacity-50 text-xs cursor-pointer">
                             <i :class="saving ? 'pi pi-spin pi-spinner' : 'pi pi-save'"></i>
-                            <span>{{ saving ? 'Enregistrement...' : 'Sauvegarder les notes' }}</span>
+                            <span>{{ saving ? 'Enregistrement...' : 'Sauvegarder notes' }}</span>
                         </button>
 
-                        <!-- Exporter Excel -->
+                        <!-- Exporter Excel (Bleu Projet pour les deux onglets) -->
                         <button @click="exportExcel" :disabled="exporting"
-                            :class="[
-                                'px-3.5 py-1.5 text-white font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-all text-xs disabled:opacity-50 cursor-pointer',
-                                activeTab === 'officiers' ? 'bg-sky-700 hover:bg-sky-800' : 'bg-emerald-700 hover:bg-emerald-800'
-                            ]">
-                            <i :class="exporting ? 'pi pi-spin pi-spinner' : 'pi pi-file-excel'"></i>
+                            class="px-3 py-1.5 bg-sky-700 hover:bg-sky-800 text-white font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-all text-xs disabled:opacity-50 cursor-pointer">
+                            <i :class="exporting ? 'pi pi-spin pi-spinner' : 'pi pi-file-excel text-sky-200'"></i>
                             <span>{{ exporting ? 'Export...' : (activeTab === 'officiers' ? 'Exporter Excel (Officiers)' : 'Exporter Excel (Sous-officiers)') }}</span>
                         </button>
 
                         <!-- Importer Excel (Uniquement Officiers) -->
                         <button v-if="activeTab === 'officiers'" @click="triggerFileInput" :disabled="importing"
-                            class="px-3.5 py-1.5 bg-sky-900 hover:bg-sky-950 text-white font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-all text-xs disabled:opacity-50 cursor-pointer"
+                            class="px-3 py-1.5 bg-sky-900 hover:bg-sky-950 text-white font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-all text-xs disabled:opacity-50 cursor-pointer"
                             title="Importer un fichier Excel complété avec les notes et punitions">
                             <i :class="importing ? 'pi pi-spin pi-spinner' : 'pi pi-upload text-sky-300'"></i>
                             <span>{{ importing ? 'Import...' : 'Importer Excel' }}</span>
@@ -295,42 +292,42 @@
                 </p>
             </div>
 
-            <!-- ======================================================== -->
-            <!-- VUE 1 : TABLEAU OFFICIERS (Notation complète 12 colonnes) -->
-            <!-- ======================================================== -->
+            <!-- ========================================================================================= -->
+            <!-- VUE 1 : TABLEAU OFFICIERS (Table-fixed, colonne Fonction compacte, AUCUN SCROLL LATÉRAL)  -->
+            <!-- ========================================================================================= -->
             <div v-else-if="activeTab === 'officiers'" class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden print:border-none print:shadow-none">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-xs print-table">
+                <div class="w-full">
+                    <table class="w-full text-left border-collapse text-xs table-fixed">
                         <thead>
-                            <tr class="bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 text-white font-bold border-b border-sky-900 print:bg-slate-900">
-                                <th class="py-2.5 px-1 text-center w-[3.5%] print:w-[3.5%]">Rang</th>
-                                <th class="py-2.5 px-2 text-left w-[16%] print:w-[15%]">Militaire</th>
-                                <th class="py-2.5 px-1 text-left w-[11%] print:w-[10%]">Grade Actuel ➔ Cible</th>
-                                <th class="py-2.5 px-1 text-center w-[6.5%] print:w-[6%]" title="Points attribués à la fonction actuelle">
+                            <tr class="bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 text-white font-bold border-b border-sky-900 print:bg-slate-900 text-[11px]">
+                                <th class="py-2.5 px-1 text-center w-[4%]">Rang</th>
+                                <th class="py-2.5 px-2 text-left w-[17%]">Militaire</th>
+                                <th class="py-2.5 px-1 text-left w-[11%]">Grade Actuel ➔ Cible</th>
+                                <th class="py-2.5 px-1 text-center w-[6.5%]" title="Points attribués à la fonction actuelle (survolez la case pour voir la fonction)">
                                     Fonction
                                 </th>
-                                <th class="py-2.5 px-1 text-center w-[6.5%] print:w-[6%]" title="Note de rendement">
+                                <th class="py-2.5 px-1 text-center w-[6.5%]" title="Note de rendement">
                                     Rendement
                                 </th>
-                                <th class="py-2.5 px-1 text-center w-[6.5%] print:w-[6%]" title="Bonus dernier emploi tenu">
+                                <th class="py-2.5 px-1 text-center w-[6.5%]" title="Bonus dernier emploi tenu">
                                     Bonus Emploi
                                 </th>
-                                <th class="py-2.5 px-1 text-center w-[6.5%] print:w-[6%]" title="Points pour les diplômes académiques">
+                                <th class="py-2.5 px-1 text-center w-[6.5%]" title="Points pour les diplômes académiques">
                                     Diplômes
                                 </th>
-                                <th class="py-2.5 px-1 text-center w-[6.5%] print:w-[6%]" title="Points pour les décorations et médailles">
+                                <th class="py-2.5 px-1 text-center w-[6.5%]" title="Points pour les décorations et médailles">
                                     Décorations
                                 </th>
-                                <th class="py-2.5 px-1 text-center w-[6.5%] print:w-[6%]" title="Points d'ancienneté dans le grade">
+                                <th class="py-2.5 px-1 text-center w-[6.5%]" title="Points d'ancienneté dans le grade">
                                     Anc. Grade
                                 </th>
-                                <th class="py-2.5 px-1 text-center w-[8%] print:w-[8%] bg-red-900/40 print:bg-red-50 print:text-red-900" title="Jours de punition (-0.1 pt/jour)">
+                                <th class="py-2.5 px-1 text-center w-[9%] bg-red-900/40 print:bg-red-50 print:text-red-900" title="Jours de punition (-0.1 pt/jour)">
                                     Punitions
                                 </th>
-                                <th class="py-2.5 px-1 text-center w-[8.5%] print:w-[8.5%] bg-amber-900/30 print:bg-amber-50 print:text-amber-900" title="Règle Limite d'âge : -1 si reste 2 ans, -2 si reste 1 an">
+                                <th class="py-2.5 px-1 text-center w-[10%] bg-amber-900/30 print:bg-amber-50 print:text-amber-900" title="Règle Limite d'âge : -1 si reste 2 ans, -2 si reste 1 an">
                                     Limite d'Âge
                                 </th>
-                                <th class="py-2.5 px-1 text-center w-[8%] print:w-[8%] bg-sky-900 text-white font-extrabold print:bg-sky-100 print:text-sky-950">
+                                <th class="py-2.5 px-1 text-center w-[9%] bg-sky-900 text-white font-extrabold print:bg-sky-100 print:text-sky-950">
                                     TOTAL
                                 </th>
                             </tr>
@@ -361,17 +358,17 @@
                                     <!-- Rang dans le grade -->
                                     <td class="py-2 px-1 text-center whitespace-nowrap">
                                         <span v-if="item.rang === 1"
-                                            class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-400 text-amber-950 font-extrabold text-xs shadow-2xs border border-amber-500 print:bg-transparent print:border-none print:w-auto print:h-auto print:font-bold"
+                                            class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-400 text-amber-950 font-extrabold text-[11px] shadow-2xs border border-amber-500 print:bg-transparent print:border-none print:w-auto print:h-auto print:font-bold"
                                             title="1er du grade">
                                             🥇 1
                                         </span>
                                         <span v-else-if="item.rang === 2"
-                                            class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-300 text-slate-800 font-extrabold text-xs shadow-2xs border border-slate-400 print:bg-transparent print:border-none print:w-auto print:h-auto print:font-bold"
+                                            class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-300 text-slate-800 font-extrabold text-[11px] shadow-2xs border border-slate-400 print:bg-transparent print:border-none print:w-auto print:h-auto print:font-bold"
                                             title="2e du grade">
                                             🥈 2
                                         </span>
                                         <span v-else-if="item.rang === 3"
-                                            class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-700/20 text-amber-900 font-extrabold text-xs shadow-2xs border border-amber-700/40 print:bg-transparent print:border-none print:w-auto print:h-auto print:font-bold"
+                                            class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-700/20 text-amber-900 font-extrabold text-[11px] shadow-2xs border border-amber-700/40 print:bg-transparent print:border-none print:w-auto print:h-auto print:font-bold"
                                             title="3e du grade">
                                             🥉 3
                                         </span>
@@ -381,18 +378,18 @@
                                         </span>
                                     </td>
 
-                                    <!-- Militaire -->
-                                    <td class="py-2 px-2">
-                                        <div class="flex items-center gap-2">
-                                            <div class="w-7 h-7 rounded-full bg-sky-100 border border-sky-300 overflow-hidden shrink-0 flex items-center justify-center text-sky-800 font-bold text-[11px] print:hidden">
+                                    <!-- Militaire (Compact) -->
+                                    <td class="py-2 px-2 overflow-hidden">
+                                        <div class="flex items-center gap-1.5">
+                                            <div class="w-6 h-6 rounded-full bg-sky-100 border border-sky-300 overflow-hidden shrink-0 flex items-center justify-center text-sky-800 font-bold text-[10px] print:hidden">
                                                 <img v-if="item.photo_url" :src="item.photo_url" class="w-full h-full object-cover" />
                                                 <span v-else>{{ (item.nom?.[0] || 'M') }}</span>
                                             </div>
-                                            <div class="min-w-0">
-                                                <div class="font-extrabold text-slate-900 text-xs uppercase leading-tight truncate">
+                                            <div class="min-w-0 flex-1">
+                                                <div class="font-extrabold text-slate-900 text-[11px] uppercase leading-tight truncate" :title="item.nom + ' ' + item.prenom">
                                                     {{ item.nom }} {{ item.prenom }}
                                                 </div>
-                                                <div class="text-[10px] text-slate-500 font-mono">
+                                                <div class="text-[9px] text-slate-500 font-mono truncate">
                                                     Mle: <span class="font-bold text-slate-700">{{ item.matricule }}</span>
                                                 </div>
                                             </div>
@@ -400,26 +397,23 @@
                                     </td>
 
                                     <!-- Grade Actuel ➔ Cible -->
-                                    <td class="py-2 px-1">
+                                    <td class="py-2 px-1 overflow-hidden">
                                         <div class="flex flex-col gap-0.5">
-                                            <span class="inline-block px-1.5 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-200 truncate">
+                                            <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-200 truncate" :title="item.grade_actuel">
                                                 {{ item.grade_actuel }}
                                             </span>
-                                            <span v-if="item.grade_cible" class="text-[10px] text-sky-800 font-bold truncate">
+                                            <span v-if="item.grade_cible" class="text-[9px] text-sky-800 font-bold truncate" :title="item.grade_cible">
                                                 ➔ {{ item.grade_cible }}
                                             </span>
                                         </div>
                                     </td>
 
-                                    <!-- Fonction actuelle -->
-                                    <td class="py-2 px-1 text-center">
+                                    <!-- Fonction actuelle (SAISIE COMPACTE DU POINT UNIQUEMENT, INTITULÉ EN TOOLTIP) -->
+                                    <td class="py-2 px-1 text-center" :title="item.fonction_nom ? ('Emploi actuel : ' + item.fonction_nom) : ''">
                                         <input type="number" step="0.5" min="0" max="100"
                                             v-model.number="item.points_fonction_actuelle"
                                             @input="handleInputChange(item)"
-                                            class="w-12 px-1 py-0.5 text-center font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded focus:bg-white focus:ring-1 focus:ring-sky-500 text-xs" />
-                                        <div class="text-[9px] text-slate-500 truncate mt-0.5 print:hidden" :title="item.fonction_nom">
-                                            {{ item.fonction_nom || '-' }}
-                                        </div>
+                                            class="w-12 px-1 py-0.5 text-center font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded focus:bg-white focus:ring-1 focus:ring-sky-500 text-xs shadow-2xs" />
                                     </td>
 
                                     <!-- Rendement -->
@@ -427,7 +421,7 @@
                                         <input type="number" step="0.5" min="0" max="100"
                                             v-model.number="item.note_rendement"
                                             @input="handleInputChange(item)"
-                                            class="w-12 px-1 py-0.5 text-center font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded focus:bg-white focus:ring-1 focus:ring-sky-500 text-xs" />
+                                            class="w-12 px-1 py-0.5 text-center font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded focus:bg-white focus:ring-1 focus:ring-sky-500 text-xs shadow-2xs" />
                                     </td>
 
                                     <!-- Bonus Emploi -->
@@ -435,53 +429,53 @@
                                         <input type="number" step="0.5" min="0" max="100"
                                             v-model.number="item.bonus_dernier_emploi"
                                             @input="handleInputChange(item)"
-                                            class="w-12 px-1 py-0.5 text-center font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded focus:bg-white focus:ring-1 focus:ring-sky-500 text-xs" />
+                                            class="w-12 px-1 py-0.5 text-center font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded focus:bg-white focus:ring-1 focus:ring-sky-500 text-xs shadow-2xs" />
                                     </td>
 
-                                    <!-- Diplômes -->
-                                    <td class="py-2 px-1 text-center">
+                                    <!-- Diplômes (Tooltip pour le texte) -->
+                                    <td class="py-2 px-1 text-center" :title="item.diplomes_texte ? ('Diplômes : ' + item.diplomes_texte) : ''">
                                         <input type="number" step="0.5" min="0" max="100"
                                             v-model.number="item.points_diplomes"
                                             @input="handleInputChange(item)"
-                                            class="w-12 px-1 py-0.5 text-center font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded focus:bg-white focus:ring-1 focus:ring-sky-500 text-xs" />
+                                            class="w-12 px-1 py-0.5 text-center font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded focus:bg-white focus:ring-1 focus:ring-sky-500 text-xs shadow-2xs" />
                                     </td>
 
-                                    <!-- Décorations -->
-                                    <td class="py-2 px-1 text-center">
+                                    <!-- Décorations (Tooltip pour le texte) -->
+                                    <td class="py-2 px-1 text-center" :title="item.decorations_texte ? ('Décorations : ' + item.decorations_texte) : ''">
                                         <input type="number" step="0.5" min="0" max="100"
                                             v-model.number="item.points_decorations"
                                             @input="handleInputChange(item)"
-                                            class="w-12 px-1 py-0.5 text-center font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded focus:bg-white focus:ring-1 focus:ring-sky-500 text-xs" />
+                                            class="w-12 px-1 py-0.5 text-center font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded focus:bg-white focus:ring-1 focus:ring-sky-500 text-xs shadow-2xs" />
                                     </td>
 
                                     <!-- Ancienneté dans le grade -->
-                                    <td class="py-2 px-1 text-center">
+                                    <td class="py-2 px-1 text-center" :title="item.anciennete_grade_annees + ' an(s) dans le grade'">
                                         <input type="number" step="0.5" min="0" max="100"
                                             v-model.number="item.points_anciennete_grade"
                                             @input="handleInputChange(item)"
-                                            class="w-12 px-1 py-0.5 text-center font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded focus:bg-white focus:ring-1 focus:ring-sky-500 text-xs" />
+                                            class="w-12 px-1 py-0.5 text-center font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded focus:bg-white focus:ring-1 focus:ring-sky-500 text-xs shadow-2xs" />
                                         <div class="text-[9px] text-slate-500 mt-0.5 print:hidden">
-                                            {{ item.anciennete_grade_annees }} an(s)
+                                            {{ item.anciennete_grade_annees }} a
                                         </div>
                                     </td>
 
-                                    <!-- Punitions (Nombre de jours x -0.1 point) -->
+                                    <!-- Punitions (Jours x -0.1 point) -->
                                     <td class="py-2 px-1 text-center bg-red-50/40 border-x border-red-100">
                                         <div class="flex items-center justify-center gap-0.5">
                                             <input type="number" step="1" min="0" max="365"
                                                 v-model.number="item.jours_punition"
                                                 @input="handleInputChange(item)"
                                                 placeholder="0 j"
-                                                class="w-12 px-1 py-0.5 text-center font-bold text-red-700 bg-white border border-red-300 rounded focus:ring-1 focus:ring-red-500 text-xs" />
-                                            <span class="text-[9px] text-slate-500 font-semibold print:hidden">j</span>
+                                                class="w-11 px-1 py-0.5 text-center font-bold text-red-700 bg-white border border-red-300 rounded focus:ring-1 focus:ring-red-500 text-xs" />
+                                            <span class="text-[9px] text-slate-400 font-semibold print:hidden">j</span>
                                         </div>
                                         <div class="mt-0.5">
                                             <span v-if="item.jours_punition > 0"
                                                 class="inline-block px-1 py-0.2 rounded text-[9px] font-extrabold bg-red-100 text-red-800 border border-red-200">
-                                                -{{ item.malus_punition }} pt
+                                                -{{ item.malus_punition }}
                                             </span>
-                                            <span v-else class="text-[9px] text-slate-500 font-bold">
-                                                0 pt
+                                            <span v-else class="text-[9px] text-slate-400 font-bold">
+                                                0
                                             </span>
                                         </div>
                                     </td>
@@ -493,13 +487,13 @@
                                                 class="inline-block px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-red-100 text-red-800 border border-red-200">
                                                 -{{ item.malus_limite_age }} pt{{ item.malus_limite_age > 1 ? 's' : '' }}
                                             </span>
-                                            <span v-else class="inline-block px-1 py-0.5 rounded text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200">
+                                            <span v-else class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-200">
                                                 0 pt
                                             </span>
                                         </div>
                                         <div class="text-[9px] text-slate-500 mt-0.5 print:hidden">
                                             <span v-if="item.annees_restantes_retraite !== null">
-                                                Reste : <b>{{ item.annees_restantes_retraite }} a</b>
+                                                Reste: <b>{{ item.annees_restantes_retraite }} a</b>
                                             </span>
                                             <span v-else>{{ item.age }} ans</span>
                                         </div>
@@ -507,7 +501,7 @@
 
                                     <!-- TOTAL GÉNÉRAL -->
                                     <td class="py-2 px-1 text-center bg-sky-50/70 border-x border-sky-200">
-                                        <span class="inline-block px-2 py-0.5 rounded-lg text-xs font-extrabold shadow-2xs print:bg-transparent print:border-none print:shadow-none print:text-slate-900"
+                                        <span class="inline-block px-2 py-0.5 rounded-lg text-xs font-black shadow-2xs print:bg-transparent print:border-none print:shadow-none print:text-slate-900"
                                             :class="item.total_points > 0 ? 'bg-sky-800 text-white' : 'bg-slate-200 text-slate-700'">
                                             {{ Number(item.total_points).toFixed(2) }}
                                         </span>
@@ -519,14 +513,14 @@
                 </div>
 
                 <!-- Pagination Officiers -->
-                <div class="p-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-600 gap-3 print:hidden">
+                <div class="p-2.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-600 gap-3 print:hidden">
                     <div>
                         Affichage de <strong>{{ paginationInfo.from }}</strong> à <strong>{{ paginationInfo.to }}</strong> sur <strong>{{ paginationInfo.total }}</strong> officier(s).
                     </div>
 
                     <div v-if="totalPages > 1" class="flex items-center gap-1">
                         <button @click="currentPage = Math.max(1, currentPage - 1)" :disabled="currentPage === 1"
-                            class="px-2.5 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-xs cursor-pointer">
+                            class="px-2 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-xs cursor-pointer">
                             ← Précédent
                         </button>
 
@@ -539,7 +533,7 @@
                         </button>
 
                         <button @click="currentPage = Math.min(totalPages, currentPage + 1)" :disabled="currentPage === totalPages"
-                            class="px-2.5 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-xs cursor-pointer">
+                            class="px-2 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-xs cursor-pointer">
                             Suivant →
                         </button>
                     </div>
@@ -550,48 +544,48 @@
                 </div>
             </div>
 
-            <!-- ======================================================== -->
-            <!-- VUE 2 : TABLEAU SOUS-OFFICIERS & RANG (Ancienneté)       -->
-            <!-- ======================================================== -->
+            <!-- ========================================================================================= -->
+            <!-- VUE 2 : TABLEAU SOUS-OFFICIERS & RANG (Table-fixed, SLATE/NAVY PROJET, AUCUN SCROLL)      -->
+            <!-- ========================================================================================= -->
             <div v-else class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden print:border-none print:shadow-none">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-xs print-table">
+                <div class="w-full">
+                    <table class="w-full text-left border-collapse text-xs table-fixed">
                         <thead>
-                            <tr class="bg-gradient-to-r from-emerald-800 via-emerald-700 to-emerald-800 text-white font-bold border-b border-emerald-900 print:bg-slate-900">
-                                <th class="py-2.5 px-1 text-center w-[4%] print:w-[4%]">Rang</th>
-                                <th class="py-2.5 px-3 text-left w-[18%] print:w-[17%]">Militaire</th>
-                                <th class="py-2.5 px-2 text-left w-[12%] print:w-[11%]">Grade Actuel ➔ Cible</th>
-                                <th class="py-2.5 px-2 text-center w-[11%] print:w-[11%]" title="Date de nomination au grade actuel">
+                            <tr class="bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 text-white font-bold border-b border-slate-900 print:bg-slate-900 text-[11px]">
+                                <th class="py-2.5 px-1 text-center w-[4%]">Rang</th>
+                                <th class="py-2.5 px-2 text-left w-[18%]">Militaire</th>
+                                <th class="py-2.5 px-2 text-left w-[12%]">Grade Actuel ➔ Cible</th>
+                                <th class="py-2.5 px-2 text-center w-[11%]" title="Date de nomination au grade actuel">
                                     Date Nomination Grade
                                 </th>
-                                <th class="py-2.5 px-2 text-center w-[11%] print:w-[11%]" title="Durée accomplie dans le grade actuel">
+                                <th class="py-2.5 px-2 text-center w-[11%]" title="Durée accomplie dans le grade actuel">
                                     Ancienneté Grade
                                 </th>
-                                <th class="py-2.5 px-2 text-center w-[11%] print:w-[11%]" title="Date d'incorporation ou entrée en service">
+                                <th class="py-2.5 px-2 text-center w-[11%]" title="Date d'incorporation ou entrée en service">
                                     Date Incorporation
                                 </th>
-                                <th class="py-2.5 px-2 text-center w-[11%] print:w-[11%]" title="Ancienneté totale sous les drapeaux">
+                                <th class="py-2.5 px-2 text-center w-[11%]" title="Ancienneté totale sous les drapeaux">
                                     Ancienneté Service
                                 </th>
-                                <th class="py-2.5 px-2 text-center w-[12%] print:w-[12%]" title="Certificats militaires et diplômes">
+                                <th class="py-2.5 px-2 text-center w-[12%]" title="Certificats militaires et diplômes">
                                     Diplômes / Certificats
                                 </th>
-                                <th class="py-2.5 px-2 text-center w-[10%] print:w-[10%] bg-emerald-900/60 print:bg-emerald-50 print:text-emerald-950">
+                                <th class="py-2.5 px-2 text-center w-[10%] bg-slate-900/80">
                                     Éligibilité
                                 </th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-200">
                             <template v-for="(group, gradeName) in paginatedGroupedByGrade" :key="gradeName">
-                                <!-- En-tête séparateur de Grade -->
-                                <tr class="bg-emerald-50/90 border-y-2 border-emerald-200 font-bold text-emerald-900 grade-banner">
+                                <!-- En-tête séparateur de Grade (Slate/Projet) -->
+                                <tr class="bg-slate-100 border-y-2 border-slate-300 font-bold text-slate-900 grade-banner">
                                     <td colspan="9" class="py-2 px-3">
                                         <div class="flex items-center justify-between">
                                             <span class="flex items-center gap-2 text-xs tracking-wide">
-                                                <i class="pi pi-shield text-emerald-700"></i>
-                                                GRADE : <span class="uppercase font-extrabold text-emerald-950">{{ gradeName }}</span>
+                                                <i class="pi pi-shield text-sky-800"></i>
+                                                GRADE : <span class="uppercase font-extrabold text-slate-950">{{ gradeName }}</span>
                                             </span>
-                                            <span class="text-[11px] bg-emerald-200/70 text-emerald-900 px-2.5 py-0.5 rounded-full font-semibold print:text-[9px]">
+                                            <span class="text-[11px] bg-slate-200 text-slate-800 px-2.5 py-0.5 rounded-full font-semibold print:text-[9px]">
                                                 {{ group.length }} candidat(s) classé(s) par ancienneté
                                             </span>
                                         </div>
@@ -607,17 +601,17 @@
                                     <!-- Rang dans le grade -->
                                     <td class="py-2.5 px-1 text-center whitespace-nowrap">
                                         <span v-if="item.rang === 1"
-                                            class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-400 text-amber-950 font-extrabold text-xs shadow-2xs border border-amber-500 print:bg-transparent print:border-none print:w-auto print:h-auto print:font-bold"
+                                            class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-400 text-amber-950 font-extrabold text-[11px] shadow-2xs border border-amber-500 print:bg-transparent print:border-none print:w-auto print:h-auto print:font-bold"
                                             title="1er par ancienneté">
                                             🥇 1
                                         </span>
                                         <span v-else-if="item.rang === 2"
-                                            class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-300 text-slate-800 font-extrabold text-xs shadow-2xs border border-slate-400 print:bg-transparent print:border-none print:w-auto print:h-auto print:font-bold"
+                                            class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-slate-300 text-slate-800 font-extrabold text-[11px] shadow-2xs border border-slate-400 print:bg-transparent print:border-none print:w-auto print:h-auto print:font-bold"
                                             title="2e par ancienneté">
                                             🥈 2
                                         </span>
                                         <span v-else-if="item.rang === 3"
-                                            class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-700/20 text-amber-900 font-extrabold text-xs shadow-2xs border border-amber-700/40 print:bg-transparent print:border-none print:w-auto print:h-auto print:font-bold"
+                                            class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-700/20 text-amber-900 font-extrabold text-[11px] shadow-2xs border border-amber-700/40 print:bg-transparent print:border-none print:w-auto print:h-auto print:font-bold"
                                             title="3e par ancienneté">
                                             🥉 3
                                         </span>
@@ -628,31 +622,30 @@
                                     </td>
 
                                     <!-- Militaire -->
-                                    <td class="py-2.5 px-3">
-                                        <div class="flex items-center gap-2.5">
-                                            <div class="w-7 h-7 rounded-full bg-emerald-100 border border-emerald-300 overflow-hidden shrink-0 flex items-center justify-center text-emerald-800 font-bold text-[11px] print:hidden">
+                                    <td class="py-2.5 px-2 overflow-hidden">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-6 h-6 rounded-full bg-sky-100 border border-sky-300 overflow-hidden shrink-0 flex items-center justify-center text-sky-800 font-bold text-[10px] print:hidden">
                                                 <img v-if="item.photo_url" :src="item.photo_url" class="w-full h-full object-cover" />
                                                 <span v-else>{{ (item.nom?.[0] || 'M') }}</span>
                                             </div>
-                                            <div class="min-w-0">
-                                                <div class="font-extrabold text-slate-900 text-xs uppercase leading-tight truncate">
+                                            <div class="min-w-0 flex-1">
+                                                <div class="font-extrabold text-slate-900 text-[11px] uppercase leading-tight truncate" :title="item.nom + ' ' + item.prenom">
                                                     {{ item.nom }} {{ item.prenom }}
                                                 </div>
-                                                <div class="text-[10px] text-slate-500 font-mono">
+                                                <div class="text-[9px] text-slate-500 font-mono truncate">
                                                     Mle: <span class="font-bold text-slate-700">{{ item.matricule }}</span>
-                                                    <span v-if="item.mle_grm" class="ml-1 text-slate-400 font-sans">({{ item.mle_grm }})</span>
                                                 </div>
                                             </div>
                                         </div>
                                     </td>
 
                                     <!-- Grade Actuel ➔ Cible -->
-                                    <td class="py-2.5 px-2">
+                                    <td class="py-2.5 px-2 overflow-hidden">
                                         <div class="flex flex-col gap-0.5">
-                                            <span class="inline-block px-1.5 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-200 truncate">
+                                            <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-200 truncate" :title="item.grade_actuel">
                                                 {{ item.grade_actuel }}
                                             </span>
-                                            <span v-if="item.grade_cible" class="text-[10px] text-emerald-800 font-bold truncate">
+                                            <span v-if="item.grade_cible" class="text-[9px] text-sky-800 font-bold truncate" :title="item.grade_cible">
                                                 ➔ {{ item.grade_cible }}
                                             </span>
                                         </div>
@@ -665,9 +658,9 @@
                                         </span>
                                     </td>
 
-                                    <!-- Ancienneté Grade -->
+                                    <!-- Ancienneté Grade (Bleu projet Sky-50) -->
                                     <td class="py-2.5 px-2 text-center">
-                                        <span class="inline-block px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-extrabold text-xs">
+                                        <span class="inline-block px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-200 font-extrabold text-xs">
                                             {{ item.anciennete_grade_texte }}
                                         </span>
                                     </td>
@@ -687,19 +680,19 @@
                                     </td>
 
                                     <!-- Diplômes / Certificats -->
-                                    <td class="py-2.5 px-2 text-center">
-                                        <div v-if="item.certificats_texte" class="inline-block px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-200 font-bold text-[11px] truncate max-w-[150px]" :title="item.certificats_texte">
+                                    <td class="py-2.5 px-2 text-center overflow-hidden">
+                                        <div v-if="item.certificats_texte" class="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-200 font-bold text-[10px] truncate max-w-full" :title="item.certificats_texte">
                                             🎖️ {{ item.certificats_texte }}
                                         </div>
-                                        <div v-else-if="item.diplomes_texte" class="text-[10px] text-slate-500 truncate max-w-[150px]" :title="item.diplomes_texte">
+                                        <div v-else-if="item.diplomes_texte" class="text-[10px] text-slate-500 truncate max-w-full" :title="item.diplomes_texte">
                                             🎓 {{ item.diplomes_texte }}
                                         </div>
                                         <span v-else class="text-slate-400 text-xs">-</span>
                                     </td>
 
                                     <!-- Statut Éligibilité -->
-                                    <td class="py-2.5 px-2 text-center">
-                                        <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                    <td class="py-2.5 px-2 text-center overflow-hidden">
+                                        <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-300 truncate max-w-full" :title="item.message_eligibilite">
                                             {{ item.message_eligibilite }}
                                         </span>
                                     </td>
@@ -710,27 +703,27 @@
                 </div>
 
                 <!-- Pagination Sous-Officiers -->
-                <div class="p-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-600 gap-3 print:hidden">
+                <div class="p-2.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-600 gap-3 print:hidden">
                     <div>
                         Affichage de <strong>{{ paginationInfo.from }}</strong> à <strong>{{ paginationInfo.to }}</strong> sur <strong>{{ paginationInfo.total }}</strong> sous-officier(s).
                     </div>
 
                     <div v-if="totalPages > 1" class="flex items-center gap-1">
                         <button @click="currentPage = Math.max(1, currentPage - 1)" :disabled="currentPage === 1"
-                            class="px-2.5 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-xs cursor-pointer">
+                            class="px-2 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-xs cursor-pointer">
                             ← Précédent
                         </button>
 
                         <button v-for="p in visiblePages" :key="p" @click="currentPage = p"
                             :class="[
                                 'px-2.5 py-1 border rounded text-xs font-bold transition-colors cursor-pointer',
-                                currentPage === p ? 'bg-emerald-800 text-white border-emerald-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                                currentPage === p ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
                             ]">
                             {{ p }}
                         </button>
 
                         <button @click="currentPage = Math.min(totalPages, currentPage + 1)" :disabled="currentPage === totalPages"
-                            class="px-2.5 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-xs cursor-pointer">
+                            class="px-2 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-xs cursor-pointer">
                             Suivant →
                         </button>
                     </div>
@@ -1252,16 +1245,14 @@ const printTable = () => {
         width: 100% !important;
     }
 
-    /* Tableau 100% largeur avec colonnes fixes proportionnelles */
-    .print-table {
+    table {
         width: 100% !important;
         max-width: 100% !important;
         table-layout: fixed !important;
         border-collapse: collapse !important;
     }
 
-    .print-table th,
-    .print-table td {
+    th, td {
         padding: 2.5px 2px !important;
         font-size: 7.5pt !important;
         line-height: 1.15 !important;
@@ -1272,22 +1263,22 @@ const printTable = () => {
         overflow: hidden !important;
     }
 
-    .print-table th {
+    th {
         background-color: #0f172a !important;
         color: white !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
 
-    .print-table .grade-banner td {
-        background-color: #e0f2fe !important;
-        color: #0c4a6e !important;
+    .grade-banner td {
+        background-color: #f1f5f9 !important;
+        color: #0f172a !important;
         font-weight: bold !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
 
-    .print-table input {
+    input {
         border: none !important;
         background: transparent !important;
         padding: 0 !important;
