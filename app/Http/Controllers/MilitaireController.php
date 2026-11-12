@@ -11,6 +11,9 @@ use App\Models\Certificat;
 use App\Models\Contrat;
 use App\Models\CertificatDocument;
 use App\Models\ActivityLog;
+use App\Models\Region;
+use App\Models\Unite;
+use App\Models\Position;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Inertia\Inertia;
@@ -169,9 +172,16 @@ class MilitaireController extends Controller
             'niveau_certificat' => $certificat->niveau_certificat,
         ]);
 
+        $regions = Region::orderBy('ordre')->orderBy('nom')->get();
+        $unites = Unite::with('region')->orderBy('nom')->get();
+        $positions = Position::orderBy('nom')->get();
+
         return Inertia::render('militaires/create', [
             'grades' => $grades,
-            'certificats' => $certificats
+            'certificats' => $certificats,
+            'regions' => $regions,
+            'unites' => $unites,
+            'positions' => $positions,
         ]);
     }
 
@@ -445,6 +455,10 @@ class MilitaireController extends Controller
             ];
         }
 
+        $regions = Region::orderBy('ordre')->orderBy('nom')->get();
+        $unites = Unite::with('region')->orderBy('nom')->get();
+        $positions = Position::orderBy('nom')->get();
+
         return Inertia::render('militaires/edit', [
             'militaire' => [
                 'id' => $militaire->id,
@@ -494,7 +508,10 @@ class MilitaireController extends Controller
             'grades' => $grades,
             'affectations' => $affectationsList,
             'certificats' => $certificats,
-            'certificats_du_militaire' => $certificatsDuMilitaire
+            'certificats_du_militaire' => $certificatsDuMilitaire,
+            'regions' => $regions,
+            'unites' => $unites,
+            'positions' => $positions,
         ]);
     }
 

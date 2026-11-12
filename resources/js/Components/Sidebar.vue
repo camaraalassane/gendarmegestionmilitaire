@@ -148,7 +148,8 @@ const menuItems = computed(() => {
             { name: 'Avancement', href: '/avancements', icon: 'pi pi-sort-amount-down' },
             { name: 'Contrats', href: '/contrats', icon: 'pi pi-file' },
             { name: 'Grades', href: '/grades', icon: 'pi pi-star' },
-            { name: 'Certificats', href: '/certificats', icon: 'pi pi-file-pdf' }
+            { name: 'Certificats', href: '/certificats', icon: 'pi pi-file-pdf' },
+            { name: 'Configuration', href: '/configurations', icon: 'pi pi-cog' }
         ];
     }
 });

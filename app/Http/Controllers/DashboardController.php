@@ -41,19 +41,7 @@ class DashboardController extends Controller
                 ] : null,
             ]);
 
-        $stats = Cache::remember('dashboard:statistiques', 3600, function () {
-            $retraites = $this->getRetraitesBoth();
-            $proposables = $this->getProposablesBoth();
-
-            return [
-                'total_retraites_n' => $retraites['retraitesN']['total'] ?? 0,
-                'total_retraites_n1' => $retraites['retraitesN1']['total'] ?? 0,
-                'total_proposables_n' => $proposables['proposablesN']['total'] ?? 0,
-                'total_proposables_n1' => $proposables['proposablesN1']['total'] ?? 0,
-            ];
-        });
-
-        $statistiques = Cache::remember('dashboard:statistiques_cards', 120, function () use ($stats) {
+        $statistiques = Cache::remember('dashboard:statistiques_cards', 120, function () {
             return [
                 'total_militaires' => Militaire::count(),
                 'militaires_actifs' => Militaire::where('statut', 'LIKE', 'actif%')->count(),
@@ -61,10 +49,6 @@ class DashboardController extends Controller
                 'total_decedes' => Militaire::where(function($q) {
                     $q->where('statut', 'LIKE', 'd%c%d%')->orWhere('statut', 'LIKE', 'mort%');
                 })->count(),
-                'total_retraites_n' => $stats['total_retraites_n'] ?? 0,
-                'total_retraites_n1' => $stats['total_retraites_n1'] ?? 0,
-                'total_proposables_n' => $stats['total_proposables_n'] ?? 0,
-                'total_proposables_n1' => $stats['total_proposables_n1'] ?? 0,
             ];
         });
 
@@ -82,13 +66,23 @@ class DashboardController extends Controller
                 ]);
         });
 
-        $initialSection = $this->getCachedSection('retraitesN');
-
         return Inertia::render('Dashboard', [
             'alertesNonVues' => $alertesNonVues,
             'statistiques' => $statistiques,
             'grades' => $grades,
-            'initialSection' => $initialSection,
+            'statsAvancement' => Inertia::defer(function () {
+                return Cache::remember('dashboard:statistiques', 3600, function () {
+                    $retraites = $this->getRetraitesBoth();
+                    $proposables = $this->getProposablesBoth();
+
+                    return [
+                        'total_retraites_n' => $retraites['retraitesN']['total'] ?? 0,
+                        'total_retraites_n1' => $retraites['retraitesN1']['total'] ?? 0,
+                        'total_proposables_n' => $proposables['proposablesN']['total'] ?? 0,
+                        'total_proposables_n1' => $proposables['proposablesN1']['total'] ?? 0,
+                    ];
+                });
+            }),
         ]);
     }
 

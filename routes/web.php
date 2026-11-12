@@ -11,6 +11,7 @@ use App\Http\Controllers\ContratController;
 use App\Http\Controllers\AvancementController;
 use App\Http\Controllers\CertificatDocumentController;
 use App\Http\Controllers\MilitairesImportController;
+use App\Http\Controllers\ConfigurationController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -95,6 +96,20 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::post('/avancements/save', [AvancementController::class, 'save'])->name('avancements.save');
     Route::get('/avancements/export', [AvancementController::class, 'export'])->name('avancements.export');
     Route::post('/avancements/import', [AvancementController::class, 'import'])->name('avancements.import');
+
+    // Configurations (Régions, Unités, Positions)
+    Route::get('/configurations', [ConfigurationController::class, 'index'])->name('configurations.index');
+    Route::post('/configurations/regions', [ConfigurationController::class, 'storeRegion'])->name('configurations.regions.store');
+    Route::put('/configurations/regions/{region}', [ConfigurationController::class, 'updateRegion'])->name('configurations.regions.update');
+    Route::delete('/configurations/regions/{region}', [ConfigurationController::class, 'destroyRegion'])->name('configurations.regions.destroy');
+
+    Route::post('/configurations/unites', [ConfigurationController::class, 'storeUnite'])->name('configurations.unites.store');
+    Route::put('/configurations/unites/{unite}', [ConfigurationController::class, 'updateUnite'])->name('configurations.unites.update');
+    Route::delete('/configurations/unites/{unite}', [ConfigurationController::class, 'destroyUnite'])->name('configurations.unites.destroy');
+
+    Route::post('/configurations/positions', [ConfigurationController::class, 'storePosition'])->name('configurations.positions.store');
+    Route::put('/configurations/positions/{position}', [ConfigurationController::class, 'updatePosition'])->name('configurations.positions.update');
+    Route::delete('/configurations/positions/{position}', [ConfigurationController::class, 'destroyPosition'])->name('configurations.positions.destroy');
 });
 
 // Routes réservées au Super Administrateur

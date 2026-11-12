@@ -105,7 +105,10 @@
                                         <i class="pi pi-calendar text-base"></i>
                                     </div>
                                 </div>
-                                <div class="text-2xl md:text-3xl font-extrabold text-purple-700">{{ retraitesNTotal }}</div>
+                                <div class="text-2xl md:text-3xl font-extrabold text-purple-700 min-h-[2.25rem] flex items-center">
+                                    <i v-if="retraitesNTotal === null" class="pi pi-spin pi-spinner text-lg text-purple-400"></i>
+                                    <span v-else>{{ retraitesNTotal }}</span>
+                                </div>
                                 <div class="text-[11px] text-purple-600 mt-1 flex items-center gap-1 font-medium">
                                     <i class="pi pi-table text-[10px]"></i> <span>Afficher dans le tableau</span>
                                 </div>
@@ -122,7 +125,10 @@
                                         <i class="pi pi-calendar text-base"></i>
                                     </div>
                                 </div>
-                                <div class="text-2xl md:text-3xl font-extrabold text-indigo-700">{{ retraitesN1Total }}</div>
+                                <div class="text-2xl md:text-3xl font-extrabold text-indigo-700 min-h-[2.25rem] flex items-center">
+                                    <i v-if="retraitesN1Total === null" class="pi pi-spin pi-spinner text-lg text-indigo-400"></i>
+                                    <span v-else>{{ retraitesN1Total }}</span>
+                                </div>
                                 <div class="text-[11px] text-indigo-600 mt-1 flex items-center gap-1 font-medium">
                                     <i class="pi pi-table text-[10px]"></i> <span>Afficher dans le tableau</span>
                                 </div>
@@ -139,7 +145,10 @@
                                         <i class="pi pi-star text-base"></i>
                                     </div>
                                 </div>
-                                <div class="text-2xl md:text-3xl font-extrabold text-sky-800">{{ proposablesNTotal }}</div>
+                                <div class="text-2xl md:text-3xl font-extrabold text-sky-800 min-h-[2.25rem] flex items-center">
+                                    <i v-if="proposablesNTotal === null" class="pi pi-spin pi-spinner text-lg text-sky-400"></i>
+                                    <span v-else>{{ proposablesNTotal }}</span>
+                                </div>
                                 <div class="text-[11px] text-sky-700 mt-1 flex items-center gap-1 font-medium">
                                     <i class="pi pi-table text-[10px]"></i> <span>Afficher dans le tableau</span>
                                 </div>
@@ -156,7 +165,10 @@
                                         <i class="pi pi-star text-base"></i>
                                     </div>
                                 </div>
-                                <div class="text-2xl md:text-3xl font-extrabold text-teal-700">{{ proposablesN1Total }}</div>
+                                <div class="text-2xl md:text-3xl font-extrabold text-teal-700 min-h-[2.25rem] flex items-center">
+                                    <i v-if="proposablesN1Total === null" class="pi pi-spin pi-spinner text-lg text-teal-400"></i>
+                                    <span v-else>{{ proposablesN1Total }}</span>
+                                </div>
                                 <div class="text-[11px] text-teal-700 mt-1 flex items-center gap-1 font-medium">
                                     <i class="pi pi-table text-[10px]"></i> <span>Afficher dans le tableau</span>
                                 </div>
@@ -337,6 +349,7 @@ const props = defineProps({
     statistiques: Object,
     grades: Array,
     initialSection: Object,
+    statsAvancement: Object,
 });
 
 const toast = useToast();
@@ -354,10 +367,19 @@ const sortField = ref(props.initialSection?.sortField || '');
 const columns = ref(props.initialSection?.columns || []);
 const loading = ref(false);
 
-const retraitesNTotal = ref(props.statistiques?.total_retraites_n || props.initialSection?.total || 0);
-const retraitesN1Total = ref(props.statistiques?.total_retraites_n1 || 0);
-const proposablesNTotal = ref(props.statistiques?.total_proposables_n || 0);
-const proposablesN1Total = ref(props.statistiques?.total_proposables_n1 || 0);
+const retraitesNTotal = ref(props.statsAvancement?.total_retraites_n ?? (props.initialSection?.total ?? null));
+const retraitesN1Total = ref(props.statsAvancement?.total_retraites_n1 ?? null);
+const proposablesNTotal = ref(props.statsAvancement?.total_proposables_n ?? null);
+const proposablesN1Total = ref(props.statsAvancement?.total_proposables_n1 ?? null);
+
+watch(() => props.statsAvancement, (newVal) => {
+    if (newVal) {
+        if (newVal.total_retraites_n !== undefined) retraitesNTotal.value = newVal.total_retraites_n;
+        if (newVal.total_retraites_n1 !== undefined) retraitesN1Total.value = newVal.total_retraites_n1;
+        if (newVal.total_proposables_n !== undefined) proposablesNTotal.value = newVal.total_proposables_n;
+        if (newVal.total_proposables_n1 !== undefined) proposablesN1Total.value = newVal.total_proposables_n1;
+    }
+}, { immediate: true });
 
 const gradesFiltres = computed(() => props.grades.filter(g => g.militaires_count > 0));
 

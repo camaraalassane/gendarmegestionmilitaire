@@ -388,22 +388,69 @@
                                         </div>
 
                                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                            <!-- Unité -->
+                                            <!-- Région de Gendarmerie -->
                                             <div class="field">
-                                                <label :for="'unite_' + idx" class="block text-xs font-semibold text-gray-700 mb-1">
-                                                    Unité / Brigade / Escadron
-                                                </label>
-                                                <InputText :id="'unite_' + idx" v-model="aff.unite" class="w-full text-xs"
-                                                           placeholder="Ex: GSIGN, Brigade Ségou, Escadron Samory..." />
+                                                <div class="flex items-center justify-between mb-1">
+                                                    <label :for="'region_' + idx" class="block text-xs font-semibold text-gray-700">
+                                                        Région de Gendarmerie
+                                                    </label>
+                                                    <button type="button" @click="openQuickAddRegion(idx)"
+                                                            class="text-sky-700 hover:text-sky-900 text-[11px] font-semibold flex items-center gap-1 cursor-pointer bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 hover:bg-sky-100 transition-colors"
+                                                            title="Ajouter une nouvelle région">
+                                                        <i class="pi pi-plus text-[9px]"></i>
+                                                        <span>Ajouter</span>
+                                                    </button>
+                                                </div>
+                                                <Select :id="'region_' + idx"
+                                                        v-model="aff.region"
+                                                        :options="localRegions"
+                                                        optionLabel="nom"
+                                                        optionValue="nom"
+                                                        filter
+                                                        placeholder="Choisir ou chercher une région..."
+                                                        class="w-full text-xs"
+                                                        @change="onRegionSelect(idx)">
+                                                    <template #option="slotProps">
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="font-mono text-[10px] font-bold text-sky-800">[{{ slotProps.option.code }}]</span>
+                                                            <span class="text-xs">{{ slotProps.option.nom }}</span>
+                                                        </div>
+                                                    </template>
+                                                </Select>
                                             </div>
 
-                                            <!-- Région -->
+                                            <!-- Unité / Brigade / Escadron -->
                                             <div class="field">
-                                                <label :for="'region_' + idx" class="block text-xs font-semibold text-gray-700 mb-1">
-                                                    Région de Gendarmerie
-                                                </label>
-                                                <InputText :id="'region_' + idx" v-model="aff.region" class="w-full text-xs"
-                                                           placeholder="Ex: REGION N°1, REGION N°5, DGGN..." />
+                                                <div class="flex items-center justify-between mb-1">
+                                                    <label :for="'unite_' + idx" class="block text-xs font-semibold text-gray-700">
+                                                        Unité / Brigade / Escadron
+                                                    </label>
+                                                    <button type="button" @click="openQuickAddUnite(idx)"
+                                                            class="text-sky-700 hover:text-sky-900 text-[11px] font-semibold flex items-center gap-1 cursor-pointer bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 hover:bg-sky-100 transition-colors"
+                                                            title="Ajouter une nouvelle unité">
+                                                        <i class="pi pi-plus text-[9px]"></i>
+                                                        <span>Ajouter</span>
+                                                    </button>
+                                                </div>
+                                                <Select :id="'unite_' + idx"
+                                                        v-model="aff.unite"
+                                                        :options="getUnitesForRow(idx)"
+                                                        optionLabel="nom"
+                                                        optionValue="nom"
+                                                        filter
+                                                        placeholder="Choisir ou chercher une unité..."
+                                                        class="w-full text-xs"
+                                                        @change="onUniteSelect(idx)">
+                                                    <template #option="slotProps">
+                                                        <div class="flex flex-col py-0.5">
+                                                            <span class="text-xs font-medium text-slate-900">{{ slotProps.option.nom }}</span>
+                                                            <span class="text-[10px] text-slate-500">
+                                                                {{ slotProps.option.region?.nom ? '[' + slotProps.option.region.nom + ']' : '' }}
+                                                                {{ slotProps.option.type ? '• ' + slotProps.option.type : '' }}
+                                                            </span>
+                                                        </div>
+                                                    </template>
+                                                </Select>
                                             </div>
 
                                             <!-- Date Mutation -->
@@ -481,10 +528,37 @@
 
                                     <!-- Position actuelle -->
                                     <div class="field sm:col-span-2 lg:col-span-3">
-                                        <label for="position_actuelle" class="block text-sm font-semibold text-gray-700 mb-1">
-                                            Position administrative
-                                        </label>
-                                        <InputText id="position_actuelle" v-model="form.position_actuelle" class="w-full" placeholder="Ex: En activité, Détachement, Stage, En mission..." />
+                                        <div class="flex items-center justify-between mb-1">
+                                            <label for="position_actuelle" class="block text-sm font-semibold text-gray-700">
+                                                Position administrative / Théâtre opérationnel
+                                            </label>
+                                            <button type="button" @click="openQuickAddPosition"
+                                                    class="text-sky-700 hover:text-sky-900 text-xs font-semibold flex items-center gap-1 cursor-pointer bg-sky-50 px-2 py-0.5 rounded border border-sky-200 hover:bg-sky-100 transition-colors"
+                                                    title="Ajouter une nouvelle position">
+                                                <i class="pi pi-plus text-[10px]"></i>
+                                                <span>Ajouter une position</span>
+                                            </button>
+                                        </div>
+                                        <Select id="position_actuelle"
+                                                v-model="form.position_actuelle"
+                                                :options="localPositions"
+                                                optionLabel="nom"
+                                                optionValue="nom"
+                                                filter
+                                                placeholder="Sélectionner ou chercher une position (Ex: En activité, Détachement, Escadron Djiguiya...)"
+                                                class="w-full">
+                                            <template #option="slotProps">
+                                                <div class="flex items-center justify-between w-full py-0.5">
+                                                    <span class="text-xs font-medium">{{ slotProps.option.nom }}</span>
+                                                    <span :class="[
+                                                        'text-[10px] px-1.5 py-0.2 rounded font-semibold',
+                                                        slotProps.option.type === 'operationnelle' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600'
+                                                    ]">
+                                                        {{ slotProps.option.type === 'operationnelle' ? 'Théâtre OPS' : 'Administrative' }}
+                                                    </span>
+                                                </div>
+                                            </template>
+                                        </Select>
                                     </div>
                                 </div>
                             </div>
@@ -774,6 +848,64 @@
             </div>
         </div>
 
+        <!-- DIALOG AJOUT RAPIDE RÉGION -->
+        <Dialog v-model:visible="quickRegionVisible" header="Ajout Rapide : Nouvelle Région" :modal="true" class="w-full max-w-md">
+            <div class="space-y-3 pt-2 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Code officiel (ex: R1, R2, DGGN) <span class="text-red-500">*</span></label>
+                    <InputText v-model="quickRegionForm.code" class="w-full text-xs font-mono" placeholder="Ex: R12, CMD-SPEC..." />
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Nom complet de la Région <span class="text-red-500">*</span></label>
+                    <InputText v-model="quickRegionForm.nom" class="w-full text-xs" placeholder="Ex: REGION N°12..." />
+                </div>
+            </div>
+            <template #footer>
+                <Button label="Annuler" text severity="secondary" size="small" @click="quickRegionVisible = false" />
+                <Button label="Créer & Sélectionner" icon="pi pi-check" size="small" class="bg-sky-700 hover:bg-sky-800 text-white border-0" :loading="quickRegionLoading" @click="saveQuickRegion" />
+            </template>
+        </Dialog>
+
+        <!-- DIALOG AJOUT RAPIDE UNITÉ -->
+        <Dialog v-model:visible="quickUniteVisible" header="Ajout Rapide : Nouvelle Unité" :modal="true" class="w-full max-w-md">
+            <div class="space-y-3 pt-2 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Région de Rattachement <span class="text-red-500">*</span></label>
+                    <Select v-model="quickUniteForm.region_id" :options="localRegions" optionLabel="nom" optionValue="id" filter placeholder="Choisir la région parente" class="w-full text-xs" />
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Nom de l'Unité / Brigade / Escadron <span class="text-red-500">*</span></label>
+                    <InputText v-model="quickUniteForm.nom" class="w-full text-xs" placeholder="Ex: Brigade Territoriale de..." />
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Type d'unité</label>
+                    <Select v-model="quickUniteForm.type" :options="['Brigade Territoriale', 'Brigade de Recherches', 'Escadron', 'Peloton PSIG', 'État-Major', 'Direction / Service', 'Autre']" class="w-full text-xs" />
+                </div>
+            </div>
+            <template #footer>
+                <Button label="Annuler" text severity="secondary" size="small" @click="quickUniteVisible = false" />
+                <Button label="Créer & Sélectionner" icon="pi pi-check" size="small" class="bg-sky-700 hover:bg-sky-800 text-white border-0" :loading="quickUniteLoading" @click="saveQuickUnite" />
+            </template>
+        </Dialog>
+
+        <!-- DIALOG AJOUT RAPIDE POSITION -->
+        <Dialog v-model:visible="quickPositionVisible" header="Ajout Rapide : Nouvelle Position" :modal="true" class="w-full max-w-md">
+            <div class="space-y-3 pt-2 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Libellé de la Position <span class="text-red-500">*</span></label>
+                    <InputText v-model="quickPositionForm.nom" class="w-full text-xs" placeholder="Ex: Escadron Badala, En mission..." />
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Type de position</label>
+                    <Select v-model="quickPositionForm.type" :options="[{ label: 'Administrative', value: 'administrative' }, { label: 'Théâtre Opérationnel / OPS', value: 'operationnelle' }]" optionLabel="label" optionValue="value" class="w-full text-xs" />
+                </div>
+            </div>
+            <template #footer>
+                <Button label="Annuler" text severity="secondary" size="small" @click="quickPositionVisible = false" />
+                <Button label="Créer & Sélectionner" icon="pi pi-check" size="small" class="bg-sky-700 hover:bg-sky-800 text-white border-0" :loading="quickPositionLoading" @click="saveQuickPosition" />
+            </template>
+        </Dialog>
+
         <Toast position="top-right" />
     </AuthenticatedLayout>
 </template>
@@ -789,13 +921,22 @@ import Checkbox from 'primevue/checkbox';
 import Button from 'primevue/button';
 import Tag from 'primevue/tag';
 import Toast from 'primevue/toast';
+import Dialog from 'primevue/dialog';
 import FileUpload from 'primevue/fileupload';
 import { useToast } from 'primevue/usetoast';
+import axios from 'axios';
 
 const props = defineProps({
     grades: { type: Array, required: true },
-    certificats: { type: Array, default: () => [] }
+    certificats: { type: Array, default: () => [] },
+    regions: { type: Array, default: () => [] },
+    unites: { type: Array, default: () => [] },
+    positions: { type: Array, default: () => [] },
 });
+
+const localRegions = ref([...(props.regions || [])]);
+const localUnites = ref([...(props.unites || [])]);
+const localPositions = ref([...(props.positions || [])]);
 
 const toast = useToast();
 const saving = ref(false);
@@ -1110,6 +1251,155 @@ const removeAffectation = (index) => {
         form.affectations.splice(index, 1);
     } else {
         form.affectations[0] = { unite: '', region: '', date_mutation: null };
+    }
+};
+
+// --- Filtres et Ajout Rapide Régions / Unités / Positions ---
+const quickRegionVisible = ref(false);
+const quickRegionLoading = ref(false);
+const quickRegionForm = ref({ code: '', nom: '' });
+
+const quickUniteVisible = ref(false);
+const quickUniteLoading = ref(false);
+const quickUniteForm = ref({ region_id: null, nom: '', type: 'Brigade Territoriale', est_operationnelle: true });
+
+const quickPositionVisible = ref(false);
+const quickPositionLoading = ref(false);
+const quickPositionForm = ref({ nom: '', type: 'administrative' });
+
+const currentQuickAffIndex = ref(null);
+
+const getUnitesForRow = (idx) => {
+    const selectedRegion = form.affectations[idx]?.region;
+    if (!selectedRegion) {
+        return localUnites.value;
+    }
+    const regionObj = localRegions.value.find(r => r.nom === selectedRegion || r.code === selectedRegion);
+    if (!regionObj) {
+        return localUnites.value;
+    }
+    const filtered = localUnites.value.filter(u => u.region_id === regionObj.id);
+    return filtered.length > 0 ? filtered : localUnites.value;
+};
+
+const onRegionSelect = (idx) => {
+    const selectedRegion = form.affectations[idx]?.region;
+    const currentUnite = form.affectations[idx]?.unite;
+    if (selectedRegion && currentUnite) {
+        const uniteObj = localUnites.value.find(u => u.nom === currentUnite);
+        if (uniteObj && uniteObj.region && uniteObj.region.nom !== selectedRegion && uniteObj.region.code !== selectedRegion) {
+            form.affectations[idx].unite = '';
+        }
+    }
+};
+
+const onUniteSelect = (idx) => {
+    const selectedUnite = form.affectations[idx]?.unite;
+    if (!selectedUnite) return;
+    const uniteObj = localUnites.value.find(u => u.nom === selectedUnite);
+    if (uniteObj && uniteObj.region) {
+        form.affectations[idx].region = uniteObj.region.nom;
+    }
+};
+
+const openQuickAddRegion = (idx) => {
+    currentQuickAffIndex.value = idx;
+    quickRegionForm.value = { code: '', nom: '' };
+    quickRegionVisible.value = true;
+};
+
+const saveQuickRegion = async () => {
+    if (!quickRegionForm.value.code || !quickRegionForm.value.nom) {
+        toast.add({ severity: 'warn', summary: 'Champs requis', detail: 'Code et nom sont obligatoires.', life: 3000 });
+        return;
+    }
+    quickRegionLoading.value = true;
+    try {
+        const response = await axios.post(route('configurations.regions.store'), quickRegionForm.value);
+        if (response.data && response.data.region) {
+            localRegions.value.push(response.data.region);
+            if (currentQuickAffIndex.value !== null && form.affectations[currentQuickAffIndex.value]) {
+                form.affectations[currentQuickAffIndex.value].region = response.data.region.nom;
+            }
+            quickRegionVisible.value = false;
+            toast.add({ severity: 'success', summary: 'Succès', detail: 'Nouvelle région ajoutée et sélectionnée !', life: 3000 });
+        }
+    } catch (e) {
+        const msg = e.response?.data?.errors?.code?.[0] || e.response?.data?.message || 'Erreur lors de la création.';
+        toast.add({ severity: 'error', summary: 'Erreur', detail: msg, life: 4000 });
+    } finally {
+        quickRegionLoading.value = false;
+    }
+};
+
+const openQuickAddUnite = (idx) => {
+    currentQuickAffIndex.value = idx;
+    let preselectedRegionId = null;
+    const currentRegionNom = form.affectations[idx]?.region;
+    if (currentRegionNom) {
+        const rObj = localRegions.value.find(r => r.nom === currentRegionNom || r.code === currentRegionNom);
+        if (rObj) preselectedRegionId = rObj.id;
+    }
+    quickUniteForm.value = {
+        region_id: preselectedRegionId || (localRegions.value[0]?.id ?? null),
+        nom: '',
+        type: 'Brigade Territoriale',
+        est_operationnelle: true
+    };
+    quickUniteVisible.value = true;
+};
+
+const saveQuickUnite = async () => {
+    if (!quickUniteForm.value.region_id || !quickUniteForm.value.nom) {
+        toast.add({ severity: 'warn', summary: 'Champs requis', detail: 'Région et nom de l\'unité obligatoires.', life: 3000 });
+        return;
+    }
+    quickUniteLoading.value = true;
+    try {
+        const response = await axios.post(route('configurations.unites.store'), quickUniteForm.value);
+        if (response.data && response.data.unite) {
+            localUnites.value.push(response.data.unite);
+            if (currentQuickAffIndex.value !== null && form.affectations[currentQuickAffIndex.value]) {
+                form.affectations[currentQuickAffIndex.value].unite = response.data.unite.nom;
+                if (response.data.unite.region?.nom) {
+                    form.affectations[currentQuickAffIndex.value].region = response.data.unite.region.nom;
+                }
+            }
+            quickUniteVisible.value = false;
+            toast.add({ severity: 'success', summary: 'Succès', detail: 'Nouvelle unité ajoutée et sélectionnée !', life: 3000 });
+        }
+    } catch (e) {
+        const msg = e.response?.data?.errors?.nom?.[0] || e.response?.data?.message || 'Erreur lors de la création.';
+        toast.add({ severity: 'error', summary: 'Erreur', detail: msg, life: 4000 });
+    } finally {
+        quickUniteLoading.value = false;
+    }
+};
+
+const openQuickAddPosition = () => {
+    quickPositionForm.value = { nom: '', type: 'administrative' };
+    quickPositionVisible.value = true;
+};
+
+const saveQuickPosition = async () => {
+    if (!quickPositionForm.value.nom) {
+        toast.add({ severity: 'warn', summary: 'Champ requis', detail: 'Le nom de la position est obligatoire.', life: 3000 });
+        return;
+    }
+    quickPositionLoading.value = true;
+    try {
+        const response = await axios.post(route('configurations.positions.store'), quickPositionForm.value);
+        if (response.data && response.data.position) {
+            localPositions.value.push(response.data.position);
+            form.position_actuelle = response.data.position.nom;
+            quickPositionVisible.value = false;
+            toast.add({ severity: 'success', summary: 'Succès', detail: 'Nouvelle position ajoutée et sélectionnée !', life: 3000 });
+        }
+    } catch (e) {
+        const msg = e.response?.data?.errors?.nom?.[0] || e.response?.data?.message || 'Erreur lors de la création.';
+        toast.add({ severity: 'error', summary: 'Erreur', detail: msg, life: 4000 });
+    } finally {
+        quickPositionLoading.value = false;
     }
 };
 
