@@ -20,7 +20,7 @@
             <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
 
                 <!-- ========================================================================================= -->
-                <!-- BANDEAU DE PROGRESSION / STEPPER MULTI-ÉTAPES                                             -->
+                <!-- BANDEAU DE PROGRESSION / STEPPER MULTI-ÉTAPES (4 ÉTAPES)                                  -->
                 <!-- ========================================================================================= -->
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6 mb-6">
                     <!-- Barre de progression continue -->
@@ -39,8 +39,8 @@
                              :style="{ width: `${progress}%` }"></div>
                     </div>
 
-                    <!-- Onglets interactifs des étapes -->
-                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
+                    <!-- Onglets interactifs des étapes (4 étapes au total) -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
                         <button v-for="(s, idx) in steps" :key="idx"
                                 type="button"
                                 @click="goToStep(idx)"
@@ -120,231 +120,243 @@
                     <form @submit.prevent="submitForm" enctype="multipart/form-data" class="p-6">
 
                         <!-- ================================================================================= -->
-                        <!-- ÉTAPE 0 : IDENTITÉ, PHOTO & IDENTIFIANTS                                         -->
+                        <!-- ÉTAPE 0 : IDENTITÉ & ÉTAT CIVIL (AVEC 2 CARDS DISTINCTES)                         -->
                         <!-- ================================================================================= -->
                         <div v-show="currentStep === 0" class="space-y-6">
-                            <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
-                                <!-- Photo d'identité -->
-                                <div class="md:col-span-3 flex flex-col items-center justify-center p-4 border rounded-xl bg-slate-50 text-center">
-                                    <div class="w-36 h-44 bg-white border-2 border-dashed border-sky-300 rounded-lg overflow-hidden flex items-center justify-center mb-3 shadow-inner relative group">
-                                        <img v-if="photoPreview" :src="photoPreview" alt="Photo d'identité" class="w-full h-full object-cover" />
-                                        <div v-else class="flex flex-col items-center text-slate-400 p-2">
-                                            <i class="pi pi-user text-5xl mb-1 text-slate-300"></i>
-                                            <span class="text-xs font-semibold text-slate-500">Photo d'identité</span>
-                                            <span class="text-[10px] text-slate-400">Format 3:4</span>
-                                        </div>
-                                    </div>
 
-                                    <div class="flex gap-2">
-                                        <label class="cursor-pointer px-3 py-1.5 bg-sky-900 hover:bg-sky-950 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition">
-                                            <i class="pi pi-camera"></i>
-                                            <span>{{ photoPreview ? 'Changer' : 'Ajouter photo' }}</span>
-                                            <input type="file" accept="image/jpeg,image/png,image/jpg,image/webp" class="hidden" @change="onPhotoSelected" />
-                                        </label>
-                                        <button v-if="photoPreview" type="button" @click="removePhoto"
-                                                class="px-2.5 py-1.5 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg text-xs transition" title="Supprimer la photo">
-                                            <i class="pi pi-trash"></i>
-                                        </button>
-                                    </div>
-                                    <span class="text-[10px] text-slate-500 mt-2">JPG, PNG, WEBP (Max 5Mo)</span>
-                                    <small v-if="errors.photo" class="text-red-500 text-xs mt-1">{{ errors.photo }}</small>
+                            <!-- CARD 1 : Photo & Identifiants Militaires -->
+                            <div class="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 shadow-2xs">
+                                <div class="flex items-center gap-2 text-sky-900 border-b border-slate-200 pb-3 mb-4 text-sm font-extrabold uppercase tracking-wide">
+                                    <i class="pi pi-id-card text-sky-800 text-base"></i>
+                                    <span>Card 1 — Photo & Identifiants Militaires</span>
                                 </div>
 
-                                <!-- Champs identifiants -->
-                                <div class="md:col-span-9 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    <!-- Matricule Armée -->
-                                    <div class="field">
-                                        <label for="matricule" class="block text-sm font-bold text-gray-700 mb-1">
-                                            Matricule Armée <span class="text-red-500">*</span>
-                                        </label>
-                                        <InputText id="matricule" v-model="form.matricule" class="w-full" placeholder="Ex: 16276"
-                                                   :class="{ 'p-invalid': errors.matricule || stepErrors[0].matricule }" />
-                                        <small v-if="errors.matricule || stepErrors[0].matricule" class="text-red-500 font-medium">
-                                            {{ errors.matricule || stepErrors[0].matricule }}
-                                        </small>
-                                    </div>
-
-                                    <!-- MLE GRM -->
-                                    <div class="field">
-                                        <label for="mle_grm" class="block text-sm font-semibold text-gray-700 mb-1">
-                                            Matricule Gendarmerie (GRM MLE)
-                                        </label>
-                                        <InputText id="mle_grm" v-model="form.mle_grm" class="w-full" placeholder="Ex: GRM9272M006871" />
-                                    </div>
-
-                                    <!-- N° Info -->
-                                    <div class="field">
-                                        <label for="numero_info" class="block text-sm font-semibold text-gray-700 mb-1">
-                                            N° Informatique / Solde
-                                        </label>
-                                        <InputText id="numero_info" v-model="form.numero_info" class="w-full" placeholder="Ex: 1668" />
-                                    </div>
-
-                                    <!-- N° Nina -->
-                                    <div class="field">
-                                        <label for="numero_nina" class="block text-sm font-semibold text-gray-700 mb-1">
-                                            N° NINA / Identification
-                                        </label>
-                                        <InputText id="numero_nina" v-model="form.numero_nina" class="w-full" placeholder="Numéro national d'identification" />
-                                    </div>
-
-                                    <!-- Grade actuel -->
-                                    <div class="field">
-                                        <label for="grade_actuel" class="block text-sm font-bold text-gray-700 mb-1">
-                                            Grade actuel <span class="text-red-500">*</span>
-                                        </label>
-                                        <Select v-model="form.grade_actuel" :options="grades" optionLabel="nom_grade" optionValue="nom_grade"
-                                                placeholder="Sélectionner un grade" class="w-full"
-                                                :class="{ 'p-invalid': errors.grade_actuel || stepErrors[0].grade_actuel }" />
-                                        <small v-if="errors.grade_actuel || stepErrors[0].grade_actuel" class="text-red-500 font-medium">
-                                            {{ errors.grade_actuel || stepErrors[0].grade_actuel }}
-                                        </small>
-                                    </div>
-
-                                    <!-- Catégorie statutaire -->
-                                    <div class="field">
-                                        <label for="categorie" class="block text-sm font-semibold text-gray-700 mb-1">
-                                            Catégorie statutaire
-                                        </label>
-                                        <Select v-model="form.categorie" :options="categorieOptions" optionLabel="label" optionValue="value"
-                                                placeholder="Sélectionner la catégorie" class="w-full" showClear />
-                                        <small class="text-[11px] text-sky-600 block mt-1">
-                                            <i class="pi pi-info-circle mr-1"></i>Renseignée automatiquement selon le grade.
-                                        </small>
-                                    </div>
-
-                                    <!-- Statut administratif -->
-                                    <div class="field sm:col-span-2 lg:col-span-3">
-                                        <label for="statut" class="block text-sm font-bold text-gray-700 mb-1">
-                                            Statut Administratif <span class="text-red-500">*</span>
-                                        </label>
-                                        <Select v-model="form.statut" :options="statutOptions" optionLabel="label" optionValue="value"
-                                                placeholder="Sélectionner un statut" class="w-full max-w-md"
-                                                :class="{ 'p-invalid': errors.statut || stepErrors[0].statut }" />
-                                        <small v-if="errors.statut || stepErrors[0].statut" class="text-red-500 font-medium">
-                                            {{ errors.statut || stepErrors[0].statut }}
-                                        </small>
-
-                                        <div v-if="isRetraiteDepassee" class="mt-2.5 p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 flex items-center gap-2">
-                                            <i class="pi pi-exclamation-triangle text-amber-600 text-base shrink-0"></i>
-                                            <span>Limite d'âge de retraite atteinte/dépassée ({{ ageRetraiteMax }} ans pour ce grade). Le statut a été positionné automatiquement sur <strong>Retraité</strong>.</span>
+                                <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                                    <!-- Photo d'identité -->
+                                    <div class="md:col-span-3 flex flex-col items-center justify-center p-4 border rounded-xl bg-white text-center shadow-xs">
+                                        <div class="w-36 h-44 bg-slate-50 border-2 border-dashed border-sky-300 rounded-lg overflow-hidden flex items-center justify-center mb-3 shadow-inner relative group">
+                                            <img v-if="photoPreview" :src="photoPreview" alt="Photo d'identité" class="w-full h-full object-cover" />
+                                            <div v-else class="flex flex-col items-center text-slate-400 p-2">
+                                                <i class="pi pi-user text-5xl mb-1 text-slate-300"></i>
+                                                <span class="text-xs font-semibold text-slate-500">Photo d'identité</span>
+                                                <span class="text-[10px] text-slate-400">Format 3:4</span>
+                                            </div>
                                         </div>
+
+                                        <div class="flex gap-2">
+                                            <label class="cursor-pointer px-3 py-1.5 bg-sky-900 hover:bg-sky-950 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition">
+                                                <i class="pi pi-camera"></i>
+                                                <span>{{ photoPreview ? 'Changer' : 'Ajouter photo' }}</span>
+                                                <input type="file" accept="image/jpeg,image/png,image/jpg,image/webp" class="hidden" @change="onPhotoSelected" />
+                                            </label>
+                                            <button v-if="photoPreview" type="button" @click="removePhoto"
+                                                    class="px-2.5 py-1.5 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg text-xs transition cursor-pointer" title="Supprimer la photo">
+                                                <i class="pi pi-trash"></i>
+                                            </button>
+                                        </div>
+                                        <span class="text-[10px] text-slate-500 mt-2">JPG, PNG, WEBP (Max 5Mo)</span>
+                                        <small v-if="errors.photo" class="text-red-500 text-xs mt-1">{{ errors.photo }}</small>
+                                    </div>
+
+                                    <!-- Champs identifiants -->
+                                    <div class="md:col-span-9 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        <!-- Matricule Armée -->
+                                        <div class="field">
+                                            <label for="matricule" class="block text-sm font-bold text-gray-700 mb-1">
+                                                Matricule Armée <span class="text-red-500">*</span>
+                                            </label>
+                                            <InputText id="matricule" v-model="form.matricule" class="w-full" placeholder="Ex: 16276"
+                                                       :class="{ 'p-invalid': errors.matricule || stepErrors[0].matricule }" />
+                                            <small v-if="errors.matricule || stepErrors[0].matricule" class="text-red-500 font-medium">
+                                                {{ errors.matricule || stepErrors[0].matricule }}
+                                            </small>
+                                        </div>
+
+                                        <!-- MLE GRM -->
+                                        <div class="field">
+                                            <label for="mle_grm" class="block text-sm font-semibold text-gray-700 mb-1">
+                                                Matricule Gendarmerie (GRM MLE)
+                                            </label>
+                                            <InputText id="mle_grm" v-model="form.mle_grm" class="w-full" placeholder="Ex: GRM9272M006871" />
+                                        </div>
+
+                                        <!-- N° Info -->
+                                        <div class="field">
+                                            <label for="numero_info" class="block text-sm font-semibold text-gray-700 mb-1">
+                                                N° Informatique / Solde
+                                            </label>
+                                            <InputText id="numero_info" v-model="form.numero_info" class="w-full" placeholder="Ex: 1668" />
+                                        </div>
+
+                                        <!-- N° Nina -->
+                                        <div class="field">
+                                            <label for="numero_nina" class="block text-sm font-semibold text-gray-700 mb-1">
+                                                N° NINA / Identification
+                                            </label>
+                                            <InputText id="numero_nina" v-model="form.numero_nina" class="w-full" placeholder="Numéro national d'identification" />
+                                        </div>
+
+                                        <!-- Grade actuel -->
+                                        <div class="field">
+                                            <label for="grade_actuel" class="block text-sm font-bold text-gray-700 mb-1">
+                                                Grade actuel <span class="text-red-500">*</span>
+                                            </label>
+                                            <Select v-model="form.grade_actuel" :options="grades" optionLabel="nom_grade" optionValue="nom_grade"
+                                                    placeholder="Sélectionner un grade" class="w-full"
+                                                    :class="{ 'p-invalid': errors.grade_actuel || stepErrors[0].grade_actuel }" />
+                                            <small v-if="errors.grade_actuel || stepErrors[0].grade_actuel" class="text-red-500 font-medium">
+                                                {{ errors.grade_actuel || stepErrors[0].grade_actuel }}
+                                            </small>
+                                        </div>
+
+                                        <!-- Catégorie statutaire -->
+                                        <div class="field">
+                                            <label for="categorie" class="block text-sm font-semibold text-gray-700 mb-1">
+                                                Catégorie statutaire
+                                            </label>
+                                            <Select v-model="form.categorie" :options="categorieOptions" optionLabel="label" optionValue="value"
+                                                    placeholder="Sélectionner la catégorie" class="w-full" showClear />
+                                            <small class="text-[11px] text-sky-600 block mt-1">
+                                                <i class="pi pi-info-circle mr-1"></i>Renseignée automatiquement selon le grade.
+                                            </small>
+                                        </div>
+
+                                        <!-- Statut administratif -->
+                                        <div class="field sm:col-span-2 lg:col-span-3">
+                                            <label for="statut" class="block text-sm font-bold text-gray-700 mb-1">
+                                                Statut Administratif <span class="text-red-500">*</span>
+                                            </label>
+                                            <Select v-model="form.statut" :options="statutOptions" optionLabel="label" optionValue="value"
+                                                    placeholder="Sélectionner un statut" class="w-full max-w-md"
+                                                    :class="{ 'p-invalid': errors.statut || stepErrors[0].statut }" />
+                                            <small v-if="errors.statut || stepErrors[0].statut" class="text-red-500 font-medium">
+                                                {{ errors.statut || stepErrors[0].statut }}
+                                            </small>
+
+                                            <div v-if="isRetraiteDepassee" class="mt-2.5 p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 flex items-center gap-2">
+                                                <i class="pi pi-exclamation-triangle text-amber-600 text-base shrink-0"></i>
+                                                <span>Limite d'âge de retraite atteinte/dépassée ({{ ageRetraiteMax }} ans pour ce grade). Le statut a été positionné automatiquement sur <strong>Retraité</strong>.</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Champs conditionnels selon le statut -->
+                                <div v-if="form.statut === 'décédé'" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+                                    <div>
+                                        <label class="block text-sm font-bold text-red-800 mb-1">Date du décès</label>
+                                        <DatePicker v-model="form.date_deces" dateFormat="dd/mm/yy" showIcon class="w-full" />
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-bold text-red-800 mb-1">Circonstances du décès</label>
+                                        <InputText v-model="form.circonstances_deces" class="w-full" placeholder="Ex: Théâtre d'opération, Attaque, Maladie..." />
+                                    </div>
+                                </div>
+
+                                <div v-if="form.statut === 'déserteur'" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 p-4 bg-orange-50 border border-orange-200 rounded-xl">
+                                    <div>
+                                        <label class="block text-sm font-bold text-orange-800 mb-1">Motif de radiation</label>
+                                        <InputText v-model="form.motif_radiation" class="w-full" placeholder="Ex: Désertion, Retrait d'emploi..." />
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-bold text-orange-800 mb-1">Référence décision ministérielle</label>
+                                        <InputText v-model="form.reference_decision" class="w-full" placeholder="Ex: N° Décret / Arrêté ministériel..." />
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Champs conditionnels selon le statut -->
-                            <div v-if="form.statut === 'décédé'" class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-red-50 border border-red-200 rounded-xl">
-                                <div>
-                                    <label class="block text-sm font-bold text-red-800 mb-1">Date du décès</label>
-                                    <DatePicker v-model="form.date_deces" dateFormat="dd/mm/yy" showIcon class="w-full" />
+                            <!-- CARD 2 : État Civil & Coordonnées -->
+                            <div class="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 shadow-2xs">
+                                <div class="flex items-center gap-2 text-sky-900 border-b border-slate-200 pb-3 mb-4 text-sm font-extrabold uppercase tracking-wide">
+                                    <i class="pi pi-user text-sky-800 text-base"></i>
+                                    <span>Card 2 — État Civil & Coordonnées Personnelles</span>
                                 </div>
-                                <div>
-                                    <label class="block text-sm font-bold text-red-800 mb-1">Circonstances du décès</label>
-                                    <InputText v-model="form.circonstances_deces" class="w-full" placeholder="Ex: Théâtre d'opération, Attaque, Maladie..." />
-                                </div>
-                            </div>
 
-                            <div v-if="form.statut === 'déserteur'" class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-orange-50 border border-orange-200 rounded-xl">
-                                <div>
-                                    <label class="block text-sm font-bold text-orange-800 mb-1">Motif de radiation</label>
-                                    <InputText v-model="form.motif_radiation" class="w-full" placeholder="Ex: Désertion, Retrait d'emploi..." />
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-bold text-orange-800 mb-1">Référence décision ministérielle</label>
-                                    <InputText v-model="form.reference_decision" class="w-full" placeholder="Ex: N° Décret / Arrêté ministériel..." />
+                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <!-- Nom -->
+                                    <div class="field">
+                                        <label for="nom" class="block text-sm font-bold text-gray-700 mb-1">
+                                            Nom de famille <span class="text-red-500">*</span>
+                                        </label>
+                                        <InputText id="nom" v-model="form.nom" class="w-full uppercase" placeholder="Ex: TRAORÉ"
+                                                   :class="{ 'p-invalid': errors.nom || stepErrors[0].nom }" />
+                                        <small v-if="errors.nom || stepErrors[0].nom" class="text-red-500 font-medium">
+                                            {{ errors.nom || stepErrors[0].nom }}
+                                        </small>
+                                    </div>
+
+                                    <!-- Prénom -->
+                                    <div class="field">
+                                        <label for="prenom" class="block text-sm font-bold text-gray-700 mb-1">
+                                            Prénom(s) <span class="text-red-500">*</span>
+                                        </label>
+                                        <InputText id="prenom" v-model="form.prenom" class="w-full" placeholder="Ex: Amadou"
+                                                   :class="{ 'p-invalid': errors.prenom || stepErrors[0].prenom }" />
+                                        <small v-if="errors.prenom || stepErrors[0].prenom" class="text-red-500 font-medium">
+                                            {{ errors.prenom || stepErrors[0].prenom }}
+                                        </small>
+                                    </div>
+
+                                    <!-- Date de naissance -->
+                                    <div class="field">
+                                        <label for="date_naissance" class="block text-sm font-bold text-gray-700 mb-1">
+                                            Date de naissance <span class="text-red-500">*</span>
+                                        </label>
+                                        <DatePicker id="date_naissance" v-model="form.date_naissance" dateFormat="dd/mm/yy" showIcon class="w-full"
+                                                    :class="{ 'p-invalid': errors.date_naissance || stepErrors[0].date_naissance }" />
+                                        <small v-if="errors.date_naissance || stepErrors[0].date_naissance" class="text-red-500 font-medium">
+                                            {{ errors.date_naissance || stepErrors[0].date_naissance }}
+                                        </small>
+                                    </div>
+
+                                    <!-- Lieu de naissance -->
+                                    <div class="field">
+                                        <label for="lieu_naissance" class="block text-sm font-semibold text-gray-700 mb-1">
+                                            Lieu de naissance
+                                        </label>
+                                        <InputText id="lieu_naissance" v-model="form.lieu_naissance" class="w-full" placeholder="Ex: Bamako, Ségou, Sikasso..." />
+                                    </div>
+
+                                    <!-- Sexe -->
+                                    <div class="field">
+                                        <label for="sexe" class="block text-sm font-semibold text-gray-700 mb-1">
+                                            Sexe
+                                        </label>
+                                        <Select v-model="form.sexe" :options="sexeOptions" optionLabel="label" optionValue="value"
+                                                placeholder="Sélectionner" class="w-full" showClear />
+                                    </div>
+
+                                    <!-- Téléphone principal -->
+                                    <div class="field">
+                                        <label for="telephone" class="block text-sm font-semibold text-gray-700 mb-1">
+                                            Téléphone du militaire
+                                        </label>
+                                        <InputText id="telephone" v-model="form.telephone" class="w-full" placeholder="Ex: +223 70 00 00 00" />
+                                    </div>
+
+                                    <!-- Personne à contacter -->
+                                    <div class="field sm:col-span-2">
+                                        <label for="personne_a_contacter" class="block text-sm font-semibold text-gray-700 mb-1">
+                                            Personne à contacter en cas d'urgence
+                                        </label>
+                                        <InputText id="personne_a_contacter" v-model="form.personne_a_contacter" class="w-full" placeholder="Nom et prénom de la personne de confiance" />
+                                    </div>
+
+                                    <!-- Téléphone contact urgence -->
+                                    <div class="field">
+                                        <label for="telephone_personne_contacter" class="block text-sm font-semibold text-gray-700 mb-1">
+                                            Téléphone d'urgence
+                                        </label>
+                                        <InputText id="telephone_personne_contacter" v-model="form.telephone_personne_contacter" class="w-full" placeholder="Ex: +223 66 00 00 00" />
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
                         <!-- ================================================================================= -->
-                        <!-- ÉTAPE 1 : ÉTAT CIVIL & COORDONNÉES                                               -->
+                        <!-- ÉTAPE 1 : AFFECTATION & CARRIÈRE                                                 -->
                         <!-- ================================================================================= -->
                         <div v-show="currentStep === 1" class="space-y-6">
-                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                <!-- Nom -->
-                                <div class="field">
-                                    <label for="nom" class="block text-sm font-bold text-gray-700 mb-1">
-                                        Nom de famille <span class="text-red-500">*</span>
-                                    </label>
-                                    <InputText id="nom" v-model="form.nom" class="w-full uppercase" placeholder="Ex: TRAORÉ"
-                                               :class="{ 'p-invalid': errors.nom || stepErrors[1].nom }" />
-                                    <small v-if="errors.nom || stepErrors[1].nom" class="text-red-500 font-medium">
-                                        {{ errors.nom || stepErrors[1].nom }}
-                                    </small>
-                                </div>
-
-                                <!-- Prénom -->
-                                <div class="field">
-                                    <label for="prenom" class="block text-sm font-bold text-gray-700 mb-1">
-                                        Prénom(s) <span class="text-red-500">*</span>
-                                    </label>
-                                    <InputText id="prenom" v-model="form.prenom" class="w-full" placeholder="Ex: Amadou"
-                                               :class="{ 'p-invalid': errors.prenom || stepErrors[1].prenom }" />
-                                    <small v-if="errors.prenom || stepErrors[1].prenom" class="text-red-500 font-medium">
-                                        {{ errors.prenom || stepErrors[1].prenom }}
-                                    </small>
-                                </div>
-
-                                <!-- Date de naissance -->
-                                <div class="field">
-                                    <label for="date_naissance" class="block text-sm font-bold text-gray-700 mb-1">
-                                        Date de naissance <span class="text-red-500">*</span>
-                                    </label>
-                                    <DatePicker id="date_naissance" v-model="form.date_naissance" dateFormat="dd/mm/yy" showIcon class="w-full"
-                                                :class="{ 'p-invalid': errors.date_naissance || stepErrors[1].date_naissance }" />
-                                    <small v-if="errors.date_naissance || stepErrors[1].date_naissance" class="text-red-500 font-medium">
-                                        {{ errors.date_naissance || stepErrors[1].date_naissance }}
-                                    </small>
-                                </div>
-
-                                <!-- Lieu de naissance -->
-                                <div class="field">
-                                    <label for="lieu_naissance" class="block text-sm font-semibold text-gray-700 mb-1">
-                                        Lieu de naissance
-                                    </label>
-                                    <InputText id="lieu_naissance" v-model="form.lieu_naissance" class="w-full" placeholder="Ex: Bamako, Ségou, Sikasso..." />
-                                </div>
-
-                                <!-- Sexe -->
-                                <div class="field">
-                                    <label for="sexe" class="block text-sm font-semibold text-gray-700 mb-1">
-                                        Sexe
-                                    </label>
-                                    <Select v-model="form.sexe" :options="sexeOptions" optionLabel="label" optionValue="value"
-                                            placeholder="Sélectionner" class="w-full" showClear />
-                                </div>
-
-                                <!-- Téléphone principal -->
-                                <div class="field">
-                                    <label for="telephone" class="block text-sm font-semibold text-gray-700 mb-1">
-                                        Téléphone du militaire
-                                    </label>
-                                    <InputText id="telephone" v-model="form.telephone" class="w-full" placeholder="Ex: +223 70 00 00 00" />
-                                </div>
-
-                                <!-- Personne à contacter -->
-                                <div class="field sm:col-span-2">
-                                    <label for="personne_a_contacter" class="block text-sm font-semibold text-gray-700 mb-1">
-                                        Personne à contacter en cas d'urgence
-                                    </label>
-                                    <InputText id="personne_a_contacter" v-model="form.personne_a_contacter" class="w-full" placeholder="Nom et prénom de la personne de confiance" />
-                                </div>
-
-                                <!-- Téléphone contact urgence -->
-                                <div class="field">
-                                    <label for="telephone_personne_contacter" class="block text-sm font-semibold text-gray-700 mb-1">
-                                        Téléphone d'urgence
-                                    </label>
-                                    <InputText id="telephone_personne_contacter" v-model="form.telephone_personne_contacter" class="w-full" placeholder="Ex: +223 66 00 00 00" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- ================================================================================= -->
-                        <!-- ÉTAPE 2 : AFFECTATION & CARRIÈRE                                                 -->
-                        <!-- ================================================================================= -->
-                        <div v-show="currentStep === 2" class="space-y-6">
                             <!-- Affectations territoriales -->
                             <div>
                                 <div class="flex items-center justify-between mb-3 border-b border-slate-200 pb-2">
@@ -353,7 +365,7 @@
                                         Affectation & Maillage Territorial
                                     </label>
                                     <Button type="button" label="Ajouter une affectation" icon="pi pi-plus"
-                                            class="p-button-sm !bg-white hover:!bg-sky-50 !text-sky-800 !border !border-sky-300 font-bold shadow-2xs"
+                                            class="p-button-sm !bg-white hover:!bg-sky-50 !text-sky-800 !border !border-sky-300 font-bold shadow-2xs cursor-pointer"
                                             @click="addAffectation" />
                                 </div>
 
@@ -370,7 +382,7 @@
                                                 </span>
                                             </div>
                                             <Button v-if="form.affectations.length > 1" type="button" icon="pi pi-trash"
-                                                    class="p-button-rounded p-button-text p-button-sm !text-red-500 hover:!text-red-700 hover:!bg-red-50"
+                                                    class="p-button-rounded p-button-text p-button-sm !text-red-500 hover:!text-red-700 hover:!bg-red-50 cursor-pointer"
                                                     title="Supprimer cette affectation"
                                                     @click="removeAffectation(idx)" />
                                         </div>
@@ -421,9 +433,9 @@
                                             Date d'entrée en service <span class="text-red-500">*</span>
                                         </label>
                                         <DatePicker id="date_entree_service" v-model="form.date_entree_service" dateFormat="dd/mm/yy" showIcon class="w-full"
-                                                    :class="{ 'p-invalid': errors.date_entree_service || stepErrors[2].date_entree_service }" />
-                                        <small v-if="errors.date_entree_service || stepErrors[2].date_entree_service" class="text-red-500 font-medium">
-                                            {{ errors.date_entree_service || stepErrors[2].date_entree_service }}
+                                                    :class="{ 'p-invalid': errors.date_entree_service || stepErrors[1].date_entree_service }" />
+                                        <small v-if="errors.date_entree_service || stepErrors[1].date_entree_service" class="text-red-500 font-medium">
+                                            {{ errors.date_entree_service || stepErrors[1].date_entree_service }}
                                         </small>
                                     </div>
 
@@ -479,9 +491,9 @@
                         </div>
 
                         <!-- ================================================================================= -->
-                        <!-- ÉTAPE 3 : SANTÉ, OPÉRATIONS & DISCIPLINE                                         -->
+                        <!-- ÉTAPE 2 : SANTÉ, OPÉRATIONS & DISCIPLINE                                         -->
                         <!-- ================================================================================= -->
-                        <div v-show="currentStep === 3" class="space-y-6">
+                        <div v-show="currentStep === 2" class="space-y-6">
                             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <!-- Groupe sanguin -->
                                 <div class="field">
@@ -546,9 +558,9 @@
                         </div>
 
                         <!-- ================================================================================= -->
-                        <!-- ÉTAPE 4 : FORMATIONS, DÉCORATIONS & SYNTHÈSE                                      -->
+                        <!-- ÉTAPE 3 : FORMATIONS, DÉCORATIONS & SYNTHÈSE                                      -->
                         <!-- ================================================================================= -->
-                        <div v-show="currentStep === 4" class="space-y-6">
+                        <div v-show="currentStep === 3" class="space-y-6">
                             <!-- Certificats & Formations Militaires Obtenus -->
                             <div v-if="showFormationsSection">
                                 <div class="flex items-center justify-between mb-3 border-b border-slate-200 pb-2">
@@ -602,7 +614,7 @@
                                                                 class="w-full" />
                                                     <Button v-if="form.certificats[certificat.id].document"
                                                             icon="pi pi-times"
-                                                            class="p-button-rounded p-button-danger p-button-text"
+                                                            class="p-button-rounded p-button-danger p-button-text cursor-pointer"
                                                             size="small"
                                                             @click="removeDocument(certificat.id)"
                                                             title="Supprimer le document" />
@@ -739,7 +751,7 @@
 
                                 <Button v-if="currentStep < steps.length - 1"
                                         type="button"
-                                        label="Continuer"
+                                        label="Étape suivante"
                                         icon="pi pi-arrow-right"
                                         iconPos="right"
                                         class="!bg-sky-800 hover:!bg-sky-900 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5"
@@ -789,14 +801,14 @@ const photoPreview = ref(null);
 const photoFile = ref(null);
 
 // =========================================================================================
-// CONFIGURATION DU STEPPER
+// CONFIGURATION DU STEPPER (4 ÉTAPES)
+// Étape 1 regroupe : Card 1 (Identité & Photo) + Card 2 (État Civil & Contact)
 // =========================================================================================
 const steps = [
-    { label: 'Identité & Grade', title: '1. Photo & Identifiants Militaires', subtitle: 'Renseignez les informations matriculaires, le grade et le statut administratif.', icon: 'pi pi-id-card' },
-    { label: 'État Civil & Contact', title: '2. État Civil & Coordonnées Personnelles', subtitle: 'Informations d\'état civil, filiation, naissance et contacts en cas d\'urgence.', icon: 'pi pi-user' },
-    { label: 'Affectation & Carrière', title: '3. Affectations Territoriales & Parcours', subtitle: 'Historique des unités d\'affectation, dates clés et fonctions exercées.', icon: 'pi pi-briefcase' },
-    { label: 'Santé & Discipline', title: '4. Aptitude Médicale, OPS & Discipline', subtitle: 'Profil médical, permis, théâtres d\'opérations (OPEX) et antécédents.', icon: 'pi pi-shield' },
-    { label: 'Formations & Synthèse', title: '5. Formations, Diplômes & Validation', subtitle: 'Certificats militaires obtenus, décorations, diplômes civils et récapitulatif.', icon: 'pi pi-check-circle' }
+    { label: 'Identité & État Civil', title: '1. Identité Militaire & État Civil', subtitle: 'Photo d\'identité, matricules officiels, grade et état civil complet.', icon: 'pi pi-id-card' },
+    { label: 'Affectation & Carrière', title: '2. Affectations Territoriales & Parcours', subtitle: 'Historique des unités d\'affectation, dates clés et fonctions exercées.', icon: 'pi pi-briefcase' },
+    { label: 'Santé & Discipline', title: '3. Aptitude Médicale, OPS & Discipline', subtitle: 'Profil médical, permis, théâtres d\'opérations (OPEX) et antécédents.', icon: 'pi pi-shield' },
+    { label: 'Formations & Synthèse', title: '4. Formations, Diplômes & Validation', subtitle: 'Certificats militaires obtenus, décorations, diplômes civils et récapitulatif.', icon: 'pi pi-check-circle' }
 ];
 
 const currentStep = ref(0);
@@ -805,8 +817,7 @@ const stepErrors = reactive({
     0: {},
     1: {},
     2: {},
-    3: {},
-    4: {}
+    3: {}
 });
 
 const progress = computed(() => {
@@ -818,6 +829,7 @@ const validateStep = (stepIndex) => {
     let isValid = true;
 
     if (stepIndex === 0) {
+        // Validation Card 1 : Identifiants & Grade
         if (!form.matricule || !form.matricule.trim()) {
             stepErrors[0].matricule = 'Le matricule est obligatoire';
             isValid = false;
@@ -830,47 +842,42 @@ const validateStep = (stepIndex) => {
             stepErrors[0].statut = 'Le statut administratif est obligatoire';
             isValid = false;
         }
-        if (!isValid) {
-            toast.add({
-                severity: 'warn',
-                summary: 'Informations requises',
-                detail: 'Veuillez renseigner le Matricule, le Grade actuel et le Statut.',
-                life: 4000
-            });
-        }
-    } else if (stepIndex === 1) {
+        // Validation Card 2 : État Civil
         if (!form.nom || !form.nom.trim()) {
-            stepErrors[1].nom = 'Le nom de famille est obligatoire';
+            stepErrors[0].nom = 'Le nom de famille est obligatoire';
             isValid = false;
         }
         if (!form.prenom || !form.prenom.trim()) {
-            stepErrors[1].prenom = 'Le prénom est obligatoire';
+            stepErrors[0].prenom = 'Le prénom est obligatoire';
             isValid = false;
         }
         if (!form.date_naissance) {
-            stepErrors[1].date_naissance = 'La date de naissance est obligatoire';
+            stepErrors[0].date_naissance = 'La date de naissance est obligatoire';
             isValid = false;
         }
+
         if (!isValid) {
             toast.add({
                 severity: 'warn',
-                summary: 'Informations requises',
-                detail: 'Veuillez renseigner le Nom, le Prénom et la Date de naissance.',
-                life: 4000
+                summary: 'Champs obligatoires requis',
+                detail: 'Veuillez renseigner le Matricule, le Grade, le Statut, le Nom, le Prénom et la Date de naissance.',
+                life: 4500
             });
         }
-    } else if (stepIndex === 2) {
+    } else if (stepIndex === 1) {
+        // Validation Carrière & Affectation
         if (!form.date_entree_service) {
-            stepErrors[2].date_entree_service = 'La date d\'entrée en service est obligatoire';
+            stepErrors[1].date_entree_service = 'La date d\'entrée en service est obligatoire';
             isValid = false;
             toast.add({
                 severity: 'warn',
-                summary: 'Date requise',
+                summary: 'Date d\'engagement requise',
                 detail: 'Veuillez renseigner la Date d\'entrée en service (engagement).',
                 life: 4000
             });
         }
-    } else if (stepIndex === 4) {
+    } else if (stepIndex === 3) {
+        // Validation des certificats cochés sans date
         dateErrors.value = {};
         let hasDateError = false;
         Object.keys(form.certificats).forEach(certifId => {
@@ -1199,8 +1206,8 @@ const formatDateForServer = (date) => {
 };
 
 const submitForm = () => {
-    // Valider la dernière étape avant de soumettre
-    if (!validateStep(4)) return;
+    // Valider la dernière étape (étape 3) avant de soumettre
+    if (!validateStep(3)) return;
 
     saving.value = true;
     errors.value = {};
@@ -1301,16 +1308,14 @@ const submitForm = () => {
 
             // Basculement automatique vers l'étape contenant la première erreur
             const errKeys = Object.keys(err);
-            if (errKeys.some(k => ['matricule', 'mle_grm', 'numero_info', 'numero_nina', 'grade_actuel', 'categorie', 'statut'].includes(k))) {
+            if (errKeys.some(k => ['matricule', 'mle_grm', 'numero_info', 'numero_nina', 'grade_actuel', 'categorie', 'statut', 'nom', 'prenom', 'date_naissance', 'lieu_naissance', 'sexe', 'telephone'].includes(k))) {
                 currentStep.value = 0;
-            } else if (errKeys.some(k => ['nom', 'prenom', 'date_naissance', 'lieu_naissance', 'sexe', 'telephone'].includes(k))) {
-                currentStep.value = 1;
             } else if (errKeys.some(k => ['date_entree_service', 'date_derniere_promotion', 'unite', 'region', 'affectations'].includes(k))) {
-                currentStep.value = 2;
+                currentStep.value = 1;
             } else if (errKeys.some(k => ['groupe_sanguin', 'taille', 'status_sanitaire', 'engagement_ops'].includes(k))) {
-                currentStep.value = 3;
+                currentStep.value = 2;
             } else {
-                currentStep.value = 4;
+                currentStep.value = 3;
             }
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
