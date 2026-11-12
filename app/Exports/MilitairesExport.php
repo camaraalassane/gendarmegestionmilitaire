@@ -105,14 +105,11 @@ class MilitairesExport implements FromQuery, WithHeadings, WithMapping, ShouldAu
             'Fonction actuelle',
             'Fonction passée',
 
-            // Affectation & Maillage Territorial (Détails complets et historique)
+            // Affectation & Maillage Territorial
             'Unité / Corps (Actuelle)',
             'Région militaire (Actuelle)',
             'Date dernière mutation',
-            'Affectation 1 (Actuelle)',
-            'Affectation 2 (Précédente)',
-            'Affectation 3',
-            'Affectation & Maillage Territorial (Historique complet)',
+            'Affectation & Maillage Territorial',
 
             // Santé, Aptitude & Opérations
             'Statut sanitaire / Aptitude',
@@ -212,17 +209,18 @@ class MilitairesExport implements FromQuery, WithHeadings, WithMapping, ShouldAu
         $regionActuelle = $affList[0]['region'] ?? ($militaire->region ?? '');
         $dateMutationActuelle = $affList[0]['date_mutation'] ?? ($militaire->date_mutation?->format('d/m/Y') ?? '');
 
-        $affectation1 = isset($affList[0]) ? $formatAff($affList[0]) : '';
-        $affectation2 = isset($affList[1]) ? $formatAff($affList[1]) : '';
-        $affectation3 = isset($affList[2]) ? $formatAff($affList[2]) : '';
-
-        // Historique complet et numéroté de TOUTES les affectations (Maillage territorial)
-        $historiqueAff = !empty($affList)
-            ? collect($affList)->map(function ($item, $idx) use ($formatAff) {
+        // Affectation & Maillage Territorial (Une seule colonne propre sans répétition)
+        if (count($affList) === 0) {
+            $maillageTerritorial = '';
+        } elseif (count($affList) === 1) {
+            $maillageTerritorial = $formatAff($affList[0]);
+        } else {
+            // S'il y a plusieurs affectations : liste numérotée avec saut de ligne dans la cellule
+            $maillageTerritorial = collect($affList)->map(function ($item, $idx) use ($formatAff) {
                 $suffix = ($idx === 0) ? ' [Actuelle]' : '';
                 return ($idx + 1) . '. ' . $formatAff($item) . $suffix;
-            })->implode(' | ')
-            : '';
+            })->implode("\n");
+        }
 
         $row = [
             // Identifiants & État Civil
@@ -254,14 +252,11 @@ class MilitairesExport implements FromQuery, WithHeadings, WithMapping, ShouldAu
             $militaire->fonction_actuelle ?? '',
             $militaire->fonction_passee ?? '',
 
-            // Affectation & Maillage Territorial (Détails complets et historique)
+            // Affectation & Maillage Territorial
             $uniteActuelle,
             $regionActuelle,
             $dateMutationActuelle,
-            $affectation1,
-            $affectation2,
-            $affectation3,
-            $historiqueAff,
+            $maillageTerritorial,
 
             // Santé, Aptitude & Opérations
             $militaire->status_sanitaire ?? '',
@@ -311,6 +306,9 @@ class MilitairesExport implements FromQuery, WithHeadings, WithMapping, ShouldAu
         $sheet->getStyle('1')->getFont()->getColor()->setARGB('FFFFFFFF');
         $sheet->getRowDimension(1)->setRowHeight(28);
         $sheet->getStyle('1')->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+
+        // Activation du retour à la ligne pour afficher les affectations multiples proprement
+        $sheet->getStyle($sheet->calculateWorksheetDimension())->getAlignment()->setWrapText(true);
 
         return [];
     }
