@@ -89,13 +89,6 @@ class EligibilitesExport implements WithMultipleSheets
             }
         }
 
-        // 🔥 NOUVEAU : Ajout de la feuille MUTATIONS
-        if ($this->type === 'mutations' || $this->type === 'all') {
-            if (isset($this->data['mutations']) && !empty($this->data['mutations'])) {
-                $sheets[] = new MutationSheet($this->data['mutations']);
-            }
-        }
-
         // 🔥 VÉRIFICATION FINALE : Si toujours aucune feuille, retourner une feuille vide
         if (empty($sheets)) {
             $sheets[] = new EmptySheet();
@@ -126,6 +119,8 @@ class ContratSheet implements FromCollection, WithHeadings, WithColumnWidths, Wi
                 $item['militaire']['nom'] ?? '',
                 $item['militaire']['prenom'] ?? '',
                 $item['militaire']['grade_actuel'] ?? '',
+                $item['militaire']['unite'] ?? '',
+                $item['militaire']['region'] ?? '',
                 $item['annees_service'] ?? 0,
                 $item['statut_contrat'] ?? '',
                 $item['date_echeance'] ?? '',
@@ -143,6 +138,8 @@ class ContratSheet implements FromCollection, WithHeadings, WithColumnWidths, Wi
             'NOM',
             'PRENOM',
             'GRADE ACTUEL',
+            'UNITÉ / CORPS',
+            'RÉGION',
             'ANNÉES SERVICE',
             'STATUT CONTRAT',
             'DATE ÉCHÉANCE',
@@ -162,20 +159,22 @@ class ContratSheet implements FromCollection, WithHeadings, WithColumnWidths, Wi
             'B' => 20,
             'C' => 20,
             'D' => 25,
-            'E' => 15,
-            'F' => 18,
+            'E' => 20,
+            'F' => 20,
             'G' => 15,
-            'H' => 40,
+            'H' => 18,
+            'I' => 15,
+            'J' => 40,
         ];
     }
 
     public function styles(Worksheet $sheet)
     {
-        $sheet->getStyle('A1:H1')->getFont()->setBold(true);
-        $sheet->getStyle('A1:H1')->getFont()->setSize(11);
-        $sheet->getStyle('A1:H1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID);
-        $sheet->getStyle('A1:H1')->getFill()->getStartColor()->setARGB('FF059669');
-        $sheet->getStyle('A1:H1')->getFont()->getColor()->setARGB('FFFFFFFF');
+        $sheet->getStyle('A1:J1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:J1')->getFont()->setSize(11);
+        $sheet->getStyle('A1:J1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID);
+        $sheet->getStyle('A1:J1')->getFill()->getStartColor()->setARGB('FF059669');
+        $sheet->getStyle('A1:J1')->getFont()->getColor()->setARGB('FFFFFFFF');
 
         return [];
     }
@@ -225,6 +224,8 @@ class PromotionSheet implements FromCollection, WithHeadings, WithColumnWidths, 
                 $item['militaire']['nom'] ?? '',
                 $item['militaire']['prenom'] ?? '',
                 $item['militaire']['grade_actuel'] ?? '',
+                $item['militaire']['unite'] ?? '',
+                $item['militaire']['region'] ?? '',
                 $item['grade_cible'] ?? '',
                 $item['annee_proposition'] ?? $this->extractAnnee($item['date_estimation'] ?? ''),
                 $this->formatDate($item['date_anciennete'] ?? ''),
@@ -241,6 +242,8 @@ class PromotionSheet implements FromCollection, WithHeadings, WithColumnWidths, 
             'NOM',
             'PRENOM',
             'GRADE ACTUEL',
+            'UNITÉ / CORPS',
+            'RÉGION',
             'GRADE CIBLE',
             'ANNEE PROPOSITION',
             'DATE ANCIENNETE'
@@ -261,15 +264,17 @@ class PromotionSheet implements FromCollection, WithHeadings, WithColumnWidths, 
             'C' => 20,
             'D' => 25,
             'E' => 20,
-            'F' => 18,
-            'G' => 15,
+            'F' => 20,
+            'G' => 20,
+            'H' => 18,
+            'I' => 15,
         ];
     }
 
     public function styles(Worksheet $sheet)
     {
-        $sheet->getStyle('A1:G1')->getFont()->setBold(true);
-        $sheet->getStyle('A1:G1')->getFont()->setSize(11);
+        $sheet->getStyle('A1:I1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:I1')->getFont()->setSize(11);
         $sheet->getStyle('A1:G1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID);
         $sheet->getStyle('A1:G1')->getFill()->getStartColor()->setARGB('FF0284c7');
         $sheet->getStyle('A1:G1')->getFont()->getColor()->setARGB('FFFFFFFF');
@@ -313,6 +318,8 @@ class FormationSheet implements FromCollection, WithHeadings, WithColumnWidths, 
                 $item['militaire']['nom'] ?? '',
                 $item['militaire']['prenom'] ?? '',
                 $item['militaire']['grade_actuel'] ?? '',
+                $item['militaire']['unite'] ?? '',
+                $item['militaire']['region'] ?? '',
                 $item['nom_formation'] ?? '',
                 $item['annee_proposition'] ?? $this->extractAnnee($item['date_estimation'] ?? ''),
                 $this->formatDate($item['date_conditions'] ?? ''),
@@ -329,6 +336,8 @@ class FormationSheet implements FromCollection, WithHeadings, WithColumnWidths, 
             'NOM',
             'PRENOM',
             'GRADE ACTUEL',
+            'UNITÉ / CORPS',
+            'RÉGION',
             'FORMATION',
             'ANNEE PROPOSITION',
             'DATE CONDITIONS'
@@ -362,16 +371,18 @@ class FormationSheet implements FromCollection, WithHeadings, WithColumnWidths, 
             'B' => 20,
             'C' => 20,
             'D' => 25,
-            'E' => 35,
-            'F' => 18,
-            'G' => 15,
+            'E' => 20,
+            'F' => 20,
+            'G' => 35,
+            'H' => 18,
+            'I' => 15,
         ];
     }
 
     public function styles(Worksheet $sheet)
     {
-        $sheet->getStyle('A1:G1')->getFont()->setBold(true);
-        $sheet->getStyle('A1:G1')->getFont()->setSize(11);
+        $sheet->getStyle('A1:I1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:I1')->getFont()->setSize(11);
         $sheet->getStyle('A1:G1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID);
         $sheet->getStyle('A1:G1')->getFill()->getStartColor()->setARGB('FFF97316');
         $sheet->getStyle('A1:G1')->getFont()->getColor()->setARGB('FFFFFFFF');
@@ -413,6 +424,8 @@ class RetraiteSheet implements FromCollection, WithHeadings, WithColumnWidths, W
                 $item['militaire']['nom'] ?? '',
                 $item['militaire']['prenom'] ?? '',
                 $item['militaire']['grade_actuel'] ?? '',
+                $item['militaire']['unite'] ?? '',
+                $item['militaire']['region'] ?? '',
                 $item['date_retraite_formatted'] ?? '',
                 $item['mois_restants'] ?? '',
             ];
@@ -428,6 +441,8 @@ class RetraiteSheet implements FromCollection, WithHeadings, WithColumnWidths, W
             'NOM',
             'PRENOM',
             'GRADE ACTUEL',
+            'UNITÉ / CORPS',
+            'RÉGION',
             'DATE RETRAITE',
             'MOIS RESTANTS'
         ];
@@ -445,95 +460,20 @@ class RetraiteSheet implements FromCollection, WithHeadings, WithColumnWidths, W
             'B' => 20,
             'C' => 20,
             'D' => 25,
-            'E' => 15,
-            'F' => 15,
+            'E' => 20,
+            'F' => 20,
+            'G' => 15,
+            'H' => 15,
         ];
     }
 
     public function styles(Worksheet $sheet)
     {
-        $sheet->getStyle('A1:F1')->getFont()->setBold(true);
-        $sheet->getStyle('A1:F1')->getFont()->setSize(11);
+        $sheet->getStyle('A1:H1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:H1')->getFont()->setSize(11);
         $sheet->getStyle('A1:F1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID);
         $sheet->getStyle('A1:F1')->getFill()->getStartColor()->setARGB('FFF97316');
         $sheet->getStyle('A1:F1')->getFont()->getColor()->setARGB('FFFFFFFF');
-
-        return [];
-    }
-}
-
-/**
- * 🔥 NOUVELLE FEUILLE : Éligibles à la mutation (>= 3 ans d'affectation)
- */
-class MutationSheet implements FromCollection, WithHeadings, WithColumnWidths, WithStyles, WithTitle
-{
-    protected $mutations;
-
-    public function __construct(array $mutations)
-    {
-        $this->mutations = $mutations;
-    }
-
-    public function collection()
-    {
-        return new Collection(array_map(function ($mutation) {
-            $row = [
-                'matricule' => $mutation['matricule'] ?? '',
-                'nom' => $mutation['nom'] ?? '',
-                'prenom' => $mutation['prenom'] ?? '',
-                'grade_actuel' => $mutation['grade_actuel'] ?? '',
-                'unite' => $mutation['unite'] ?? '',
-                'region' => $mutation['region'] ?? '',
-                'date_mutation' => $mutation['date_mutation'] ?? '',
-                'duree_annees' => ($mutation['duree_annees'] ?? '') . ' ans',
-                'statut_eligibilite' => $mutation['statut_eligibilite'] ?? 'Éligible à la mutation',
-            ];
-            return array_map([EligibilitesExport::class, 'sanitizeCell'], $row);
-        }, $this->mutations));
-    }
-
-    public function headings(): array
-    {
-        return [
-            'MATRICULE',
-            'NOM',
-            'PRENOM',
-            'GRADE ACTUEL',
-            'UNITÉ D\'AFFECTATION',
-            'RÉGION',
-            'DATE DERNIÈRE MUTATION',
-            'DURÉE EN POSTE',
-            'STATUT ÉLIGIBILITÉ'
-        ];
-    }
-
-    public function title(): string
-    {
-        return "Mutations_eligibles";
-    }
-
-    public function columnWidths(): array
-    {
-        return [
-            'A' => 15,
-            'B' => 20,
-            'C' => 20,
-            'D' => 22,
-            'E' => 28,
-            'F' => 18,
-            'G' => 22,
-            'H' => 16,
-            'I' => 22,
-        ];
-    }
-
-    public function styles(Worksheet $sheet)
-    {
-        $sheet->getStyle('A1:I1')->getFont()->setBold(true);
-        $sheet->getStyle('A1:I1')->getFont()->setSize(11);
-        $sheet->getStyle('A1:I1')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID);
-        $sheet->getStyle('A1:I1')->getFill()->getStartColor()->setARGB('FF075985'); // Bleu gendarmerie
-        $sheet->getStyle('A1:I1')->getFont()->getColor()->setARGB('FFFFFFFF');
 
         return [];
     }

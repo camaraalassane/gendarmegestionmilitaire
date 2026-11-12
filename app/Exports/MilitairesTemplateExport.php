@@ -11,6 +11,8 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+
 class MilitairesTemplateExport implements FromArray, WithHeadings, WithStyles, WithColumnWidths
 {
     protected array $headers;
@@ -34,10 +36,7 @@ class MilitairesTemplateExport implements FromArray, WithHeadings, WithStyles, W
 
     public function styles(Worksheet $sheet): array
     {
-        $lastCol = chr(64 + count($this->headers)); // Assumes <= 26 columns
-        if (count($this->headers) > 26) {
-            $lastCol = 'A' . chr(64 + count($this->headers) - 26);
-        }
+        $lastCol = Coordinate::stringFromColumnIndex(count($this->headers));
 
         return [
             // Style de l'en-tête
@@ -79,10 +78,8 @@ class MilitairesTemplateExport implements FromArray, WithHeadings, WithStyles, W
     public function columnWidths(): array
     {
         $widths = [];
-        $colLetters = range('A', 'Z');
-
         foreach ($this->headers as $i => $header) {
-            $col = $i < 26 ? $colLetters[$i] : 'A' . $colLetters[$i - 26];
+            $col = Coordinate::stringFromColumnIndex($i + 1);
             $widths[$col] = max(strlen($header) + 4, 15);
         }
 

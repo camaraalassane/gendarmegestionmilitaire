@@ -103,6 +103,8 @@ class AvancementOfficiersSheet implements FromArray, WithStyles, WithColumnWidth
             'Nom & Prénom',
             'Grade actuel',
             'Grade cible',
+            'Unité',
+            'Région',
             'Fonction (Pts)',
             'Rendement (Pts)',
             'Bonus Emploi (Pts)',
@@ -150,6 +152,8 @@ class AvancementOfficiersSheet implements FromArray, WithStyles, WithColumnWidth
                 $nomComplet,
                 $item['grade_actuel'] ?? '',
                 $item['grade_cible'] ?? '',
+                $item['unite'] ?? '',
+                $item['region'] ?? '',
                 (float) ($item['points_fonction_actuelle'] ?? 0),
                 (float) ($item['note_rendement'] ?? 0),
                 (float) ($item['bonus_dernier_emploi'] ?? 0),
@@ -172,13 +176,13 @@ class AvancementOfficiersSheet implements FromArray, WithStyles, WithColumnWidth
     {
         $lastRow = max(5, count($sheet->toArray()));
 
-        $sheet->mergeCells('A1:O1');
-        $sheet->mergeCells('A2:O2');
-        $sheet->mergeCells('A3:O3');
+        $sheet->mergeCells('A1:Q1');
+        $sheet->mergeCells('A2:Q2');
+        $sheet->mergeCells('A3:Q3');
 
         foreach ($this->gradeBannerRows as $bRow) {
-            $sheet->mergeCells("A{$bRow}:O{$bRow}");
-            $sheet->getStyle("A{$bRow}:O{$bRow}")->applyFromArray([
+            $sheet->mergeCells("A{$bRow}:Q{$bRow}");
+            $sheet->getStyle("A{$bRow}:Q{$bRow}")->applyFromArray([
                 'font' => ['bold' => true, 'color' => ['rgb' => '0C4A6E'], 'size' => 11],
                 'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'E0F2FE']],
                 'alignment' => ['vertical' => Alignment::VERTICAL_CENTER, 'horizontal' => Alignment::HORIZONTAL_LEFT],
@@ -213,16 +217,16 @@ class AvancementOfficiersSheet implements FromArray, WithStyles, WithColumnWidth
         $sheet->getRowDimension(4)->setRowHeight(30);
 
         if ($lastRow >= 5) {
-            $dataRange = "A5:O{$lastRow}";
+            $dataRange = "A5:Q{$lastRow}";
             $sheet->getStyle($dataRange)->applyFromArray([
                 'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'CBD5E1']]],
                 'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
             ]);
             $sheet->getStyle("A5:A{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
             $sheet->getStyle("B5:B{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("D5:E{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("F5:N{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
-            $sheet->getStyle("O5:O{$lastRow}")->applyFromArray([
+            $sheet->getStyle("D5:G{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("H5:P{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+            $sheet->getStyle("Q5:Q{$lastRow}")->applyFromArray([
                 'font' => ['bold' => true, 'color' => ['rgb' => '0369A1']],
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_RIGHT],
             ]);
@@ -239,16 +243,18 @@ class AvancementOfficiersSheet implements FromArray, WithStyles, WithColumnWidth
             'C' => 30,
             'D' => 20,
             'E' => 20,
-            'F' => 14,
-            'G' => 14,
-            'H' => 15,
-            'I' => 13,
-            'J' => 14,
-            'K' => 14,
-            'L' => 12,
+            'F' => 18,
+            'G' => 18,
+            'H' => 14,
+            'I' => 14,
+            'J' => 15,
+            'K' => 13,
+            'L' => 14,
             'M' => 14,
             'N' => 12,
-            'O' => 16,
+            'O' => 14,
+            'P' => 12,
+            'Q' => 16,
         ];
     }
 }
@@ -293,6 +299,8 @@ class AvancementSousOfficiersSheet implements FromArray, WithStyles, WithColumnW
             'Nom & Prénom',
             'Grade actuel',
             'Grade cible',
+            'Unité',
+            'Région',
             'Date Nomination Grade',
             'Ancienneté dans le Grade',
             'Date Incorporation',
@@ -335,6 +343,8 @@ class AvancementSousOfficiersSheet implements FromArray, WithStyles, WithColumnW
                 $nomComplet,
                 $item['grade_actuel'] ?? '',
                 $item['grade_cible'] ?? '',
+                $item['unite'] ?? '',
+                $item['region'] ?? '',
                 $item['date_derniere_promotion'] ?: '-',
                 $item['anciennete_grade_texte'] ?: '-',
                 $item['date_entree_service'] ?: '-',
@@ -353,13 +363,13 @@ class AvancementSousOfficiersSheet implements FromArray, WithStyles, WithColumnW
     {
         $lastRow = max(5, count($sheet->toArray()));
 
-        $sheet->mergeCells('A1:K1');
-        $sheet->mergeCells('A2:K2');
-        $sheet->mergeCells('A3:K3');
+        $sheet->mergeCells('A1:M1');
+        $sheet->mergeCells('A2:M2');
+        $sheet->mergeCells('A3:M3');
 
         foreach ($this->gradeBannerRows as $bRow) {
-            $sheet->mergeCells("A{$bRow}:K{$bRow}");
-            $sheet->getStyle("A{$bRow}:K{$bRow}")->applyFromArray([
+            $sheet->mergeCells("A{$bRow}:M{$bRow}");
+            $sheet->getStyle("A{$bRow}:M{$bRow}")->applyFromArray([
                 'font' => ['bold' => true, 'color' => ['rgb' => '0F172A'], 'size' => 11],
                 'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F1F5F9']],
                 'alignment' => ['vertical' => Alignment::VERTICAL_CENTER, 'horizontal' => Alignment::HORIZONTAL_LEFT],
@@ -394,7 +404,7 @@ class AvancementSousOfficiersSheet implements FromArray, WithStyles, WithColumnW
         $sheet->getRowDimension(4)->setRowHeight(30);
 
         if ($lastRow >= 5) {
-            $dataRange = "A5:K{$lastRow}";
+            $dataRange = "A5:M{$lastRow}";
             $sheet->getStyle($dataRange)->applyFromArray([
                 'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'CBD5E1']]],
                 'alignment' => ['vertical' => Alignment::VERTICAL_CENTER],
@@ -404,7 +414,7 @@ class AvancementSousOfficiersSheet implements FromArray, WithStyles, WithColumnW
                 'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
             ]);
             $sheet->getStyle("B5:B{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-            $sheet->getStyle("D5:I{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle("D5:K{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
         }
 
         return $styles;
@@ -419,11 +429,13 @@ class AvancementSousOfficiersSheet implements FromArray, WithStyles, WithColumnW
             'D' => 20,
             'E' => 20,
             'F' => 18,
-            'G' => 20,
+            'G' => 18,
             'H' => 18,
             'I' => 20,
-            'J' => 25,
-            'K' => 28,
+            'J' => 18,
+            'K' => 20,
+            'L' => 25,
+            'M' => 28,
         ];
     }
 }

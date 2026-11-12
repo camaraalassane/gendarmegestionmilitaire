@@ -28,7 +28,7 @@ class ProposablesAnneeNExport implements FromArray, WithHeadings, WithStyles, Sh
         $data[] = ['LISTE DES MILITAIRES PROPOSABLES POUR L\'ANNÉE ' . $annee];
         $data[] = ['Date d\'export : ' . date('d/m/Y H:i')];
         $data[] = [''];
-        $data[] = ['Grade actuel', 'Ancienneté grade', 'Matricule', 'Nom complet', 'Grade cible', 'Date ancienneté', 'Date proposition'];
+        $data[] = ['Grade actuel', 'Ancienneté grade', 'Matricule', 'Nom complet', 'Unité / Corps', 'Région', 'Grade cible', 'Date ancienneté', 'Date proposition'];
         
         $currentGrade = '';
         foreach ($proposables as $proposable) {
@@ -44,6 +44,8 @@ class ProposablesAnneeNExport implements FromArray, WithHeadings, WithStyles, Sh
                 $proposable['anciennete_grade_formatted'] ?? '-',
                 $proposable['matricule'],
                 $proposable['nom'] . ' ' . $proposable['prenom'],
+                $proposable['unite'] ?? '-',
+                $proposable['region'] ?? '-',
                 $proposable['grade_cible'],
                 $proposable['date_anciennete_formatted'],
                 $proposable['date_proposition_formatted'],
@@ -65,7 +67,7 @@ class ProposablesAnneeNExport implements FromArray, WithHeadings, WithStyles, Sh
     public function styles(Worksheet $sheet)
     {
         // Style titre principal
-        $sheet->getStyle('A1:G1')->applyFromArray([
+        $sheet->getStyle('A1:I1')->applyFromArray([
             'font' => ['bold' => true, 'size' => 14, 'color' => ['rgb' => 'FFFFFF']],
             'fill' => [
                 'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
@@ -75,12 +77,12 @@ class ProposablesAnneeNExport implements FromArray, WithHeadings, WithStyles, Sh
         ]);
         
         // Style date d'export
-        $sheet->getStyle('A2:G2')->applyFromArray([
+        $sheet->getStyle('A2:I2')->applyFromArray([
             'font' => ['italic' => true, 'size' => 10, 'color' => ['rgb' => '6B7280']],
         ]);
         
         // Style en-têtes colonnes
-        $sheet->getStyle('A4:G4')->applyFromArray([
+        $sheet->getStyle('A4:I4')->applyFromArray([
             'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']],
             'fill' => [
                 'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,

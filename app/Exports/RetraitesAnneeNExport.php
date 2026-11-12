@@ -26,7 +26,7 @@ class RetraitesAnneeNExport implements FromArray, WithHeadings, WithStyles, Shou
         $data[] = ['LISTE DES RETRAITES POUR L\'ANNÉE ' . $annee];
         $data[] = ['Date d\'export : ' . date('d/m/Y H:i')];
         $data[] = [''];
-        $data[] = ['Grade actuel', 'Matricule', 'Nom complet', 'Date de retraite'];
+        $data[] = ['Grade actuel', 'Matricule', 'Nom complet', 'Unité / Corps', 'Région', 'Date de retraite'];
         
         $currentGrade = '';
         foreach ($retraites as $retraite) {
@@ -41,6 +41,8 @@ class RetraitesAnneeNExport implements FromArray, WithHeadings, WithStyles, Shou
                 $retraite['grade_actuel'],
                 $retraite['matricule'],
                 $retraite['nom'] . ' ' . $retraite['prenom'],
+                $retraite['unite'] ?? '-',
+                $retraite['region'] ?? '-',
                 $retraite['date_retraite_formatted'],
             ];
             $data[] = array_map([$this, 'sanitizeCell'], $row);
@@ -60,7 +62,7 @@ class RetraitesAnneeNExport implements FromArray, WithHeadings, WithStyles, Shou
     public function styles(Worksheet $sheet)
     {
         // Style titre principal
-        $sheet->getStyle('A1:D1')->applyFromArray([
+        $sheet->getStyle('A1:F1')->applyFromArray([
             'font' => ['bold' => true, 'size' => 14, 'color' => ['rgb' => 'FFFFFF']],
             'fill' => [
                 'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
@@ -70,12 +72,12 @@ class RetraitesAnneeNExport implements FromArray, WithHeadings, WithStyles, Shou
         ]);
         
         // Style date d'export
-        $sheet->getStyle('A2:D2')->applyFromArray([
+        $sheet->getStyle('A2:F2')->applyFromArray([
             'font' => ['italic' => true, 'size' => 10, 'color' => ['rgb' => '6B7280']],
         ]);
         
         // Style en-têtes colonnes
-        $sheet->getStyle('A4:D4')->applyFromArray([
+        $sheet->getStyle('A4:F4')->applyFromArray([
             'font' => ['bold' => true, 'size' => 11, 'color' => ['rgb' => 'FFFFFF']],
             'fill' => [
                 'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
