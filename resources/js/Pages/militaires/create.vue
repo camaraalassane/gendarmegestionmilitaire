@@ -20,7 +20,7 @@
             <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
 
                 <!-- ========================================================================================= -->
-                <!-- BANDEAU DE PROGRESSION / STEPPER MULTI-ÉTAPES (4 ÉTAPES)                                  -->
+                <!-- BANDEAU DE PROGRESSION / STEPPER MULTI-ÉTAPES (3 ÉTAPES)                                  -->
                 <!-- ========================================================================================= -->
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6 mb-6">
                     <!-- Barre de progression continue -->
@@ -39,14 +39,14 @@
                              :style="{ width: `${progress}%` }"></div>
                     </div>
 
-                    <!-- Onglets interactifs des étapes (4 étapes au total) -->
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+                    <!-- Onglets interactifs des étapes (3 étapes au total) -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <button v-for="(s, idx) in steps" :key="idx"
                                 type="button"
                                 @click="goToStep(idx)"
                                 :disabled="idx > maxStepVisited"
                                 :class="[
-                                    'group flex items-center gap-2.5 p-2.5 sm:p-3 rounded-xl border transition-all text-left',
+                                    'group flex items-center gap-3 p-3 rounded-xl border transition-all text-left',
                                     idx === currentStep
                                         ? 'bg-sky-50 border-sky-500 shadow-xs ring-2 ring-sky-200 cursor-default'
                                         : idx < currentStep
@@ -57,7 +57,7 @@
                                 ]">
                             <!-- Pastille numéro / icône -->
                             <div :class="[
-                                'w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 transition-all shadow-2xs',
+                                'w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 transition-all shadow-2xs',
                                 idx === currentStep
                                     ? 'bg-sky-800 text-white shadow-sky-200'
                                     : idx < currentStep
@@ -65,7 +65,7 @@
                                         : 'bg-white border border-slate-300 text-slate-600'
                             ]">
                                 <i v-if="idx < currentStep" class="pi pi-check text-xs font-bold"></i>
-                                <i v-else :class="s.icon" class="text-xs"></i>
+                                <i v-else :class="s.icon" class="text-sm"></i>
                             </div>
 
                             <div class="min-w-0 flex-1">
@@ -491,239 +491,243 @@
                         </div>
 
                         <!-- ================================================================================= -->
-                        <!-- ÉTAPE 2 : SANTÉ, OPÉRATIONS & DISCIPLINE                                         -->
+                        <!-- ÉTAPE 2 : APTITUDE, DISCIPLINE, FORMATIONS & SYNTHÈSE (FUSION ÉTAPES 3 & 4)         -->
                         <!-- ================================================================================= -->
                         <div v-show="currentStep === 2" class="space-y-6">
-                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                <!-- Groupe sanguin -->
-                                <div class="field">
-                                    <label for="groupe_sanguin" class="block text-sm font-semibold text-gray-700 mb-1">
-                                        Groupe sanguin
-                                    </label>
-                                    <Select v-model="form.groupe_sanguin" :options="groupeSanguinOptions" optionLabel="label" optionValue="value"
-                                            placeholder="Sélectionner" class="w-full" showClear />
+
+                            <!-- CARD 1 : Aptitude Médicale, OPEX & Discipline -->
+                            <div class="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 shadow-2xs">
+                                <div class="flex items-center gap-2 text-sky-900 border-b border-slate-200 pb-3 mb-4 text-sm font-extrabold uppercase tracking-wide">
+                                    <i class="pi pi-shield text-sky-800 text-base"></i>
+                                    <span>Card 1 — Santé, Aptitude Médicale & Discipline</span>
                                 </div>
 
-                                <!-- Taille -->
-                                <div class="field">
-                                    <label for="taille" class="block text-sm font-semibold text-gray-700 mb-1">
-                                        Taille (stature)
-                                    </label>
-                                    <InputText id="taille" v-model="form.taille" class="w-full" placeholder="Ex: 1.78 m ou 178 cm" />
+                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <!-- Groupe sanguin -->
+                                    <div class="field">
+                                        <label for="groupe_sanguin" class="block text-sm font-semibold text-gray-700 mb-1">
+                                            Groupe sanguin
+                                        </label>
+                                        <Select v-model="form.groupe_sanguin" :options="groupeSanguinOptions" optionLabel="label" optionValue="value"
+                                                placeholder="Sélectionner" class="w-full" showClear />
+                                    </div>
+
+                                    <!-- Taille -->
+                                    <div class="field">
+                                        <label for="taille" class="block text-sm font-semibold text-gray-700 mb-1">
+                                            Taille (stature)
+                                        </label>
+                                        <InputText id="taille" v-model="form.taille" class="w-full" placeholder="Ex: 1.78 m ou 178 cm" />
+                                    </div>
+
+                                    <!-- Statut sanitaire -->
+                                    <div class="field">
+                                        <label for="status_sanitaire" class="block text-sm font-semibold text-gray-700 mb-1">
+                                            Statut sanitaire / Aptitude
+                                        </label>
+                                        <InputText id="status_sanitaire" v-model="form.status_sanitaire" class="w-full" placeholder="Ex: Apte, Blessé de guerre..." />
+                                    </div>
+
+                                    <!-- Engagement OPS -->
+                                    <div class="field sm:col-span-2 lg:col-span-3">
+                                        <label for="engagement_ops" class="block text-sm font-semibold text-gray-700 mb-1">
+                                            Engagement OPS / Théâtres d'opérations
+                                        </label>
+                                        <InputText id="engagement_ops" v-model="form.engagement_ops" class="w-full" placeholder="Ex: 2 OPS, Opération Maliko, Théâtre Est, Sokolo, Garsi..." />
+                                    </div>
                                 </div>
 
-                                <!-- Statut sanitaire -->
-                                <div class="field">
-                                    <label for="status_sanitaire" class="block text-sm font-semibold text-gray-700 mb-1">
-                                        Statut sanitaire / Aptitude
-                                    </label>
-                                    <InputText id="status_sanitaire" v-model="form.status_sanitaire" class="w-full" placeholder="Ex: Apte, Blessé de guerre..." />
-                                </div>
+                                <!-- Cases à cocher permis / antécédents -->
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 mt-4 border-t border-slate-200">
+                                    <div class="flex items-center gap-2.5 p-3.5 border rounded-xl bg-white hover:bg-slate-50 transition-colors">
+                                        <Checkbox id="a_permis_conduire" v-model="form.a_permis_conduire" :binary="true" />
+                                        <label for="a_permis_conduire" class="text-xs font-bold text-gray-800 cursor-pointer flex items-center gap-1.5">
+                                            <i class="pi pi-car text-sky-700"></i>
+                                            <span>Titulaire permis de conduire</span>
+                                        </label>
+                                    </div>
 
-                                <!-- Engagement OPS -->
-                                <div class="field sm:col-span-2 lg:col-span-3">
-                                    <label for="engagement_ops" class="block text-sm font-semibold text-gray-700 mb-1">
-                                        Engagement OPS / Théâtres d'opérations
-                                    </label>
-                                    <InputText id="engagement_ops" v-model="form.engagement_ops" class="w-full" placeholder="Ex: 2 OPS, Opération Maliko, Théâtre Est, Sokolo, Garsi..." />
+                                    <div class="flex items-center gap-2.5 p-3.5 border rounded-xl bg-white hover:bg-slate-50 transition-colors">
+                                        <Checkbox id="antecedent_judiciaire" v-model="form.antecedent_judiciaire" :binary="true" />
+                                        <label for="antecedent_judiciaire" class="text-xs font-bold text-gray-800 cursor-pointer flex items-center gap-1.5">
+                                            <i class="pi pi-exclamation-triangle text-amber-600"></i>
+                                            <span>Antécédent judiciaire</span>
+                                        </label>
+                                    </div>
+
+                                    <div class="flex items-center gap-2.5 p-3.5 border rounded-xl bg-white hover:bg-slate-50 transition-colors">
+                                        <Checkbox id="antecedent_disciplinaire" v-model="form.antecedent_disciplinaire" :binary="true" />
+                                        <label for="antecedent_disciplinaire" class="text-xs font-bold text-gray-800 cursor-pointer flex items-center gap-1.5">
+                                            <i class="pi pi-ban text-red-600"></i>
+                                            <span>Antécédent disciplinaire</span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
 
-                            <!-- Cases à cocher permise / antécédents -->
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-slate-200">
-                                <div class="flex items-center gap-2.5 p-3.5 border rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
-                                    <Checkbox id="a_permis_conduire" v-model="form.a_permis_conduire" :binary="true" />
-                                    <label for="a_permis_conduire" class="text-xs font-bold text-gray-800 cursor-pointer flex items-center gap-1.5">
-                                        <i class="pi pi-car text-sky-700"></i>
-                                        <span>Titulaire permis de conduire</span>
-                                    </label>
+                            <!-- CARD 2 : Certificats, Décorations & Diplômes -->
+                            <div class="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 shadow-2xs">
+                                <div class="flex items-center gap-2 text-sky-900 border-b border-slate-200 pb-3 mb-4 text-sm font-extrabold uppercase tracking-wide">
+                                    <i class="pi pi-book text-sky-800 text-base"></i>
+                                    <span>Card 2 — Certificats & Formations Militaires Obtenus</span>
                                 </div>
 
-                                <div class="flex items-center gap-2.5 p-3.5 border rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
-                                    <Checkbox id="antecedent_judiciaire" v-model="form.antecedent_judiciaire" :binary="true" />
-                                    <label for="antecedent_judiciaire" class="text-xs font-bold text-gray-800 cursor-pointer flex items-center gap-1.5">
-                                        <i class="pi pi-exclamation-triangle text-amber-600"></i>
-                                        <span>Antécédent judiciaire</span>
-                                    </label>
-                                </div>
+                                <!-- Formations militaires -->
+                                <div v-if="showFormationsSection">
+                                    <div v-if="filteredCertificats.length === 0" class="text-center py-6 text-gray-500 bg-white rounded-xl border border-dashed border-slate-200">
+                                        <i class="pi pi-info-circle text-2xl mb-1 text-slate-400"></i>
+                                        <p class="text-xs">Aucune formation spécifique configurée pour ce grade.</p>
+                                    </div>
 
-                                <div class="flex items-center gap-2.5 p-3.5 border rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
-                                    <Checkbox id="antecedent_disciplinaire" v-model="form.antecedent_disciplinaire" :binary="true" />
-                                    <label for="antecedent_disciplinaire" class="text-xs font-bold text-gray-800 cursor-pointer flex items-center gap-1.5">
-                                        <i class="pi pi-ban text-red-600"></i>
-                                        <span>Antécédent disciplinaire</span>
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- ================================================================================= -->
-                        <!-- ÉTAPE 3 : FORMATIONS, DÉCORATIONS & SYNTHÈSE                                      -->
-                        <!-- ================================================================================= -->
-                        <div v-show="currentStep === 3" class="space-y-6">
-                            <!-- Certificats & Formations Militaires Obtenus -->
-                            <div v-if="showFormationsSection">
-                                <div class="flex items-center justify-between mb-3 border-b border-slate-200 pb-2">
-                                    <label class="block text-sm font-bold text-slate-800 flex items-center gap-2">
-                                        <i class="pi pi-book text-sky-800"></i>
-                                        <span>Certificats & Formations Militaires Obtenus</span>
-                                    </label>
-                                    <span class="text-xs text-slate-500 font-semibold">Adapté au grade sélectionné</span>
-                                </div>
-
-                                <div v-if="filteredCertificats.length === 0" class="text-center py-6 text-gray-500 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                                    <i class="pi pi-info-circle text-2xl mb-1 text-slate-400"></i>
-                                    <p class="text-xs">Aucune formation spécifique configurée pour ce grade.</p>
-                                </div>
-
-                                <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div v-for="certificat in filteredCertificats" :key="certificat.id"
-                                         class="border rounded-xl p-3.5 transition-all bg-slate-50/70 hover:border-sky-300">
-                                        <div class="flex items-start gap-2.5">
-                                            <Checkbox :id="'certif_' + certificat.id"
-                                                      v-model="form.certificats[certificat.id].obtenu"
-                                                      :binary="true"
-                                                      @change="onCertificatChange(certificat.id)" />
-                                            <label :for="'certif_' + certificat.id" class="font-bold text-gray-800 text-xs cursor-pointer flex-1">
-                                                {{ certificat.nom_certificat }}
-                                                <Tag :value="certificat.niveau_certificat" :style="getNiveauStyle(certificat.niveau_certificat)" class="ml-1 text-[10px]" />
-                                            </label>
-                                        </div>
-
-                                        <div v-if="form.certificats[certificat.id].obtenu" class="mt-3 pl-6 space-y-2">
-                                            <div>
-                                                <label :for="'date_certif_' + certificat.id" class="block text-xs font-semibold text-gray-600 mb-1">
-                                                    Date d'obtention <span class="text-red-500">*</span>
+                                    <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div v-for="certificat in filteredCertificats" :key="certificat.id"
+                                             class="border rounded-xl p-3.5 transition-all bg-white hover:border-sky-300">
+                                            <div class="flex items-start gap-2.5">
+                                                <Checkbox :id="'certif_' + certificat.id"
+                                                          v-model="form.certificats[certificat.id].obtenu"
+                                                          :binary="true"
+                                                          @change="onCertificatChange(certificat.id)" />
+                                                <label :for="'certif_' + certificat.id" class="font-bold text-gray-800 text-xs cursor-pointer flex-1">
+                                                    {{ certificat.nom_certificat }}
+                                                    <Tag :value="certificat.niveau_certificat" :style="getNiveauStyle(certificat.niveau_certificat)" class="ml-1 text-[10px]" />
                                                 </label>
-                                                <DatePicker :id="'date_certif_' + certificat.id"
-                                                            v-model="form.certificats[certificat.id].date_obtention"
-                                                            dateFormat="dd/mm/yy" showIcon class="w-full" size="small"
-                                                            :class="{ 'p-invalid': dateErrors[certificat.id] }" />
-                                                <small v-if="dateErrors[certificat.id]" class="text-red-500 text-xs font-medium">
-                                                    Date d'obtention obligatoire
-                                                </small>
                                             </div>
 
-                                            <div>
-                                                <label :for="'doc_' + certificat.id" class="block text-xs text-gray-600 mb-1">Document justificatif (optionnel)</label>
-                                                <div class="flex items-center gap-2">
-                                                    <FileUpload :id="'doc_' + certificat.id" mode="basic"
-                                                                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                                                                chooseLabel="📎 Choisir" customUpload
-                                                                @select="(event) => onFileSelect(certificat.id, event)"
-                                                                class="w-full" />
-                                                    <Button v-if="form.certificats[certificat.id].document"
-                                                            icon="pi pi-times"
-                                                            class="p-button-rounded p-button-danger p-button-text cursor-pointer"
-                                                            size="small"
-                                                            @click="removeDocument(certificat.id)"
-                                                            title="Supprimer le document" />
+                                            <div v-if="form.certificats[certificat.id].obtenu" class="mt-3 pl-6 space-y-2">
+                                                <div>
+                                                    <label :for="'date_certif_' + certificat.id" class="block text-xs font-semibold text-gray-600 mb-1">
+                                                        Date d'obtention <span class="text-red-500">*</span>
+                                                    </label>
+                                                    <DatePicker :id="'date_certif_' + certificat.id"
+                                                                v-model="form.certificats[certificat.id].date_obtention"
+                                                                dateFormat="dd/mm/yy" showIcon class="w-full" size="small"
+                                                                :class="{ 'p-invalid': dateErrors[certificat.id] }" />
+                                                    <small v-if="dateErrors[certificat.id]" class="text-red-500 text-xs font-medium">
+                                                        Date d'obtention obligatoire
+                                                    </small>
+                                                </div>
+
+                                                <div>
+                                                    <label :for="'doc_' + certificat.id" class="block text-xs text-gray-600 mb-1">Document justificatif (optionnel)</label>
+                                                    <div class="flex items-center gap-2">
+                                                        <FileUpload :id="'doc_' + certificat.id" mode="basic"
+                                                                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                                                    chooseLabel="📎 Choisir" customUpload
+                                                                    @select="(event) => onFileSelect(certificat.id, event)"
+                                                                    class="w-full" />
+                                                        <Button v-if="form.certificats[certificat.id].document"
+                                                                icon="pi pi-times"
+                                                                class="p-button-rounded p-button-danger p-button-text cursor-pointer"
+                                                                size="small"
+                                                                @click="removeDocument(certificat.id)"
+                                                                title="Supprimer le document" />
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <!-- Décorations dynamiques -->
-                            <div class="pt-4 border-t border-slate-200">
-                                <div class="flex items-center justify-between mb-2">
-                                    <label class="block text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                                        <i class="pi pi-award text-amber-600"></i>
-                                        <span>Décorations & Médailles</span>
-                                    </label>
-                                    <button type="button" @click="addDecoration"
-                                            class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition-colors cursor-pointer shadow-2xs">
-                                        <i class="pi pi-plus text-[10px]"></i>
-                                        <span>Ajouter une médaille</span>
-                                    </button>
-                                </div>
-
-                                <div v-if="decorationsList.length > 0" class="space-y-2 mb-2">
-                                    <div v-for="(dec, idx) in decorationsList" :key="idx" class="flex items-center gap-2">
-                                        <div class="w-7 h-7 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 text-xs font-bold">
-                                            {{ idx + 1 }}
-                                        </div>
-                                        <InputText v-model="decorationsList[idx]" class="w-full text-xs" placeholder="Ex: Médaille du Mérite Militaire, Croix de la Valeur..." />
-                                        <button type="button" @click="removeDecoration(idx)"
-                                                class="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors shrink-0 cursor-pointer"
-                                                title="Supprimer cette médaille">
-                                            <i class="pi pi-trash text-sm"></i>
+                                <!-- Décorations dynamiques -->
+                                <div class="pt-4 mt-4 border-t border-slate-200">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <label class="block text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                                            <i class="pi pi-award text-amber-600"></i>
+                                            <span>Décorations & Médailles</span>
+                                        </label>
+                                        <button type="button" @click="addDecoration"
+                                                class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition-colors cursor-pointer shadow-2xs">
+                                            <i class="pi pi-plus text-[10px]"></i>
+                                            <span>Ajouter une médaille</span>
                                         </button>
                                     </div>
-                                </div>
-                                <div v-else class="text-xs text-slate-400 italic p-3 border border-dashed border-slate-200 rounded-xl text-center bg-slate-50/50">
-                                    Aucune médaille ajoutée.
-                                </div>
-                            </div>
 
-                            <!-- Diplômes académiques civils -->
-                            <div class="pt-4 border-t border-slate-200">
-                                <div class="flex items-center justify-between mb-2">
-                                    <label class="block text-sm font-bold text-slate-800 flex items-center gap-1.5">
-                                        <i class="pi pi-graduation-cap text-sky-700"></i>
-                                        <span>Diplômes académiques (civils / universitaires)</span>
-                                    </label>
-                                    <button type="button" @click="addDiplome"
-                                            class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-sky-50 text-sky-800 border border-sky-300 hover:bg-sky-100 transition-colors cursor-pointer shadow-2xs">
-                                        <i class="pi pi-plus text-[10px]"></i>
-                                        <span>Ajouter un diplôme</span>
-                                    </button>
-                                </div>
-
-                                <div v-if="diplomesList.length > 0" class="space-y-2 mb-2">
-                                    <div v-for="(dip, idx) in diplomesList" :key="idx" class="flex items-center gap-2">
-                                        <div class="w-7 h-7 rounded-full bg-sky-100 text-sky-800 flex items-center justify-center shrink-0 text-xs font-bold">
-                                            {{ idx + 1 }}
+                                    <div v-if="decorationsList.length > 0" class="space-y-2 mb-2">
+                                        <div v-for="(dec, idx) in decorationsList" :key="idx" class="flex items-center gap-2">
+                                            <div class="w-7 h-7 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 text-xs font-bold">
+                                                {{ idx + 1 }}
+                                            </div>
+                                            <InputText v-model="decorationsList[idx]" class="w-full text-xs" placeholder="Ex: Médaille du Mérite Militaire, Croix de la Valeur..." />
+                                            <button type="button" @click="removeDecoration(idx)"
+                                                    class="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors shrink-0 cursor-pointer"
+                                                    title="Supprimer cette médaille">
+                                                <i class="pi pi-trash text-sm"></i>
+                                            </button>
                                         </div>
-                                        <InputText v-model="diplomesList[idx]" class="w-full text-xs" placeholder="Ex: Baccalauréat, Licence en Droit, Master..." />
-                                        <button type="button" @click="removeDiplome(idx)"
-                                                class="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors shrink-0 cursor-pointer"
-                                                title="Supprimer ce diplôme">
-                                            <i class="pi pi-trash text-sm"></i>
-                                        </button>
+                                    </div>
+                                    <div v-else class="text-xs text-slate-400 italic p-3 border border-dashed border-slate-200 rounded-xl text-center bg-white">
+                                        Aucune médaille ajoutée.
                                     </div>
                                 </div>
-                                <div v-else class="text-xs text-slate-400 italic p-3 border border-dashed border-slate-200 rounded-xl text-center bg-slate-50/50">
-                                    Aucun diplôme civil ajouté.
-                                </div>
-                            </div>
 
-                            <!-- Observations -->
-                            <div class="pt-4 border-t border-slate-200">
-                                <label for="observations" class="block text-sm font-bold text-gray-700 mb-1">
-                                    Observations particulières
-                                </label>
-                                <InputText id="observations" v-model="form.observations" class="w-full" placeholder="Remarques administratives, situations particulières..." />
+                                <!-- Diplômes académiques civils -->
+                                <div class="pt-4 mt-4 border-t border-slate-200">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <label class="block text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                                            <i class="pi pi-graduation-cap text-sky-700"></i>
+                                            <span>Diplômes académiques (civils / universitaires)</span>
+                                        </label>
+                                        <button type="button" @click="addDiplome"
+                                                class="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-lg bg-sky-50 text-sky-800 border border-sky-300 hover:bg-sky-100 transition-colors cursor-pointer shadow-2xs">
+                                            <i class="pi pi-plus text-[10px]"></i>
+                                            <span>Ajouter un diplôme</span>
+                                        </button>
+                                    </div>
+
+                                    <div v-if="diplomesList.length > 0" class="space-y-2 mb-2">
+                                        <div v-for="(dip, idx) in diplomesList" :key="idx" class="flex items-center gap-2">
+                                            <div class="w-7 h-7 rounded-full bg-sky-100 text-sky-800 flex items-center justify-center shrink-0 text-xs font-bold">
+                                                {{ idx + 1 }}
+                                            </div>
+                                            <InputText v-model="diplomesList[idx]" class="w-full text-xs" placeholder="Ex: Baccalauréat, Licence en Droit, Master..." />
+                                            <button type="button" @click="removeDiplome(idx)"
+                                                    class="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors shrink-0 cursor-pointer"
+                                                    title="Supprimer ce diplôme">
+                                                <i class="pi pi-trash text-sm"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div v-else class="text-xs text-slate-400 italic p-3 border border-dashed border-slate-200 rounded-xl text-center bg-white">
+                                        Aucun diplôme civil ajouté.
+                                    </div>
+                                </div>
+
+                                <!-- Observations -->
+                                <div class="pt-4 mt-4 border-t border-slate-200">
+                                    <label for="observations" class="block text-sm font-bold text-gray-700 mb-1">
+                                        Observations particulières
+                                    </label>
+                                    <InputText id="observations" v-model="form.observations" class="w-full" placeholder="Remarques administratives, situations particulières..." />
+                                </div>
                             </div>
 
                             <!-- Fiche Récapitulative de Synthèse -->
-                            <div class="p-4 rounded-xl bg-gradient-to-br from-slate-50 to-sky-50 border border-sky-200 shadow-xs">
+                            <div class="p-5 rounded-2xl bg-gradient-to-br from-slate-50 to-sky-50 border border-sky-200 shadow-xs">
                                 <div class="flex items-center gap-2 text-sky-900 font-extrabold text-xs uppercase tracking-wider mb-3">
-                                    <i class="pi pi-check-circle text-sky-700"></i>
-                                    <span>Contrôle de conformité avant enregistrement</span>
+                                    <i class="pi pi-check-circle text-sky-700 text-base"></i>
+                                    <span>Synthèse de contrôle avant enregistrement définitif</span>
                                 </div>
                                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                                    <div class="bg-white p-2.5 rounded-lg border border-slate-200">
-                                        <span class="text-slate-400 block text-[10px]">Identité</span>
-                                        <strong class="text-slate-900 truncate block">{{ form.nom || '—' }} {{ form.prenom || '—' }}</strong>
+                                    <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                                        <span class="text-slate-400 block text-[10px] font-semibold uppercase">Identité</span>
+                                        <strong class="text-slate-900 truncate block text-sm">{{ form.nom || '—' }} {{ form.prenom || '—' }}</strong>
                                     </div>
-                                    <div class="bg-white p-2.5 rounded-lg border border-slate-200">
-                                        <span class="text-slate-400 block text-[10px]">Matricule</span>
-                                        <strong class="text-slate-900 truncate block">{{ form.matricule || '—' }}</strong>
+                                    <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                                        <span class="text-slate-400 block text-[10px] font-semibold uppercase">Matricule</span>
+                                        <strong class="text-slate-900 truncate block text-sm">{{ form.matricule || '—' }}</strong>
                                     </div>
-                                    <div class="bg-white p-2.5 rounded-lg border border-slate-200">
-                                        <span class="text-slate-400 block text-[10px]">Grade</span>
-                                        <strong class="text-sky-800 truncate block">{{ form.grade_actuel || '—' }}</strong>
+                                    <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                                        <span class="text-slate-400 block text-[10px] font-semibold uppercase">Grade</span>
+                                        <strong class="text-sky-800 truncate block text-sm">{{ form.grade_actuel || '—' }}</strong>
                                     </div>
-                                    <div class="bg-white p-2.5 rounded-lg border border-slate-200">
-                                        <span class="text-slate-400 block text-[10px]">Statut</span>
-                                        <strong class="text-emerald-800 capitalize truncate block">{{ form.statut || '—' }}</strong>
+                                    <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                                        <span class="text-slate-400 block text-[10px] font-semibold uppercase">Statut</span>
+                                        <strong class="text-emerald-800 capitalize truncate block text-sm">{{ form.statut || '—' }}</strong>
                                     </div>
                                 </div>
-                                <p class="text-[11px] text-slate-500 mt-3 italic flex items-center gap-1.5">
+                                <p class="text-[11px] text-slate-600 mt-3 italic flex items-center gap-1.5">
                                     <i class="pi pi-info-circle text-sky-600"></i>
-                                    <span>Vérifiez l'ensemble des étapes avant de cliquer sur « Enregistrer le militaire ». Vous pourrez toujours modifier la fiche ultérieurement.</span>
+                                    <span>Vérifiez l'ensemble des informations saisies. Vous pourrez toujours modifier la fiche ultérieurement.</span>
                                 </p>
                             </div>
                         </div>
@@ -801,14 +805,15 @@ const photoPreview = ref(null);
 const photoFile = ref(null);
 
 // =========================================================================================
-// CONFIGURATION DU STEPPER (4 ÉTAPES)
-// Étape 1 regroupe : Card 1 (Identité & Photo) + Card 2 (État Civil & Contact)
+// CONFIGURATION DU STEPPER (3 ÉTAPES)
+// Étape 1 : Identité & État Civil (Card 1 Photo/Matricule + Card 2 État Civil/Contact)
+// Étape 2 : Affectation & Carrière (Unités, Région, Dates, Fonctions)
+// Étape 3 : Aptitude, Formations & Synthèse (Card 1 Santé/Discipline + Card 2 Certificats/Diplômes + Synthèse)
 // =========================================================================================
 const steps = [
     { label: 'Identité & État Civil', title: '1. Identité Militaire & État Civil', subtitle: 'Photo d\'identité, matricules officiels, grade et état civil complet.', icon: 'pi pi-id-card' },
     { label: 'Affectation & Carrière', title: '2. Affectations Territoriales & Parcours', subtitle: 'Historique des unités d\'affectation, dates clés et fonctions exercées.', icon: 'pi pi-briefcase' },
-    { label: 'Santé & Discipline', title: '3. Aptitude Médicale, OPS & Discipline', subtitle: 'Profil médical, permis, théâtres d\'opérations (OPEX) et antécédents.', icon: 'pi pi-shield' },
-    { label: 'Formations & Synthèse', title: '4. Formations, Diplômes & Validation', subtitle: 'Certificats militaires obtenus, décorations, diplômes civils et récapitulatif.', icon: 'pi pi-check-circle' }
+    { label: 'Aptitude, Formations & Synthèse', title: '3. Santé, Discipline, Formations & Synthèse', subtitle: 'Profil médical, antécédents, certificats, diplômes civils et validation.', icon: 'pi pi-check-circle' }
 ];
 
 const currentStep = ref(0);
@@ -816,8 +821,7 @@ const maxStepVisited = ref(0);
 const stepErrors = reactive({
     0: {},
     1: {},
-    2: {},
-    3: {}
+    2: {}
 });
 
 const progress = computed(() => {
@@ -876,7 +880,7 @@ const validateStep = (stepIndex) => {
                 life: 4000
             });
         }
-    } else if (stepIndex === 3) {
+    } else if (stepIndex === 2) {
         // Validation des certificats cochés sans date
         dateErrors.value = {};
         let hasDateError = false;
@@ -1206,8 +1210,8 @@ const formatDateForServer = (date) => {
 };
 
 const submitForm = () => {
-    // Valider la dernière étape (étape 3) avant de soumettre
-    if (!validateStep(3)) return;
+    // Valider la dernière étape (étape 2) avant de soumettre
+    if (!validateStep(2)) return;
 
     saving.value = true;
     errors.value = {};
@@ -1306,16 +1310,14 @@ const submitForm = () => {
                 life: 5000
             });
 
-            // Basculement automatique vers l'étape contenant la première erreur
+            // Basculement automatique vers l'étape contenant la première erreur (sur 3 étapes)
             const errKeys = Object.keys(err);
             if (errKeys.some(k => ['matricule', 'mle_grm', 'numero_info', 'numero_nina', 'grade_actuel', 'categorie', 'statut', 'nom', 'prenom', 'date_naissance', 'lieu_naissance', 'sexe', 'telephone'].includes(k))) {
                 currentStep.value = 0;
             } else if (errKeys.some(k => ['date_entree_service', 'date_derniere_promotion', 'unite', 'region', 'affectations'].includes(k))) {
                 currentStep.value = 1;
-            } else if (errKeys.some(k => ['groupe_sanguin', 'taille', 'status_sanitaire', 'engagement_ops'].includes(k))) {
-                currentStep.value = 2;
             } else {
-                currentStep.value = 3;
+                currentStep.value = 2;
             }
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
