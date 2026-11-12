@@ -107,6 +107,10 @@ class AlerteController extends Controller
     {
         $alerte->delete();
 
+        Cache::forget('alertes:non_vues_count');
+        Cache::forget('dashboard:statistiques_cards');
+        Cache::forget('alertes:statistiques_globales');
+
         if (request()->wantsJson()) {
             return response()->json(['success' => true]);
         }
@@ -128,6 +132,10 @@ class AlerteController extends Controller
         } else {
             $message = "Aucune alerte à supprimer.";
         }
+
+        Cache::forget('alertes:non_vues_count');
+        Cache::forget('dashboard:statistiques_cards');
+        Cache::forget('alertes:statistiques_globales');
 
         return redirect()->back()->with('success', $message);
     }

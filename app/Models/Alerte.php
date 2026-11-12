@@ -26,4 +26,19 @@ class Alerte extends Model
     {
         return $this->belongsTo(Militaire::class);
     }
+
+    /**
+     * Invalidation automatique des compteurs d'alertes en cache lors de toute modification
+     */
+    protected static function booted()
+    {
+        $purge = function () {
+            \Illuminate\Support\Facades\Cache::forget('alertes:non_vues_count');
+            \Illuminate\Support\Facades\Cache::forget('dashboard:statistiques_cards');
+            \Illuminate\Support\Facades\Cache::forget('alertes:statistiques_globales');
+        };
+
+        static::saved($purge);
+        static::deleted($purge);
+    }
 }

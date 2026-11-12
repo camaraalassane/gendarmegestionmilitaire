@@ -63,13 +63,15 @@ class DashboardController extends Controller
                 'total_decedes' => Militaire::where(function($q) {
                     $q->where('statut', 'LIKE', 'd%c%d%')->orWhere('statut', 'LIKE', 'mort%');
                 })->count(),
-                'alertes_non_vues' => Alerte::where('est_vue', false)->count(),
                 'total_retraites_n' => $stats['total_retraites_n'] ?? 0,
                 'total_retraites_n1' => $stats['total_retraites_n1'] ?? 0,
                 'total_proposables_n' => $stats['total_proposables_n'] ?? 0,
                 'total_proposables_n1' => $stats['total_proposables_n1'] ?? 0,
             ];
         });
+
+        // Calcul dynamique en temps réel pour une mise à jour instantanée sans attendre l'expiration du cache
+        $statistiques['alertes_non_vues'] = Alerte::where('est_vue', false)->count();
 
         $grades = Grade::withCount(['militaires' => fn($q) => $q->where('statut', 'actif')])
             ->get(['id', 'nom_grade', 'type_grade'])
@@ -237,7 +239,7 @@ class DashboardController extends Controller
             $query->where('statut', 'LIKE', 'actif%');
         }
 
-        $militaires = $query->get();
+        $militaires = $query->select('id', 'nom', 'prenom', 'matricule', 'grade_actuel', 'statut', 'date_naissance')->get();
         $retraites = [];
 
         foreach ($militaires as $militaire) {
@@ -343,7 +345,8 @@ class DashboardController extends Controller
         
         $exclusSet = array_flip($idsExclus);
         $militairesActifs = Militaire::where('statut', 'actif')
-            ->with('certificats')
+            ->select('id', 'nom', 'prenom', 'matricule', 'grade_actuel', 'date_naissance', 'date_entree_service', 'date_derniere_promotion', 'antecedent_judiciaire', 'antecedent_disciplinaire')
+            ->with(['certificats' => fn($q) => $q->select('certificats.id', 'certificats.nom_certificat', 'certificats.niveau_certificat')])
             ->get();
         
         $proposables = [];
@@ -638,6 +641,11 @@ class DashboardController extends Controller
     public function marquerAlerteVue(Alerte $alerte)
     {
         $alerte->update(['est_vue' => true]);
+
+        Cache::forget('alertes:non_vues_count');
+        Cache::forget('dashboard:statistiques_cards');
+        Cache::forget('alertes:statistiques_globales');
+
         return request()->wantsJson() ? response()->json(['success' => true]) : redirect()->back()->with('success', 'Alerte marquée comme vue.');
     }
 }

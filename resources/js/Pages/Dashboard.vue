@@ -239,13 +239,13 @@
                             <Card>
                                 <template #title>
                                     <div class="flex items-center gap-2">
-                                        <i class="pi pi-bell" :class="alertesNonVues.length > 0 ? 'text-yellow-500' : ''"></i>
-                                        <span>Alertes récentes ({{ alertesNonVues.length }})</span>
+                                        <i class="pi pi-bell" :class="alertesLocales.length > 0 ? 'text-yellow-500' : ''"></i>
+                                        <span>Alertes récentes ({{ alertesLocales.length }})</span>
                                     </div>
                                 </template>
                                 <template #content>
-                                    <div v-if="alertesNonVues.length > 0" class="space-y-3">
-                                        <div v-for="alerte in alertesNonVues" :key="alerte.id" 
+                                    <div v-if="alertesLocales.length > 0" class="space-y-3">
+                                        <div v-for="alerte in alertesLocales" :key="alerte.id" 
                                              class="p-3 border rounded-lg transition-all hover:shadow-md"
                                              :class="getAlerteClass(alerte.type_alerte)">
                                             <div class="flex justify-between items-start">
@@ -319,7 +319,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
@@ -341,6 +341,10 @@ const props = defineProps({
 
 const toast = useToast();
 const loadingStates = ref({});
+const alertesLocales = ref(props.alertesNonVues ? [...props.alertesNonVues] : []);
+watch(() => props.alertesNonVues, (newVal) => {
+    alertesLocales.value = newVal ? [...newVal] : [];
+});
 const activeSection = ref(props.initialSection ? 'retraitesN' : null);
 const sectionData = ref(props.initialSection?.data || null);
 const sectionTitle = ref(props.initialSection?.title || '');
@@ -448,6 +452,14 @@ const marquerAlerteVue = (alerteId) => {
         onSuccess: () => {
             toast.add({ severity: 'success', summary: 'Succès', detail: 'Alerte marquée comme vue', life: 3000 });
             loadingStates.value[alerteId] = false;
+            // Retrait immédiat de l'alerte locale et décrémentation instantanée du compteur visuel
+            const idx = alertesLocales.value.findIndex(a => a.id === alerteId);
+            if (idx !== -1) {
+                alertesLocales.value.splice(idx, 1);
+            }
+            if (props.statistiques && props.statistiques.alertes_non_vues > 0) {
+                props.statistiques.alertes_non_vues--;
+            }
         },
         onError: () => {
             toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de marquer l\'alerte', life: 3000 });
