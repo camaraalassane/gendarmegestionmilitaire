@@ -35,7 +35,7 @@ class HandleInertiaRequests extends Middleware
         $sharedData = [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                'user' => fn () => $request->user(),
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
@@ -43,9 +43,9 @@ class HandleInertiaRequests extends Middleware
             ],
         ];
 
-        // Ajouter le compteur d'alertes si l'utilisateur est connecté (mis en cache 60s pour la rapidité)
+        // Ajouter le compteur d'alertes si l'utilisateur est connecté (mis en cache 120s pour la rapidité)
         if ($request->user()) {
-            $sharedData['alertesCount'] = Cache::remember('alertes:non_vues_count_gendarme', 60, function () {
+            $sharedData['alertesCount'] = Cache::remember('alertes:non_vues_count_gendarme', 120, function () {
                 return Alerte::where('est_vue', false)->count();
             });
         }

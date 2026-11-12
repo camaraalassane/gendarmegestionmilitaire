@@ -111,8 +111,10 @@ const closeMobileMenu = () => {
 };
 
 const handleClickOutside = (event) => {
-    if (userMenuRef.value && !userMenuRef.value.contains(event.target)) {
-        userMenuOpen.value = false;
+    if (userMenuRef.value && event.target && typeof document !== 'undefined' && document.contains(event.target)) {
+        if (!userMenuRef.value.contains(event.target)) {
+            userMenuOpen.value = false;
+        }
     }
 };
 

@@ -1,5 +1,5 @@
 <template>
-    <Link :href="href" :class="classes">
+    <Link :href="href" :class="classes" prefetch>
         <slot />
     </Link>
 </template>

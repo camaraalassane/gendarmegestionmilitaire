@@ -95,6 +95,7 @@ class MilitaireController extends Controller
               ->orderBy('militaires.prenom');
 
         $militaires = $query->select('militaires.*')
+            ->withCount(['alertes' => fn($q) => $q->where('est_vue', false)])
             ->paginate(20)
             ->withQueryString()
             ->through(fn ($militaire) => [
@@ -127,7 +128,7 @@ class MilitaireController extends Controller
                 'anciennete' => $militaire->anciennete,
                 'anciennete_grade' => $militaire->ancienneteGrade,
                 'a_permis_conduire' => $militaire->a_permis_conduire,
-                'alertes_count' => $militaire->alertes()->where('est_vue', false)->count(),
+                'alertes_count' => (int) ($militaire->alertes_count ?? 0),
                 'est_eligible_retraite' => $militaire->estEligibleRetraite(),
                 'date_retraite' => $militaire->calculerDateRetraite()?->format('d/m/Y'),
             ]);
@@ -1503,7 +1504,7 @@ class MilitaireController extends Controller
      */
     private function getIdsRetraitePourAnnee(int $anneeCible): array
     {
-        return Cache::remember("gendarme:ids_retraite_{$anneeCible}", 300, function () use ($anneeCible) {
+        return Cache::remember("gendarme:ids_retraite_{$anneeCible}", 3600, function () use ($anneeCible) {
             $militaires = Militaire::whereNotNull('date_naissance')
                 ->whereNotNull('grade_actuel')
                 ->select('id', 'date_naissance', 'grade_actuel', 'statut')

@@ -50,8 +50,7 @@
                                     type="email" 
                                     class="w-full pl-8 pr-3 py-2 text-sm border-gray-200 focus:border-sky-800 focus:ring-sky-800"
                                     :class="{ 'p-invalid': form.errors.email }"
-                                    placeholder="admin@gendarmerie.ml"
-                                    autofocus />
+                                    placeholder="admin@gendarmerie.ml" />
                             </div>
                             <small v-if="form.errors.email" class="text-red-500 text-[11px] mt-1 flex items-center gap-1">
                                 <i class="pi pi-exclamation-circle text-[10px]"></i>

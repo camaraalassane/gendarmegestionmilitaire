@@ -34,12 +34,14 @@ const GendarmerieTheme = definePreset(Aura, {
 
 const appName = 'Gestion Militaire - Gendarmerie';
 
-// CrÃ©er une directive click-outside personnalisÃ©e
+// Créer une directive click-outside personnalisée sécurisée
 const ClickOutside = {
     beforeMount(el, binding) {
         el.clickOutsideEvent = (event) => {
-            if (!(el === event.target || el.contains(event.target))) {
-                binding.value(event);
+            if (event.target && typeof document !== 'undefined' && document.contains(event.target)) {
+                if (!(el === event.target || el.contains(event.target))) {
+                    binding.value(event);
+                }
             }
         };
         document.addEventListener('click', el.clickOutsideEvent);

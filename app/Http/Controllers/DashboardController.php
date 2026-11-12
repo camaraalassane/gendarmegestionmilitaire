@@ -41,17 +41,15 @@ class DashboardController extends Controller
                 ] : null,
             ]);
 
-        $stats = Cache::remember('dashboard:statistiques', 300, function () {
-            $retN = $this->getCachedSection('retraitesN');
-            $retN1 = $this->getCachedSection('retraitesN1');
-            $propN = $this->getCachedSection('proposablesN');
-            $propN1 = $this->getCachedSection('proposablesN1');
+        $stats = Cache::remember('dashboard:statistiques', 3600, function () {
+            $retraites = $this->getRetraitesBoth();
+            $proposables = $this->getProposablesBoth();
 
             return [
-                'total_retraites_n' => $retN['total'],
-                'total_retraites_n1' => $retN1['total'],
-                'total_proposables_n' => $propN['total'],
-                'total_proposables_n1' => $propN1['total'],
+                'total_retraites_n' => $retraites['retraitesN']['total'] ?? 0,
+                'total_retraites_n1' => $retraites['retraitesN1']['total'] ?? 0,
+                'total_proposables_n' => $proposables['proposablesN']['total'] ?? 0,
+                'total_proposables_n1' => $proposables['proposablesN1']['total'] ?? 0,
             ];
         });
 
@@ -73,14 +71,16 @@ class DashboardController extends Controller
         // Calcul dynamique en temps réel pour une mise à jour instantanée sans attendre l'expiration du cache
         $statistiques['alertes_non_vues'] = Alerte::where('est_vue', false)->count();
 
-        $grades = Grade::withCount(['militaires' => fn($q) => $q->where('statut', 'actif')])
-            ->get(['id', 'nom_grade', 'type_grade'])
-            ->map(fn($g) => [
-                'id' => $g->id,
-                'nom_grade' => $g->nom_grade,
-                'type_grade' => $g->type_grade,
-                'militaires_count' => $g->militaires_count,
-            ]);
+        $grades = Cache::remember('dashboard:grades_distribution', 3600, function () {
+            return Grade::withCount(['militaires' => fn($q) => $q->where('statut', 'actif')])
+                ->get(['id', 'nom_grade', 'type_grade'])
+                ->map(fn($g) => [
+                    'id' => $g->id,
+                    'nom_grade' => $g->nom_grade,
+                    'type_grade' => $g->type_grade,
+                    'militaires_count' => $g->militaires_count,
+                ]);
+        });
 
         $initialSection = $this->getCachedSection('retraitesN');
 
@@ -107,8 +107,218 @@ class DashboardController extends Controller
      */
     public function getCachedSection(string $section): array
     {
-        return Cache::remember("dashboard:section:{$section}", 300, function () use ($section) {
+        return Cache::remember("dashboard:section:{$section}", 3600, function () use ($section) {
             return $this->buildSectionData($section);
+        });
+    }
+
+    /**
+     * Calcule et met en cache l'ensemble des départs en retraite (N et N+1) en une seule passe optimisée.
+     */
+    public function getRetraitesBoth(): array
+    {
+        return Cache::remember('dashboard:retraites_both', 3600, function () {
+            $aujourdhui = Carbon::now();
+            $anneeCourante = (int) $aujourdhui->year;
+            $anneeN1 = $anneeCourante + 1;
+
+            $gradesRetraites = Grade::all(['nom_grade', 'code_grade', 'type_grade', 'retraite_obligatoire']);
+            $gradeMap = [];
+            foreach ($gradesRetraites as $g) {
+                if ($g->retraite_obligatoire !== null) {
+                    $age = (int) $g->retraite_obligatoire;
+                    if ($g->nom_grade) $gradeMap[trim($g->nom_grade)] = $age;
+                    if ($g->code_grade) $gradeMap[trim($g->code_grade)] = $age;
+                }
+            }
+
+            $militaires = Militaire::where(function($q) {
+                    $q->where('statut', 'LIKE', 'actif%')
+                      ->orWhere('statut', 'LIKE', 'retrait%');
+                })
+                ->whereNotNull('date_naissance')
+                ->whereNotNull('grade_actuel')
+                ->select('id', 'nom', 'prenom', 'matricule', 'grade_actuel', 'statut', 'date_naissance')
+                ->get();
+
+            $retN = [];
+            $retN1 = [];
+
+            foreach ($militaires as $militaire) {
+                $gradeName = trim($militaire->grade_actuel);
+                $ageRetraite = $gradeMap[$gradeName] ?? Grade::getRetraiteForGrade($gradeName);
+                if (!$ageRetraite) continue;
+
+                $birthYear = (int) substr($militaire->date_naissance, 0, 4);
+                if (!$birthYear) continue;
+
+                $anneeRetraite = $birthYear + $ageRetraite;
+                $dateRetraite = $militaire->calculerDateRetraite();
+                if (!$dateRetraite) continue;
+
+                $estActif = str_starts_with(mb_strtolower($militaire->statut ?? ''), 'actif');
+
+                if ($anneeRetraite === $anneeCourante || ($estActif && $anneeRetraite < $anneeCourante)) {
+                    $retN[] = [
+                        'id' => $militaire->id,
+                        'matricule' => $militaire->matricule,
+                        'nom' => $militaire->nom,
+                        'prenom' => $militaire->prenom,
+                        'nom_complet' => $militaire->nom . ' ' . $militaire->prenom,
+                        'grade_actuel' => $militaire->grade_actuel,
+                        'statut' => $militaire->statut,
+                        'date_retraite' => $dateRetraite->format('Y-m-d'),
+                        'date_retraite_formatted' => $dateRetraite->format('d/m/Y'),
+                    ];
+                } elseif ($estActif && $anneeRetraite === $anneeN1) {
+                    $retN1[] = [
+                        'id' => $militaire->id,
+                        'matricule' => $militaire->matricule,
+                        'nom' => $militaire->nom,
+                        'prenom' => $militaire->prenom,
+                        'nom_complet' => $militaire->nom . ' ' . $militaire->prenom,
+                        'grade_actuel' => $militaire->grade_actuel,
+                        'statut' => $militaire->statut,
+                        'date_retraite' => $dateRetraite->format('Y-m-d'),
+                        'date_retraite_formatted' => $dateRetraite->format('d/m/Y'),
+                    ];
+                }
+            }
+
+            usort($retN, fn($a, $b) => strcmp($a['grade_actuel'], $b['grade_actuel']) ?: strcmp($a['date_retraite'], $b['date_retraite']));
+            usort($retN1, fn($a, $b) => strcmp($a['grade_actuel'], $b['grade_actuel']) ?: strcmp($a['date_retraite'], $b['date_retraite']));
+
+            $columns = [
+                ['field' => 'grade_actuel', 'header' => 'Grade actuel', 'sortable' => true],
+                ['field' => 'matricule', 'header' => 'Matricule', 'sortable' => true],
+                ['field' => 'nom_complet', 'header' => 'Nom et Prénom', 'sortable' => true],
+                ['field' => 'date_retraite_formatted', 'header' => 'Date de retraite', 'sortable' => true],
+            ];
+
+            return [
+                'retraitesN' => [
+                    'data' => $retN,
+                    'title' => "Retraites - Année {$anneeCourante}",
+                    'icon' => 'pi pi-calendar text-red-500',
+                    'total' => count($retN),
+                    'sortField' => 'date_retraite',
+                    'columns' => $columns,
+                ],
+                'retraitesN1' => [
+                    'data' => $retN1,
+                    'title' => "Retraites - Année {$anneeN1}",
+                    'icon' => 'pi pi-calendar-plus text-orange-500',
+                    'total' => count($retN1),
+                    'sortField' => 'date_retraite',
+                    'columns' => $columns,
+                ],
+            ];
+        });
+    }
+
+    /**
+     * Calcule et met en cache l'ensemble des proposables (N et N+1) en une seule passe optimisée.
+     */
+    public function getProposablesBoth(): array
+    {
+        return Cache::remember('dashboard:proposables_both', 3600, function () {
+            $aujourdhui = Carbon::now();
+            $anneeCourante = (int) $aujourdhui->year;
+            $anneeN1 = $anneeCourante + 1;
+            $datePropN = Carbon::create($anneeCourante, 12, 31, 23, 59, 59);
+            $datePropN1 = Carbon::create($anneeN1, 12, 31, 23, 59, 59);
+
+            $militairesActifs = Militaire::where('statut', 'actif')
+                ->select('id', 'nom', 'prenom', 'matricule', 'grade_actuel', 'date_naissance', 'date_entree_service', 'date_derniere_promotion', 'antecedent_judiciaire', 'antecedent_disciplinaire')
+                ->with(['certificats' => fn($q) => $q->select('certificats.id', 'certificats.nom_certificat', 'certificats.niveau_certificat')])
+                ->get();
+
+            $propN = [];
+            $propN1 = [];
+            $exclusIds = [];
+
+            // Année N
+            foreach ($militairesActifs as $m) {
+                $gradeCible = $this->getGradeCible($m, $anneeCourante);
+                if (!$gradeCible) continue;
+
+                $dateAnciennete = $this->getDateAncienneteReelle($m, $gradeCible);
+                if (!$dateAnciennete || $dateAnciennete > $datePropN) continue;
+
+                $propN[] = [
+                    'id' => $m->id,
+                    'matricule' => $m->matricule,
+                    'nom' => $m->nom,
+                    'prenom' => $m->prenom,
+                    'nom_complet' => $m->nom . ' ' . $m->prenom,
+                    'grade_actuel' => $m->grade_actuel,
+                    'grade_cible' => $gradeCible,
+                    'date_proposition' => $datePropN->format('Y-m-d'),
+                    'date_proposition_formatted' => $datePropN->format('d/m/Y'),
+                    'date_anciennete' => $dateAnciennete->format('Y-m-d'),
+                    'date_anciennete_formatted' => $dateAnciennete->format('d/m/Y'),
+                    'anciennete_grade_formatted' => $this->getAncienneteGradeFormatted($m, $datePropN),
+                ];
+                $exclusIds[$m->id] = true;
+            }
+
+            // Année N+1 (exclut les militaires déjà éligibles en N)
+            foreach ($militairesActifs as $m) {
+                if (isset($exclusIds[$m->id])) continue;
+
+                $gradeCible = $this->getGradeCible($m, $anneeN1);
+                if (!$gradeCible) continue;
+
+                $dateAnciennete = $this->getDateAncienneteReelle($m, $gradeCible);
+                if (!$dateAnciennete || $dateAnciennete > $datePropN1) continue;
+
+                $propN1[] = [
+                    'id' => $m->id,
+                    'matricule' => $m->matricule,
+                    'nom' => $m->nom,
+                    'prenom' => $m->prenom,
+                    'nom_complet' => $m->nom . ' ' . $m->prenom,
+                    'grade_actuel' => $m->grade_actuel,
+                    'grade_cible' => $gradeCible,
+                    'date_proposition' => $datePropN1->format('Y-m-d'),
+                    'date_proposition_formatted' => $datePropN1->format('d/m/Y'),
+                    'date_anciennete' => $dateAnciennete->format('Y-m-d'),
+                    'date_anciennete_formatted' => $dateAnciennete->format('d/m/Y'),
+                    'anciennete_grade_formatted' => $this->getAncienneteGradeFormatted($m, $datePropN1),
+                ];
+            }
+
+            usort($propN, fn($a, $b) => strcmp($a['grade_actuel'], $b['grade_actuel']) ?: strcmp($a['date_anciennete'], $b['date_anciennete']));
+            usort($propN1, fn($a, $b) => strcmp($a['grade_actuel'], $b['grade_actuel']) ?: strcmp($a['date_anciennete'], $b['date_anciennete']));
+
+            $columns = [
+                ['field' => 'grade_actuel', 'header' => 'Grade actuel', 'sortable' => true],
+                ['field' => 'anciennete_grade_formatted', 'header' => 'Ancienneté grade', 'sortable' => true],
+                ['field' => 'matricule', 'header' => 'Matricule', 'sortable' => true],
+                ['field' => 'nom_complet', 'header' => 'Nom et Prénom', 'sortable' => true],
+                ['field' => 'grade_cible', 'header' => 'Grade cible', 'sortable' => true],
+                ['field' => 'date_anciennete_formatted', 'header' => 'Date ancienneté', 'sortable' => true],
+                ['field' => 'date_proposition_formatted', 'header' => 'Date proposition', 'sortable' => true],
+            ];
+
+            return [
+                'proposablesN' => [
+                    'data' => $propN,
+                    'title' => "Proposables - Année {$anneeCourante}",
+                    'icon' => 'pi pi-star text-purple-500',
+                    'total' => count($propN),
+                    'sortField' => 'date_proposition',
+                    'columns' => $columns,
+                ],
+                'proposablesN1' => [
+                    'data' => $propN1,
+                    'title' => "Proposables - Année {$anneeN1}",
+                    'icon' => 'pi pi-star text-indigo-500',
+                    'total' => count($propN1),
+                    'sortField' => 'date_proposition',
+                    'columns' => $columns,
+                ],
+            ];
         });
     }
 
@@ -117,84 +327,13 @@ class DashboardController extends Controller
      */
     private function buildSectionData(string $section): array
     {
-        switch ($section) {
-            case 'retraitesN':
-                $result = $this->calculerRetraitesPourAnnee(0);
-                return [
-                    'data' => $result['retraites'],
-                    'title' => "Retraites - Année {$result['annee']}",
-                    'icon' => 'pi pi-calendar text-red-500',
-                    'total' => $result['total'],
-                    'sortField' => 'date_retraite',
-                    'columns' => [
-                        ['field' => 'grade_actuel', 'header' => 'Grade actuel', 'sortable' => true],
-                        ['field' => 'matricule', 'header' => 'Matricule', 'sortable' => true],
-                        ['field' => 'nom_complet', 'header' => 'Nom et Prénom', 'sortable' => true],
-                        ['field' => 'date_retraite_formatted', 'header' => 'Date de retraite', 'sortable' => true],
-                    ],
-                ];
-
-            case 'retraitesN1':
-                $retraitesN = $this->calculerRetraitesPourAnnee(0);
-                $exclusIds = collect($retraitesN['retraites'])->pluck('id')->toArray();
-                $result = $this->calculerRetraitesPourAnnee(1, $exclusIds);
-                return [
-                    'data' => $result['retraites'],
-                    'title' => "Retraites - Année {$result['annee']}",
-                    'icon' => 'pi pi-calendar-plus text-orange-500',
-                    'total' => $result['total'],
-                    'sortField' => 'date_retraite',
-                    'columns' => [
-                        ['field' => 'grade_actuel', 'header' => 'Grade actuel', 'sortable' => true],
-                        ['field' => 'matricule', 'header' => 'Matricule', 'sortable' => true],
-                        ['field' => 'nom_complet', 'header' => 'Nom et Prénom', 'sortable' => true],
-                        ['field' => 'date_retraite_formatted', 'header' => 'Date de retraite', 'sortable' => true],
-                    ],
-                ];
-
-            case 'proposablesN':
-                $result = $this->calculerProposablesPourAnnee(0);
-                return [
-                    'data' => $result['proposables'],
-                    'title' => "Proposables - Année {$result['annee']}",
-                    'icon' => 'pi pi-star text-purple-500',
-                    'total' => $result['total'],
-                    'sortField' => 'date_proposition',
-                    'columns' => [
-                        ['field' => 'grade_actuel', 'header' => 'Grade actuel', 'sortable' => true],
-                        ['field' => 'anciennete_grade_formatted', 'header' => 'Ancienneté grade', 'sortable' => true],
-                        ['field' => 'matricule', 'header' => 'Matricule', 'sortable' => true],
-                        ['field' => 'nom_complet', 'header' => 'Nom et Prénom', 'sortable' => true],
-                        ['field' => 'grade_cible', 'header' => 'Grade cible', 'sortable' => true],
-                        ['field' => 'date_anciennete_formatted', 'header' => 'Date ancienneté', 'sortable' => true],
-                        ['field' => 'date_proposition_formatted', 'header' => 'Date proposition', 'sortable' => true],
-                    ],
-                ];
-
-            case 'proposablesN1':
-                $proposablesN = $this->calculerProposablesPourAnnee(0);
-                $exclusIds = collect($proposablesN['proposables'])->pluck('id')->toArray();
-                $result = $this->calculerProposablesPourAnnee(1, $exclusIds);
-                return [
-                    'data' => $result['proposables'],
-                    'title' => "Proposables - Année {$result['annee']}",
-                    'icon' => 'pi pi-star text-indigo-500',
-                    'total' => $result['total'],
-                    'sortField' => 'date_proposition',
-                    'columns' => [
-                        ['field' => 'grade_actuel', 'header' => 'Grade actuel', 'sortable' => true],
-                        ['field' => 'anciennete_grade_formatted', 'header' => 'Ancienneté grade', 'sortable' => true],
-                        ['field' => 'matricule', 'header' => 'Matricule', 'sortable' => true],
-                        ['field' => 'nom_complet', 'header' => 'Nom et Prénom', 'sortable' => true],
-                        ['field' => 'grade_cible', 'header' => 'Grade cible', 'sortable' => true],
-                        ['field' => 'date_anciennete_formatted', 'header' => 'Date ancienneté', 'sortable' => true],
-                        ['field' => 'date_proposition_formatted', 'header' => 'Date proposition', 'sortable' => true],
-                    ],
-                ];
-
-            default:
-                abort(400, 'Section invalide');
-        }
+        return match ($section) {
+            'retraitesN'    => $this->getRetraitesBoth()['retraitesN'] ?? [],
+            'retraitesN1'   => $this->getRetraitesBoth()['retraitesN1'] ?? [],
+            'proposablesN'  => $this->getProposablesBoth()['proposablesN'] ?? [],
+            'proposablesN1' => $this->getProposablesBoth()['proposablesN1'] ?? [],
+            default         => abort(400, 'Section invalide'),
+        };
     }
 
     // -------------------------------------------------------------------------
@@ -207,98 +346,6 @@ class DashboardController extends Controller
     private function getDateProposition($anneeCible)
     {
         return Carbon::create($anneeCible, 12, 31, 23, 59, 59);
-    }
-
-    /**
-     * Calcule les retraites pour une année donnée (N ou N+1).
-     *
-     * Pour l'année en cours N ($decalageAnnees === 0) :
-     * - Inclut tous les militaires dont l'année limite de retraite est l'année N (qu'ils soient actifs ou déjà passés retraités cette année).
-     * - Inclut les militaires actifs dont l'âge limite était déjà dépassé (< N).
-     * - Exclut les anciens militaires déjà retraités les années antérieures (< N).
-     *
-     * Pour l'année N+1 ($decalageAnnees >= 1) :
-     * - Inclut tous les militaires actifs dont l'année limite de retraite est précisément l'année cible.
-     */
-    private function calculerRetraitesPourAnnee($decalageAnnees, $idsExclus = [])
-    {
-        $aujourdhui = Carbon::now();
-        $anneeCourante = $aujourdhui->year;
-        $anneeCible = $anneeCourante + $decalageAnnees;
-        $exclusSet = array_flip($idsExclus);
-
-        // Si année en cours (N) : on analyse 'actif' et 'retraité' pour inclure l'ensemble de la promotion de retraite de l'année N
-        // Si année future (N+1) : seuls les militaires actuellement 'actif' sont concernés
-        $query = Militaire::query();
-        if ($decalageAnnees === 0) {
-            $query->where(function($q) {
-                $q->where('statut', 'LIKE', 'actif%')
-                  ->orWhere('statut', 'LIKE', 'retrait%');
-            });
-        } else {
-            $query->where('statut', 'LIKE', 'actif%');
-        }
-
-        $militaires = $query->select('id', 'nom', 'prenom', 'matricule', 'grade_actuel', 'statut', 'date_naissance')->get();
-        $retraites = [];
-
-        foreach ($militaires as $militaire) {
-            if (isset($exclusSet[$militaire->id])) continue;
-            if (!$militaire->date_naissance || !$militaire->grade_actuel) continue;
-
-            $ageRetraite = Grade::getRetraiteForGrade($militaire->grade_actuel);
-            if (!$ageRetraite) continue;
-
-            $anneeRetraite = Carbon::parse($militaire->date_naissance)->year + $ageRetraite;
-            $dateRetraite = $militaire->calculerDateRetraite();
-
-            $doitInclure = false;
-
-            if ($decalageAnnees === 0) {
-                // Promotion de l'année N :
-                // 1. Tous ceux qui atteignent la limite en année N
-                if ($anneeRetraite === $anneeCible) {
-                    $doitInclure = true;
-                }
-                // 2. Militaires encore 'actifs' ayant dépassé la limite avant l'année N
-                elseif (str_starts_with(mb_strtolower($militaire->statut ?? ''), 'actif') && $anneeRetraite < $anneeCible) {
-                    $doitInclure = true;
-                }
-            } else {
-                // Promotion de l'année N+1 :
-                if ($anneeRetraite === $anneeCible) {
-                    $doitInclure = true;
-                }
-            }
-
-            if ($doitInclure && $dateRetraite) {
-                $retraites[] = [
-                    'id' => $militaire->id,
-                    'matricule' => $militaire->matricule,
-                    'nom' => $militaire->nom,
-                    'prenom' => $militaire->prenom,
-                    'nom_complet' => $militaire->nom . ' ' . $militaire->prenom,
-                    'grade_actuel' => $militaire->grade_actuel,
-                    'statut' => $militaire->statut,
-                    'date_retraite' => $dateRetraite->format('Y-m-d'),
-                    'date_retraite_formatted' => $dateRetraite->format('d/m/Y'),
-                ];
-            }
-        }
-
-        usort($retraites, function($a, $b) {
-            $gradeCompare = strcmp($a['grade_actuel'], $b['grade_actuel']);
-            if ($gradeCompare !== 0) {
-                return $gradeCompare;
-            }
-            return strcmp($a['date_retraite'], $b['date_retraite']);
-        });
-
-        return [
-            'annee' => $anneeCible,
-            'retraites' => $retraites,
-            'total' => count($retraites)
-        ];
     }
 
     /**
@@ -329,76 +376,6 @@ class DashboardController extends Controller
         } else {
             return "moins d'1 mois";
         }
-    }
-
-    /**
-     * Calcule les proposables pour une année donnée.
-     * 
-     * @param int $decalageAnnees 0 pour l'année N, 1 pour l'année N+1
-     * @param array $idsExclus IDs des militaires à exclure
-     */
-    private function calculerProposablesPourAnnee($decalageAnnees, $idsExclus = [])
-    {
-        $aujourdhui = Carbon::now();
-        $anneeCible = $aujourdhui->year + $decalageAnnees;
-        $dateProposition = $this->getDateProposition($anneeCible);
-        
-        $exclusSet = array_flip($idsExclus);
-        $militairesActifs = Militaire::where('statut', 'actif')
-            ->select('id', 'nom', 'prenom', 'matricule', 'grade_actuel', 'date_naissance', 'date_entree_service', 'date_derniere_promotion', 'antecedent_judiciaire', 'antecedent_disciplinaire')
-            ->with(['certificats' => fn($q) => $q->select('certificats.id', 'certificats.nom_certificat', 'certificats.niveau_certificat')])
-            ->get();
-        
-        $proposables = [];
-        
-        foreach ($militairesActifs as $militaire) {
-            if (isset($exclusSet[$militaire->id])) {
-                continue;
-            }
-            
-            // Passer l'année cible pour calculer l'ancienneté à cette date
-            $gradeCible = $this->getGradeCible($militaire, $anneeCible);
-            if (!$gradeCible) {
-                continue;
-            }
-            
-            $dateAnciennete = $this->getDateAncienneteReelle($militaire, $gradeCible);
-            if (!$dateAnciennete) {
-                continue;
-            }
-            
-            // Vérifier si la date d'ancienneté est <= au 31 décembre de l'année cible
-            if ($dateAnciennete <= $dateProposition) {
-                $proposables[] = [
-                    'id' => $militaire->id,
-                    'matricule' => $militaire->matricule,
-                    'nom' => $militaire->nom,
-                    'prenom' => $militaire->prenom,
-                    'nom_complet' => $militaire->nom . ' ' . $militaire->prenom,
-                    'grade_actuel' => $militaire->grade_actuel,
-                    'grade_cible' => $gradeCible,
-                    'date_proposition' => $dateProposition->format('Y-m-d'),
-                    'date_proposition_formatted' => $dateProposition->format('d/m/Y'),
-                    'date_anciennete' => $dateAnciennete->format('Y-m-d'),
-                    'date_anciennete_formatted' => $dateAnciennete->format('d/m/Y'),
-                    'anciennete_grade_formatted' => $this->getAncienneteGradeFormatted($militaire, $dateProposition),
-                ];
-            }
-        }
-        
-        usort($proposables, function($a, $b) {
-            $gradeCompare = strcmp($a['grade_actuel'], $b['grade_actuel']);
-            if ($gradeCompare !== 0) {
-                return $gradeCompare;
-            }
-            return strcmp($a['date_anciennete'], $b['date_anciennete']);
-        });
-        
-        return [
-            'annee' => $anneeCible,
-            'proposables' => $proposables,
-            'total' => count($proposables)
-        ];
     }
 
     /**
@@ -570,10 +547,12 @@ class DashboardController extends Controller
             }
         }
         
-        // Sergent → Sergent-Chef (2 ans)
+        // Sergent → Sergent-Chef (2 ans et 5 ans de service)
         if ($gradeActuel == 'Sergent' && $gradeCible == 'Sergent-Chef') {
-            if ($dateDernierePromotion) {
-                return Carbon::parse($dateDernierePromotion)->addYears(2);
+            if ($dateDernierePromotion && $dateEntreeService) {
+                $date2ansGrade = Carbon::parse($dateDernierePromotion)->addYears(2);
+                $date5ansService = Carbon::parse($dateEntreeService)->addYears(5);
+                return $date2ansGrade->max($date5ansService);
             }
         }
         
@@ -591,10 +570,13 @@ class DashboardController extends Controller
             }
         }
         
-        // Adjudant-Chef → Adjudant-Chef Major (2 ans)
+        // Adjudant-Chef → Adjudant-Chef Major (2 ans et 45 ans d'âge)
         if ($gradeActuel == 'Adjudant-Chef' && $gradeCible == 'Adjudant-Chef Major') {
-            if ($dateDernierePromotion) {
-                return Carbon::parse($dateDernierePromotion)->addYears(2);
+            $dateNaissance = $militaire->date_naissance;
+            if ($dateDernierePromotion && $dateNaissance) {
+                $date2ansGrade = Carbon::parse($dateDernierePromotion)->addYears(2);
+                $date45ansAge = Carbon::parse($dateNaissance)->addYears(45);
+                return $date2ansGrade->max($date45ansAge);
             }
         }
         
@@ -612,29 +594,29 @@ class DashboardController extends Controller
     
     public function exportProposablesAnneeN()
     {
-        $result = $this->calculerProposablesPourAnnee(0);
+        $section = $this->getCachedSection('proposablesN');
+        $result = ['annee' => Carbon::now()->year, 'proposables' => $section['data'], 'total' => $section['total']];
         return Excel::download(new ProposablesAnneeNExport($result), 'proposables_annee_' . $result['annee'] . '_' . Carbon::now()->format('Y_m_d') . '.xlsx');
     }
 
     public function exportProposablesAnneeN1()
     {
-        $proposablesN = $this->calculerProposablesPourAnnee(0);
-        $exclusIds = collect($proposablesN['proposables'])->pluck('id')->toArray();
-        $result = $this->calculerProposablesPourAnnee(1, $exclusIds);
+        $section = $this->getCachedSection('proposablesN1');
+        $result = ['annee' => Carbon::now()->year + 1, 'proposables' => $section['data'], 'total' => $section['total']];
         return Excel::download(new ProposablesAnneeN1Export($result), 'proposables_annee_' . $result['annee'] . '_' . Carbon::now()->format('Y_m_d') . '.xlsx');
     }
 
     public function exportRetraitesAnneeN()
     {
-        $result = $this->calculerRetraitesPourAnnee(0);
+        $section = $this->getCachedSection('retraitesN');
+        $result = ['annee' => Carbon::now()->year, 'retraites' => $section['data'], 'total' => $section['total']];
         return Excel::download(new RetraitesAnneeNExport($result), 'retraites_annee_' . $result['annee'] . '_' . Carbon::now()->format('Y_m_d') . '.xlsx');
     }
 
     public function exportRetraitesAnneeN1()
     {
-        $retraitesN = $this->calculerRetraitesPourAnnee(0);
-        $exclusIds = collect($retraitesN['retraites'])->pluck('id')->toArray();
-        $result = $this->calculerRetraitesPourAnnee(1, $exclusIds);
+        $section = $this->getCachedSection('retraitesN1');
+        $result = ['annee' => Carbon::now()->year + 1, 'retraites' => $section['data'], 'total' => $section['total']];
         return Excel::download(new RetraitesAnneeN1Export($result), 'retraites_annee_' . $result['annee'] . '_' . Carbon::now()->format('Y_m_d') . '.xlsx');
     }
 
@@ -643,6 +625,7 @@ class DashboardController extends Controller
         $alerte->update(['est_vue' => true]);
 
         Cache::forget('alertes:non_vues_count');
+        Cache::forget('alertes:non_vues_count_gendarme');
         Cache::forget('dashboard:statistiques_cards');
         Cache::forget('alertes:statistiques_globales');
 
