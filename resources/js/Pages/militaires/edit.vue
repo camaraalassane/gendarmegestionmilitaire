@@ -606,7 +606,9 @@
                                         <label for="status_sanitaire" class="block text-sm font-semibold text-gray-700 mb-1">
                                             Statut sanitaire / Aptitude
                                         </label>
-                                        <InputText id="status_sanitaire" v-model="form.status_sanitaire" class="w-full" placeholder="Ex: Apte, Blessé de guerre..." />
+                                        <Select id="status_sanitaire" v-model="form.status_sanitaire" :options="statusSanitaireOptions"
+                                                optionLabel="label" optionValue="value" editable
+                                                placeholder="Sélectionner ou saisir (Ex: Apte, Blessé de guerre...)" class="w-full" showClear />
                                     </div>
 
                                     <!-- Engagement OPS -->
@@ -1121,6 +1123,17 @@ const categorieOptions = [
 const sexeOptions = [
     { label: 'Masculin (M)', value: 'M' },
     { label: 'Féminin (F)', value: 'F' }
+];
+
+const statusSanitaireOptions = [
+    { label: 'Apte', value: 'Apte' },
+    { label: 'Blessé de guerre', value: 'Blessé de guerre' },
+    { label: 'Inapte temporaire', value: 'Inapte temporaire' },
+    { label: 'Inapte définitif', value: 'Inapte définitif' },
+    { label: 'Apte avec restrictions', value: 'Apte avec restrictions' },
+    { label: 'En convalescence', value: 'En convalescence' },
+    { label: 'Réformé', value: 'Réformé' },
+    { label: 'Exempté de service', value: 'Exempté de service' }
 ];
 
 const groupeSanguinOptions = [
