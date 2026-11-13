@@ -34,5 +34,5 @@ COPY docker/php.ini $PHP_INI_DIR/conf.d/custom.ini
 
 EXPOSE 9000
 
-ENTRYPOINT ["/var/www/html/docker/entrypoint.sh"]
+ENTRYPOINT ["/bin/sh", "/var/www/html/docker/entrypoint.sh"]
 CMD ["php-fpm"]
