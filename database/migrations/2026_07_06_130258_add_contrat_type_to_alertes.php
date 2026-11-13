@@ -10,6 +10,7 @@ return new class extends Migration
     public function up()
     {
         if (DB::connection()->getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE alertes DROP CONSTRAINT IF EXISTS alertes_type_alerte_check');
             DB::statement('ALTER TABLE alertes ALTER COLUMN type_alerte TYPE VARCHAR(255) USING type_alerte::varchar');
             return;
         }

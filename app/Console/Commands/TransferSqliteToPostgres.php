@@ -220,10 +220,34 @@ class TransferSqliteToPostgres extends Command
                 continue;
             }
 
-            // Ajustement de colonnes spécifiques pour PostgreSQL (ex: sexe élargi à VARCHAR(20))
+            // Supprimer les contraintes de type CHECK sur cette table pour permettre l'import exact de SQLite
+            try {
+                $tableChecks = DB::connection('pgsql')->select("
+                    SELECT conname 
+                    FROM pg_constraint con 
+                    JOIN pg_class rel ON rel.oid = con.conrelid 
+                    JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+                    WHERE contype = 'c' AND nspname = 'public' AND rel.relname = ?
+                ", [$table]);
+                foreach ($tableChecks as $tc) {
+                    DB::connection('pgsql')->statement("ALTER TABLE \"{$table}\" DROP CONSTRAINT IF EXISTS \"{$tc->conname}\"");
+                }
+            } catch (\Throwable $e) {}
+
+            // Ajustement de colonnes spécifiques pour PostgreSQL
             if ($table === 'militaires') {
                 try {
                     DB::connection('pgsql')->statement("ALTER TABLE militaires ALTER COLUMN sexe TYPE VARCHAR(20)");
+                } catch (\Throwable $e) {}
+            }
+            if ($table === 'certificats') {
+                try {
+                    DB::connection('pgsql')->statement("ALTER TABLE certificats ALTER COLUMN niveau_certificat TYPE VARCHAR(255)");
+                } catch (\Throwable $e) {}
+            }
+            if ($table === 'alertes') {
+                try {
+                    DB::connection('pgsql')->statement("ALTER TABLE alertes ALTER COLUMN type_alerte TYPE VARCHAR(255)");
                 } catch (\Throwable $e) {}
             }
 

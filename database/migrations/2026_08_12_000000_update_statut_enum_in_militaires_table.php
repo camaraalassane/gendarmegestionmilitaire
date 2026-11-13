@@ -12,6 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         if (DB::connection()->getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE militaires DROP CONSTRAINT IF EXISTS militaires_statut_check');
             DB::statement('ALTER TABLE militaires ALTER COLUMN statut TYPE VARCHAR(255) USING statut::varchar');
             DB::statement("ALTER TABLE militaires ALTER COLUMN statut SET DEFAULT 'actif'");
             return;

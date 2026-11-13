@@ -9,6 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         if (DB::connection()->getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE certificats DROP CONSTRAINT IF EXISTS certificats_niveau_certificat_check');
             DB::statement('ALTER TABLE certificats ALTER COLUMN niveau_certificat TYPE VARCHAR(255) USING niveau_certificat::varchar');
             return;
         }
