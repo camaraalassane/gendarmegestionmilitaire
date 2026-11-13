@@ -220,6 +220,13 @@ class TransferSqliteToPostgres extends Command
                 continue;
             }
 
+            // Ajustement de colonnes spécifiques pour PostgreSQL (ex: sexe élargi à VARCHAR(20))
+            if ($table === 'militaires') {
+                try {
+                    DB::connection('pgsql')->statement("ALTER TABLE militaires ALTER COLUMN sexe TYPE VARCHAR(20)");
+                } catch (\Throwable $e) {}
+            }
+
             // Vider la table PostgreSQL cible pour éviter les doublons
             try {
                 DB::connection('pgsql')->statement("TRUNCATE TABLE \"{$table}\" CASCADE;");
