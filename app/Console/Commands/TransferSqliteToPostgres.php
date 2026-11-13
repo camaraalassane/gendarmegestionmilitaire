@@ -82,22 +82,47 @@ class TransferSqliteToPostgres extends Command
         ]);
         DB::purge('pgsql');
 
-        // 4. Tester la connexion cible PostgreSQL
+        // 4. Tester la connexion cible PostgreSQL (avec auto-création si la base n'existe pas)
         try {
             $pgsqlPdo = DB::connection('pgsql')->getPdo();
-            $pgsqlDriver = DB::connection('pgsql')->getDriverName();
-            if ($pgsqlDriver !== 'pgsql') {
-                $this->error("La connexion 'pgsql' utilise le driver '{$pgsqlDriver}', PostgreSQL attendu !");
+        } catch (\Throwable $e) {
+            $msg = $e->getMessage();
+            if (stripos($msg, 'does not exist') !== false || stripos($msg, "n'existe pas") !== false) {
+                $this->warn("La base '{$dbName}' n'existe pas encore. Tentative de création automatique...");
+                try {
+                    // Connexion temporaire sur la base par défaut 'postgres' pour créer la base cible
+                    config(['database.connections.pgsql_default' => [
+                        'driver' => 'pgsql',
+                        'host' => $dbHost,
+                        'port' => $dbPort,
+                        'database' => 'postgres',
+                        'username' => $dbUser,
+                        'password' => $dbPass,
+                        'prefix' => '',
+                    ]]);
+                    DB::connection('pgsql_default')->statement("CREATE DATABASE \"{$dbName}\"");
+                    $this->info("✓ Base de données '{$dbName}' créée avec succès sur PostgreSQL !");
+                    DB::purge('pgsql');
+                    $pgsqlPdo = DB::connection('pgsql')->getPdo();
+                } catch (\Throwable $createEx) {
+                    $this->error("Échec de la création automatique de la base : " . $createEx->getMessage());
+                    return 1;
+                }
+            } else {
+                $this->error('Impossible de se connecter à la base PostgreSQL cible : ' . $e->getMessage());
+                $this->line("Paramètres tentés : Hôte={$dbHost}, Port={$dbPort}, Base={$dbName}, Utilisateur={$dbUser}");
+                $this->line('Astuce : Vous pouvez spécifier les identifiants directement en paramètre de la commande :');
+                $this->comment('php artisan db:transfer-sqlite-to-pgsql --db-host=127.0.0.1 --db-name=gestion_militaire --db-user=postgres --db-password=VOTRE_PASS');
                 return 1;
             }
-            $this->info("• Connexion PostgreSQL cible : OK (<comment>{$dbName}</comment> sur <comment>{$dbHost}:{$dbPort}</comment> utilisateur <comment>{$dbUser}</comment>)");
-        } catch (\Throwable $e) {
-            $this->error('Impossible de se connecter à la base PostgreSQL cible : ' . $e->getMessage());
-            $this->line("Paramètres tentés : Hôte={$dbHost}, Port={$dbPort}, Base={$dbName}, Utilisateur={$dbUser}");
-            $this->line('Astuce : Vous pouvez spécifier les identifiants directement en paramètre de la commande :');
-            $this->comment('php artisan db:transfer-sqlite-to-pgsql --db-host=127.0.0.1 --db-name=gestion_militaire --db-user=gestionnaire --db-password=VOTRE_PASS');
+        }
+
+        $pgsqlDriver = DB::connection('pgsql')->getDriverName();
+        if ($pgsqlDriver !== 'pgsql') {
+            $this->error("La connexion 'pgsql' utilise le driver '{$pgsqlDriver}', PostgreSQL attendu !");
             return 1;
         }
+        $this->info("• Connexion PostgreSQL cible : OK (<comment>{$dbName}</comment> sur <comment>{$dbHost}:{$dbPort}</comment> utilisateur <comment>{$dbUser}</comment>)");
 
         if (!$this->option('force') && !$this->confirm('Voulez-vous lancer le transfert vers PostgreSQL ?', true)) {
             $this->warn('Opération annulée.');
