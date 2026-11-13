@@ -17,6 +17,11 @@ class TransferSqliteToPostgres extends Command
      */
     protected $signature = 'db:transfer-sqlite-to-pgsql 
                             {--sqlite-path= : Chemin vers le fichier SQLite source (par défaut: database/database.sqlite)}
+                            {--db-host= : Hôte PostgreSQL (ex: 127.0.0.1 ou db)}
+                            {--db-port= : Port PostgreSQL (défaut: 5432)}
+                            {--db-name= : Nom de la base PostgreSQL}
+                            {--db-user= : Utilisateur PostgreSQL}
+                            {--db-password= : Mot de passe PostgreSQL}
                             {--force : Exécuter sans confirmation interactive}
                             {--skip-migrate : Ne pas exécuter php artisan migrate sur PostgreSQL avant le transfert}';
 
@@ -60,7 +65,24 @@ class TransferSqliteToPostgres extends Command
             return 1;
         }
 
-        // 3. Tester la connexion cible PostgreSQL
+        // 3. Configurer dynamiquement la cible PostgreSQL avec les options CLI si fournies
+        $dbHost = $this->option('db-host') ?: (env('DB_HOST') ?: config('database.connections.pgsql.host', '127.0.0.1'));
+        $dbPort = $this->option('db-port') ?: (env('DB_PORT') ?: config('database.connections.pgsql.port', '5432'));
+        $dbName = $this->option('db-name') ?: (env('DB_DATABASE') && env('DB_DATABASE') !== 'database/database.sqlite' ? env('DB_DATABASE') : config('database.connections.pgsql.database'));
+        $dbUser = $this->option('db-user') ?: (env('DB_USERNAME') ?: config('database.connections.pgsql.username'));
+        $dbPass = $this->option('db-password') !== null ? $this->option('db-password') : (env('DB_PASSWORD') !== null ? env('DB_PASSWORD') : config('database.connections.pgsql.password'));
+
+        config([
+            'database.connections.pgsql.driver' => 'pgsql',
+            'database.connections.pgsql.host' => $dbHost,
+            'database.connections.pgsql.port' => $dbPort,
+            'database.connections.pgsql.database' => $dbName,
+            'database.connections.pgsql.username' => $dbUser,
+            'database.connections.pgsql.password' => $dbPass,
+        ]);
+        DB::purge('pgsql');
+
+        // 4. Tester la connexion cible PostgreSQL
         try {
             $pgsqlPdo = DB::connection('pgsql')->getPdo();
             $pgsqlDriver = DB::connection('pgsql')->getDriverName();
@@ -68,12 +90,12 @@ class TransferSqliteToPostgres extends Command
                 $this->error("La connexion 'pgsql' utilise le driver '{$pgsqlDriver}', PostgreSQL attendu !");
                 return 1;
             }
-            $pgsqlDb = config('database.connections.pgsql.database');
-            $pgsqlHost = config('database.connections.pgsql.host');
-            $this->info("• Connexion PostgreSQL cible : OK (<comment>{$pgsqlDb}</comment> sur <comment>{$pgsqlHost}</comment>)");
+            $this->info("• Connexion PostgreSQL cible : OK (<comment>{$dbName}</comment> sur <comment>{$dbHost}:{$dbPort}</comment> utilisateur <comment>{$dbUser}</comment>)");
         } catch (\Throwable $e) {
             $this->error('Impossible de se connecter à la base PostgreSQL cible : ' . $e->getMessage());
-            $this->line('Vérifiez vos variables DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD dans le .env.');
+            $this->line("Paramètres tentés : Hôte={$dbHost}, Port={$dbPort}, Base={$dbName}, Utilisateur={$dbUser}");
+            $this->line('Astuce : Vous pouvez spécifier les identifiants directement en paramètre de la commande :');
+            $this->comment('php artisan db:transfer-sqlite-to-pgsql --db-host=127.0.0.1 --db-name=gestion_militaire --db-user=gestionnaire --db-password=VOTRE_PASS');
             return 1;
         }
 
