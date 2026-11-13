@@ -18,39 +18,39 @@
             </div>
         </template>
 
-        <div class="py-8 bg-slate-50 min-h-[calc(100vh-140px)]">
+        <div class="py-4 sm:py-5 bg-slate-50 min-h-[calc(100vh-140px)]">
             <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
 
                 <!-- ========================================================================================= -->
-                <!-- BANDEAU DE PROGRESSION / STEPPER MULTI-ÉTAPES (3 ÉTAPES)                                  -->
+                <!-- BANDEAU DE PROGRESSION / STEPPER MULTI-ÉTAPES (COMPACT & FIXE AU SCROLL)                   -->
                 <!-- ========================================================================================= -->
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6 mb-6">
+                <div class="sticky top-2 z-30 bg-white/95 backdrop-blur-md rounded-xl shadow-md border border-slate-200 px-3 sm:px-4 py-2 sm:py-2.5 mb-3 transition-all">
                     <!-- Barre de progression continue -->
-                    <div class="flex items-center justify-between text-xs font-bold text-slate-600 mb-2">
-                        <span class="text-sky-900 font-extrabold uppercase tracking-wider flex items-center gap-1.5">
+                    <div class="flex items-center justify-between text-xs font-bold text-slate-600 mb-1">
+                        <span class="text-sky-900 font-extrabold uppercase tracking-wider flex items-center gap-1.5 text-[11px] sm:text-xs">
                             <span class="inline-block w-2 h-2 rounded-full bg-sky-600 animate-ping"></span>
-                            Étape {{ currentStep + 1 }} sur {{ steps.length }} : {{ steps[currentStep].label }}
+                            Étape {{ currentStep + 1 }} sur {{ steps.length }} : <span class="text-sky-700 font-bold ml-1 truncate max-w-[200px] sm:max-w-none">{{ steps[currentStep].label }}</span>
                         </span>
-                        <span class="px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200 font-extrabold text-[11px]">
+                        <span class="px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200 font-extrabold text-[10px] tracking-wide">
                             {{ Math.round(progress) }}% complété
                         </span>
                     </div>
 
-                    <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden mb-6 shadow-inner relative">
+                    <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden mb-2 shadow-inner relative">
                         <div class="h-full bg-gradient-to-r from-sky-800 via-sky-600 to-amber-500 rounded-full transition-all duration-500 ease-out"
                              :style="{ width: `${progress}%` }"></div>
                     </div>
 
                     <!-- Onglets interactifs des étapes (3 étapes au total) -->
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="grid grid-cols-3 gap-2">
                         <button v-for="(s, idx) in steps" :key="idx"
                                 type="button"
                                 @click="goToStep(idx)"
                                 :disabled="idx > maxStepVisited"
                                 :class="[
-                                    'group flex items-center gap-3 p-3 rounded-xl border transition-all text-left',
+                                    'group flex items-center gap-2 p-1.5 sm:p-2 rounded-lg border transition-all text-left',
                                     idx === currentStep
-                                        ? 'bg-sky-50 border-sky-500 shadow-xs ring-2 ring-sky-200 cursor-default'
+                                        ? 'bg-sky-50 border-sky-500 shadow-xs ring-1 ring-sky-300 cursor-default'
                                         : idx < currentStep
                                             ? 'bg-emerald-50/70 border-emerald-300 hover:bg-emerald-100/60 cursor-pointer'
                                             : idx <= maxStepVisited
@@ -59,23 +59,23 @@
                                 ]">
                             <!-- Pastille numéro / icône -->
                             <div :class="[
-                                'w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 transition-all shadow-2xs',
+                                'w-6 h-6 sm:w-7 sm:h-7 rounded-md flex items-center justify-center font-bold text-[11px] shrink-0 transition-all shadow-2xs',
                                 idx === currentStep
                                     ? 'bg-sky-800 text-white shadow-sky-200'
                                     : idx < currentStep
                                         ? 'bg-emerald-600 text-white'
                                         : 'bg-white border border-slate-300 text-slate-600'
                             ]">
-                                <i v-if="idx < currentStep" class="pi pi-check text-xs font-bold"></i>
-                                <i v-else :class="s.icon" class="text-sm"></i>
+                                <i v-if="idx < currentStep" class="pi pi-check text-[10px] font-bold"></i>
+                                <i v-else :class="s.icon" class="text-xs"></i>
                             </div>
 
                             <div class="min-w-0 flex-1">
-                                <span class="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                <span class="block text-[9px] font-semibold uppercase tracking-wider text-slate-400 leading-none">
                                     Étape {{ idx + 1 }}
                                 </span>
                                 <span :class="[
-                                    'block text-xs font-bold truncate',
+                                    'block text-[11px] sm:text-xs font-bold truncate leading-tight mt-0.5',
                                     idx === currentStep ? 'text-sky-950' : idx < currentStep ? 'text-emerald-900' : 'text-slate-700'
                                 ]">
                                     {{ s.label }}
@@ -88,19 +88,19 @@
                 <!-- ========================================================================================= -->
                 <!-- CONTENEUR DU FORMULAIRE DE L'ÉTAPE ACTIVE                                                 -->
                 <!-- ========================================================================================= -->
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200">
                     <!-- En-tête de section -->
-                    <div class="px-6 py-4 bg-gradient-to-r from-sky-900 via-sky-800 to-sky-900 text-white flex items-center justify-between border-b border-sky-950/20">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center text-white text-lg shadow-inner">
+                    <div class="px-5 py-3 bg-gradient-to-r from-sky-900 via-sky-800 to-sky-900 text-white flex items-center justify-between border-b border-sky-950/20 rounded-t-2xl">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center text-white text-base shadow-inner">
                                 <i :class="steps[currentStep].icon"></i>
                             </div>
                             <div>
-                                <h3 class="text-base font-extrabold text-white tracking-wide">{{ steps[currentStep].title }}</h3>
-                                <p class="text-xs text-sky-200">{{ steps[currentStep].subtitle }}</p>
+                                <h3 class="text-sm font-extrabold text-white tracking-wide">{{ steps[currentStep].title }}</h3>
+                                <p class="text-[11px] text-sky-200">{{ steps[currentStep].subtitle }}</p>
                             </div>
                         </div>
-                        <span class="text-xs font-extrabold bg-white/20 px-3 py-1 rounded-full text-white">
+                        <span class="text-xs font-extrabold bg-white/20 px-2.5 py-0.5 rounded-full text-white">
                             {{ currentStep + 1 }} / {{ steps.length }}
                         </span>
                     </div>
@@ -615,7 +615,7 @@
                                             </button>
                                         </div>
 
-                                        <!-- Bloc d'ajout rapide d'un nouveau statut si absent de la liste -->
+                                        <!-- Bloc d'ajout rapide d'un nouveau statut -->
                                         <div v-if="showAddStatus" class="mb-2 p-2.5 bg-sky-50 rounded-xl border border-sky-200 flex items-center gap-2 animate-fade-in">
                                             <InputText v-model="newStatusInput" 
                                                        placeholder="Saisir un statut (Ex: Blessé en service, Apte groupe 2...)" 
@@ -636,50 +636,30 @@
                                                     @click="toggleAddStatus" />
                                         </div>
 
-                                        <!-- Select avec recherche intégrée, bouton + et bouton retirer -->
-                                        <div class="flex items-center gap-1.5">
-                                            <Select id="status_sanitaire" 
-                                                    v-model="form.status_sanitaire" 
-                                                    :options="statusSanitaireOptions"
-                                                    optionLabel="label" 
-                                                    optionValue="value" 
-                                                    :filter="true" 
-                                                    filterPlaceholder="Rechercher un statut..."
-                                                    placeholder="Sélectionner ou rechercher un statut" 
-                                                    class="w-full" 
-                                                    showClear>
-                                                <template #option="slotProps">
-                                                    <div class="flex items-center justify-between w-full py-0.5">
-                                                        <span>{{ slotProps.option.label }}</span>
-                                                        <button v-if="slotProps.option.custom" 
-                                                                type="button" 
-                                                                @click.stop="removeStatusOption(slotProps.option.value)"
-                                                                class="text-rose-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition-colors ml-2 cursor-pointer"
-                                                                title="Retirer cette option de la liste">
-                                                            <i class="pi pi-trash text-[11px]"></i>
-                                                        </button>
-                                                    </div>
-                                                </template>
-                                            </Select>
-
-                                            <!-- Bouton + pour afficher la saisie rapide -->
-                                            <button v-if="!showAddStatus" 
-                                                    type="button" 
-                                                    @click="showAddStatus = true" 
-                                                    class="p-2.5 bg-sky-50 text-sky-800 hover:bg-sky-100 border border-sky-300 rounded-lg shrink-0 cursor-pointer transition-colors shadow-2xs"
-                                                    title="Ajouter un nouveau statut non présent dans la liste">
-                                                <i class="pi pi-plus text-xs"></i>
-                                            </button>
-
-                                            <!-- Bouton pour retirer l'option personnalisée actuelle -->
-                                            <button v-if="isCustomStatus(form.status_sanitaire)" 
-                                                    type="button" 
-                                                    @click="removeStatusOption(form.status_sanitaire)" 
-                                                    class="p-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-300 rounded-lg shrink-0 cursor-pointer transition-colors shadow-2xs"
-                                                    title="Retirer ce statut personnalisé de la liste">
-                                                <i class="pi pi-trash text-xs"></i>
-                                            </button>
-                                        </div>
+                                        <!-- Select avec recherche intégrée (pleine largeur, sans bouton débordant) -->
+                                        <Select id="status_sanitaire" 
+                                                v-model="form.status_sanitaire" 
+                                                :options="statusSanitaireOptions"
+                                                optionLabel="label" 
+                                                optionValue="value" 
+                                                :filter="true" 
+                                                filterPlaceholder="Rechercher un statut..."
+                                                placeholder="Sélectionner ou rechercher un statut" 
+                                                class="w-full" 
+                                                showClear>
+                                            <template #option="slotProps">
+                                                <div class="flex items-center justify-between w-full py-0.5">
+                                                    <span>{{ slotProps.option.label }}</span>
+                                                    <!-- Permet de retirer n'importe quelle option (existante ou personnalisée) -->
+                                                    <button type="button" 
+                                                            @click.stop="removeStatusOption(slotProps.option.value)"
+                                                            class="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition-colors ml-2 cursor-pointer"
+                                                            title="Retirer cette option de la liste">
+                                                        <i class="pi pi-trash text-[11px]"></i>
+                                                    </button>
+                                                </div>
+                                            </template>
+                                        </Select>
                                     </div>
 
                                     <!-- Engagement OPS -->
@@ -898,23 +878,25 @@
                         </div>
 
                         <!-- ================================================================================= -->
-                        <!-- BARRE DE NAVIGATION INFÉRIEURE DU STEPPER                                          -->
+                        <!-- BARRE DE NAVIGATION INFÉRIEURE DU STEPPER (COMPACTE & FIXE AU BAS DE L'ÉCRAN)      -->
                         <!-- ================================================================================= -->
-                        <div class="flex items-center justify-between pt-6 mt-8 border-t border-slate-200">
+                        <div class="sticky bottom-2 z-30 mt-6 bg-white/95 backdrop-blur-md px-4 py-2.5 rounded-xl border border-slate-200 shadow-lg flex items-center justify-between">
                             <!-- Bouton Précédent -->
                             <Button v-if="currentStep > 0"
                                     type="button"
                                     label="Étape précédente"
                                     icon="pi pi-arrow-left"
+                                    size="small"
                                     class="p-button-outlined p-button-secondary font-bold text-xs cursor-pointer"
                                     @click="prevStep" />
                             <div v-else></div>
 
                             <!-- Actions Droite -->
-                            <div class="flex items-center gap-3">
+                            <div class="flex items-center gap-2 sm:gap-3">
                                 <Button type="button"
                                         label="Annuler"
                                         icon="pi pi-times"
+                                        size="small"
                                         class="p-button-text p-button-secondary text-xs cursor-pointer"
                                         @click="cancel" />
 
@@ -923,15 +905,17 @@
                                         label="Étape suivante"
                                         icon="pi pi-arrow-right"
                                         iconPos="right"
-                                        class="!bg-sky-800 hover:!bg-sky-900 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5"
+                                        size="small"
+                                        class="!bg-sky-800 hover:!bg-sky-900 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs cursor-pointer flex items-center gap-1.5"
                                         @click="nextStep" />
 
                                 <Button v-else
                                         type="submit"
                                         label="Enregistrer les modifications"
                                         icon="pi pi-check"
+                                        size="small"
                                         :loading="saving"
-                                        class="!bg-gradient-to-r !from-sky-800 !to-sky-700 hover:!from-sky-900 hover:!to-sky-800 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-md cursor-pointer flex items-center gap-1.5" />
+                                        class="!bg-gradient-to-r !from-sky-800 !to-sky-700 hover:!from-sky-900 hover:!to-sky-800 text-white font-bold text-xs px-5 py-2 rounded-lg shadow-md cursor-pointer flex items-center gap-1.5" />
                             </div>
                         </div>
                     </form>
@@ -1197,35 +1181,38 @@ const sexeOptions = [
 ];
 
 const defaultStatusSanitaire = [
-    { label: 'Apte', value: 'Apte' },
-    { label: 'Blessé de guerre', value: 'Blessé de guerre' },
-    { label: 'Inapte temporaire', value: 'Inapte temporaire' },
-    { label: 'Inapte définitif', value: 'Inapte définitif' },
-    { label: 'Apte avec restrictions', value: 'Apte avec restrictions' },
-    { label: 'En convalescence', value: 'En convalescence' },
-    { label: 'Réformé', value: 'Réformé' },
-    { label: 'Exempté de service', value: 'Exempté de service' }
+    'Apte',
+    'Blessé de guerre',
+    'Inapte temporaire',
+    'Inapte définitif',
+    'Apte avec restrictions',
+    'En convalescence',
+    'Réformé',
+    'Exempté de service'
 ];
 
-const loadCustomStatusSanitaire = () => {
+const loadStatusSanitaireList = () => {
     try {
-        const saved = localStorage.getItem('custom_status_sanitaire');
-        return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-        return [];
-    }
+        const saved = localStorage.getItem('status_sanitaire_options_v3');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                return parsed;
+            }
+        }
+    } catch (e) {}
+    return defaultStatusSanitaire;
 };
 
-const saveCustomStatusSanitaire = (customList) => {
+const saveStatusSanitaireList = (list) => {
     try {
-        localStorage.setItem('custom_status_sanitaire', JSON.stringify(customList));
+        localStorage.setItem('status_sanitaire_options_v3', JSON.stringify(list));
     } catch (e) {}
 };
 
-const statusSanitaireOptions = ref([
-    ...defaultStatusSanitaire,
-    ...loadCustomStatusSanitaire().map(s => ({ label: s, value: s, custom: true }))
-]);
+const statusSanitaireOptions = ref(
+    loadStatusSanitaireList().map(s => ({ label: s, value: s }))
+);
 
 const showAddStatus = ref(false);
 const newStatusInput = ref('');
@@ -1243,12 +1230,10 @@ const addNewStatus = () => {
     if (existing) {
         form.status_sanitaire = existing.value;
     } else {
-        const newOpt = { label: trimmed, value: trimmed, custom: true };
+        const newOpt = { label: trimmed, value: trimmed };
         statusSanitaireOptions.value.push(newOpt);
         form.status_sanitaire = trimmed;
-
-        const customItems = statusSanitaireOptions.value.filter(o => o.custom).map(o => o.value);
-        saveCustomStatusSanitaire(customItems);
+        saveStatusSanitaireList(statusSanitaireOptions.value.map(o => o.value));
     }
 
     newStatusInput.value = '';
@@ -1261,15 +1246,15 @@ const removeStatusOption = (valToRemove) => {
     if (form.status_sanitaire === valToRemove) {
         form.status_sanitaire = '';
     }
-    const customItems = statusSanitaireOptions.value.filter(o => o.custom).map(o => o.value);
-    saveCustomStatusSanitaire(customItems);
+    saveStatusSanitaireList(statusSanitaireOptions.value.map(o => o.value));
 };
 
-const isCustomStatus = (val) => {
-    if (!val) return false;
-    const opt = statusSanitaireOptions.value.find(o => o.value === val);
-    return opt ? !!opt.custom : false;
-};
+if (props.militaire && props.militaire.status_sanitaire) {
+    const existingVal = props.militaire.status_sanitaire;
+    if (!statusSanitaireOptions.value.some(o => o.value === existingVal)) {
+        statusSanitaireOptions.value.push({ label: existingVal, value: existingVal });
+    }
+}
 
 if (props.militaire && props.militaire.status_sanitaire) {
     const existingVal = props.militaire.status_sanitaire;
