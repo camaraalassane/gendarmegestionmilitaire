@@ -39,14 +39,43 @@ class MilitaireController extends Controller
             $query->where(function($q) use ($searchTerms) {
                 foreach ($searchTerms as $term) {
                     if (!empty($term)) {
-                        $q->where(function($subQ) use ($term) {
+                        // Tolérance aux accents pour SQLite (é, è, ê -> _ et e -> _)
+                        $wildcard = preg_replace('/[eéèêëEÉÈÊË]/u', '_', $term);
+                        $wildcard = preg_replace('/[aàâäAÀÂÄ]/u', '_', $wildcard);
+                        $wildcard = preg_replace('/[iîïIÎÏ]/u', '_', $wildcard);
+                        $wildcard = preg_replace('/[oôöOÔÖ]/u', '_', $wildcard);
+                        $wildcard = preg_replace('/[uùûüUÙÛÜ]/u', '_', $wildcard);
+                        $wildcard = preg_replace('/[cçCÇ]/u', '_', $wildcard);
+
+                        $q->where(function($subQ) use ($term, $wildcard) {
                             $subQ->where('militaires.nom', 'LIKE', "%{$term}%")
                                  ->orWhere('militaires.prenom', 'LIKE', "%{$term}%")
                                  ->orWhere('militaires.matricule', 'LIKE', "%{$term}%")
                                  ->orWhere('militaires.mle_grm', 'LIKE', "%{$term}%")
                                  ->orWhere('militaires.numero_info', 'LIKE', "%{$term}%")
+                                 ->orWhere('militaires.numero_nina', 'LIKE', "%{$term}%")
+                                 ->orWhere('militaires.grade_actuel', 'LIKE', "%{$term}%")
+                                 ->orWhere('militaires.position_actuelle', 'LIKE', "%{$term}%")
                                  ->orWhere('militaires.unite', 'LIKE', "%{$term}%")
-                                 ->orWhere('militaires.region', 'LIKE', "%{$term}%");
+                                 ->orWhere('militaires.region', 'LIKE', "%{$term}%")
+                                 ->orWhere('militaires.specialite', 'LIKE', "%{$term}%")
+                                 ->orWhere('militaires.fonction_actuelle', 'LIKE', "%{$term}%")
+                                 ->orWhere('militaires.telephone', 'LIKE', "%{$term}%");
+
+                            if ($wildcard !== $term) {
+                                $subQ->orWhere('militaires.nom', 'LIKE', "%{$wildcard}%")
+                                     ->orWhere('militaires.prenom', 'LIKE', "%{$wildcard}%")
+                                     ->orWhere('militaires.grade_actuel', 'LIKE', "%{$wildcard}%")
+                                     ->orWhere('militaires.position_actuelle', 'LIKE', "%{$wildcard}%")
+                                     ->orWhere('militaires.unite', 'LIKE', "%{$wildcard}%")
+                                     ->orWhere('militaires.region', 'LIKE', "%{$wildcard}%")
+                                     ->orWhere('militaires.specialite', 'LIKE', "%{$wildcard}%");
+                            }
+
+                            if (mb_stripos($term, 'assign') !== false) {
+                                $subQ->orWhereNull('militaires.position_actuelle')
+                                     ->orWhere('militaires.position_actuelle', '');
+                            }
                         });
                     }
                 }
@@ -63,6 +92,17 @@ class MilitaireController extends Controller
 
         if ($request->filled('unite')) {
             $query->where('militaires.unite', 'LIKE', "%{$request->unite}%");
+        }
+
+        if ($request->filled('position')) {
+            $pos = $request->position;
+            if ($pos === 'Non assigné / En attente' || $pos === 'non_assigne') {
+                $query->where(function ($q) {
+                    $q->whereNull('militaires.position_actuelle')->orWhere('militaires.position_actuelle', '');
+                });
+            } else {
+                $query->where('militaires.position_actuelle', 'LIKE', "%{$pos}%");
+            }
         }
 
         $anneeN = Carbon::now()->year;
@@ -153,20 +193,26 @@ class MilitaireController extends Controller
             ]);
 
         $grades = Grade::orderBy('ordre', 'desc')->get();
-        $regions = Militaire::whereNotNull('region')->where('region', '!=', '')->distinct()->pluck('region')->filter()->values();
+        $regions = Region::orderByRaw('CASE WHEN ordre IS NULL OR ordre = 0 THEN 999 ELSE ordre END ASC')
+            ->orderBy('nom')
+            ->pluck('nom')
+            ->values();
+        $positions = Position::orderBy('nom')->pluck('nom')->values();
 
         return Inertia::render('militaires/index', [
             'militaires'   => $militaires,
             'statistiques' => $statistiques,
             'filters'      => [
-                'search' => $request->search,
-                'grade'  => $request->grade,
-                'statut' => $statutFilter,
-                'region' => $request->region,
-                'unite'  => $request->unite,
+                'search'   => $request->search,
+                'grade'    => $request->grade,
+                'statut'   => $statutFilter,
+                'region'   => $request->region,
+                'unite'    => $request->unite,
+                'position' => $request->position,
             ],
             'grades'       => $grades,
             'regions'      => $regions,
+            'positions'    => $positions,
         ]);
     }
 

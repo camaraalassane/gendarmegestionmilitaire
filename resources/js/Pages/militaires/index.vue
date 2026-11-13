@@ -81,12 +81,12 @@
                 <!-- Filtres -->
                 <div class="bg-white overflow-hidden shadow-sm rounded-lg mb-6">
                     <div class="p-4">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
                             <div>
                                 <label class="block text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide">Recherche</label>
                                 <div class="relative w-full">
                                     <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs z-10"></i>
-                                    <InputText v-model="filters.search" placeholder="Nom, matricule, GRM, solde..." class="w-full text-sm !pl-8"
+                                    <InputText v-model="filters.search" placeholder="Nom, matricule, position, unité..." class="w-full text-sm !pl-8"
                                         @input="onSearchInput" />
                                 </div>
                             </div>
@@ -100,6 +100,12 @@
                                 <label class="block text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide">Région</label>
                                 <Select v-model="filters.region" :options="regionOptions" optionLabel="label"
                                     optionValue="value" placeholder="Toutes les régions" class="w-full text-sm" showClear
+                                    @change="onFilterChange" />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide">Position / Théâtre</label>
+                                <Select v-model="filters.position" :options="positionOptions" optionLabel="label"
+                                    optionValue="value" placeholder="Toutes les positions" class="w-full text-sm" showClear
                                     @change="onFilterChange" />
                             </div>
                             <div>
@@ -198,15 +204,19 @@
                             </Column>
 
                             <!-- Colonne Unité & Région -->
-                            <Column header="Unité & Région" style="min-width: 150px;">
+                            <Column header="Affectation & Déploiement" style="min-width: 170px;">
                                 <template #body="slotProps">
-                                    <div class="text-xs">
-                                        <div class="font-semibold text-slate-800 truncate max-w-[160px]" :title="slotProps.data.unite || '-'">
+                                    <div class="text-xs space-y-0.5">
+                                        <div class="font-semibold text-slate-800 truncate max-w-[170px]" :title="slotProps.data.unite || '-'">
                                             {{ slotProps.data.unite || '-' }}
                                         </div>
-                                        <div v-if="slotProps.data.region" class="text-sky-800 flex items-center gap-1 mt-0.5 font-medium">
+                                        <div v-if="slotProps.data.region" class="text-sky-800 flex items-center gap-1 font-medium">
                                             <i class="pi pi-map-marker text-[10px]"></i>
-                                            {{ slotProps.data.region }}
+                                            <span>{{ slotProps.data.region }}</span>
+                                        </div>
+                                        <div v-if="slotProps.data.position_actuelle" class="text-teal-700 flex items-center gap-1 font-medium" :title="'Position actuelle : ' + slotProps.data.position_actuelle">
+                                            <i class="pi pi-compass text-[10px]"></i>
+                                            <span class="truncate max-w-[170px]">{{ slotProps.data.position_actuelle }}</span>
                                         </div>
                                     </div>
                                 </template>
@@ -686,6 +696,7 @@ const printBatchCertificats = () => {
 
 const gradeOptions = ref([]);
 const regionOptions = ref([]);
+const positionOptions = ref([]);
 const statutOptions = [
     { label: 'Tous les statuts', value: 'all' },
     { label: 'Actif', value: 'actif' },
@@ -703,7 +714,8 @@ const props = defineProps({
     statistiques: { type: Object, required: true },
     filters: { type: Object, default: () => ({}) },
     grades: { type: Array, default: () => [] },
-    regions: { type: Array, default: () => [] }
+    regions: { type: Array, default: () => [] },
+    positions: { type: Array, default: () => [] }
 });
 
 const formatAnciennete = (annees) => {
@@ -721,12 +733,18 @@ onMounted(() => {
         { label: 'Toutes les régions', value: null },
         ...props.regions.map(r => ({ label: r, value: r }))
     ];
+
+    positionOptions.value = [
+        { label: 'Toutes les positions', value: null },
+        ...props.positions.map(p => ({ label: p, value: p }))
+    ];
 });
 
 const filters = reactive({
     search: props.filters?.search || '',
     grade: props.filters?.grade || null,
     region: props.filters?.region || null,
+    position: props.filters?.position || null,
     statut: props.filters?.statut || 'actif'
 });
 
@@ -756,7 +774,7 @@ const onFilterChange = () => {
 };
 
 watch(() => filters.search, () => debouncedSearch());
-watch([() => filters.grade, () => filters.region, () => filters.statut], () => loadMilitaires(1));
+watch([() => filters.grade, () => filters.region, () => filters.position, () => filters.statut], () => loadMilitaires(1));
 
 const getStatutStyle = (statut) => {
     const styles = {
@@ -777,6 +795,7 @@ const loadMilitaires = (page = 1) => {
         search: filters.search,
         grade: filters.grade,
         region: filters.region,
+        position: filters.position,
         statut: filters.statut
     }, {
         preserveState: true,
@@ -793,6 +812,7 @@ const resetFilters = () => {
     filters.search = '';
     filters.grade = null;
     filters.region = null;
+    filters.position = null;
     filters.statut = 'actif';
     loadMilitaires(1);
 };

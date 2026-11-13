@@ -243,7 +243,7 @@
                         <div class="max-h-28 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
                             <div v-for="pos in (props.chartsData?.positions || [])"
                                  :key="pos.label"
-                                 @click="router.visit(route('militaires.index', { search: pos.label }))"
+                                 @click="navigateToPosition(pos.label)"
                                  class="flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition-colors"
                                  :class="pos.value > 0 ? 'bg-sky-50/70 border-sky-200 text-sky-900 font-medium hover:bg-sky-100' : 'bg-slate-50/50 border-slate-100 text-slate-500 hover:bg-slate-100'">
                                 <div class="flex items-center gap-2 truncate">
@@ -479,6 +479,15 @@ const refreshDashboard = () => {
             isRefreshing.value = false;
         }
     });
+};
+
+const navigateToPosition = (label) => {
+    if (!label) return;
+    if (label.includes('Non assigné')) {
+        router.visit(route('militaires.index', { position: 'Non assigné / En attente' }));
+    } else {
+        router.visit(route('militaires.index', { search: label, position: label }));
+    }
 };
 
 // =========================================================================

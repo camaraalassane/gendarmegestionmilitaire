@@ -9,10 +9,6 @@
                     <Badge :value="`${certificats.total} certificats`" 
                            style="background: rgba(255,255,255,0.2); color: white;" 
                            size="large" />
-                    <Button label="Nouveau certificat" 
-                            icon="pi pi-plus"
-                            class="p-button-sm bg-white/20 hover:bg-white/30 text-white border-0 shadow-sm font-medium"
-                            @click="createCertificat" />
                 </div>
             </div>
         </template>
@@ -34,37 +30,48 @@
                         <!-- Tableau des certificats -->
                         <template v-else>
                             <!-- Filtres avec recherche automatique -->
-                            <div class="mb-4">
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Recherche</label>
+                            <div class="mb-5 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200">
+                                <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                                    <div :class="filters.search || filters.niveau ? 'sm:col-span-6' : 'sm:col-span-7'">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Recherche</label>
                                         <span class="p-input-icon-left w-full">
                                             <i class="pi pi-search" />
                                             <InputText v-model="filters.search" 
-                                                      placeholder="Rechercher un certificat..." 
-                                                      class="w-full"
+                                                      placeholder="Rechercher par nom, niveau, grade..." 
+                                                      class="w-full text-xs"
                                                       @input="onSearchInput" />
                                         </span>
                                     </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Niveau</label>
+                                    <div :class="filters.search || filters.niveau ? 'sm:col-span-4' : 'sm:col-span-5'">
+                                        <label class="block text-xs font-semibold text-gray-700 mb-1">Niveau</label>
                                         <Select v-model="filters.niveau" 
                                                 :options="niveauxOptions" 
                                                 optionLabel="label" 
                                                 optionValue="value"
                                                 placeholder="Filtrer par niveau"
-                                                class="w-full"
+                                                class="w-full text-xs"
                                                 showClear
                                                 @change="onFilterChange" />
                                     </div>
-                                    <div>
-                                        <div class="h-7 mb-1"></div>
+                                    <div v-if="filters.search || filters.niveau" class="sm:col-span-2">
                                         <Button label="Réinitialiser" 
-                                                icon="pi pi-times"
-                                                class="p-button-sm bg-gray-500 hover:bg-gray-600 border-gray-500 text-white w-full"
+                                                icon="pi pi-filter-slash"
+                                                class="p-button-sm p-button-outlined p-button-secondary text-xs w-full cursor-pointer"
                                                 @click="resetFilters" />
                                     </div>
                                 </div>
+                            </div>
+
+                            <!-- En-tête du tableau avec bouton Nouveau certificat -->
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+                                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                                    <i class="pi pi-file-pdf text-sky-800"></i>
+                                    <span>Certificats militaires enregistrés</span>
+                                </h3>
+                                <Button label="Nouveau certificat" 
+                                        icon="pi pi-plus"
+                                        class="!bg-sky-800 hover:!bg-sky-900 text-white font-semibold text-xs px-4 py-2 rounded-lg shadow-sm cursor-pointer whitespace-nowrap self-start sm:self-auto"
+                                        @click="createCertificat" />
                             </div>
 
                             <DataTable :value="certificats.data" 

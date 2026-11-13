@@ -217,7 +217,7 @@ class Militaire extends Model
         $dateEntree = $this->date_entree_service instanceof Carbon 
             ? $this->date_entree_service 
             : Carbon::parse($this->date_entree_service);
-        return $dateEntree->diffInYears($dateReference);
+        return (int) floor($dateEntree->diffInYears($dateReference));
     }
 
     public function getAncienneteGradeAttribute(): int
@@ -228,7 +228,7 @@ class Militaire extends Model
             $datePromo = $this->date_derniere_promotion instanceof Carbon 
                 ? $this->date_derniere_promotion 
                 : Carbon::parse($this->date_derniere_promotion);
-            return $datePromo->diffInYears($dateReference);
+            return (int) floor($datePromo->diffInYears($dateReference));
         }
         return $this->getAncienneteAttribute();
     }
