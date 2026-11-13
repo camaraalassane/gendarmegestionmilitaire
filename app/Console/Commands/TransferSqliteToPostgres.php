@@ -100,7 +100,15 @@ class TransferSqliteToPostgres extends Command
                         'password' => $dbPass,
                         'prefix' => '',
                     ]]);
-                    DB::connection('pgsql_default')->statement("CREATE DATABASE \"{$dbName}\"");
+                    try {
+                        DB::connection('pgsql_default')->statement("CREATE DATABASE \"{$dbName}\" WITH TEMPLATE template0 ENCODING 'UTF8'");
+                    } catch (\Throwable $t1) {
+                        try {
+                            DB::connection('pgsql_default')->statement("CREATE DATABASE \"{$dbName}\" ENCODING 'UTF8'");
+                        } catch (\Throwable $t2) {
+                            DB::connection('pgsql_default')->statement("CREATE DATABASE \"{$dbName}\"");
+                        }
+                    }
                     $this->info("✓ Base de données '{$dbName}' créée avec succès sur PostgreSQL !");
                     DB::purge('pgsql');
                     $pgsqlPdo = DB::connection('pgsql')->getPdo();
