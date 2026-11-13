@@ -8,6 +8,11 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (DB::connection()->getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE certificats ALTER COLUMN niveau_certificat TYPE VARCHAR(255) USING niveau_certificat::varchar');
+            return;
+        }
+
         // SQLite ne permet pas de modifier une colonne directement, donc on recrée la table
         Schema::create('certificats_new', function (Blueprint $table) {
             $table->id();

@@ -30,39 +30,39 @@
             </div>
         </template>
 
-        <div class="space-y-4">
-            <!-- Barre d'outils et filtres -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4">
-                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                    <!-- Recherche dynamique -->
+        <div class="space-y-3">
+            <!-- Barre d'outils et filtres compacte -->
+            <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-2.5 sm:p-3">
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
+                    <!-- Recherche globale -->
                     <div class="relative flex-1 max-w-md">
-                        <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                        <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
                         <input
                             v-model="searchQuery"
                             type="text"
-                            placeholder="Rechercher une région, brigade, ville..."
-                            class="w-full pl-9 pr-3 py-1.5 text-sm bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors"
+                            placeholder="Recherche rapide dans la carte (brigade, ville...)"
+                            class="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-sky-500 focus:bg-white transition-colors placeholder:text-slate-400"
                         />
                         <button
                             v-if="searchQuery"
                             @click="searchQuery = ''"
-                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
+                            class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
                         >
-                            <i class="pi pi-times"></i>
+                            <i class="pi pi-times text-[10px]"></i>
                         </button>
                     </div>
 
                     <!-- Contrôles des points pointés sur la carte -->
                     <div class="flex items-center gap-2 flex-wrap text-xs">
                         <!-- Mode d'affichage des points -->
-                        <div class="inline-flex rounded-lg border border-gray-300 p-0.5 bg-gray-50 shadow-sm">
+                        <div class="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50">
                             <button
                                 @click="filterDisplayMode = 'all'"
                                 :class="[
-                                    'px-2.5 py-1 rounded-md font-medium transition-colors',
+                                    'px-2.5 py-1 rounded-md font-medium transition-colors text-xs',
                                     filterDisplayMode === 'all'
                                         ? 'bg-sky-800 text-white shadow-xs'
-                                        : 'text-gray-600 hover:text-gray-900'
+                                        : 'text-slate-600 hover:text-slate-900'
                                 ]"
                             >
                                 Tous les points ({{ activeRegionsCount + activeUnitsCount }})
@@ -70,10 +70,10 @@
                             <button
                                 @click="filterDisplayMode = 'regions'"
                                 :class="[
-                                    'px-2.5 py-1 rounded-md font-medium transition-colors',
+                                    'px-2.5 py-1 rounded-md font-medium transition-colors text-xs',
                                     filterDisplayMode === 'regions'
                                         ? 'bg-sky-800 text-white shadow-xs'
-                                        : 'text-gray-600 hover:text-gray-900'
+                                        : 'text-slate-600 hover:text-slate-900'
                                 ]"
                             >
                                 Régions seules ({{ activeRegionsCount }})
@@ -81,10 +81,10 @@
                             <button
                                 @click="filterDisplayMode = 'unites'"
                                 :class="[
-                                    'px-2.5 py-1 rounded-md font-medium transition-colors',
+                                    'px-2.5 py-1 rounded-md font-medium transition-colors text-xs',
                                     filterDisplayMode === 'unites'
                                         ? 'bg-sky-800 text-white shadow-xs'
-                                        : 'text-gray-600 hover:text-gray-900'
+                                        : 'text-slate-600 hover:text-slate-900'
                                 ]"
                             >
                                 Brigades seules ({{ activeUnitsCount }})
@@ -96,311 +96,378 @@
                             v-if="filterDisplayMode !== 'regions'"
                             @click="filterOnlyOp = !filterOnlyOp"
                             :class="[
-                                'px-2.5 py-1.5 rounded-lg font-medium border transition-all flex items-center gap-1.5 shadow-sm',
+                                'px-2.5 py-1 rounded-lg font-medium border transition-all flex items-center gap-1.5 shadow-2xs text-xs',
                                 filterOnlyOp
                                     ? 'bg-emerald-600 text-white border-emerald-700'
-                                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                             ]"
                         >
                             <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                            <span>Opérationnelles uniquement</span>
+                            <span>Opérationnelles</span>
                         </button>
 
                         <!-- Bouton Tout le Mali / Réinitialiser -->
                         <button
                             @click="resetToFullMaliView"
                             :class="[
-                                'px-3 py-1.5 rounded-lg border font-bold transition-all flex items-center gap-1.5 shadow-sm',
+                                'px-2.5 py-1 rounded-lg border font-bold transition-all flex items-center gap-1.5 shadow-2xs text-xs',
                                 selectedRegion !== null
                                     ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-600 ring-2 ring-amber-300 animate-pulse'
                                     : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border-sky-200'
                             ]"
-                            title="Afficher tout le Mali (vue complète par défaut)"
+                            title="Afficher tout le Mali (vue générale complète)"
                         >
-                            <i class="pi pi-globe text-sky-700"></i>
+                            <i class="pi pi-globe text-sky-700 text-xs"></i>
                             <span>{{ selectedRegion ? '← Afficher tout le Mali' : 'Recentrer Mali' }}</span>
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Conteneur principal : Carte + Volet de Commandement -->
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                <!-- Zone Carte (8 colonnes) -->
-                <div class="lg:col-span-8 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col relative min-h-[580px] lg:min-h-[680px]">
+            <!-- Grille principale : Carte + Volet latéral -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
+                <!-- Zone Carte : occupe 8 col sur lg, 9 col sur xl (75% largeur) quand le volet est ouvert, ou 12 col quand il est fermé ! -->
+                <div :class="[
+                    isSidebarOpen ? 'lg:col-span-8 xl:col-span-9' : 'col-span-12',
+                    'bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden flex flex-col relative transition-all duration-300',
+                    'h-[calc(100vh-210px)] min-h-[660px] lg:min-h-[750px]'
+                ]">
                     <!-- En-tête statut carte -->
-                    <div class="bg-gray-50/90 backdrop-blur-sm px-4 py-2 border-b border-gray-200 flex items-center justify-between text-xs text-gray-600 z-10">
+                    <div class="bg-white/95 backdrop-blur-sm px-3.5 py-2 border-b border-slate-200 flex items-center justify-between text-xs text-slate-700 z-10 shrink-0">
                         <div class="flex items-center gap-2">
                             <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                            <span class="font-bold text-gray-800">RÉPUBLIQUE DU MALI</span>
-                            <span v-if="selectedRegion" class="text-sky-800 font-bold ml-2 bg-sky-100 px-2 py-0.5 rounded">
+                            <span class="font-bold text-slate-900 tracking-wide">RÉPUBLIQUE DU MALI</span>
+                            <span v-if="selectedRegion" class="text-sky-900 font-bold ml-1 bg-sky-100 px-2 py-0.5 rounded text-[11px]">
                                 ▸ Vue isolée : {{ selectedRegion.nom }} ({{ selectedRegion.code }})
                             </span>
-                            <span v-else class="text-emerald-700 font-medium ml-2">
+                            <span v-else class="text-emerald-700 font-medium ml-1 text-[11px] hidden sm:inline">
                                 ▸ Vue générale par défaut (11 Régions)
                             </span>
                         </div>
-                        <div class="flex items-center gap-3 text-gray-600 text-[11px]">
-                            <span class="flex items-center gap-1">
-                                <span class="w-3 h-3 rounded-full bg-sky-800 border border-white inline-block"></span>
-                                Points Régions (R1 à R11)
-                            </span>
-                            <span class="flex items-center gap-1">
-                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 border border-white inline-block"></span>
-                                Opérationnelle
-                            </span>
-                            <span class="flex items-center gap-1">
-                                <span class="w-2.5 h-2.5 rounded-full bg-red-500 border border-white inline-block"></span>
-                                Non opérationnelle
-                            </span>
+
+                        <div class="flex items-center gap-2">
+                            <!-- Légende miniature -->
+                            <div class="hidden md:flex items-center gap-2.5 text-slate-500 text-[11px] pr-2 border-r border-slate-200">
+                                <span class="flex items-center gap-1">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-sky-700 border border-white inline-block"></span>
+                                    Régions
+                                </span>
+                                <span class="flex items-center gap-1">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-500 border border-white inline-block"></span>
+                                    Opér.
+                                </span>
+                                <span class="flex items-center gap-1">
+                                    <span class="w-2 h-2 rounded-full bg-red-500 border border-white inline-block"></span>
+                                    Non op.
+                                </span>
+                            </div>
+
+                            <!-- Bouton Agrandir / Réduire la carte (Toggle volet) -->
+                            <button
+                                @click="toggleSidebar"
+                                class="px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-slate-50 hover:bg-white text-slate-700 font-medium transition-all flex items-center gap-1.5 shadow-2xs hover:border-slate-300"
+                                :title="isSidebarOpen ? 'Masquer le volet pour agrandir la carte au maximum (100% largeur)' : 'Afficher le volet latéral des régions'"
+                            >
+                                <i :class="isSidebarOpen ? 'pi pi-arrows-alt text-sky-700' : 'pi pi-list text-sky-700'"></i>
+                                <span>{{ isSidebarOpen ? 'Agrandir la carte' : 'Afficher volet' }}</span>
+                            </button>
                         </div>
                     </div>
 
                     <!-- Carte Leaflet -->
-                    <div id="map-mali" class="flex-1 w-full h-full min-h-[520px] lg:min-h-[620px] z-0 bg-slate-100"></div>
+                    <div id="map-mali" class="flex-1 w-full h-full min-h-[580px] z-0 bg-slate-100"></div>
 
                     <!-- Bouton flottant de retour en haut de la carte si région pointée -->
                     <div v-if="selectedRegion" class="absolute top-12 left-3 z-[400] flex items-center gap-2">
                         <button
                             @click="resetToFullMaliView"
-                            class="bg-sky-900/95 hover:bg-sky-800 text-white px-3.5 py-1.5 rounded-lg shadow-xl font-bold text-xs flex items-center gap-2 border border-sky-400 backdrop-blur-sm transition-all"
-                            title="Quitter la vue isolée et afficher toutes les régions du Mali"
+                            class="bg-sky-900/95 hover:bg-sky-800 text-white px-3 py-1.5 rounded-lg shadow-xl font-bold text-xs flex items-center gap-1.5 border border-sky-400 backdrop-blur-sm transition-all"
+                            title="Quitter la vue isolée et réafficher tout le Mali"
                         >
-                            <i class="pi pi-arrow-left text-amber-300"></i>
+                            <i class="pi pi-arrow-left text-amber-300 text-xs"></i>
                             <span>Afficher tout le Mali</span>
                         </button>
-                        <div class="bg-white/95 backdrop-blur-sm text-sky-900 font-bold px-3 py-1.5 rounded-lg shadow-md border border-gray-200 text-xs flex items-center gap-1.5">
+                        <div class="bg-white/95 backdrop-blur-sm text-sky-900 font-bold px-3 py-1.5 rounded-lg shadow-md border border-slate-200 text-xs flex items-center gap-1.5">
                             <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
                             <span>{{ selectedRegion.nom }} • {{ selectedRegion.chef_lieu }}</span>
                         </div>
                     </div>
 
-                    <!-- Barre de sélection rapide au bas de la carte -->
+                    <!-- Bouton flottant réouvrir le volet si masqué -->
+                    <button
+                        v-if="!isSidebarOpen"
+                        @click="toggleSidebar"
+                        class="absolute top-12 right-3 z-[400] bg-white/95 hover:bg-white text-sky-900 font-bold px-3 py-1.5 rounded-lg shadow-xl text-xs flex items-center gap-1.5 border border-sky-300 backdrop-blur-sm transition-all"
+                        title="Réouvrir le volet latéral des régions"
+                    >
+                        <i class="pi pi-list text-sky-700"></i>
+                        <span>Volet Régions (11)</span>
+                    </button>
+
+                    <!-- Barre de sélection rapide au bas de la carte (ultra-légère) -->
                     <div class="absolute bottom-3 left-3 right-3 z-[400] pointer-events-none">
-                        <div class="bg-white/95 backdrop-blur-md p-2 rounded-xl border border-gray-300 shadow-xl pointer-events-auto overflow-x-auto no-scrollbar flex items-center gap-1.5">
-                            <!-- Bouton Tout afficher -->
+                        <div class="bg-white/90 backdrop-blur-md px-2 py-1.5 rounded-xl border border-slate-200/90 shadow-lg pointer-events-auto overflow-x-auto no-scrollbar flex items-center gap-1">
+                            <!-- Bouton Tout le Mali -->
                             <button
                                 @click="resetToFullMaliView"
                                 :class="[
-                                    'px-3 py-1.5 text-xs rounded-lg font-bold whitespace-nowrap transition-all shrink-0 border flex items-center gap-1.5',
+                                    'px-2.5 py-1 text-xs rounded-lg font-bold whitespace-nowrap transition-all shrink-0 border flex items-center gap-1',
                                     selectedRegion === null
-                                        ? 'bg-sky-900 text-white border-sky-950 shadow-sm ring-2 ring-sky-300'
-                                        : 'bg-white text-gray-700 border-gray-300 hover:bg-sky-50 hover:text-sky-800'
+                                        ? 'bg-sky-900 text-white border-sky-950 shadow-xs ring-1 ring-sky-300'
+                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-sky-50 hover:text-sky-800'
                                 ]"
                             >
-                                <i class="pi pi-globe"></i>
+                                <i class="pi pi-globe text-xs"></i>
                                 <span>Tout le Mali</span>
                             </button>
 
-                            <span class="text-gray-300">|</span>
+                            <span class="text-slate-300 px-0.5">|</span>
 
-                            <!-- Boutons de pointage direct pour chaque région -->
+                            <!-- Boutons de pointage direct pour chaque région R1 à R11 -->
                             <button
                                 v-for="reg in regionsTerritoriales"
                                 :key="reg.id"
                                 @click="selectAndFocusRegion(reg)"
                                 :class="[
-                                    'px-2.5 py-1 text-xs rounded-lg font-bold whitespace-nowrap transition-all shrink-0 border',
+                                    'px-2 py-0.5 text-xs rounded-md font-semibold whitespace-nowrap transition-all shrink-0 border',
                                     selectedRegion?.id === reg.id
-                                        ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-md ring-2 ring-amber-300'
-                                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-sky-50 hover:text-sky-700'
+                                        ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-xs ring-1 ring-amber-300 font-bold'
+                                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-sky-50 hover:text-sky-700'
                                 ]"
                             >
-                                📍 {{ reg.code }} <span class="text-[10px] font-normal opacity-80">({{ reg.stats.total }})</span>
+                                📍 {{ reg.code }} <span class="text-[10px] opacity-75 font-normal">({{ reg.stats?.total || 0 }})</span>
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Volet latéral de Commandement (4 colonnes) -->
-                <div class="lg:col-span-4 flex flex-col gap-4">
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full max-h-[720px]">
+                <!-- Volet latéral de Commandement : Léger, moderne et bien organisé -->
+                <div v-show="isSidebarOpen" class="lg:col-span-4 xl:col-span-3 flex flex-col h-[calc(100vh-210px)] min-h-[660px] lg:min-h-[750px]">
+                    <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden flex flex-col h-full">
                         <!-- En-tête du volet -->
-                        <div class="p-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+                        <div class="p-3 border-b border-slate-200/80 bg-slate-50/70 flex items-center justify-between shrink-0">
                             <div class="flex items-center gap-2">
-                                <i class="pi pi-map text-sky-700"></i>
-                                <span class="text-xs font-bold text-gray-800">
-                                    {{ selectedRegion ? `Situation : ${selectedRegion.nom}` : `Régions du Mali (${regionsTerritoriales.length})` }}
+                                <i class="pi pi-map text-sky-700 text-sm"></i>
+                                <span class="text-xs font-bold text-slate-800">
+                                    {{ selectedRegion ? `Détail : ${selectedRegion.nom}` : `Régions du Mali` }}
+                                </span>
+                                <span v-if="!selectedRegion" class="text-[10px] font-semibold bg-sky-100 text-sky-800 px-1.5 py-0.2 rounded-full">
+                                    {{ regionsTerritoriales.length }}
                                 </span>
                             </div>
-                            <button
-                                v-if="selectedRegion"
-                                @click="resetToFullMaliView"
-                                class="text-xs text-sky-700 hover:text-sky-900 font-semibold flex items-center gap-1 bg-white px-2 py-1 rounded border border-gray-200 hover:border-gray-300 transition-colors shadow-xs"
-                                title="Revenir à la vue générale de tout le Mali"
-                            >
-                                <i class="pi pi-arrow-left text-[10px]"></i>
-                                <span>Toutes les régions</span>
-                            </button>
+
+                            <div class="flex items-center gap-1">
+                                <button
+                                    v-if="selectedRegion"
+                                    @click="resetToFullMaliView"
+                                    class="text-[11px] text-sky-700 hover:text-sky-900 font-semibold flex items-center gap-1 bg-white px-2 py-1 rounded-md border border-slate-200 hover:border-slate-300 transition-colors shadow-2xs"
+                                    title="Revenir à la liste de toutes les régions"
+                                >
+                                    <i class="pi pi-arrow-left text-[10px]"></i>
+                                    <span>Toutes</span>
+                                </button>
+
+                                <button
+                                    @click="toggleSidebar"
+                                    class="text-slate-400 hover:text-slate-700 p-1 rounded-md hover:bg-slate-200/60 transition-colors"
+                                    title="Réduire le volet pour agrandir la carte"
+                                >
+                                    <i class="pi pi-times text-xs"></i>
+                                </button>
+                            </div>
                         </div>
 
-                        <!-- CONTENU : DÉTAIL DE LA RÉGION SÉLECTIONNÉE OU VUE D'ENSEMBLE -->
-                        <div class="p-4 overflow-y-auto flex-1 space-y-4">
+                        <!-- CONTENU DU VOLET -->
+                        <div class="flex-1 overflow-hidden flex flex-col">
                             <!-- CAS A : UNE RÉGION EST POINTÉE ET ISOLÉE -->
-                            <div v-if="selectedRegion" class="space-y-4">
-                                <!-- En-tête Région -->
-                                <div class="bg-gradient-to-br from-sky-800 via-sky-700 to-sky-900 rounded-xl p-4 text-white shadow-md">
-                                    <div class="flex items-start justify-between">
+                            <div v-if="selectedRegion" class="flex flex-col flex-1 overflow-hidden p-3 space-y-2.5">
+                                <!-- En-tête Région épuré -->
+                                <div class="bg-gradient-to-r from-slate-900 via-sky-950 to-slate-900 rounded-lg p-3 text-white shadow-xs shrink-0">
+                                    <div class="flex items-start justify-between gap-2">
                                         <div>
-                                            <span class="px-2 py-0.5 text-[10px] font-bold bg-amber-400 text-slate-900 rounded-md tracking-wider">
-                                                {{ selectedRegion.code }}
-                                            </span>
-                                            <h3 class="text-base font-bold mt-1 text-white">{{ selectedRegion.nom }}</h3>
-                                            <p v-if="selectedRegion.chef_lieu" class="text-xs text-sky-200 flex items-center gap-1 mt-0.5">
-                                                <i class="pi pi-map-marker text-amber-300"></i>
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="px-1.5 py-0.5 text-[10px] font-bold bg-amber-400 text-slate-950 rounded tracking-wider">
+                                                    {{ selectedRegion.code }}
+                                                </span>
+                                                <h3 class="text-xs font-bold text-white">{{ selectedRegion.nom }}</h3>
+                                            </div>
+                                            <p v-if="selectedRegion.chef_lieu" class="text-[11px] text-sky-200 flex items-center gap-1 mt-1">
+                                                <i class="pi pi-map-marker text-amber-300 text-[10px]"></i>
                                                 Chef-lieu : <strong class="text-white">{{ selectedRegion.chef_lieu }}</strong>
                                             </p>
                                         </div>
 
                                         <button
                                             @click="resetToFullMaliView"
-                                            class="bg-white/15 hover:bg-white/25 rounded-lg px-2 py-1 text-xs text-amber-300 border border-white/20 transition-colors flex items-center gap-1"
-                                            title="Revenir à la vue générale de tout le Mali"
+                                            class="bg-white/10 hover:bg-white/20 rounded px-2 py-1 text-[11px] text-amber-300 border border-white/15 transition-colors flex items-center gap-1 shrink-0"
+                                            title="Revenir à la vue complète de tout le Mali"
                                         >
-                                            <i class="pi pi-times"></i>
+                                            <i class="pi pi-times text-[10px]"></i>
                                             <span>Fermer</span>
                                         </button>
                                     </div>
-
-                                    <p v-if="selectedRegion.description" class="text-xs text-sky-100/90 mt-2 bg-black/15 p-2 rounded-lg">
-                                        {{ selectedRegion.description }}
-                                    </p>
                                 </div>
 
-                                <!-- Indicateurs clés -->
-                                <div class="grid grid-cols-3 gap-2">
-                                    <div class="bg-sky-50 border border-sky-100 rounded-xl p-2.5 text-center">
-                                        <span class="text-[10px] uppercase font-bold text-sky-700 block">Total</span>
-                                        <span class="text-lg font-bold text-sky-900">{{ selectedRegion.stats.total }}</span>
-                                        <span class="text-[10px] text-gray-500 block">Gendarmes</span>
+                                <!-- Indicateurs clés compacts (3 colonnes) -->
+                                <div class="grid grid-cols-3 gap-1.5 shrink-0">
+                                    <div class="bg-sky-50/70 border border-sky-100 rounded-lg p-1.5 text-center">
+                                        <span class="text-[9px] uppercase font-bold text-sky-700 block">Total</span>
+                                        <span class="text-base font-extrabold text-sky-950 leading-tight">{{ selectedRegion.stats.total }}</span>
+                                        <span class="text-[9px] text-slate-500 block">Gendarmes</span>
                                     </div>
-                                    <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-2.5 text-center">
-                                        <span class="text-[10px] uppercase font-bold text-emerald-700 block">Présents</span>
-                                        <span class="text-lg font-bold text-emerald-800">{{ selectedRegion.stats.presents }}</span>
-                                        <span class="text-[10px] text-emerald-600 block">{{ selectedRegion.stats.taux_presence }}%</span>
+                                    <div class="bg-emerald-50/70 border border-emerald-100 rounded-lg p-1.5 text-center">
+                                        <span class="text-[9px] uppercase font-bold text-emerald-700 block">Présents</span>
+                                        <span class="text-base font-extrabold text-emerald-800 leading-tight">{{ selectedRegion.stats.presents }}</span>
+                                        <span class="text-[9px] text-emerald-600 block">{{ selectedRegion.stats.taux_presence }}%</span>
                                     </div>
-                                    <div class="bg-amber-50 border border-amber-100 rounded-xl p-2.5 text-center">
-                                        <span class="text-[10px] uppercase font-bold text-amber-700 block">Absents</span>
-                                        <span class="text-lg font-bold text-amber-800">{{ selectedRegion.stats.absents }}</span>
-                                        <span class="text-[10px] text-amber-600 block">Indispos</span>
+                                    <div class="bg-amber-50/70 border border-amber-100 rounded-lg p-1.5 text-center">
+                                        <span class="text-[9px] uppercase font-bold text-amber-700 block">Absents</span>
+                                        <span class="text-base font-extrabold text-amber-800 leading-tight">{{ selectedRegion.stats.absents }}</span>
+                                        <span class="text-[9px] text-amber-600 block">Indispos</span>
                                     </div>
                                 </div>
 
-                                <!-- Répartition genre & indisponibilités -->
-                                <div class="bg-gray-50 rounded-xl p-3 border border-gray-200 space-y-2 text-xs">
-                                    <div class="flex justify-between items-center text-gray-600">
-                                        <span>Effectif :</span>
-                                        <span class="font-medium">
-                                            <strong>{{ selectedRegion.stats.hommes }}</strong> Hommes • <strong>{{ selectedRegion.stats.femmes }}</strong> Femmes
-                                        </span>
-                                    </div>
-                                    <div v-if="selectedRegion.stats.absents > 0" class="pt-2 border-t border-gray-200">
-                                        <span class="font-semibold text-gray-700 block mb-1">Motifs d'absence :</span>
-                                        <div class="grid grid-cols-2 gap-1.5 text-[11px] text-gray-600">
-                                            <span v-if="selectedRegion.stats.en_mission">✈️ Missions : <strong>{{ selectedRegion.stats.en_mission }}</strong></span>
-                                            <span v-if="selectedRegion.stats.en_conge">🏖️ Congés : <strong>{{ selectedRegion.stats.en_conge }}</strong></span>
-                                            <span v-if="selectedRegion.stats.en_stage">🎓 Stages/Form. : <strong>{{ selectedRegion.stats.en_stage }}</strong></span>
-                                            <span v-if="selectedRegion.stats.autres_absences">⚠️ Autres : <strong>{{ selectedRegion.stats.autres_absences }}</strong></span>
-                                        </div>
-                                    </div>
+                                <!-- Effectif hommes / femmes -->
+                                <div class="bg-slate-50 rounded-lg p-2 border border-slate-200/80 text-[11px] text-slate-600 flex items-center justify-between shrink-0">
+                                    <span>Effectif :</span>
+                                    <span class="font-medium text-slate-800">
+                                        <strong>{{ selectedRegion.stats.hommes }}</strong> H • <strong>{{ selectedRegion.stats.femmes }}</strong> F
+                                    </span>
                                 </div>
 
-                                <!-- Liste des Unités / Brigades pointées pour cette région -->
-                                <div class="space-y-2">
-                                    <div class="flex items-center justify-between">
-                                        <h4 class="text-xs font-bold uppercase tracking-wider text-gray-700">
-                                            Points d'unités de cette région ({{ filteredRegionUnits.length }})
-                                        </h4>
-                                        <span class="text-[10px] text-emerald-600 font-semibold">
-                                            {{ selectedRegion.unites_operationnelles_count }} op.
-                                        </span>
-                                    </div>
-
-                                    <div class="space-y-1.5 max-h-64 overflow-y-auto pr-1">
-                                        <div
-                                            v-for="unite in filteredRegionUnits"
-                                            :key="unite.id"
-                                            @click="focusOnUnit(unite)"
-                                            :class="[
-                                                'p-2.5 rounded-lg border text-xs cursor-pointer transition-all hover:shadow-sm',
-                                                selectedUnit?.id === unite.id
-                                                    ? 'bg-sky-50 border-sky-400 ring-1 ring-sky-300'
-                                                    : 'bg-white border-gray-200 hover:border-gray-300'
-                                            ]"
-                                        >
-                                            <div class="flex items-start justify-between gap-2">
-                                                <div class="min-w-0">
-                                                    <span class="font-semibold text-gray-800 block truncate" :title="unite.nom">
-                                                        📍 {{ unite.nom }}
-                                                    </span>
-                                                    <span class="text-[11px] text-gray-500 block">
-                                                        {{ unite.type || 'Unité' }} <span v-if="unite.ville">• {{ unite.ville }}</span>
-                                                    </span>
-                                                </div>
-
-                                                <span
-                                                    :class="[
-                                                        'px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0',
-                                                        unite.est_operationnelle
-                                                            ? 'bg-emerald-100 text-emerald-800'
-                                                            : 'bg-red-100 text-red-700'
-                                                    ]"
-                                                >
-                                                    {{ unite.est_operationnelle ? 'Op.' : 'Non op.' }}
-                                                </span>
-                                            </div>
-
-                                            <div class="flex items-center justify-between mt-2 pt-1.5 border-t border-gray-100 text-[11px] text-gray-600">
-                                                <span>Effectif : <strong>{{ unite.stats?.total || 0 }}</strong></span>
-                                                <span v-if="unite.latitude && unite.longitude" class="text-sky-700 hover:underline flex items-center gap-1 font-semibold">
-                                                    <i class="pi pi-search text-[10px]"></i> Zoomer point
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <p v-if="filteredRegionUnits.length === 0" class="text-xs text-gray-500 italic text-center py-4">
-                                            Aucune unité trouvée avec ce filtre.
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- CAS B : AUCUNE RÉGION N'EST POINTÉE (PAR DÉFAUT : VUE GLOBALE DU MALI) -->
-                            <div v-else class="space-y-3">
-                                <div class="bg-sky-50 border border-sky-200 rounded-xl p-3 text-xs text-sky-900">
-                                    <p class="font-bold flex items-center gap-1.5 text-sky-950">
-                                        <i class="pi pi-info-circle text-sky-600"></i>
-                                        Vue Globale du Territoire National
-                                    </p>
-                                    <p class="text-[11px] text-sky-800 mt-1">
-                                        Toutes les 11 régions et leurs unités sont affichées sur la carte. Cliquez sur n'importe quel point ou région pour n'afficher que sa carte isolée.
-                                    </p>
-                                </div>
-
-                                <div class="space-y-1.5 max-h-[500px] overflow-y-auto pr-1">
-                                    <div
-                                        v-for="reg in regionsTerritoriales"
-                                        :key="reg.id"
-                                        @click="selectAndFocusRegion(reg)"
-                                        class="p-2.5 rounded-lg border border-gray-200 bg-white hover:border-sky-400 hover:bg-sky-50/50 cursor-pointer transition-all flex items-center justify-between"
+                                <!-- Barre de filtre des brigades pour cette région -->
+                                <div class="relative shrink-0">
+                                    <i class="pi pi-search absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                                    <input
+                                        v-model="searchQuery"
+                                        type="text"
+                                        placeholder="Filtrer les brigades..."
+                                        class="w-full pl-8 pr-7 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-sky-500 focus:bg-white transition-all placeholder:text-slate-400"
+                                    />
+                                    <button
+                                        v-if="searchQuery"
+                                        @click="searchQuery = ''"
+                                        class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
                                     >
-                                        <div>
-                                            <div class="flex items-center gap-1.5">
-                                                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-800">
-                                                    {{ reg.code }}
-                                                </span>
-                                                <span class="font-bold text-xs text-gray-900">{{ reg.nom }}</span>
-                                            </div>
-                                            <span class="text-[11px] text-gray-500 block mt-0.5">
-                                                Chef-lieu : {{ reg.chef_lieu || 'N/A' }} • {{ reg.unites_count }} unités
+                                        <i class="pi pi-times text-[10px]"></i>
+                                    </button>
+                                </div>
+
+                                <!-- Liste des brigades légères -->
+                                <div class="flex-1 overflow-y-auto pr-1 space-y-1.5 custom-scrollbar">
+                                    <div class="flex items-center justify-between text-[11px] font-semibold text-slate-500 px-0.5 pb-0.5">
+                                        <span>Points d'unités ({{ filteredRegionUnits.length }})</span>
+                                        <span class="text-emerald-600 text-[10px]">{{ selectedRegion.unites_operationnelles_count }} op.</span>
+                                    </div>
+
+                                    <div
+                                        v-for="unite in filteredRegionUnits"
+                                        :key="unite.id"
+                                        @click="focusOnUnit(unite)"
+                                        :class="[
+                                            'p-2 rounded-lg border text-xs cursor-pointer transition-all flex flex-col gap-1',
+                                            selectedUnit?.id === unite.id
+                                                ? 'bg-sky-50 border-sky-400 ring-1 ring-sky-300'
+                                                : 'bg-white border-slate-200 hover:border-sky-300 hover:bg-sky-50/30'
+                                        ]"
+                                    >
+                                        <div class="flex items-start justify-between gap-2">
+                                            <span class="font-bold text-xs text-slate-800 truncate" :title="unite.nom">
+                                                📍 {{ unite.nom }}
+                                            </span>
+                                            <span
+                                                :class="[
+                                                    'px-1.5 py-0.2 rounded text-[9px] font-bold shrink-0',
+                                                    unite.est_operationnelle
+                                                        ? 'bg-emerald-100 text-emerald-800'
+                                                        : 'bg-rose-100 text-rose-700'
+                                                ]"
+                                            >
+                                                {{ unite.est_operationnelle ? 'Op.' : 'Non op.' }}
                                             </span>
                                         </div>
 
-                                        <div class="text-right">
-                                            <span class="text-xs font-bold text-sky-900 block">{{ reg.stats.total }}</span>
-                                            <span class="text-[10px] text-emerald-600 font-medium">{{ reg.stats.taux_presence }}%</span>
+                                        <div class="flex items-center justify-between text-[10px] text-slate-500">
+                                            <span class="truncate">{{ unite.type || 'Unité' }} <span v-if="unite.ville">• {{ unite.ville }}</span></span>
+                                            <span class="text-sky-700 font-semibold hover:underline flex items-center gap-1 shrink-0">
+                                                <i class="pi pi-search text-[9px]"></i> Zoomer
+                                            </span>
                                         </div>
                                     </div>
+
+                                    <p v-if="filteredRegionUnits.length === 0" class="text-xs text-slate-400 italic text-center py-4">
+                                        Aucune brigade trouvée avec ce filtre.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- CAS B : AUCUNE RÉGION N'EST POINTÉE (PAR DÉFAUT : LISTE LÉGÈRE ET ORGANISÉE DES RÉGIONS) -->
+                            <div v-else class="flex flex-col flex-1 overflow-hidden p-3 space-y-2.5">
+                                <!-- Recherche rapide et filtre de région -->
+                                <div class="relative shrink-0">
+                                    <i class="pi pi-search absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                                    <input
+                                        v-model="regionSearchQuery"
+                                        type="text"
+                                        placeholder="Filtrer par région, chef-lieu..."
+                                        class="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-sky-500 focus:bg-white transition-all placeholder:text-slate-400"
+                                    />
+                                    <button
+                                        v-if="regionSearchQuery"
+                                        @click="regionSearchQuery = ''"
+                                        class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                                    >
+                                        <i class="pi pi-times text-[10px]"></i>
+                                    </button>
+                                </div>
+
+                                <!-- Indication discrète et élégante (remplace le pavé bleu lourd) -->
+                                <div class="flex items-center justify-between text-[11px] text-slate-500 px-0.5 shrink-0">
+                                    <span class="flex items-center gap-1 text-slate-600">
+                                        <i class="pi pi-compass text-sky-600"></i>
+                                        <span>Cliquez pour isoler un secteur</span>
+                                    </span>
+                                    <span class="text-[10px] text-slate-400 font-medium">
+                                        {{ filteredRegions.length }} / {{ regionsTerritoriales.length }}
+                                    </span>
+                                </div>
+
+                                <!-- Liste légère des 11 Régions (cartes compactes, aérées et fluides) -->
+                                <div class="space-y-1.5 overflow-y-auto flex-1 pr-1 custom-scrollbar">
+                                    <div
+                                        v-for="reg in filteredRegions"
+                                        :key="reg.id"
+                                        @click="selectAndFocusRegion(reg)"
+                                        class="p-2 rounded-lg border border-slate-200/80 bg-white hover:border-sky-300 hover:bg-sky-50/50 cursor-pointer transition-all flex items-center justify-between group shadow-2xs"
+                                    >
+                                        <div class="flex items-center gap-2.5 min-w-0">
+                                            <span class="w-8 h-8 rounded-md bg-sky-50 border border-sky-200/80 text-sky-800 font-bold text-xs flex items-center justify-center shrink-0 group-hover:bg-sky-700 group-hover:text-white group-hover:border-sky-700 transition-colors">
+                                                {{ reg.code }}
+                                            </span>
+                                            <div class="min-w-0">
+                                                <span class="font-bold text-xs text-slate-800 group-hover:text-sky-900 block truncate">
+                                                    {{ reg.nom }}
+                                                </span>
+                                                <span class="text-[11px] text-slate-500 block truncate">
+                                                    {{ reg.chef_lieu || 'N/A' }} • <span class="text-slate-600 font-medium">{{ reg.unites_count }} unités</span>
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div class="text-right shrink-0 pl-2">
+                                            <span class="inline-block text-[11px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded group-hover:bg-sky-100 group-hover:text-sky-800 transition-colors">
+                                                {{ reg.stats?.total || 0 }} pers.
+                                            </span>
+                                            <div class="text-[10px] text-emerald-600 font-medium flex items-center justify-end gap-1 mt-0.5">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                <span>{{ reg.stats?.taux_presence || 100 }}%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <p v-if="filteredRegions.length === 0" class="text-xs text-slate-400 italic text-center py-4">
+                                        Aucune région ne correspond à votre recherche.
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -443,6 +510,8 @@ const regionsLayerGroup = ref(null);
 const markersLayerGroup = ref(null);
 const unitsLayerGroup = ref(null);
 
+const isSidebarOpen = ref(true);
+const regionSearchQuery = ref('');
 const activeSideTab = ref('territorial');
 const selectedRegion = ref(null);
 const selectedUnit = ref(null);
@@ -453,6 +522,17 @@ const filterOnlyOp = ref(false);
 // Toutes les régions sont des régions territoriales officielles du Mali
 const regionsTerritoriales = computed(() => {
     return props.regions;
+});
+
+// Filtre dynamique des régions dans le volet latéral
+const filteredRegions = computed(() => {
+    if (!regionSearchQuery.value) return regionsTerritoriales.value;
+    const q = regionSearchQuery.value.toLowerCase().trim();
+    return regionsTerritoriales.value.filter(r =>
+        r.nom.toLowerCase().includes(q) ||
+        r.code.toLowerCase().includes(q) ||
+        (r.chef_lieu && r.chef_lieu.toLowerCase().includes(q))
+    );
 });
 
 // Régions avec coordonnées
@@ -508,6 +588,18 @@ const filteredRegionUnits = computed(() => {
 
     return list;
 });
+
+// Bascule du volet latéral pour maximiser l'espace de la carte
+const toggleSidebar = () => {
+    isSidebarOpen.value = !isSidebarOpen.value;
+    nextTick(() => {
+        setTimeout(() => {
+            if (mapInstance.value) {
+                mapInstance.value.invalidateSize();
+            }
+        }, 200);
+    });
+};
 
 // ===============================================================
 // VRAIS PINS / ÉPINGLES POINTANT PRÉCISÉMENT SUR LA CARTE
@@ -829,6 +921,7 @@ const selectAndFocusRegion = (reg) => {
     selectedRegion.value = reg;
     selectedUnit.value = null;
     activeSideTab.value = 'territorial';
+    isSidebarOpen.value = true; // S'assurer que le volet s'ouvre pour voir les détails de cette région
 
     // 1. Mise à jour dynamique immédiate
     updateMapDisplay();
@@ -859,15 +952,6 @@ const focusOnUnit = (unite) => {
         mapInstance.value.flyTo([unite.latitude, unite.longitude], 12, {
             duration: 1.2
         });
-    }
-};
-
-/**
- * Pointer le QG d'un commandement central (GSIGN, DGGN, etc.)
- */
-const focusCentralHQ = (cReg) => {
-    if (mapInstance.value && cReg.latitude && cReg.longitude) {
-        mapInstance.value.flyTo([cReg.latitude, cReg.longitude], 13, { duration: 1.2 });
     }
 };
 
@@ -915,7 +999,7 @@ onMounted(() => {
 }
 .leaflet-container {
     font-family: inherit;
-    background-color: #f1f5f9;
+    background-color: #f8fafc;
 }
 .no-scrollbar::-webkit-scrollbar {
     display: none;
@@ -923,5 +1007,18 @@ onMounted(() => {
 .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+}
+.custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
 }
 </style>

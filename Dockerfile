@@ -13,8 +13,9 @@ RUN apt-get update && apt-get install -y \
     unzip \
     libsqlite3-dev \
     sqlite3 \
+    libpq-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j$(nproc) gd pdo pdo_sqlite zip bcmath opcache
+    && docker-php-ext-install -j$(nproc) gd pdo pdo_sqlite pdo_pgsql pgsql zip bcmath opcache
 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 

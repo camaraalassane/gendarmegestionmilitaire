@@ -11,6 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::connection()->getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE militaires ALTER COLUMN statut TYPE VARCHAR(255) USING statut::varchar');
+            DB::statement("ALTER TABLE militaires ALTER COLUMN statut SET DEFAULT 'actif'");
+            return;
+        }
+
         Schema::table('militaires', function (Blueprint $table) {
             $table->string('statut')->default('actif')->change();
         });

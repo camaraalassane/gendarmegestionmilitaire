@@ -9,6 +9,11 @@ return new class extends Migration
 {
     public function up()
     {
+        if (DB::connection()->getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE alertes ALTER COLUMN type_alerte TYPE VARCHAR(255) USING type_alerte::varchar');
+            return;
+        }
+
         // Pour SQLite, on vérifie d'abord si la colonne existe
         $columns = DB::select("PRAGMA table_info(alertes)");
         $columnExists = false;
