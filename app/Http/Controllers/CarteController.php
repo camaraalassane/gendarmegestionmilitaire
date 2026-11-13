@@ -151,11 +151,6 @@ class CarteController extends Controller
                 ? round(($stats['presents'] / $stats['total']) * 100, 1) 
                 : 100;
 
-            // Déterminer si c'est une région territoriale ou un grand commandement
-            $isCommandementCentral = in_array($reg->code, [
-                'DGGN', 'GSIGN', 'CDURM', 'CDUSF', 'CDECF', 'INSPECTION', 'SIJ', 'DETACHEMENT', 'R111'
-            ]);
-
             return [
                 'id' => $reg->id,
                 'code' => $reg->code,
@@ -165,14 +160,16 @@ class CarteController extends Controller
                 'longitude' => $reg->longitude,
                 'chef_lieu' => $reg->chef_lieu,
                 'ordre' => $reg->ordre,
-                'is_central' => $isCommandementCentral,
+                'is_central' => false,
                 'stats' => array_merge($stats, ['taux_presence' => $tauxPresence]),
                 'unites_count' => $reg->unites->count(),
                 'unites_operationnelles_count' => $reg->unites->where('est_operationnelle', true)->count(),
-                'unites' => $reg->unites->map(function ($u) use ($uniteStats) {
+                'unites' => $reg->unites->map(function ($u) use ($uniteStats, $reg) {
                     $uStat = $uniteStats[$u->id] ?? ['total' => 0, 'presents' => 0, 'absents' => 0];
                     return [
                         'id' => $u->id,
+                        'region_id' => $reg->id,
+                        'region_code' => $reg->code,
                         'nom' => $u->nom,
                         'code' => $u->code,
                         'type' => $u->type,

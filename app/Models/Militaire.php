@@ -127,8 +127,9 @@ class Militaire extends Model
         // Purge explicite des clés directes non versionnées
         \Illuminate\Support\Facades\Cache::forget('alertes:non_vues_count');
         \Illuminate\Support\Facades\Cache::forget('alertes:non_vues_count_gendarme');
-        \Illuminate\Support\Facades\Cache::forget('grades_edit_cached');
-        \Illuminate\Support\Facades\Cache::forget('certificats_edit_cached');
+        \Illuminate\Support\Facades\Cache::forget('dashboard:statistiques');
+        \Illuminate\Support\Facades\Cache::forget('dashboard:grades_distribution');
+        \Illuminate\Support\Facades\Cache::forget('dashboard:statistiques_cards');
     }
 
     // =========================================================

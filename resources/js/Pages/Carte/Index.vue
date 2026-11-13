@@ -215,36 +215,27 @@
                 <!-- Volet latéral de Commandement (4 colonnes) -->
                 <div class="lg:col-span-4 flex flex-col gap-4">
                     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full max-h-[720px]">
-                        <!-- Onglets du volet -->
-                        <div class="flex border-b border-gray-200 bg-gray-50 text-xs font-semibold">
+                        <!-- En-tête du volet -->
+                        <div class="p-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <i class="pi pi-map text-sky-700"></i>
+                                <span class="text-xs font-bold text-gray-800">
+                                    {{ selectedRegion ? `Situation : ${selectedRegion.nom}` : `Régions du Mali (${regionsTerritoriales.length})` }}
+                                </span>
+                            </div>
                             <button
-                                @click="activeSideTab = 'territorial'"
-                                :class="[
-                                    'flex-1 py-2.5 px-3 text-center border-b-2 transition-colors flex items-center justify-center gap-1.5',
-                                    activeSideTab === 'territorial'
-                                        ? 'border-sky-700 text-sky-800 bg-white font-bold'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700'
-                                ]"
+                                v-if="selectedRegion"
+                                @click="resetToFullMaliView"
+                                class="text-xs text-sky-700 hover:text-sky-900 font-semibold flex items-center gap-1 bg-white px-2 py-1 rounded border border-gray-200 hover:border-gray-300 transition-colors shadow-xs"
+                                title="Revenir à la vue générale de tout le Mali"
                             >
-                                <i class="pi pi-globe"></i>
-                                <span>Régions terrain ({{ regionsTerritoriales.length }})</span>
-                            </button>
-                            <button
-                                @click="activeSideTab = 'central'"
-                                :class="[
-                                    'flex-1 py-2.5 px-3 text-center border-b-2 transition-colors flex items-center justify-center gap-1.5',
-                                    activeSideTab === 'central'
-                                        ? 'border-sky-700 text-sky-800 bg-white font-bold'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700'
-                                ]"
-                            >
-                                <i class="pi pi-shield"></i>
-                                <span>Centraux & Réserves ({{ regionsCentrales.length }})</span>
+                                <i class="pi pi-arrow-left text-[10px]"></i>
+                                <span>Toutes les régions</span>
                             </button>
                         </div>
 
-                        <!-- CONTENU 1 : DÉTAIL DE LA RÉGION SÉLECTIONNÉE OU VUE D'ENSEMBLE -->
-                        <div v-if="activeSideTab === 'territorial'" class="p-4 overflow-y-auto flex-1 space-y-4">
+                        <!-- CONTENU : DÉTAIL DE LA RÉGION SÉLECTIONNÉE OU VUE D'ENSEMBLE -->
+                        <div class="p-4 overflow-y-auto flex-1 space-y-4">
                             <!-- CAS A : UNE RÉGION EST POINTÉE ET ISOLÉE -->
                             <div v-if="selectedRegion" class="space-y-4">
                                 <!-- En-tête Région -->
@@ -413,52 +404,6 @@
                                 </div>
                             </div>
                         </div>
-
-                        <!-- CONTENU 2 : GRANDS COMMANDEMENTS & RÉSERVES -->
-                        <div v-else class="p-4 overflow-y-auto flex-1 space-y-3">
-                            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
-                                <p class="font-semibold flex items-center gap-1.5">
-                                    <i class="pi pi-shield text-amber-700"></i>
-                                    Commandements Centraux & Réserves
-                                </p>
-                                <p class="text-[11px] text-amber-800/90 mt-1">
-                                    Structures nationales hors-sol (DGGN, GSIGN, Réserves ministérielles CDURM, Unités frontières CDUSF/GARSI, Écoles CDECF, Inspection, SIJ, Détachements).
-                                </p>
-                            </div>
-
-                            <div class="space-y-2">
-                                <div
-                                    v-for="cReg in regionsCentrales"
-                                    :key="cReg.id"
-                                    class="bg-white rounded-xl border border-gray-200 p-3 shadow-sm hover:border-sky-300 transition-colors"
-                                >
-                                    <div class="flex items-start justify-between">
-                                        <div>
-                                            <span class="px-2 py-0.5 text-[10px] font-bold bg-sky-100 text-sky-800 rounded">
-                                                {{ cReg.code }}
-                                            </span>
-                                            <h4 class="text-xs font-bold text-gray-900 mt-1">{{ cReg.nom }}</h4>
-                                            <p class="text-[11px] text-gray-500">{{ cReg.description }}</p>
-                                        </div>
-                                        <div class="text-right">
-                                            <span class="text-sm font-bold text-sky-900">{{ cReg.stats.total }}</span>
-                                            <span class="text-[10px] text-gray-500 block">militaires</span>
-                                        </div>
-                                    </div>
-
-                                    <div class="mt-2.5 pt-2 border-t border-gray-100 flex items-center justify-between text-xs text-gray-600">
-                                        <span>{{ cReg.unites_count }} unités rattachées</span>
-                                        <button
-                                            v-if="cReg.latitude && cReg.longitude"
-                                            @click="focusCentralHQ(cReg)"
-                                            class="text-sky-700 hover:text-sky-900 font-semibold text-[11px] flex items-center gap-1"
-                                        >
-                                            <i class="pi pi-compass"></i> Pointer QG
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -505,18 +450,14 @@ const searchQuery = ref('');
 const filterDisplayMode = ref('all'); // 'all', 'regions', 'unites'
 const filterOnlyOp = ref(false);
 
-// Séparation des régions territoriales vs centrales
+// Toutes les régions sont des régions territoriales officielles du Mali
 const regionsTerritoriales = computed(() => {
-    return props.regions.filter(r => !r.is_central);
-});
-
-const regionsCentrales = computed(() => {
-    return props.regions.filter(r => r.is_central);
+    return props.regions;
 });
 
 // Régions avec coordonnées
 const regionsAvecCoords = computed(() => {
-    return props.regions.filter(r => r.latitude && r.longitude && !r.is_central);
+    return props.regions.filter(r => r.latitude && r.longitude);
 });
 
 // Unités avec coordonnées
@@ -526,7 +467,7 @@ const unitesAvecCoords = computed(() => {
         if (r.unites) {
             r.unites.forEach(u => {
                 if (u.latitude && u.longitude) {
-                    list.push({ ...u, region_nom: r.nom, region_code: r.code });
+                    list.push({ ...u, region_id: r.id, region_nom: r.nom, region_code: r.code });
                 }
             });
         }
@@ -542,7 +483,7 @@ const activeRegionsCount = computed(() => {
 
 const activeUnitsCount = computed(() => {
     if (selectedRegion.value) {
-        return unitesAvecCoords.value.filter(u => u.region_code === selectedRegion.value.code).length;
+        return unitesAvecCoords.value.filter(u => u.region_id === selectedRegion.value.id || u.region_code === selectedRegion.value.code).length;
     }
     return unitesAvecCoords.value.length;
 });
@@ -697,6 +638,14 @@ const initMap = async () => {
  * - Pins des brigades
  */
 const updateMapDisplay = () => {
+    // Adapter le contour de frontière nationale selon le mode
+    if (borderLayer.value) {
+        if (selectedRegion.value) {
+            borderLayer.value.setStyle({ opacity: 0.15, weight: 1.5 });
+        } else {
+            borderLayer.value.setStyle({ opacity: 0.95, weight: 3 });
+        }
+    }
     renderRegions();
     renderRegionPins();
     renderUnitPins();
@@ -723,7 +672,7 @@ const renderRegions = () => {
             const isTarget = isIsolated && feature.properties?.code === selectedRegion.value?.code;
             return {
                 fillColor: '#0284c7',
-                fillOpacity: isTarget ? 0.35 : 0.18,
+                fillOpacity: isTarget ? 0.32 : 0.16,
                 color: isTarget ? '#0369a1' : '#0284c7',
                 weight: isTarget ? 3.5 : 2,
                 dashArray: isTarget ? '' : '3, 4',
@@ -785,13 +734,13 @@ const renderRegionPins = () => {
     if (filterDisplayMode.value === 'unites') return;
 
     const list = selectedRegion.value
-        ? regionsTerritoriales.value.filter(r => r.id === selectedRegion.value.id)
+        ? regionsTerritoriales.value.filter(r => r.id === selectedRegion.value.id || r.code === selectedRegion.value.code)
         : regionsTerritoriales.value;
 
     list.forEach(reg => {
         if (!reg.latitude || !reg.longitude) return;
 
-        const isSelected = selectedRegion.value?.id === reg.id;
+        const isSelected = selectedRegion.value?.id === reg.id || selectedRegion.value?.code === reg.code;
         const icon = createRegionPin(reg.code, reg.stats?.total || 0, isSelected);
 
         const marker = L.marker([reg.latitude, reg.longitude], {
@@ -833,7 +782,7 @@ const renderUnitPins = () => {
     let list = unitesAvecCoords.value;
 
     if (selectedRegion.value) {
-        list = list.filter(u => u.region_code === selectedRegion.value.code);
+        list = list.filter(u => u.region_id === selectedRegion.value.id || u.region_code === selectedRegion.value.code);
     }
 
     if (filterOnlyOp.value) {
@@ -851,7 +800,7 @@ const renderUnitPins = () => {
 
         marker.on('click', () => {
             selectedUnit.value = u;
-            const reg = props.regions.find(r => r.code === u.region_code);
+            const reg = props.regions.find(r => r.code === u.region_code || r.id === u.region_id);
             if (reg && (!selectedRegion.value || selectedRegion.value.id !== reg.id)) {
                 selectAndFocusRegion(reg);
             }
@@ -889,12 +838,12 @@ const selectAndFocusRegion = (reg) => {
         const bounds = REGION_BOUNDS[reg.code];
         if (bounds) {
             mapInstance.value.flyToBounds(bounds, {
-                padding: [40, 40],
-                maxZoom: 11,
-                duration: 1.2
+                padding: [45, 45],
+                maxZoom: 10,
+                duration: 1.0
             });
         } else if (reg.latitude && reg.longitude) {
-            mapInstance.value.flyTo([reg.latitude, reg.longitude], 9, { duration: 1.2 });
+            mapInstance.value.flyTo([reg.latitude, reg.longitude], 9, { duration: 1.0 });
         }
     }
 };

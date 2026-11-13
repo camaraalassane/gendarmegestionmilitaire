@@ -1396,9 +1396,9 @@ class MilitaireController extends Controller
 
     private function creerAlerte(Militaire $militaire, string $type, string $message, $dateEcheance = null): void
     {
+        // Vérifie l'existence sans filtrer sur est_vue pour éviter de dupliquer une alerte déjà lue
         $existe = Alerte::where('militaire_id', $militaire->id)
             ->where('type_alerte', $type)
-            ->where('est_vue', false)
             ->where('message', $message)
             ->exists();
 
