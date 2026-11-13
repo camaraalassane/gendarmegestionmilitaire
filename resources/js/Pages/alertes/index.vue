@@ -1,21 +1,10 @@
 <template>
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+            <div class="flex items-center">
                 <h2 class="font-bold text-lg md:text-xl text-white tracking-wide">
                     Liste des alertes
                 </h2>
-                <div class="flex items-center gap-2 shrink-0 flex-nowrap">
-                    <Button v-if="statistiques.non_vues > 0" label="Tout marquer comme vu" icon="pi pi-check-circle"
-                        class="p-button-sm !bg-white/15 hover:!bg-white/25 !text-white !border-white/30 font-semibold shadow-xs"
-                        @click="markAllAsRead" />
-                    <Button label="Générer alertes contrats" icon="pi pi-refresh"
-                        class="p-button-sm !bg-white/15 hover:!bg-white/25 !text-white !border-white/30 font-semibold shadow-xs"
-                        @click="generateContractAlerts" />
-                    <Button label="Générer alertes mutations" icon="pi pi-arrows-alt"
-                        class="p-button-sm !bg-white/15 hover:!bg-white/25 !text-white !border-white/30 font-semibold shadow-xs"
-                        @click="generateMutationAlerts" />
-                </div>
             </div>
         </template>
 
@@ -149,8 +138,25 @@
                 <!-- Tableau des alertes -->
                 <div class="bg-white overflow-hidden shadow-sm rounded-lg">
                     <div class="p-4">
-                        <div class="mb-3">
-                            <h3 class="text-md font-semibold text-gray-800">{{ getTabTitle() }}</h3>
+                        <div class="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100">
+                            <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                                <i class="pi pi-list text-sky-800"></i>
+                                <span>{{ getTabTitle() }}</span>
+                            </h3>
+                            <div class="flex items-center gap-2 shrink-0 flex-wrap">
+                                <Button v-if="statistiques.non_vues > 0" label="Tout marquer comme vu" icon="pi pi-check-circle"
+                                    size="small" severity="success" outlined
+                                    class="text-xs font-semibold"
+                                    @click="markAllAsRead" />
+                                <Button label="Générer alertes contrats" icon="pi pi-refresh"
+                                    size="small" severity="info" outlined
+                                    class="text-xs font-semibold"
+                                    @click="generateContractAlerts" />
+                                <Button label="Générer alertes mutations" icon="pi pi-arrows-alt"
+                                    size="small" severity="secondary" outlined
+                                    class="text-xs font-semibold"
+                                    @click="generateMutationAlerts" />
+                            </div>
                         </div>
 
                         <div class="overflow-x-auto">

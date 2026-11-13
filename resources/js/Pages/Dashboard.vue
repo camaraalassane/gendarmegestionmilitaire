@@ -23,18 +23,6 @@
                             :loading="isRefreshing"
                             @click="refreshDashboard"
                             class="bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs backdrop-blur-xs" />
-                    <Button icon="pi pi-user-plus"
-                            label="Nouveau Militaire"
-                            size="small"
-                            severity="info"
-                            @click="router.visit(route('militaires.create'))"
-                            class="bg-sky-500 hover:bg-sky-400 text-white border-0 text-xs font-semibold shadow-xs" />
-                    <Button icon="pi pi-cog"
-                            label="Configurations"
-                            size="small"
-                            outlined
-                            @click="router.visit(route('configurations.index'))"
-                            class="bg-white/10 hover:bg-white/20 text-white border-white/30 text-xs" />
                 </div>
             </div>
         </template>

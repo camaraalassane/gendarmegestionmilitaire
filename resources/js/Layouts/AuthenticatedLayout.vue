@@ -26,10 +26,7 @@
                     <div class="lg:hidden w-8"></div>
 
                     <div class="flex items-center gap-4">
-                        <!-- Lien Contrats -->
-                        <button v-if="$page.props.auth.user.role !== 1" @click="showContrats" class="relative text-white hover:text-sky-200" title="Contrats">
-                            <i class="pi pi-file text-xl"></i>
-                        </button>
+                        
 
                         <button v-if="$page.props.auth.user.role !== 1" @click="showNotifications" class="relative text-white hover:text-sky-200"
                             title="Alertes">
@@ -54,6 +51,10 @@
                                 <Link :href="route('profile.edit')"
                                     class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                                     <i class="pi pi-user mr-2"></i> Mon profil
+                                </Link>
+                                <Link :href="route('configurations.index')"
+                                    class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="pi pi-cog mr-2 text-sky-800"></i> Configuration
                                 </Link>
                                 <button @click="logout"
                                     class="flex items-center w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100">

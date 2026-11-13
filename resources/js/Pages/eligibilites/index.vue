@@ -6,14 +6,6 @@
                 <h2 class="font-semibold text-xl text-white">
                     Éligibilités
                 </h2>
-                <div class="flex gap-2">
-                    <Button label="Exporter" icon="pi pi-file-excel"
-                        class="p-button-sm !bg-white/20 hover:!bg-white/30 !text-white !border !border-white/40 font-semibold shadow-xs"
-                        @click="exportData" />
-                    <Button label="Tout exporter" icon="pi pi-file-excel"
-                        class="p-button-sm !bg-white/20 hover:!bg-white/30 !text-white !border !border-white/40 font-semibold shadow-xs" 
-                        @click="exportAllData" />
-                </div>
             </div>
         </template>
 
@@ -142,7 +134,20 @@
                                 <i class="pi pi-filter-slash text-xs"></i> <span>Réinitialiser</span>
                             </button>
                         </div>
+                    <!-- Boutons d'exportation dans le card de filtre -->
+                        <div class="shrink-0 sm:self-end flex items-center gap-2 pb-0.5 sm:ml-auto">
+                            <Button label="Exporter" icon="pi pi-file-excel"
+                                size="small" severity="success" outlined
+                                class="text-xs font-semibold"
+                                @click="exportData" />
+                            <Button label="Tout exporter" icon="pi pi-file-excel"
+                                size="small" severity="success"
+                                class="text-xs font-semibold" 
+                                @click="exportAllData" />
+                        </div>
                     </div>
+
+                    
 
                     <!-- Badges des filtres actifs -->
                     <div v-if="selectedGrade || selectedFormation" class="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-100">

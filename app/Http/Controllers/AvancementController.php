@@ -429,7 +429,7 @@ class AvancementController extends Controller
      */
     protected function buildCandidatesList(int $annee): array
     {
-        return $v = \App\Models\Militaire::getCacheVersion();
+        $v = \App\Models\Militaire::getCacheVersion();
         return Cache::remember("v{$v}:avancements:candidates_list_{$annee}", 1800, function () use ($annee) {
             // 1. Récupération des promotions éligibles depuis EligibiliteController
             $eligibiliteController = app(EligibiliteController::class);
