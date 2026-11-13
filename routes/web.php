@@ -12,6 +12,7 @@ use App\Http\Controllers\AvancementController;
 use App\Http\Controllers\CertificatDocumentController;
 use App\Http\Controllers\MilitairesImportController;
 use App\Http\Controllers\ConfigurationController;
+use App\Http\Controllers\CarteController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -41,6 +42,9 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('/dashboard/export-proposables-annee-n1', [DashboardController::class, 'exportProposablesAnneeN1'])->name('dashboard.export-proposables-annee-n1');
     Route::get('/dashboard/export-retraites-annee-n', [DashboardController::class, 'exportRetraitesAnneeN'])->name('dashboard.export-retraites-annee-n');
     Route::get('/dashboard/export-retraites-annee-n1', [DashboardController::class, 'exportRetraitesAnneeN1'])->name('dashboard.export-retraites-annee-n1');
+
+    // Carte opérationnelle & Déploiement
+    Route::get('/carte', [CarteController::class, 'index'])->name('carte.index');
 
     // Alertes
     Route::get('/alertes', [AlerteController::class, 'index'])->name('alertes.index');

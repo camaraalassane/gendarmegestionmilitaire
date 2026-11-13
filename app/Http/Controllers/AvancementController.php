@@ -23,10 +23,6 @@ class AvancementController extends Controller
     {
         // Session : toujours l'année en clôture
         $annee = (int) $request->input('annee', date('Y'));
-        $itemIds = collect($request->input('items', []))->pluck('militaire_id')->filter()->unique()->values();
-        if ($itemIds->isNotEmpty() && \App\Models\Militaire::whereIn('id', $itemIds)->count() !== $itemIds->count()) {
-            return back()->withErrors(['items' => 'Un ou plusieurs militaires sont introuvables.']);
-        }
         $gradeFiltre = $request->input('grade', 'all');
         $tab = $request->input('tab', 'officiers'); // 'officiers' | 'sous_officiers'
         $search = trim((string) $request->input('search', ''));
@@ -197,10 +193,6 @@ class AvancementController extends Controller
     public function export(Request $request): BinaryFileResponse
     {
         $annee = (int) $request->input('annee', date('Y'));
-        $itemIds = collect($request->input('items', []))->pluck('militaire_id')->filter()->unique()->values();
-        if ($itemIds->isNotEmpty() && \App\Models\Militaire::whereIn('id', $itemIds)->count() !== $itemIds->count()) {
-            return back()->withErrors(['items' => 'Un ou plusieurs militaires sont introuvables.']);
-        }
         $gradeFiltre = $request->input('grade', 'all');
         $tab = $request->input('tab', 'all'); // 'officiers', 'sous_officiers', 'all'
 

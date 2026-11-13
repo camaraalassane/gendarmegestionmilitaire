@@ -17,11 +17,16 @@ class Unite extends Model
         'type',
         'compagnie',
         'groupement',
+        'latitude',
+        'longitude',
+        'ville',
         'est_operationnelle',
     ];
 
     protected $casts = [
         'est_operationnelle' => 'boolean',
+        'latitude' => 'float',
+        'longitude' => 'float',
     ];
 
     /**

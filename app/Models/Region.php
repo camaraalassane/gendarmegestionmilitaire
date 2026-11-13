@@ -14,7 +14,15 @@ class Region extends Model
         'code',
         'nom',
         'description',
+        'latitude',
+        'longitude',
+        'chef_lieu',
         'ordre',
+    ];
+
+    protected $casts = [
+        'latitude' => 'float',
+        'longitude' => 'float',
     ];
 
     /**

@@ -106,7 +106,7 @@ class Militaire extends Model
     }
 
     /**
-     * NumǸro de version global du cache pour invalidation atomique en O(1).
+     * Numéro de version global du cache pour invalidation atomique en O(1).
      */
     public static function getCacheVersion(): int
     {
@@ -114,21 +114,21 @@ class Militaire extends Model
     }
 
     /**
-     * IncrǸmente la version de cache et purge les clǸs directes critiques.
+     * Incrémente la version de cache et purge les clés directes critiques.
      */
     public static function incrementCacheVersion(): void
     {
-        \Illuminate\Support\Facades\Cache::increment('militaires:cache_v');
-        // Purge explicite des clǸs directes non versionnǸes pour rǸtrocompatibilitǸ
-        \Illuminate\Support\Facades\Cache::forget('eligibilites:all_computed_data');
-        \Illuminate\Support\Facades\Cache::forget('dashboard:statistiques');
-        \Illuminate\Support\Facades\Cache::forget('dashboard:retraites_both');
-        \Illuminate\Support\Facades\Cache::forget('dashboard:proposables_both');
-        \Illuminate\Support\Facades\Cache::forget('dashboard:statistiques_cards');
-        \Illuminate\Support\Facades\Cache::forget('gendarme:militaires_total');
-        \Illuminate\Support\Facades\Cache::forget('gendarme:militaires_actifs');
+        if (!\Illuminate\Support\Facades\Cache::has('militaires:cache_v')) {
+            \Illuminate\Support\Facades\Cache::forever('militaires:cache_v', 2);
+        } else {
+            \Illuminate\Support\Facades\Cache::increment('militaires:cache_v');
+        }
+
+        // Purge explicite des clés directes non versionnées
         \Illuminate\Support\Facades\Cache::forget('alertes:non_vues_count');
         \Illuminate\Support\Facades\Cache::forget('alertes:non_vues_count_gendarme');
+        \Illuminate\Support\Facades\Cache::forget('grades_edit_cached');
+        \Illuminate\Support\Facades\Cache::forget('certificats_edit_cached');
     }
 
     // =========================================================

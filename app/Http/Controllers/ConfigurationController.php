@@ -65,6 +65,9 @@ class ConfigurationController extends Controller
             'code' => 'required|string|max:50|unique:regions,code',
             'nom' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'latitude' => 'nullable|numeric|between:-90,90',
+            'longitude' => 'nullable|numeric|between:-180,180',
+            'chef_lieu' => 'nullable|string|max:255',
             'ordre' => 'nullable|integer',
         ], [
             'code.unique' => 'Ce code de région existe déjà.',
@@ -76,6 +79,9 @@ class ConfigurationController extends Controller
             'code' => trim($validated['code']),
             'nom' => trim($validated['nom']),
             'description' => $validated['description'] ?? null,
+            'latitude' => $validated['latitude'] ?? null,
+            'longitude' => $validated['longitude'] ?? null,
+            'chef_lieu' => !empty($validated['chef_lieu']) ? trim($validated['chef_lieu']) : null,
             'ordre' => $validated['ordre'] ?? 0,
         ]);
 
@@ -96,6 +102,9 @@ class ConfigurationController extends Controller
             'code' => 'required|string|max:50|unique:regions,code,' . $region->id,
             'nom' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'latitude' => 'nullable|numeric|between:-90,90',
+            'longitude' => 'nullable|numeric|between:-180,180',
+            'chef_lieu' => 'nullable|string|max:255',
             'ordre' => 'nullable|integer',
         ], [
             'code.unique' => 'Ce code de région est déjà utilisé.',
@@ -107,6 +116,9 @@ class ConfigurationController extends Controller
             'code' => trim($validated['code']),
             'nom' => trim($validated['nom']),
             'description' => $validated['description'] ?? null,
+            'latitude' => $validated['latitude'] ?? null,
+            'longitude' => $validated['longitude'] ?? null,
+            'chef_lieu' => !empty($validated['chef_lieu']) ? trim($validated['chef_lieu']) : null,
             'ordre' => $validated['ordre'] ?? 0,
         ]);
 
@@ -132,6 +144,9 @@ class ConfigurationController extends Controller
             'type' => 'nullable|string|max:100',
             'compagnie' => 'nullable|string|max:255',
             'groupement' => 'nullable|string|max:255',
+            'latitude' => 'nullable|numeric|between:-90,90',
+            'longitude' => 'nullable|numeric|between:-180,180',
+            'ville' => 'nullable|string|max:255',
             'est_operationnelle' => 'nullable|boolean',
         ], [
             'region_id.required' => 'Veuillez sélectionner la région de rattachement.',
@@ -146,6 +161,9 @@ class ConfigurationController extends Controller
             'type' => $validated['type'] ?? 'Autre',
             'compagnie' => $validated['compagnie'] ?? null,
             'groupement' => $validated['groupement'] ?? null,
+            'latitude' => $validated['latitude'] ?? null,
+            'longitude' => $validated['longitude'] ?? null,
+            'ville' => !empty($validated['ville']) ? trim($validated['ville']) : null,
             'est_operationnelle' => $validated['est_operationnelle'] ?? true,
         ]);
 
@@ -171,6 +189,9 @@ class ConfigurationController extends Controller
             'type' => 'nullable|string|max:100',
             'compagnie' => 'nullable|string|max:255',
             'groupement' => 'nullable|string|max:255',
+            'latitude' => 'nullable|numeric|between:-90,90',
+            'longitude' => 'nullable|numeric|between:-180,180',
+            'ville' => 'nullable|string|max:255',
             'est_operationnelle' => 'nullable|boolean',
         ], [
             'region_id.required' => 'Veuillez sélectionner la région de rattachement.',
@@ -184,6 +205,9 @@ class ConfigurationController extends Controller
             'type' => $validated['type'] ?? 'Autre',
             'compagnie' => $validated['compagnie'] ?? null,
             'groupement' => $validated['groupement'] ?? null,
+            'latitude' => $validated['latitude'] ?? null,
+            'longitude' => $validated['longitude'] ?? null,
+            'ville' => !empty($validated['ville']) ? trim($validated['ville']) : null,
             'est_operationnelle' => $validated['est_operationnelle'] ?? true,
         ]);
 

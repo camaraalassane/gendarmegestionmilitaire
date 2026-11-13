@@ -142,6 +142,7 @@ const menuItems = computed(() => {
     } else {
         return [
             { name: 'Tableau de bord', href: '/dashboard', icon: 'pi pi-chart-line' },
+            { name: 'Carte opérationnelle', href: '/carte', icon: 'pi pi-map' },
             { name: 'Militaires', href: '/militaires', icon: 'pi pi-users' },
             { name: 'Alertes', href: '/alertes', icon: 'pi pi-bell' },
             { name: 'Éligibilités', href: '/eligibilites', icon: 'pi pi-check-circle' },
