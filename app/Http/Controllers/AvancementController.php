@@ -419,7 +419,7 @@ class AvancementController extends Controller
     /**
      * Construit la liste optimisée des candidats avec mise en cache
      */
-    protected function buildCandidatesList(int $annee): array
+    public function buildCandidatesList(int $annee): array
     {
         $v = \App\Models\Militaire::getCacheVersion();
         return Cache::remember("v{$v}:avancements:candidates_list_{$annee}", 1800, function () use ($annee) {

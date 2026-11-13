@@ -269,6 +269,16 @@ class DashboardController extends Controller
             ];
         });
 
+        // Pré-réchauffer les modules lourds (Éligibilités & Avancement) en arrière-plan sans ralentir le dashboard
+        dispatch(function () {
+            try {
+                app(\App\Http\Controllers\EligibiliteController::class)->getAllComputedData();
+                app(\App\Http\Controllers\AvancementController::class)->buildCandidatesList((int) date('Y'));
+            } catch (\Throwable $e) {
+                // Silencieux pour préserver la fluidité
+            }
+        })->afterResponse();
+
         return Inertia::render('Dashboard', [
             'statistiques' => $statistiques,
             'chartsData' => $chartsData,
