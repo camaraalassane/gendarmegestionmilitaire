@@ -603,12 +603,83 @@
 
                                     <!-- Statut sanitaire -->
                                     <div class="field">
-                                        <label for="status_sanitaire" class="block text-sm font-semibold text-gray-700 mb-1">
-                                            Statut sanitaire / Aptitude
-                                        </label>
-                                        <Select id="status_sanitaire" v-model="form.status_sanitaire" :options="statusSanitaireOptions"
-                                                optionLabel="label" optionValue="value" editable
-                                                placeholder="Sélectionner ou saisir (Ex: Apte, Blessé de guerre...)" class="w-full" showClear />
+                                        <div class="flex items-center justify-between mb-1">
+                                            <label for="status_sanitaire" class="block text-sm font-semibold text-gray-700">
+                                                Statut sanitaire / Aptitude
+                                            </label>
+                                            <button type="button" 
+                                                    @click="toggleAddStatus" 
+                                                    class="inline-flex items-center gap-1 text-[11px] font-bold text-sky-800 hover:text-sky-950 cursor-pointer">
+                                                <i :class="showAddStatus ? 'pi pi-times' : 'pi pi-plus'"></i>
+                                                <span>{{ showAddStatus ? 'Fermer' : 'Nouveau statut' }}</span>
+                                            </button>
+                                        </div>
+
+                                        <!-- Bloc d'ajout rapide d'un nouveau statut si absent de la liste -->
+                                        <div v-if="showAddStatus" class="mb-2 p-2.5 bg-sky-50 rounded-xl border border-sky-200 flex items-center gap-2 animate-fade-in">
+                                            <InputText v-model="newStatusInput" 
+                                                       placeholder="Saisir un statut (Ex: Blessé en service, Apte groupe 2...)" 
+                                                       class="w-full text-xs" 
+                                                       @keydown.enter.prevent="addNewStatus" />
+                                            <Button type="button" 
+                                                    icon="pi pi-check" 
+                                                    size="small" 
+                                                    class="!bg-sky-800 hover:!bg-sky-900 text-white font-semibold text-xs px-3 py-2 rounded-lg shrink-0 cursor-pointer"
+                                                    @click="addNewStatus"
+                                                    title="Ajouter et sélectionner" />
+                                            <Button type="button" 
+                                                    icon="pi pi-times" 
+                                                    severity="secondary" 
+                                                    outlined 
+                                                    size="small" 
+                                                    class="shrink-0 text-xs p-2"
+                                                    @click="toggleAddStatus" />
+                                        </div>
+
+                                        <!-- Select avec recherche intégrée, bouton + et bouton retirer -->
+                                        <div class="flex items-center gap-1.5">
+                                            <Select id="status_sanitaire" 
+                                                    v-model="form.status_sanitaire" 
+                                                    :options="statusSanitaireOptions"
+                                                    optionLabel="label" 
+                                                    optionValue="value" 
+                                                    :filter="true" 
+                                                    filterPlaceholder="Rechercher un statut..."
+                                                    placeholder="Sélectionner ou rechercher un statut" 
+                                                    class="w-full" 
+                                                    showClear>
+                                                <template #option="slotProps">
+                                                    <div class="flex items-center justify-between w-full py-0.5">
+                                                        <span>{{ slotProps.option.label }}</span>
+                                                        <button v-if="slotProps.option.custom" 
+                                                                type="button" 
+                                                                @click.stop="removeStatusOption(slotProps.option.value)"
+                                                                class="text-rose-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition-colors ml-2 cursor-pointer"
+                                                                title="Retirer cette option de la liste">
+                                                            <i class="pi pi-trash text-[11px]"></i>
+                                                        </button>
+                                                    </div>
+                                                </template>
+                                            </Select>
+
+                                            <!-- Bouton + pour afficher la saisie rapide -->
+                                            <button v-if="!showAddStatus" 
+                                                    type="button" 
+                                                    @click="showAddStatus = true" 
+                                                    class="p-2.5 bg-sky-50 text-sky-800 hover:bg-sky-100 border border-sky-300 rounded-lg shrink-0 cursor-pointer transition-colors shadow-2xs"
+                                                    title="Ajouter un nouveau statut non présent dans la liste">
+                                                <i class="pi pi-plus text-xs"></i>
+                                            </button>
+
+                                            <!-- Bouton pour retirer l'option personnalisée actuelle -->
+                                            <button v-if="isCustomStatus(form.status_sanitaire)" 
+                                                    type="button" 
+                                                    @click="removeStatusOption(form.status_sanitaire)" 
+                                                    class="p-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-300 rounded-lg shrink-0 cursor-pointer transition-colors shadow-2xs"
+                                                    title="Retirer ce statut personnalisé de la liste">
+                                                <i class="pi pi-trash text-xs"></i>
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <!-- Engagement OPS -->
@@ -1125,7 +1196,7 @@ const sexeOptions = [
     { label: 'Féminin (F)', value: 'F' }
 ];
 
-const statusSanitaireOptions = [
+const defaultStatusSanitaire = [
     { label: 'Apte', value: 'Apte' },
     { label: 'Blessé de guerre', value: 'Blessé de guerre' },
     { label: 'Inapte temporaire', value: 'Inapte temporaire' },
@@ -1135,6 +1206,77 @@ const statusSanitaireOptions = [
     { label: 'Réformé', value: 'Réformé' },
     { label: 'Exempté de service', value: 'Exempté de service' }
 ];
+
+const loadCustomStatusSanitaire = () => {
+    try {
+        const saved = localStorage.getItem('custom_status_sanitaire');
+        return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+        return [];
+    }
+};
+
+const saveCustomStatusSanitaire = (customList) => {
+    try {
+        localStorage.setItem('custom_status_sanitaire', JSON.stringify(customList));
+    } catch (e) {}
+};
+
+const statusSanitaireOptions = ref([
+    ...defaultStatusSanitaire,
+    ...loadCustomStatusSanitaire().map(s => ({ label: s, value: s, custom: true }))
+]);
+
+const showAddStatus = ref(false);
+const newStatusInput = ref('');
+
+const toggleAddStatus = () => {
+    showAddStatus.value = !showAddStatus.value;
+    newStatusInput.value = '';
+};
+
+const addNewStatus = () => {
+    const trimmed = (newStatusInput.value || '').trim();
+    if (!trimmed) return;
+
+    const existing = statusSanitaireOptions.value.find(o => o.value.toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+        form.status_sanitaire = existing.value;
+    } else {
+        const newOpt = { label: trimmed, value: trimmed, custom: true };
+        statusSanitaireOptions.value.push(newOpt);
+        form.status_sanitaire = trimmed;
+
+        const customItems = statusSanitaireOptions.value.filter(o => o.custom).map(o => o.value);
+        saveCustomStatusSanitaire(customItems);
+    }
+
+    newStatusInput.value = '';
+    showAddStatus.value = false;
+};
+
+const removeStatusOption = (valToRemove) => {
+    if (!valToRemove) return;
+    statusSanitaireOptions.value = statusSanitaireOptions.value.filter(o => o.value !== valToRemove);
+    if (form.status_sanitaire === valToRemove) {
+        form.status_sanitaire = '';
+    }
+    const customItems = statusSanitaireOptions.value.filter(o => o.custom).map(o => o.value);
+    saveCustomStatusSanitaire(customItems);
+};
+
+const isCustomStatus = (val) => {
+    if (!val) return false;
+    const opt = statusSanitaireOptions.value.find(o => o.value === val);
+    return opt ? !!opt.custom : false;
+};
+
+if (props.militaire && props.militaire.status_sanitaire) {
+    const existingVal = props.militaire.status_sanitaire;
+    if (!statusSanitaireOptions.value.some(o => o.value === existingVal)) {
+        statusSanitaireOptions.value.push({ label: existingVal, value: existingVal, custom: true });
+    }
+}
 
 const groupeSanguinOptions = [
     { label: 'A+', value: 'A+' },
