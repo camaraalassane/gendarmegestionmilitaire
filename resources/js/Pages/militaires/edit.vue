@@ -1252,13 +1252,6 @@ const removeStatusOption = (valToRemove) => {
 if (props.militaire && props.militaire.status_sanitaire) {
     const existingVal = props.militaire.status_sanitaire;
     if (!statusSanitaireOptions.value.some(o => o.value === existingVal)) {
-        statusSanitaireOptions.value.push({ label: existingVal, value: existingVal });
-    }
-}
-
-if (props.militaire && props.militaire.status_sanitaire) {
-    const existingVal = props.militaire.status_sanitaire;
-    if (!statusSanitaireOptions.value.some(o => o.value === existingVal)) {
         statusSanitaireOptions.value.push({ label: existingVal, value: existingVal, custom: true });
     }
 }
