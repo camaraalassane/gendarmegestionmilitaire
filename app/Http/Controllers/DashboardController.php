@@ -161,7 +161,7 @@ class DashboardController extends Controller
 
         // 3. STATISTIQUES PAR RÉGION (Toutes les Régions & Commandements réels)
         $allConfiguredRegions = Region::orderByRaw('CASE WHEN ordre IS NULL OR ordre = 0 THEN 999 ELSE ordre END ASC')
-            ->orderBy('nom ASC')
+            ->orderBy('nom', 'asc')
             ->get();
 
         $militairesParRegion = Militaire::where('statut', 'actif')
