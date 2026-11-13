@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Militaire;
 use App\Models\Alerte;
 use App\Models\Grade;
+use App\Models\Region;
+use App\Models\Position;
+use App\Models\Unite;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
@@ -22,67 +25,253 @@ class DashboardController extends Controller
      */
     public function index()
     {
-        $alertesNonVues = Alerte::where('est_vue', false)
-            ->with(['militaire' => fn($q) => $q->select('id', 'nom', 'prenom', 'matricule')])
-            ->orderBy('date_echeance')
-            ->take(20)
-            ->get()
-            ->map(fn($alerte) => [
-                'id' => $alerte->id,
-                'message' => $alerte->message,
-                'type_alerte' => $alerte->type_alerte,
-                'date_echeance' => $alerte->date_echeance,
-                'est_vue' => $alerte->est_vue,
-                'militaire' => $alerte->militaire ? [
-                    'id' => $alerte->militaire->id,
-                    'nom' => $alerte->militaire->nom,
-                    'prenom' => $alerte->militaire->prenom,
-                    'matricule' => $alerte->militaire->matricule,
-                ] : null,
-            ]);
+        $aujourdhui = Carbon::now();
+        $anneeCourante = (int) $aujourdhui->year;
 
-        $statistiques = Cache::remember('dashboard:statistiques_cards', 120, function () {
+        $v = \App\Models\Militaire::getCacheVersion();
+
+        $statistiques = Cache::remember("v{$v}:dashboard:statistiques_summary", 600, function () use ($anneeCourante) {
+            $retraitesBoth = $this->getRetraitesBoth();
+            $proposablesBoth = $this->getProposablesBoth();
+            $totalRetraitesN = $retraitesBoth['retraitesN']['total'] ?? 0;
+            $totalProposablesN = $proposablesBoth['proposablesN']['total'] ?? 0;
+            $totalActifs = Militaire::where('statut', 'actif')->count();
+
+            $totalDecedesCetteAnnee = Militaire::where(function ($q) {
+                $q->where('statut', 'LIKE', 'd%c%d%')
+                  ->orWhere('statut', 'LIKE', 'mort%')
+                  ->orWhereNotNull('date_deces');
+            })->where(function ($q) use ($anneeCourante) {
+                $q->whereYear('date_deces', $anneeCourante)
+                  ->orWhere(function ($sub) use ($anneeCourante) {
+                      $sub->whereNull('date_deces')->whereYear('updated_at', $anneeCourante);
+                  });
+            })->count();
+
+            $totalDeserteurs = Militaire::where(function ($q) {
+                $q->where('statut', 'LIKE', 'd%serteur%')
+                  ->orWhere('statut', 'LIKE', 'desert%')
+                  ->orWhere('motif_radiation', 'LIKE', '%desert%');
+            })->count();
+
             return [
-                'total_militaires' => Militaire::count(),
-                'militaires_actifs' => Militaire::where('statut', 'LIKE', 'actif%')->count(),
-                'total_retraites' => Militaire::where('statut', 'LIKE', 'retrait%')->count(),
-                'total_decedes' => Militaire::where(function($q) {
-                    $q->where('statut', 'LIKE', 'd%c%d%')->orWhere('statut', 'LIKE', 'mort%');
-                })->count(),
+                'annee' => $anneeCourante,
+                'total_militaires' => $totalActifs,
+                'militaires_actifs' => $totalActifs,
+                'proposables_n' => $totalProposablesN,
+                'retraites_n' => $totalRetraitesN,
+                'decedes_cette_annee' => $totalDecedesCetteAnnee,
+                'deserteurs' => $totalDeserteurs,
             ];
         });
 
-        // Calcul dynamique en temps réel pour une mise à jour instantanée sans attendre l'expiration du cache
-        $statistiques['alertes_non_vues'] = Alerte::where('est_vue', false)->count();
+        $chartsData = Cache::remember("v{$v}:dashboard:charts_data", 600, function () {
+            // 1. STATISTIQUES PAR STATUT (Situation de tous les personnels)
+        $statutsMeta = [
+            'actif' => ['label' => 'Actif (En service)', 'color' => '#059669', 'bg' => 'bg-emerald-50 text-emerald-800 border-emerald-200'],
+            'détaché' => ['label' => 'Détaché', 'color' => '#0284c7', 'bg' => 'bg-sky-50 text-sky-800 border-sky-200'],
+            'stage' => ['label' => 'En Stage / Formation', 'color' => '#06b6d4', 'bg' => 'bg-cyan-50 text-cyan-800 border-cyan-200'],
+            'mission' => ['label' => 'En mission', 'color' => '#6366f1', 'bg' => 'bg-indigo-50 text-indigo-800 border-indigo-200'],
+            'procédure en cours' => ['label' => 'Procédure en cours', 'color' => '#d97706', 'bg' => 'bg-amber-50 text-amber-800 border-amber-200'],
+            'déserteur' => ['label' => 'Déserteur', 'color' => '#ea580c', 'bg' => 'bg-orange-50 text-orange-800 border-orange-200'],
+            'retraité' => ['label' => 'Retraité', 'color' => '#9333ea', 'bg' => 'bg-purple-50 text-purple-800 border-purple-200'],
+            'radié' => ['label' => 'Radié', 'color' => '#64748b', 'bg' => 'bg-slate-50 text-slate-800 border-slate-200'],
+            'décédé' => ['label' => 'Décédé', 'color' => '#e11d48', 'bg' => 'bg-rose-50 text-rose-800 border-rose-200'],
+        ];
 
-        $grades = Cache::remember('dashboard:grades_distribution', 3600, function () {
-            return Grade::withCount(['militaires' => fn($q) => $q->where('statut', 'actif')])
-                ->get(['id', 'nom_grade', 'type_grade'])
-                ->map(fn($g) => [
-                    'id' => $g->id,
-                    'nom_grade' => $g->nom_grade,
-                    'type_grade' => $g->type_grade,
-                    'militaires_count' => $g->militaires_count,
-                ]);
+        $statutRaw = Militaire::selectRaw('statut, count(*) as count')
+            ->groupBy('statut')
+            ->pluck('count', 'statut')
+            ->toArray();
+
+        $statutsDistribution = [];
+        foreach ($statutsMeta as $code => $meta) {
+            $cnt = 0;
+            foreach ($statutRaw as $dbStatut => $val) {
+                if (mb_strtolower(trim($dbStatut)) === mb_strtolower($code) ||
+                    str_starts_with(mb_strtolower(trim($dbStatut)), mb_substr(mb_strtolower($code), 0, 5))) {
+                    $cnt += (int) $val;
+                }
+            }
+            $statutsDistribution[] = [
+                'code' => $code,
+                'label' => $meta['label'],
+                'value' => $cnt,
+                'color' => $meta['color'],
+                'bg' => $meta['bg'],
+            ];
+        }
+
+        // 2. STATISTIQUES PAR POSITION (Où se trouvent les personnels ACTIFS sur le terrain)
+        $allConfiguredPositions = Position::orderBy('nom')->pluck('nom')->toArray();
+        $dbPositions = Militaire::where('statut', 'actif')
+            ->whereNotNull('position_actuelle')
+            ->where('position_actuelle', '!=', '')
+            ->selectRaw('position_actuelle, count(*) as count')
+            ->groupBy('position_actuelle')
+            ->pluck('count', 'position_actuelle')
+            ->toArray();
+
+        $positionsDistribution = [];
+        $handledPositions = [];
+
+        foreach ($allConfiguredPositions as $posNom) {
+            $val = 0;
+            foreach ($dbPositions as $dbPos => $c) {
+                if (strcasecmp(trim($dbPos), trim($posNom)) === 0) {
+                    $val += (int) $c;
+                }
+            }
+            $positionsDistribution[] = [
+                'label' => $posNom,
+                'value' => (int) $val,
+            ];
+            $handledPositions[] = mb_strtolower(trim($posNom));
+        }
+
+        foreach ($dbPositions as $posNom => $count) {
+            if (!in_array(mb_strtolower(trim($posNom)), $handledPositions)) {
+                $positionsDistribution[] = [
+                    'label' => $posNom,
+                    'value' => (int) $count,
+                ];
+            }
+        }
+
+        // Ajouter les militaires actifs sans position renseignée
+        $actifsSansPosition = Militaire::where('statut', 'actif')
+            ->where(function ($q) {
+                $q->whereNull('position_actuelle')->orWhere('position_actuelle', '');
+            })->count();
+
+        if ($actifsSansPosition > 0) {
+            $positionsDistribution[] = [
+                'label' => 'Non assigné / En attente',
+                'value' => (int) $actifsSansPosition,
+            ];
+        }
+
+        // Tri : d'abord les positions occupées par ordre décroissant, puis alphabétique
+        usort($positionsDistribution, function($a, $b) {
+            if ($a['value'] !== $b['value']) {
+                return $b['value'] <=> $a['value'];
+            }
+            return strcasecmp($a['label'], $b['label']);
+        });
+
+        // 3. STATISTIQUES PAR RÉGION (Toutes les Régions & Commandements réels)
+        $allConfiguredRegions = Region::orderByRaw('CASE WHEN ordre IS NULL OR ordre = 0 THEN 999 ELSE ordre END ASC')
+            ->orderBy('nom ASC')
+            ->get();
+
+        $militairesParRegion = Militaire::where('statut', 'actif')
+            ->whereNotNull('region')
+            ->where('region', '!=', '')
+            ->selectRaw('region, count(*) as count')
+            ->groupBy('region')
+            ->pluck('count', 'region')
+            ->toArray();
+
+        $regionsDistribution = [];
+        $matchedKeys = [];
+
+        foreach ($allConfiguredRegions as $reg) {
+            $regNom = $reg->nom;
+            $regCode = $reg->code;
+
+            $total = 0;
+            foreach ($militairesParRegion as $dbReg => $c) {
+                if (strcasecmp(trim($dbReg), trim($regNom)) === 0 || strcasecmp(trim($dbReg), trim($regCode)) === 0) {
+                    $total += (int) $c;
+                    $matchedKeys[] = mb_strtolower(trim($dbReg));
+                }
+            }
+
+            $regionsDistribution[] = [
+                'code' => $regCode,
+                'label' => $regNom,
+                'value' => $total,
+            ];
+        }
+
+        // Ajouter les régions libres présentes en base (ex: "BAMAKO")
+        foreach ($militairesParRegion as $dbReg => $c) {
+            if (!in_array(mb_strtolower(trim($dbReg)), $matchedKeys)) {
+                $regionsDistribution[] = [
+                    'code' => $dbReg,
+                    'label' => $dbReg,
+                    'value' => (int) $c,
+                ];
+            }
+        }
+
+        // Ajouter les militaires actifs sans région renseignée
+        $actifsSansRegion = Militaire::where('statut', 'actif')
+            ->where(function ($q) {
+                $q->whereNull('region')->orWhere('region', '');
+            })->count();
+
+        if ($actifsSansRegion > 0) {
+            $regionsDistribution[] = [
+                'code' => 'N/A',
+                'label' => 'Non assigné / Sans région',
+                'value' => (int) $actifsSansRegion,
+            ];
+        }
+
+        // 4. STATISTIQUES PAR CATÉGORIE STATUTAIRE
+        $categoriesList = [
+            'Officier Général',
+            'Officier Supérieur',
+            'Officier Subalterne',
+            'Sous-officier Supérieur',
+            'Sous-officier Subalterne',
+            'Militaire du Rang',
+        ];
+
+        $dbCategories = Militaire::where('statut', 'actif')
+            ->whereNotNull('categorie')
+            ->where('categorie', '!=', '')
+            ->selectRaw('categorie, count(*) as count')
+            ->groupBy('categorie')
+            ->pluck('count', 'categorie')
+            ->toArray();
+
+        $categoriesDistribution = [];
+        foreach ($categoriesList as $cat) {
+            $cnt = 0;
+            foreach ($dbCategories as $dbCat => $val) {
+                if (strcasecmp(trim($dbCat), trim($cat)) === 0) {
+                    $cnt += (int) $val;
+                }
+            }
+            $categoriesDistribution[] = [
+                'label' => $cat,
+                'value' => $cnt,
+            ];
+        }
+
+        // 5. STATISTIQUES PAR GRADE (Militaires actifs)
+        $gradesDistribution = Grade::withCount(['militaires' => fn($q) => $q->where('statut', 'actif')])
+            ->get()
+            ->filter(fn($g) => $g->militaires_count > 0)
+            ->sortByDesc('militaires_count')
+            ->values()
+            ->map(fn($g) => ['label' => $g->nom_grade, 'value' => (int) $g->militaires_count])
+            ->toArray();
+
+            return [
+                'statuts' => $statutsDistribution,
+                'positions' => $positionsDistribution,
+                'regions' => $regionsDistribution,
+                'categories' => $categoriesDistribution,
+                'grades' => $gradesDistribution,
+            ];
         });
 
         return Inertia::render('Dashboard', [
-            'alertesNonVues' => $alertesNonVues,
             'statistiques' => $statistiques,
-            'grades' => $grades,
-            'statsAvancement' => Inertia::defer(function () {
-                return Cache::remember('dashboard:statistiques', 3600, function () {
-                    $retraites = $this->getRetraitesBoth();
-                    $proposables = $this->getProposablesBoth();
-
-                    return [
-                        'total_retraites_n' => $retraites['retraitesN']['total'] ?? 0,
-                        'total_retraites_n1' => $retraites['retraitesN1']['total'] ?? 0,
-                        'total_proposables_n' => $proposables['proposablesN']['total'] ?? 0,
-                        'total_proposables_n1' => $proposables['proposablesN1']['total'] ?? 0,
-                    ];
-                });
-            }),
+            'chartsData' => $chartsData,
         ]);
     }
 
@@ -101,7 +290,8 @@ class DashboardController extends Controller
      */
     public function getCachedSection(string $section): array
     {
-        return Cache::remember("dashboard:section:{$section}", 3600, function () use ($section) {
+        $v = \App\Models\Militaire::getCacheVersion();
+        return Cache::remember("v{$v}:dashboard:section:{$section}", 1800, function () use ($section) {
             return $this->buildSectionData($section);
         });
     }
@@ -111,7 +301,8 @@ class DashboardController extends Controller
      */
     public function getRetraitesBoth(): array
     {
-        return Cache::remember('dashboard:retraites_both', 3600, function () {
+        $v = \App\Models\Militaire::getCacheVersion();
+        return Cache::remember("v{$v}:dashboard:retraites_both", 1800, function () {
             $aujourdhui = Carbon::now();
             $anneeCourante = (int) $aujourdhui->year;
             $anneeN1 = $anneeCourante + 1;
@@ -215,7 +406,8 @@ class DashboardController extends Controller
      */
     public function getProposablesBoth(): array
     {
-        return Cache::remember('dashboard:proposables_both', 3600, function () {
+        $v = \App\Models\Militaire::getCacheVersion();
+        return Cache::remember("v{$v}:dashboard:proposables_both", 1800, function () {
             $aujourdhui = Carbon::now();
             $anneeCourante = (int) $aujourdhui->year;
             $anneeN1 = $anneeCourante + 1;

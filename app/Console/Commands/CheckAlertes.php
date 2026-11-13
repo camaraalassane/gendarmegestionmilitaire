@@ -17,7 +17,7 @@ class CheckAlertes extends Command
     {
         \Log::info('Début de la commande alertes:check');
 
-        $militaires = Militaire::where('statut', 'actif')->get();
+        $militaires = Militaire::with('certificats')->where('statut', 'actif')->get();
         \Log::info('Nombre de militaires actifs : ' . $militaires->count());
         $totalPromo = 0;
         $totalForm = 0;
@@ -64,6 +64,7 @@ class CheckAlertes extends Command
             ->where('created_at', '<', Carbon::now()->subMonths(3))
             ->delete();
             
+        \App\Models\Militaire::incrementCacheVersion();
         $this->info("Anciennes alertes supprimées.");
     }
 

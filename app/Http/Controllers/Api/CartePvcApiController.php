@@ -12,6 +12,19 @@ use Illuminate\Support\Facades\Schema;
 
 class CartePvcApiController extends Controller
 {
+    protected static ?bool $hasMleGrm = null;
+    protected static ?bool $hasNumeroInfo = null;
+
+    protected function hasMleGrmColumn(): bool
+    {
+        return static::$hasMleGrm ??= Schema::hasColumn('militaires', 'mle_grm');
+    }
+
+    protected function hasNumeroInfoColumn(): bool
+    {
+        return static::$hasNumeroInfo ??= Schema::hasColumn('militaires', 'numero_info');
+    }
+
     /**
      * Test de connectivité (Ping) pour valider la communication avec Angular.
      */
@@ -41,10 +54,10 @@ class CartePvcApiController extends Controller
                   ->orWhere('prenom', 'LIKE', "%{$search}%")
                   ->orWhere('numero_nina', 'LIKE', "%{$search}%");
 
-                if (Schema::hasColumn('militaires', 'mle_grm')) {
+                if ($this->hasMleGrmColumn()) {
                     $q->orWhere('mle_grm', 'LIKE', "%{$search}%");
                 }
-                if (Schema::hasColumn('militaires', 'numero_info')) {
+                if ($this->hasNumeroInfoColumn()) {
                     $q->orWhere('numero_info', 'LIKE', "%{$search}%");
                 }
             });
@@ -175,8 +188,9 @@ class CartePvcApiController extends Controller
             $query->whereIn('matricule', $matricules);
         }
 
-        $militaires = $query->get();
         $withBase64 = $request->boolean('with_base64', false);
+        $queryLimit = $withBase64 ? 50 : 200;
+        $militaires = $query->take($queryLimit)->get();
 
         $cartes = $militaires->map(function ($m) use ($withBase64) {
             return $this->formatCarteMilitaire($m, $withBase64);
@@ -289,7 +303,7 @@ class CartePvcApiController extends Controller
         }
 
         // Détection institution (FAMa vs Gendarmerie)
-        $isGendarmerie = Schema::hasColumn('militaires', 'mle_grm') && !empty($m->mle_grm);
+        $isGendarmerie = $this->hasMleGrmColumn() && !empty($m->mle_grm);
 
         $institution = $isGendarmerie ? [
             'republique' => 'RÉPUBLIQUE DU MALI',

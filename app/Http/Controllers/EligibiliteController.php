@@ -102,7 +102,8 @@ class EligibiliteController extends Controller
      */
     public function getAllComputedData(): array
     {
-        return Cache::remember('eligibilites:all_computed_data', 300, function () {
+        $v = \App\Models\Militaire::getCacheVersion();
+        return Cache::remember("v{$v}:eligibilites:all_computed_data", 1800, function () {
             return $this->computeAll();
         });
     }

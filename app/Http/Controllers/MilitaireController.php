@@ -66,32 +66,48 @@ class MilitaireController extends Controller
         }
 
         $anneeN = Carbon::now()->year;
-        $anneeN1 = $anneeN + 1;
-        $idsN = $this->getIdsRetraitePourAnnee($anneeN);
-        $idsN1 = $this->getIdsRetraitePourAnnee($anneeN1);
-
         $statutFilter = $request->input('statut', 'actif');
 
         if ($statutFilter === 'all') {
             // Afficher tous les militaires (sans restriction de statut)
         } elseif ($statutFilter === 'retraites_n') {
-            $query->whereIn('militaires.id', $idsN);
+            $query->whereIn('militaires.id', $this->getIdsRetraitePourAnnee($anneeN));
         } elseif ($statutFilter === 'retraites_n1') {
-            $query->whereIn('militaires.id', $idsN1);
+            $query->whereIn('militaires.id', $this->getIdsRetraitePourAnnee($anneeN + 1));
+        } elseif ($statutFilter === 'decedes_annee_n') {
+            $query->where(function($q) use ($anneeN) {
+                $q->where('militaires.statut', 'LIKE', 'd%c%d%')
+                  ->orWhere('militaires.statut', 'LIKE', 'mort%')
+                  ->orWhereNotNull('militaires.date_deces');
+            })->where(function($q) use ($anneeN) {
+                $q->whereYear('militaires.date_deces', $anneeN)
+                  ->orWhere(function($sub) use ($anneeN) {
+                      $sub->whereNull('militaires.date_deces')->whereYear('militaires.updated_at', $anneeN);
+                  });
+            });
+        } elseif (str_starts_with(mb_strtolower($statutFilter), 'deser')) {
+            $query->where(function($q) {
+                $q->where('militaires.statut', 'LIKE', 'd%serteur%')
+                  ->orWhere('militaires.statut', 'LIKE', 'desert%')
+                  ->orWhere('militaires.motif_radiation', 'LIKE', '%desert%');
+            });
         } elseif (str_starts_with(mb_strtolower($statutFilter), 'retrait')) {
             $query->where('militaires.statut', 'LIKE', 'retrait%');
-        } elseif (str_starts_with(mb_strtolower($statutFilter), 'd')) {
+        } elseif (str_starts_with(mb_strtolower($statutFilter), 'dec') || str_starts_with(mb_strtolower($statutFilter), 'déc')) {
             $query->where('militaires.statut', 'LIKE', 'd%c%d%');
         } elseif (!empty($statutFilter)) {
             $query->where('militaires.statut', $statutFilter);
         }
 
-        $statistiques = [
-            'total'        => Cache::remember('gendarme:militaires_total', 120, fn() => Militaire::count()),
-            'actifs'       => Cache::remember('gendarme:militaires_actifs', 120, fn() => Militaire::where('statut', 'LIKE', 'actif%')->count()),
-            'retraites_n'  => count($idsN),
-            'retraites_n1' => count($idsN1),
-        ];
+        $v = Militaire::getCacheVersion();
+        $statistiques = Cache::remember("v{$v}:militaires:stats_summary", 600, function () use ($anneeN) {
+            return [
+                'total'        => Militaire::count(),
+                'actifs'       => Militaire::where('statut', 'LIKE', 'actif%')->count(),
+                'retraites_n'  => count($this->getIdsRetraitePourAnnee($anneeN)),
+                'retraites_n1' => count($this->getIdsRetraitePourAnnee($anneeN + 1)),
+            ];
+        });
 
         $query->orderByRaw('COALESCE(grades.ordre, -1) DESC')
               ->orderBy('militaires.nom')
@@ -156,21 +172,25 @@ class MilitaireController extends Controller
 
     public function create()
     {
-        $grades = Grade::orderBy('ordre')->get()->map(fn ($grade) => [
-            'id' => $grade->id,
-            'nom_grade' => $grade->nom_grade,
-            'code_grade' => $grade->code_grade,
-            'ordre' => $grade->ordre,
-            'type_grade' => $grade->type_grade,
-            'retraite_obligatoire' => $grade->retraite_obligatoire,
-            'categorie_statutaire' => $grade->categorie_statutaire,
-        ]);
+        $grades = Cache::remember('grades_edit_cached', 3600, function () {
+            return Grade::orderBy('ordre')->get()->map(fn ($grade) => [
+                'id' => $grade->id,
+                'nom_grade' => $grade->nom_grade,
+                'code_grade' => $grade->code_grade,
+                'ordre' => $grade->ordre,
+                'type_grade' => $grade->type_grade,
+                'retraite_obligatoire' => $grade->retraite_obligatoire,
+                'categorie_statutaire' => $grade->categorie_statutaire,
+            ]);
+        });
 
-        $certificats = Certificat::orderBy('id')->get()->map(fn ($certificat) => [
-            'id' => $certificat->id,
-            'nom_certificat' => $certificat->nom_certificat,
-            'niveau_certificat' => $certificat->niveau_certificat,
-        ]);
+        $certificats = Cache::remember('certificats_edit_cached', 3600, function () {
+            return Certificat::orderBy('id')->get()->map(fn ($certificat) => [
+                'id' => $certificat->id,
+                'nom_certificat' => $certificat->nom_certificat,
+                'niveau_certificat' => $certificat->niveau_certificat,
+            ]);
+        });
 
         $regions = Region::orderBy('ordre')->orderBy('nom')->get();
         $unites = Unite::with('region')->orderBy('nom')->get();
@@ -258,7 +278,6 @@ class MilitaireController extends Controller
         $militaire->load('certificats', 'affectations');
 
         $this->verifierAlertes($militaire);
-        $this->verifierAlerteContrat($militaire);
 
         $message = ($militaire->statut === 'retraité' && $request->input('statut') === 'actif')
             ? 'Militaire ajouté avec le statut "Retraité" (limite d\'âge atteinte/dépassée).'
@@ -400,21 +419,27 @@ class MilitaireController extends Controller
 
     public function edit(Militaire $militaire)
     {
-        $grades = Grade::orderBy('ordre')->get()->map(fn ($grade) => [
-            'id' => $grade->id,
-            'nom_grade' => $grade->nom_grade,
-            'code_grade' => $grade->code_grade,
-            'ordre' => $grade->ordre,
-            'type_grade' => $grade->type_grade,
-            'retraite_obligatoire' => $grade->retraite_obligatoire,
-            'categorie_statutaire' => $grade->categorie_statutaire,
-        ]);
+        $militaire->load(['certificats', 'affectations']);
 
-        $certificats = Certificat::orderBy('id')->get()->map(fn ($certificat) => [
-            'id' => $certificat->id,
-            'nom_certificat' => $certificat->nom_certificat,
-            'niveau_certificat' => $certificat->niveau_certificat,
-        ]);
+        $grades = Cache::remember('grades_edit_cached', 3600, function () {
+            return Grade::orderBy('ordre')->get()->map(fn ($grade) => [
+                'id' => $grade->id,
+                'nom_grade' => $grade->nom_grade,
+                'code_grade' => $grade->code_grade,
+                'ordre' => $grade->ordre,
+                'type_grade' => $grade->type_grade,
+                'retraite_obligatoire' => $grade->retraite_obligatoire,
+                'categorie_statutaire' => $grade->categorie_statutaire,
+            ]);
+        });
+
+        $certificats = Cache::remember('certificats_edit_cached', 3600, function () {
+            return Certificat::orderBy('id')->get()->map(fn ($certificat) => [
+                'id' => $certificat->id,
+                'nom_certificat' => $certificat->nom_certificat,
+                'niveau_certificat' => $certificat->niveau_certificat,
+            ]);
+        });
 
         $certificatsDuMilitaire = [];
         $pivotIds = $militaire->certificats->pluck('pivot.id')->filter()->all();
@@ -436,8 +461,6 @@ class MilitaireController extends Controller
                 ] : null,
             ];
         }
-
-        $militaire->load(['certificats', 'affectations']);
 
         $affectationsList = $militaire->affectations->map(fn ($aff) => [
             'unite' => $aff->unite ?? '',
@@ -616,38 +639,7 @@ class MilitaireController extends Controller
             ->with('success', 'Militaire supprimé avec succès.');
     }
 
-    public function importForm()
-    {
-        return Inertia::render('militaires/import');
-    }
 
-    public function import(Request $request)
-    {
-        $request->validate([
-            'fichier' => 'required|mimes:xlsx,xls,csv|max:2048',
-            'duplicate_action' => 'nullable|in:ignore,update'
-        ]);
-
-        try {
-            $duplicateAction = $request->input('duplicate_action', 'ignore');
-            $import = new MilitairesImport($duplicateAction);
-            Excel::import($import, $request->file('fichier'));
-
-            Artisan::call('alertes:check');
-            $output = Artisan::output();
-            Log::info('Résultat de alertes:check', ['output' => $output]);
-
-            $message = "Importation réussie. {$import->getImportedCount()} ligne(s) importée(s).";
-            if (method_exists($import, 'getSkippedCount') && $import->getSkippedCount() > 0) {
-                $message .= " {$import->getSkippedCount()} ligne(s) ignorée(s).";
-            }
-
-            return redirect()->route('militaires.index')->with('success', $message);
-
-        } catch (\Exception $e) {
-            return redirect()->route('militaires.import')->with('error', 'Erreur : ' . $e->getMessage());
-        }
-    }
 
     public function exportTemplate()
     {
@@ -961,42 +953,6 @@ class MilitaireController extends Controller
     /**
      * Nettoie les documents orphelins
      */
-    private function cleanupOrphanDocuments(Militaire $militaire)
-    {
-        try {
-            $allPivotIds = \DB::table('militaire_certificat')
-                ->where('militaire_id', $militaire->id)
-                ->pluck('id')
-                ->toArray();
-
-            $activePivotIds = $militaire->certificats()
-                ->get()
-                ->pluck('pivot.id')
-                ->toArray();
-
-            $orphanPivotIds = array_diff($allPivotIds, $activePivotIds);
-
-            if (empty($orphanPivotIds)) {
-                return;
-            }
-
-            $documents = CertificatDocument::whereIn('militaire_certificat_id', $orphanPivotIds)->get();
-
-            foreach ($documents as $document) {
-                if (Storage::disk('public')->exists($document->chemin_fichier)) {
-                    Storage::disk('public')->delete($document->chemin_fichier);
-                }
-                $document->delete();
-            }
-
-        } catch (\Exception $e) {
-            \Log::error('Erreur lors du nettoyage des documents orphelins : ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Vérifier toutes les alertes pour un militaire
-     */
     public function verifierAlertes(Militaire $militaire)
     {
         $this->verifierPromotions($militaire);
@@ -1181,6 +1137,9 @@ class MilitaireController extends Controller
         $ancienneteGrade = $militaire->ancienneteGrade;
         $conditionsBase = !$militaire->antecedent_judiciaire && !$militaire->antecedent_disciplinaire;
         $certificatsObtenus = $militaire->certificats->pluck('niveau_certificat')->toArray();
+
+        // Suppression en lot de toutes les anciennes alertes de promotion en 1 seule requete indexee
+        Alerte::where('militaire_id', $militaire->id)->where('type_alerte', 'promotion')->delete();
         $dateProposition = $this->getDateProposition();
 
         // Supprimer les alertes de promotion si le grade est déjà atteint
@@ -1336,6 +1295,9 @@ class MilitaireController extends Controller
     $certificatsObtenus = $militaire->certificats->pluck('niveau_certificat')->toArray();
     $conditionsBase = !$militaire->antecedent_judiciaire && !$militaire->antecedent_disciplinaire;
     $dateProposition = $this->getDateProposition();
+
+        // Suppression en lot de toutes les anciennes alertes de formation en 1 seule requete indexee
+        Alerte::where('militaire_id', $militaire->id)->where('type_alerte', 'formation')->delete();
 
     // 1. APLI
     Alerte::where('militaire_id', $militaire->id)
@@ -1521,7 +1483,8 @@ class MilitaireController extends Controller
      */
     private function getIdsRetraitePourAnnee(int $anneeCible): array
     {
-        return Cache::remember("gendarme:ids_retraite_{$anneeCible}", 3600, function () use ($anneeCible) {
+        $v = Militaire::getCacheVersion();
+        return Cache::remember("v{$v}:militaires:ids_retraite_{$anneeCible}", 1800, function () use ($anneeCible) {
             $militaires = Militaire::whereNotNull('date_naissance')
                 ->whereNotNull('grade_actuel')
                 ->select('id', 'date_naissance', 'grade_actuel', 'statut')

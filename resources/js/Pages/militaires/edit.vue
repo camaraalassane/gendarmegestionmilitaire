@@ -223,16 +223,24 @@
                                             </small>
                                         </div>
 
-                                        <!-- Statut administratif -->
-                                        <div class="field sm:col-span-2 lg:col-span-3">
-                                            <label for="statut" class="block text-sm font-bold text-gray-700 mb-1">
-                                                Statut Administratif <span class="text-red-500">*</span>
-                                            </label>
+                                                                                <!-- Statut administratif - Mis en valeur bien visible -->
+                                        <div class="field sm:col-span-2 lg:col-span-3 bg-gradient-to-r from-sky-50 via-slate-50 to-blue-50/60 p-4 rounded-xl border-2 border-sky-200 shadow-2xs">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <label for="statut" class="block text-sm font-bold text-sky-950 flex items-center gap-2">
+                                                    <i class="pi pi-id-card text-sky-700 text-base"></i>
+                                                    Statut Administratif (Situation de l'agent) <span class="text-red-500">*</span>
+                                                </label>
+                                                <span v-if="form.statut" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider"
+                                                      :class="form.statut === 'actif' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-800 border border-amber-300'">
+                                                    <span class="w-2 h-2 rounded-full" :class="form.statut === 'actif' ? 'bg-emerald-500' : 'bg-amber-500'"></span>
+                                                    {{ form.statut }}
+                                                </span>
+                                            </div>
                                             <Select v-model="form.statut" :options="statutOptions" optionLabel="label" optionValue="value"
-                                                    placeholder="Sélectionner un statut" class="w-full max-w-md"
-                                                    :class="{ 'p-invalid': errors.statut || stepErrors[0].statut }" />
-                                            <small v-if="errors.statut || stepErrors[0].statut" class="text-red-500 font-medium">
-                                                {{ errors.statut || stepErrors[0].statut }}
+                                                    placeholder="Sélectionner la situation administrative (Actif, Détaché, En stage...)" class="w-full"
+                                                    :class="{ 'p-invalid': errors.statut || (stepErrors && stepErrors[0] && stepErrors[0].statut) }" />
+                                            <small v-if="errors.statut || (stepErrors && stepErrors[0] && stepErrors[0].statut)" class="text-red-500 font-medium block mt-1">
+                                                {{ errors.statut || (stepErrors && stepErrors[0] && stepErrors[0].statut) }}
                                             </small>
 
                                             <div v-if="isRetraiteDepassee" class="mt-2.5 p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 flex items-center gap-2">
@@ -528,17 +536,17 @@
                                         <InputText id="specialite" v-model="form.specialite" class="w-full" placeholder="Ex: Motocycliste, OPJ, Télécom..." />
                                     </div>
 
-                                    <!-- Position actuelle -->
+                                    <!-- Position actuelle (Endroit où il se trouve) -->
                                     <div class="field sm:col-span-2 lg:col-span-3">
                                         <div class="flex items-center justify-between mb-1">
                                             <label for="position_actuelle" class="block text-sm font-semibold text-gray-700">
-                                                Position administrative / Théâtre opérationnel
+                                                Position actuelle (Endroit / Déploiement où il se trouve)
                                             </label>
                                             <button type="button" @click="openQuickAddPosition"
                                                     class="text-sky-700 hover:text-sky-900 text-xs font-semibold flex items-center gap-1 cursor-pointer bg-sky-50 px-2 py-0.5 rounded border border-sky-200 hover:bg-sky-100 transition-colors"
-                                                    title="Ajouter une nouvelle position">
+                                                    title="Ajouter un nouvel endroit de déploiement">
                                                 <i class="pi pi-plus text-[10px]"></i>
-                                                <span>Ajouter une position</span>
+                                                <span>Ajouter un endroit / théâtre</span>
                                             </button>
                                         </div>
                                         <Select id="position_actuelle"
@@ -547,16 +555,13 @@
                                                 optionLabel="nom"
                                                 optionValue="nom"
                                                 filter
-                                                placeholder="Sélectionner ou chercher une position (Ex: En activité, Détachement, Escadron Djiguiya...)"
+                                                placeholder="Sélectionner ou chercher l'endroit / théâtre où il se trouve (Ex: À l'Unité, Escadron Djiguiya, GIGM, Koulouba...)"
                                                 class="w-full">
                                             <template #option="slotProps">
                                                 <div class="flex items-center justify-between w-full py-0.5">
                                                     <span class="text-xs font-medium">{{ slotProps.option.nom }}</span>
-                                                    <span :class="[
-                                                        'text-[10px] px-1.5 py-0.2 rounded font-semibold',
-                                                        slotProps.option.type === 'operationnelle' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-600'
-                                                    ]">
-                                                        {{ slotProps.option.type === 'operationnelle' ? 'Théâtre OPS' : 'Administrative' }}
+                                                    <span class="text-[10px] px-1.5 py-0.2 rounded font-semibold bg-slate-100 text-slate-700">
+                                                        {{ slotProps.option.type === 'operationnelle' ? 'Théâtre / Déploiement' : 'Poste' }}
                                                     </span>
                                                 </div>
                                             </template>
@@ -902,15 +907,15 @@
         </Dialog>
 
         <!-- DIALOG AJOUT RAPIDE POSITION -->
-        <Dialog v-model:visible="quickPositionVisible" header="Ajout Rapide : Nouvelle Position" :modal="true" class="w-full max-w-md">
+        <Dialog v-model:visible="quickPositionVisible" header="Ajout Rapide : Nouvel Endroit / Théâtre de Déploiement" :modal="true" class="w-full max-w-md">
             <div class="space-y-3 pt-2 text-xs">
                 <div>
-                    <label class="block font-semibold text-slate-700 mb-1">Libellé de la Position <span class="text-red-500">*</span></label>
-                    <InputText v-model="quickPositionForm.nom" class="w-full text-xs" placeholder="Ex: Escadron Badala, En mission..." />
+                    <label class="block font-semibold text-slate-700 mb-1">Nom de l'Endroit / Théâtre (Où il se trouve) <span class="text-red-500">*</span></label>
+                    <InputText v-model="quickPositionForm.nom" class="w-full text-xs" placeholder="Ex: Escadron Badala, Base Koulouba, Camp 1..." />
                 </div>
                 <div>
-                    <label class="block font-semibold text-slate-700 mb-1">Type de position</label>
-                    <Select v-model="quickPositionForm.type" :options="[{ label: 'Administrative', value: 'administrative' }, { label: 'Théâtre Opérationnel / OPS', value: 'operationnelle' }]" optionLabel="label" optionValue="value" class="w-full text-xs" />
+                    <label class="block font-semibold text-slate-700 mb-1">Type d'emplacement</label>
+                    <Select v-model="quickPositionForm.type" :options="[{ label: 'Théâtre Opérationnel / Mission', value: 'operationnelle' }, { label: 'Poste / Emplacement Fixe', value: 'poste' }]" optionLabel="label" optionValue="value" class="w-full text-xs" />
                 </div>
             </div>
             <template #footer>
@@ -1093,12 +1098,15 @@ const goToStep = (targetIndex) => {
 // OPTIONS & VALEURS DU FORMULAIRE
 // =========================================================================================
 const statutOptions = [
-    { label: 'Actif', value: 'actif' },
-    { label: 'Retraité', value: 'retraité' },
+    { label: 'Actif (En service régulier)', value: 'actif' },
+    { label: 'Détaché (Mis à disposition)', value: 'détaché' },
+    { label: 'En Stage / Formation', value: 'stage' },
+    { label: 'En mission', value: 'mission' },
+    { label: 'Procédure en cours', value: 'procédure en cours' },
     { label: 'Déserteur', value: 'déserteur' },
-    { label: 'Décédé', value: 'décédé' },
-    { label: 'Formation', value: 'formation' },
-    { label: 'Stage', value: 'stage' }
+    { label: 'Retraité', value: 'retraité' },
+    { label: 'Radié', value: 'radié' },
+    { label: 'Décédé', value: 'décédé' }
 ];
 
 const categorieOptions = [

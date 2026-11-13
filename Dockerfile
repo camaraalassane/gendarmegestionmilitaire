@@ -27,9 +27,11 @@ RUN git config --global --add safe.directory /var/www/html \
 
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 RUN chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+RUN chmod +x /var/www/html/docker/entrypoint.sh
 
 COPY docker/php.ini $PHP_INI_DIR/conf.d/custom.ini
 
 EXPOSE 9000
 
+ENTRYPOINT ["/var/www/html/docker/entrypoint.sh"]
 CMD ["php-fpm"]

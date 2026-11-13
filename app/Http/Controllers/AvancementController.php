@@ -23,6 +23,10 @@ class AvancementController extends Controller
     {
         // Session : toujours l'année en clôture
         $annee = (int) $request->input('annee', date('Y'));
+        $itemIds = collect($request->input('items', []))->pluck('militaire_id')->filter()->unique()->values();
+        if ($itemIds->isNotEmpty() && \App\Models\Militaire::whereIn('id', $itemIds)->count() !== $itemIds->count()) {
+            return back()->withErrors(['items' => 'Un ou plusieurs militaires sont introuvables.']);
+        }
         $gradeFiltre = $request->input('grade', 'all');
         $tab = $request->input('tab', 'officiers'); // 'officiers' | 'sous_officiers'
         $search = trim((string) $request->input('search', ''));
@@ -89,7 +93,7 @@ class AvancementController extends Controller
         $request->validate([
             'annee' => 'required|integer',
             'items' => 'required|array',
-            'items.*.militaire_id' => 'required|exists:militaires,id',
+            'items.*.militaire_id' => 'required|integer',
             'items.*.points_fonction_actuelle' => 'nullable|numeric|min:0|max:100',
             'items.*.note_rendement' => 'nullable|numeric|min:0|max:100',
             'items.*.bonus_dernier_emploi' => 'nullable|numeric|min:0|max:100',
@@ -102,6 +106,10 @@ class AvancementController extends Controller
         ]);
 
         $annee = (int) $request->input('annee', date('Y'));
+        $itemIds = collect($request->input('items', []))->pluck('militaire_id')->filter()->unique()->values();
+        if ($itemIds->isNotEmpty() && \App\Models\Militaire::whereIn('id', $itemIds)->count() !== $itemIds->count()) {
+            return back()->withErrors(['items' => 'Un ou plusieurs militaires sont introuvables.']);
+        }
         $items = $request->input('items', []);
         $now = now();
         $records = [];
@@ -170,6 +178,7 @@ class AvancementController extends Controller
         $this->recalculerRangsEnBase($annee);
 
         // Vider le cache de l'avancement pour prise en compte immédiate
+        \App\Models\Militaire::incrementCacheVersion();
         Cache::forget("avancements:candidates_list_{$annee}");
 
         if ($request->wantsJson()) {
@@ -188,6 +197,10 @@ class AvancementController extends Controller
     public function export(Request $request): BinaryFileResponse
     {
         $annee = (int) $request->input('annee', date('Y'));
+        $itemIds = collect($request->input('items', []))->pluck('militaire_id')->filter()->unique()->values();
+        if ($itemIds->isNotEmpty() && \App\Models\Militaire::whereIn('id', $itemIds)->count() !== $itemIds->count()) {
+            return back()->withErrors(['items' => 'Un ou plusieurs militaires sont introuvables.']);
+        }
         $gradeFiltre = $request->input('grade', 'all');
         $tab = $request->input('tab', 'all'); // 'officiers', 'sous_officiers', 'all'
 
@@ -393,7 +406,8 @@ class AvancementController extends Controller
 
             // Recalcul des rangs et purge du cache
             $this->recalculerRangsEnBase($annee);
-            Cache::forget("avancements:candidates_list_{$annee}");
+            \App\Models\Militaire::incrementCacheVersion();
+        Cache::forget("avancements:candidates_list_{$annee}");
 
             return response()->json([
                 'success' => true,
@@ -415,7 +429,8 @@ class AvancementController extends Controller
      */
     protected function buildCandidatesList(int $annee): array
     {
-        return Cache::remember("avancements:candidates_list_{$annee}", 3600, function () use ($annee) {
+        return $v = \App\Models\Militaire::getCacheVersion();
+        return Cache::remember("v{$v}:avancements:candidates_list_{$annee}", 1800, function () use ($annee) {
             // 1. Récupération des promotions éligibles depuis EligibiliteController
             $eligibiliteController = app(EligibiliteController::class);
             $computedData = $eligibiliteController->getAllComputedData();

@@ -99,7 +99,7 @@
                         ]"
                     >
                         <i class="pi pi-compass"></i>
-                        <span>Positions administratives & OPS ({{ positions.length }})</span>
+                        <span>Positions (Où se trouvent les personnels) ({{ positions.length }})</span>
                     </button>
                 </div>
 
@@ -555,29 +555,30 @@
         <!-- MODAL POSITION -->
         <Dialog
             v-model:visible="positionDialogVisible"
-            :header="positionEditMode ? 'Modifier la Position' : 'Ajouter une Position'"
+            :header="positionEditMode ? 'Modifier la Position / Emplacement' : 'Ajouter une Position / Emplacement (Où il se trouve)'"
             :modal="true"
             class="w-full max-w-md"
         >
             <div class="space-y-4 pt-2">
                 <div>
                     <label class="block text-xs font-semibold text-slate-700 mb-1">
-                        Libellé de la Position <span class="text-red-500">*</span>
+                        Nom de la Position / Emplacement <span class="text-red-500">*</span>
                     </label>
                     <InputText
                         v-model="positionForm.nom"
-                        placeholder="Ex: En activité, Détachement, Escadron Djiguiya..."
+                        placeholder="Ex: Escadron Djiguiya, GIGM, Koulouba, Camp 1..."
                         class="w-full text-xs"
                     />
+                    <small class="text-[10px] text-slate-500">L'endroit, le poste ou le théâtre opérationnel où le personnel se trouve.</small>
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">Type de Position</label>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Type de Déploiement</label>
                     <Select
                         v-model="positionForm.type"
                         :options="[
-                            { label: 'Position Administrative (En service, Détachement, Stage...)', value: 'administrative' },
-                            { label: 'Théâtre Opérationnel / Mission (Escadron Djiguiya, Assahatt...)', value: 'operationnelle' }
+                            { label: 'Théâtre Opérationnel / Mission (Escadron, Force...)', value: 'operationnelle' },
+                            { label: 'Poste / Emplacement Fixe (Base, Présidence, Camp...)', value: 'poste' }
                         ]"
                         optionLabel="label"
                         optionValue="value"
@@ -586,10 +587,10 @@
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">Description / Notes</label>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Description / Précisions</label>
                     <InputText
                         v-model="positionForm.description"
-                        placeholder="Ex: Précision sur l'emploi ou la situation..."
+                        placeholder="Ex: Zone géographique, camp ou base d'affectation..."
                         class="w-full text-xs"
                     />
                 </div>

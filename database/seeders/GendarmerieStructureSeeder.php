@@ -447,19 +447,9 @@ class GendarmerieStructureSeeder extends Seeder
             }
         }
 
-        // 3. Définition des Positions administratives et théâtres opérationnels
+        // 3. Définition des Positions (L'endroit / Théâtre opérationnel / Déploiement physique où se trouve le gendarme)
         $positions = [
-            ['nom' => 'En activité', 'type' => 'administrative', 'description' => 'En service actif au sein de son unité'],
-            ['nom' => 'Détachement', 'type' => 'administrative', 'description' => 'Détaché auprès d\'un ministère, EMGA ou institution'],
-            ['nom' => 'Stage / Formation', 'type' => 'administrative', 'description' => 'En cours de formation ou stage'],
-            ['nom' => 'Procédure en Cours', 'type' => 'administrative', 'description' => 'Dossier administratif ou disciplinaire en cours'],
-            ['nom' => 'En mission', 'type' => 'operationnelle', 'description' => 'Mission temporaire'],
-            ['nom' => 'GIGM', 'type' => 'operationnelle', 'description' => 'Groupe d\'Intervention de la Gendarmerie Nationale'],
-            ['nom' => 'GTA Bamako', 'type' => 'operationnelle', 'description' => 'Groupement des Transports Aériens'],
-            ['nom' => 'Escadron 2/1 de Kayes', 'type' => 'operationnelle', 'description' => 'Positionnement Escadron 2/1'],
-            ['nom' => 'Escadron 7/3 de Tombouctou', 'type' => 'operationnelle', 'description' => 'Positionnement Escadron 7/3'],
-            ['nom' => 'Escadron 7/5 de Tonka', 'type' => 'operationnelle', 'description' => 'Positionnement Escadron 7/5'],
-            ['nom' => 'Escadron 8/1 de Gao', 'type' => 'operationnelle', 'description' => 'Positionnement Escadron 8/1'],
+            ['nom' => 'À l\'Unité / Au Poste', 'type' => 'operationnelle', 'description' => 'Présent au poste ou à l\'unité d\'affectation normale'],
             ['nom' => 'Escadron Djiguiya', 'type' => 'operationnelle', 'description' => 'Théâtre opérationnel Djiguiya'],
             ['nom' => 'Escadron Yereko', 'type' => 'operationnelle', 'description' => 'Théâtre opérationnel Yereko'],
             ['nom' => 'Escadron Kalo', 'type' => 'operationnelle', 'description' => 'Théâtre opérationnel Kalo'],
@@ -468,7 +458,17 @@ class GendarmerieStructureSeeder extends Seeder
             ['nom' => 'Escadron Kilé', 'type' => 'operationnelle', 'description' => 'Théâtre opérationnel Kilé'],
             ['nom' => 'Escadron Assahatt', 'type' => 'operationnelle', 'description' => 'Théâtre opérationnel Assahatt'],
             ['nom' => 'Escadron Fangatigui', 'type' => 'operationnelle', 'description' => 'Théâtre opérationnel Fangatigui'],
-            ['nom' => 'PSIG Bamako', 'type' => 'operationnelle', 'description' => 'Peloton de surveillance et d\'intervention'],
+            ['nom' => 'Escadron 2/1 de Kayes', 'type' => 'operationnelle', 'description' => 'Déploiement Escadron 2/1'],
+            ['nom' => 'Escadron 7/3 de Tombouctou', 'type' => 'operationnelle', 'description' => 'Déploiement Escadron 7/3'],
+            ['nom' => 'Escadron 7/5 de Tonka', 'type' => 'operationnelle', 'description' => 'Déploiement Escadron 7/5'],
+            ['nom' => 'Escadron 8/1 de Gao', 'type' => 'operationnelle', 'description' => 'Déploiement Escadron 8/1'],
+            ['nom' => 'GIGM', 'type' => 'operationnelle', 'description' => 'Base Groupe d\'Intervention'],
+            ['nom' => 'GTA Bamako', 'type' => 'operationnelle', 'description' => 'Base Transports Aériens Sénou'],
+            ['nom' => 'PSIG Bamako', 'type' => 'operationnelle', 'description' => 'Base Peloton d\'intervention'],
+            ['nom' => 'Camp 1 (DGGN Bamako)', 'type' => 'operationnelle', 'description' => 'Siège et bases DGGN'],
+            ['nom' => 'Palais de Koulouba (Présidence)', 'type' => 'operationnelle', 'description' => 'Sécurité présidentielle'],
+            ['nom' => 'Cité Administrative (Primature / Ministères)', 'type' => 'operationnelle', 'description' => 'Détachement ministériel'],
+            ['nom' => 'Poste Frontière', 'type' => 'operationnelle', 'description' => 'Surveillance frontalière'],
         ];
 
         foreach ($positions as $p) {

@@ -194,10 +194,11 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
         // Génération des alertes après l'enregistrement des certificats
         try {
             $controller = new \App\Http\Controllers\MilitaireController();
-            $militairesToVerify = Militaire::whereIn('matricule', $matricules)->get();
+            $militairesToVerify = Militaire::with('certificats')->whereIn('matricule', $matricules)->get();
             foreach ($militairesToVerify as $m) {
                 $controller->verifierAlertes($m);
             }
+            \App\Models\Militaire::incrementCacheVersion();
         } catch (\Throwable $e) {
             Log::error('Erreur lors de la génération des alertes après import: ' . $e->getMessage());
         }
