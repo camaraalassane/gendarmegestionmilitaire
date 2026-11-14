@@ -48,12 +48,12 @@
             </div>
 
             <!-- Répartition de l'effectif en activité + éléments hors effectif sur UNE SEULE LIGNE COMPACTE -->
-            <div class="flex items-center justify-between gap-3 px-3 py-1 rounded-lg border border-slate-200/90 bg-white text-[11px] shadow-2xs flex-none overflow-x-auto whitespace-nowrap custom-scrollbar">
+            <div class="flex items-center justify-between gap-2 px-3 py-1 rounded-lg border border-slate-200/90 bg-white text-[11px] shadow-2xs flex-none whitespace-nowrap overflow-x-auto custom-scrollbar">
                 <!-- En activité -->
-                <div class="flex items-center gap-2.5 flex-none">
+                <div class="flex items-center gap-2 flex-none">
                     <span class="font-bold uppercase tracking-wider text-[10px] text-sky-800 flex items-center gap-1 flex-none">
                         <i class="pi pi-shield text-[10px]"></i>
-                        <span>En activité<span v-if="selRegion" class="text-slate-700"> ({{ selRegion.nom }})</span> :</span>
+                        <span>En activité :</span>
                     </span>
                     <span v-for="h in repartition" :key="h.label" class="inline-flex items-center gap-1 flex-none">
                         <span class="w-1.5 h-1.5 rounded-full flex-none" :style="{ backgroundColor: h.color }"></span>
@@ -66,10 +66,10 @@
                 <div class="h-3.5 w-px bg-slate-200 flex-none mx-1"></div>
 
                 <!-- Hors effectif (comptabilisés strictement à part) -->
-                <div class="flex items-center gap-2.5 flex-none">
+                <div class="flex items-center gap-2 flex-none">
                     <span class="font-bold uppercase tracking-wider text-[10px] text-rose-800 flex items-center gap-1 flex-none">
                         <i class="pi pi-info-circle text-[10px]"></i>
-                        <span>Hors effectif<span v-if="selRegion" class="text-slate-700"> ({{ selRegion.nom }})</span> :</span>
+                        <span>Hors effectif :</span>
                     </span>
                     <span v-for="h in horsEffectif" :key="h.label" class="inline-flex items-center gap-1 flex-none">
                         <span class="w-1.5 h-1.5 rounded-full flex-none" :style="{ backgroundColor: h.color }"></span>
@@ -500,129 +500,156 @@
                         </div>
                     </div>
 
-                    <!-- Décomposition En activité vs Hors effectif de la région / du pays -->
-                    <div class="my-1.5 p-2 rounded-lg border border-slate-200 bg-slate-50/70 space-y-2 flex-none text-xs">
-                        <!-- En activité -->
-                        <div>
-                            <div class="text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1 flex items-center justify-between">
-                                <span class="flex items-center gap-1">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                    <span>En activité ({{ fmt(sel ? selRegion.effectif : tot(r => r.effectif)) }})</span>
-                                </span>
-                                <span class="text-[9px] text-slate-400 font-normal">Somme = Effectif</span>
-                            </div>
-                            <div class="grid grid-cols-2 gap-1 text-[11px]">
-                                <div class="flex items-center justify-between px-1.5 py-0.5 rounded bg-white border border-slate-200/80">
-                                    <span class="text-slate-600">Actifs au poste</span>
-                                    <strong class="text-slate-900 tabular-nums">{{ fmt(sel ? selRegion.actifs : tot(r => r.actifs) + (props.stats.hors_region?.actifs ?? 0)) }}</strong>
-                                </div>
-                                <div class="flex items-center justify-between px-1.5 py-0.5 rounded bg-white border border-slate-200/80">
-                                    <span class="text-slate-600">Détachés</span>
-                                    <strong class="text-slate-900 tabular-nums">{{ fmt(sel ? selRegion.detaches : tot(r => r.detaches) + (props.stats.hors_region?.detaches ?? 0)) }}</strong>
-                                </div>
-                                <div class="flex items-center justify-between px-1.5 py-0.5 rounded bg-white border border-slate-200/80">
-                                    <span class="text-slate-600">En mission</span>
-                                    <strong class="text-slate-900 tabular-nums">{{ fmt(sel ? selRegion.missions : tot(r => r.missions) + (props.stats.hors_region?.missions ?? 0)) }}</strong>
-                                </div>
-                                <div class="flex items-center justify-between px-1.5 py-0.5 rounded bg-white border border-slate-200/80">
-                                    <span class="text-slate-600">En stage</span>
-                                    <strong class="text-slate-900 tabular-nums">{{ fmt(sel ? selRegion.stages : tot(r => r.stages) + (props.stats.hors_region?.stages ?? 0)) }}</strong>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Hors effectif (comptabilisés à part) -->
-                        <div class="pt-1.5 border-t border-slate-200/80">
-                            <div class="text-[10px] font-bold uppercase tracking-wider text-rose-700 mb-1 flex items-center justify-between">
-                                <span class="flex items-center gap-1">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                                    <span>Hors effectif (à part)</span>
-                                </span>
-                                <span class="text-[9px] text-slate-400 font-normal">Non comptés dans total</span>
-                            </div>
-                            <div class="grid grid-cols-2 gap-1 text-[11px]">
-                                <div class="flex items-center justify-between px-1.5 py-0.5 rounded bg-white border border-slate-200/80">
-                                    <span class="text-slate-600">Radiés</span>
-                                    <strong class="text-slate-900 tabular-nums">{{ fmt(sel ? selRegion.radies : tot(r => r.radies) + (props.stats.hors_region?.radies ?? 0)) }}</strong>
-                                </div>
-                                <div class="flex items-center justify-between px-1.5 py-0.5 rounded bg-white border border-slate-200/80">
-                                    <span class="text-slate-600">Retraites {{ props.stats.annee ?? new Date().getFullYear() }}</span>
-                                    <strong class="text-slate-900 tabular-nums">{{ fmt(sel ? selRegion.retraites : tot(r => r.retraites) + (props.stats.hors_region?.retraites ?? 0)) }}</strong>
-                                </div>
-                                <div class="flex items-center justify-between px-1.5 py-0.5 rounded bg-white border border-slate-200/80">
-                                    <span class="text-slate-600">Déserteurs</span>
-                                    <strong class="text-slate-900 tabular-nums">{{ fmt(sel ? selRegion.deserteurs : tot(r => r.deserteurs) + (props.stats.hors_region?.deserteurs ?? 0)) }}</strong>
-                                </div>
-                                <div class="flex items-center justify-between px-1.5 py-0.5 rounded bg-white border border-slate-200/80">
-                                    <span class="text-slate-600">Décédés {{ props.stats.annee ?? new Date().getFullYear() }}</span>
-                                    <strong class="text-slate-900 tabular-nums">{{ fmt(sel ? selRegion.decedes : tot(r => r.decedes) + (props.stats.hors_region?.decedes ?? 0)) }}</strong>
-                                </div>
-                            </div>
-                        </div>
+                    <!-- Onglets de bascule : Liste vs Détail Effectif -->
+                    <div class="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-medium my-1.5 flex-none">
+                        <button
+                            type="button"
+                            @click="sidebarTab = 'liste'"
+                            class="flex-1 py-1 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                            :class="sidebarTab === 'liste' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                        >
+                            <i class="pi pi-list text-[10px]"></i>
+                            <span>{{ sel ? 'Unités (' + selRegion.unites.length + ')' : 'Régions (' + regions.length + ')' }}</span>
+                        </button>
+                        <button
+                            type="button"
+                            @click="sidebarTab = 'effectif'"
+                            class="flex-1 py-1 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                            :class="sidebarTab === 'effectif' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                        >
+                            <i class="pi pi-chart-pie text-[10px]"></i>
+                            <span>Détail Effectif</span>
+                        </button>
                     </div>
 
-                    <!-- Titre de liste + Barre de recherche instantanée -->
-                    <div class="flex items-center justify-between gap-1.5 mb-1 flex-none">
-                        <h3 class="text-xs font-bold text-slate-900 truncate">
-                            {{ sel ? 'Unités de la région' : 'Classement : ' + METRICS[metric].label }}
-                        </h3>
-                        <div class="relative w-36 sm:w-44">
-                            <input
-                                v-model="searchQuery"
-                                type="text"
-                                :placeholder="sel ? 'Filtrer brigades...' : 'Filtrer régions...'"
-                                class="w-full text-[11px] py-1 pl-6 pr-2 rounded border border-slate-200 bg-white placeholder-slate-400 focus:outline-none focus:border-sky-500"
-                            />
-                            <i class="pi pi-search absolute left-2 top-2 text-[10px] text-slate-400"></i>
-                            <button
-                                v-if="searchQuery"
-                                @click="searchQuery = ''"
-                                class="absolute right-1.5 top-1.5 text-slate-400 hover:text-slate-600 text-[10px]"
-                                title="Effacer"
-                            >
-                                <i class="pi pi-times"></i>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- LISTE DÉROULANTE INTERNE (SEUL CE BLOC DÉFILE) -->
-                    <div class="flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar">
-                        <ul v-if="lignesFiltrees.length > 0" class="rank">
-                            <li v-for="row in lignesFiltrees" :key="row.key">
+                    <!-- VUE 1 : LISTE D'UNITÉS / RÉGIONS (DÉFAUT - PLEINE HAUTEUR FLUIDE & SCROLLABLE) -->
+                    <template v-if="sidebarTab === 'liste'">
+                        <!-- Titre de liste + Barre de recherche instantanée -->
+                        <div class="flex items-center justify-between gap-1.5 mb-1 flex-none">
+                            <h3 class="text-xs font-bold text-slate-900 truncate">
+                                {{ sel ? 'Unités de la région' : 'Classement : ' + METRICS[metric].label }}
+                            </h3>
+                            <div class="relative w-36 sm:w-44">
+                                <input
+                                    v-model="searchQuery"
+                                    type="text"
+                                    :placeholder="sel ? 'Filtrer brigades...' : 'Filtrer régions...'"
+                                    class="w-full text-[11px] py-1 pl-6 pr-2 rounded border border-slate-200 bg-white placeholder-slate-400 focus:outline-none focus:border-sky-500"
+                                />
+                                <i class="pi pi-search absolute left-2 top-2 text-[10px] text-slate-400"></i>
                                 <button
-                                    :class="{ sel: row.active }"
-                                    @click="row.click"
-                                    :title="sel ? row.nom : 'Cliquer pour isoler ' + row.nom"
+                                    v-if="searchQuery"
+                                    @click="searchQuery = ''"
+                                    class="absolute right-1.5 top-1.5 text-slate-400 hover:text-slate-600 text-[10px]"
+                                    title="Effacer"
                                 >
-                                    <span class="n">
-                                        <i
-                                            v-if="sel"
-                                            class="dot"
-                                            :style="{ background: row.op ? '#10b981' : '#f59e0b' }"
-                                        ></i>
-                                        <i
-                                            v-else
-                                            class="dot"
-                                            :style="{ background: fillFor(row.rawRegion) }"
-                                        ></i>
-                                        <span class="truncate text-slate-700 font-medium">{{ row.nom }}</span>
-                                        <small v-if="row.horsCarte" class="ml-1 text-amber-700 text-[9px]" title="Pas de coordonnées GPS">
-                                            (sans GPS)
-                                        </small>
-                                    </span>
-                                    <span class="t">
-                                        <i :style="{ width: Math.max(3, row.pct) + '%', background: sel ? '#0284c7' : '#1d4f91' }"></i>
-                                    </span>
-                                    <span class="v text-slate-900 font-bold">
-                                        {{ fmt(row.value) }}{{ sel ? '' : METRICS[metric].unit }}
-                                    </span>
+                                    <i class="pi pi-times"></i>
                                 </button>
-                            </li>
-                        </ul>
-                        <div v-else class="py-6 text-center text-xs text-slate-400">
-                            Aucun élément pour « {{ searchQuery }} »
+                            </div>
                         </div>
-                    </div>
+
+                        <!-- LISTE DÉROULANTE INTERNE (PLEINE HAUTEUR - FLUIDE ET SCROLLABLE) -->
+                        <div class="flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar">
+                            <ul v-if="lignesFiltrees.length > 0" class="rank">
+                                <li v-for="row in lignesFiltrees" :key="row.key">
+                                    <button
+                                        :class="{ sel: row.active }"
+                                        @click="row.click"
+                                        :title="sel ? row.nom : 'Cliquer pour isoler ' + row.nom"
+                                    >
+                                        <span class="n">
+                                            <i
+                                                v-if="sel"
+                                                class="dot"
+                                                :style="{ background: row.op ? '#10b981' : '#f59e0b' }"
+                                            ></i>
+                                            <i
+                                                v-else
+                                                class="dot"
+                                                :style="{ background: fillFor(row.rawRegion) }"
+                                            ></i>
+                                            <span class="truncate text-slate-700 font-medium">{{ row.nom }}</span>
+                                            <small v-if="row.horsCarte" class="ml-1 text-amber-700 text-[9px]" title="Pas de coordonnées GPS">
+                                                (sans GPS)
+                                            </small>
+                                        </span>
+                                        <span class="t">
+                                            <i :style="{ width: Math.max(3, row.pct) + '%', background: sel ? '#0284c7' : '#1d4f91' }"></i>
+                                        </span>
+                                        <span class="v text-slate-900 font-bold">
+                                            {{ fmt(row.value) }}{{ sel ? '' : METRICS[metric].unit }}
+                                        </span>
+                                    </button>
+                                </li>
+                            </ul>
+                            <div v-else class="py-6 text-center text-xs text-slate-400">
+                                Aucun élément pour « {{ searchQuery }} »
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- VUE 2 : DÉTAIL DE L'EFFECTIF (AFFICHÉ QUAND ON CLIQUE SUR L'ONGLET) -->
+                    <template v-else>
+                        <div class="flex-1 min-h-0 overflow-y-auto pr-1 space-y-2.5 custom-scrollbar text-xs">
+                            <!-- En activité -->
+                            <div class="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70 space-y-2">
+                                <div class="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
+                                    <span class="flex items-center gap-1.5">
+                                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                        <span>En activité ({{ fmt(sel ? selRegion.effectif : tot(r => r.effectif)) }})</span>
+                                    </span>
+                                    <span class="text-[9px] text-slate-400 font-normal">Somme = Effectif</span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-1.5 text-xs">
+                                    <div class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80">
+                                        <span class="text-slate-600">Actifs au poste</span>
+                                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(valStat('actifs')) }}</strong>
+                                    </div>
+                                    <div class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80">
+                                        <span class="text-slate-600">Détachés</span>
+                                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(valStat('detaches')) }}</strong>
+                                    </div>
+                                    <div class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80">
+                                        <span class="text-slate-600">En mission</span>
+                                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(valStat('missions')) }}</strong>
+                                    </div>
+                                    <div class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80">
+                                        <span class="text-slate-600">En stage</span>
+                                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(valStat('stages')) }}</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Hors effectif -->
+                            <div class="p-2.5 rounded-lg border border-rose-200/80 bg-rose-50/40 space-y-2">
+                                <div class="text-[11px] font-bold uppercase tracking-wider text-rose-800 flex items-center justify-between">
+                                    <span class="flex items-center gap-1.5">
+                                        <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                                        <span>Hors effectif (à part)</span>
+                                    </span>
+                                    <span class="text-[9px] text-rose-500 font-normal">Non comptés dans total</span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-1.5 text-xs">
+                                    <div class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80">
+                                        <span class="text-slate-600">Radiés</span>
+                                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(valStat('radies')) }}</strong>
+                                    </div>
+                                    <div class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80">
+                                        <span class="text-slate-600">Retraites {{ props.stats.annee ?? new Date().getFullYear() }}</span>
+                                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(valStat('retraites')) }}</strong>
+                                    </div>
+                                    <div class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80">
+                                        <span class="text-slate-600">Déserteurs</span>
+                                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(valStat('deserteurs')) }}</strong>
+                                    </div>
+                                    <div class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80">
+                                        <span class="text-slate-600">Décédés {{ props.stats.annee ?? new Date().getFullYear() }}</span>
+                                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(valStat('decedes')) }}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
 
                     <!-- Guide d'interaction en bas -->
                     <p class="text-[10px] text-slate-400 mt-1 pt-1 border-t border-slate-100 flex-none truncate">
@@ -652,6 +679,7 @@ const props = defineProps({
 const carteZoneRef = ref(null);
 const isFullscreen = ref(false);
 const showSidePanelInFullscreen = ref(true);
+const sidebarTab = ref('liste');
 
 const toggleFullscreen = async () => {
     if (!isFullscreen.value) {
@@ -731,7 +759,10 @@ const searchQuery = ref('');   // recherche rapide dans le volet déroulant
 const hoveredItem = ref(null); // objet survolé (région ou unité)
 const hoveredCode = ref(null); // code de la région survolée
 
-const fmt = (n) => Number(n ?? 0).toLocaleString('fr-FR');
+const fmt = (n) => {
+    const num = Number(n);
+    return (Number.isFinite(num) ? num : 0).toLocaleString('fr-FR');
+};
 const shortName = (n) => n.replace(/^(Région de |Région du |District de )/, '');
 
 // ---------- Valeurs par région ----------
@@ -820,6 +851,7 @@ const choisir = (code) => {
     searchQuery.value = '';
     userZoom.value = 1;
     panOffset.value = { x: 0, y: 0 };
+    sidebarTab.value = 'liste';
 };
 
 const retour = () => {
@@ -828,6 +860,7 @@ const retour = () => {
     searchQuery.value = '';
     userZoom.value = 1;
     panOffset.value = { x: 0, y: 0 };
+    sidebarTab.value = 'liste';
 };
 
 const onSelectRegionDropdown = (code) => {
@@ -1119,7 +1152,16 @@ const hoveredUnitObj = computed(() => {
 const uniteActivePourLabel = computed(() => unitePointee.value || hoveredUnitObj.value);
 
 // ---------- Panneaux statistiques ----------
-const tot = (f) => props.regions.reduce((s, r) => s + f(r), 0);
+const tot = (f) => props.regions.reduce((s, r) => s + (Number(f(r)) || 0), 0);
+
+const valStat = (k) => {
+    if (selRegion.value) {
+        return Number(selRegion.value[k]) || 0;
+    }
+    const sumRegions = tot((r) => r[k]);
+    const hors = Number(props.stats?.hors_region?.[k]) || 0;
+    return sumRegions + hors;
+};
 
 const kpis = computed(() => {
     const r = selRegion.value;
@@ -1152,27 +1194,21 @@ const kpis = computed(() => {
 });
 
 // Détail de l'effectif en activité : la somme des 4 catégories égale exactement l'effectif total
-const repartition = computed(() => {
-    const r = selRegion.value;
-    const v = (k) => (r ? (r[k] ?? 0) : tot((x) => x[k] ?? 0) + (props.stats.hors_region?.[k] ?? 0));
-    return [
-        { label: 'Actifs', value: v('actifs'), color: '#10b981' },
-        { label: 'Détachés', value: v('detaches'), color: '#0ea5e9' },
-        { label: 'En mission', value: v('missions'), color: '#8b5cf6' },
-        { label: 'En stage', value: v('stages'), color: '#f59e0b' },
-    ];
-});
+const repartition = computed(() => [
+    { label: 'Actifs', value: valStat('actifs'), color: '#10b981' },
+    { label: 'Détachés', value: valStat('detaches'), color: '#0ea5e9' },
+    { label: 'En mission', value: valStat('missions'), color: '#8b5cf6' },
+    { label: 'En stage', value: valStat('stages'), color: '#f59e0b' },
+]);
 
 // Hors effectif : Radiés, retraites, déserteurs et décédés de l'année (affichés et comptabilisés à part)
 const horsEffectif = computed(() => {
-    const r = selRegion.value;
-    const annee = props.stats.annee ?? new Date().getFullYear();
-    const v = (k) => (r ? (r[k] ?? 0) : tot((x) => x[k] ?? 0) + (props.stats.hors_region?.[k] ?? 0));
+    const annee = props.stats?.annee ?? new Date().getFullYear();
     return [
-        { label: 'Radiés', value: v('radies'), color: '#64748b' },
-        { label: `Retraites ${annee}`, value: v('retraites'), color: '#9333ea' },
-        { label: 'Déserteurs', value: v('deserteurs'), color: '#ea580c' },
-        { label: `Décédés ${annee}`, value: v('decedes'), color: '#e11d48' },
+        { label: 'Radiés', value: valStat('radies'), color: '#64748b' },
+        { label: `Retraites ${annee}`, value: valStat('retraites'), color: '#9333ea' },
+        { label: 'Déserteurs', value: valStat('deserteurs'), color: '#ea580c' },
+        { label: `Décédés ${annee}`, value: valStat('decedes'), color: '#e11d48' },
     ];
 });
 
