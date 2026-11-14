@@ -61,7 +61,15 @@
             </div>
 
             <!-- 2. Zone principale : Cadre blanc standard, SEUL LE CANEVAS DE LA CARTE EST EN BLEU ARDOISE (#16212e) -->
-            <div class="flex-1 min-h-0 grid gap-2 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_340px] items-stretch">
+            <div
+                ref="carteZoneRef"
+                class="flex-1 min-h-0 grid gap-2 items-stretch transition-all duration-200"
+                :class="[
+                    isFullscreen
+                        ? 'fixed inset-0 z-50 p-2 sm:p-3 bg-slate-100 w-screen h-screen ' + (showSidePanelInFullscreen ? 'lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_340px]' : 'grid-cols-1')
+                        : 'lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_340px]'
+                ]"
+            >
                 <!-- PANNEAU CARTE (Cadre blanc standard, en-tête clair, et uniquement l'endroit de la carte en fond sombre #16212e) -->
                 <div class="bg-white rounded-lg border border-slate-200 p-2.5 min-w-0 flex flex-col h-full overflow-hidden shadow-sm">
                     <!-- En-tête de la carte CLAIR (comme demandé : "même l'en-tête faut laisser") -->
@@ -110,8 +118,62 @@
                         </div>
                     </div>
 
+                    <!-- En mode plein écran : bande récapitulative compacte de la situation opérationnelle -->
+                    <div
+                        v-if="isFullscreen"
+                        class="flex items-center justify-between gap-2 px-2.5 py-1 mb-1.5 bg-slate-50 rounded-md border border-slate-200 text-xs text-slate-700 flex-none"
+                    >
+                        <div class="flex items-center gap-3 overflow-x-auto">
+                            <span class="font-bold text-slate-900 flex items-center gap-1">
+                                <i class="pi pi-shield text-sky-800 text-xs"></i>
+                                <span>Situation opérationnelle :</span>
+                            </span>
+                            <span v-for="k in kpis" :key="k.label" class="inline-flex items-center gap-1 whitespace-nowrap">
+                                <span class="text-slate-500">{{ k.label }} :</span>
+                                <strong class="text-slate-900">{{ k.value }}</strong>
+                                <span class="text-slate-300">•</span>
+                            </span>
+                        </div>
+                        <div class="text-[11px] text-slate-400 whitespace-nowrap hidden sm:block">
+                            Touche <kbd class="px-1.5 py-0.5 bg-white border border-slate-300 rounded font-mono text-[10px] text-slate-700 shadow-2xs">Échap</kbd> ou bouton pour quitter
+                        </div>
+                    </div>
+
                     <!-- UNIQUEMENT CET ENDROIT : LE CANEVAS DE LA CARTE EN BLEU ARDOISE ADOUCI (#16212E) -->
                     <div class="flex-1 min-h-0 w-full h-full relative flex items-center justify-center overflow-hidden bg-[#16212e] rounded-lg border border-[#263446] p-1">
+                        <!-- Bouton d'action rapide Plein écran sur le canevas tactique -->
+                        <div class="absolute top-2 right-2 z-20 flex items-center gap-1.5">
+                            <button
+                                v-if="sel"
+                                type="button"
+                                @click="retour"
+                                class="bg-[#0e1621]/90 hover:bg-[#1a2636] text-white border border-slate-700/80 px-2.5 py-1 rounded-md shadow-md text-xs flex items-center gap-1.5 transition pointer-events-auto font-medium cursor-pointer"
+                                title="Retour à la vue complète du Mali"
+                            >
+                                <i class="pi pi-arrow-left text-[10px] text-sky-300"></i>
+                                <span class="hidden sm:inline">Tout le Mali</span>
+                            </button>
+                            <button
+                                v-if="isFullscreen"
+                                type="button"
+                                @click="showSidePanelInFullscreen = !showSidePanelInFullscreen"
+                                class="bg-[#0e1621]/90 hover:bg-[#1a2636] text-white border border-slate-700/80 px-2.5 py-1 rounded-md shadow-md text-xs flex items-center gap-1.5 transition pointer-events-auto font-medium cursor-pointer"
+                                :title="showSidePanelInFullscreen ? 'Masquer le volet latéral pour afficher la carte en 100% de largeur' : 'Afficher le volet latéral avec les unités'"
+                            >
+                                <i :class="showSidePanelInFullscreen ? 'pi pi-eye-slash text-slate-300' : 'pi pi-list text-sky-300'" class="text-xs"></i>
+                                <span class="hidden sm:inline">{{ showSidePanelInFullscreen ? 'Masquer volet' : 'Volet détails' }}</span>
+                            </button>
+                            <button
+                                type="button"
+                                @click="toggleFullscreen"
+                                class="bg-[#0e1621]/90 hover:bg-[#1a2636] text-white border border-slate-700/80 px-2.5 py-1 rounded-md shadow-md text-xs flex items-center gap-1.5 transition pointer-events-auto font-semibold cursor-pointer"
+                                :title="isFullscreen ? 'Quitter le mode plein écran (Échap)' : 'Afficher la carte en plein écran'"
+                            >
+                                <i :class="isFullscreen ? 'pi pi-window-minimize text-amber-300' : 'pi pi-window-maximize text-sky-300'" class="text-xs"></i>
+                                <span class="hidden sm:inline">{{ isFullscreen ? 'Réduire' : 'Plein écran' }}</span>
+                            </button>
+                        </div>
+
                         <!-- Entête au survol interactif (HUD élégant) -->
                         <transition name="fade">
                             <div
@@ -325,7 +387,10 @@
                 </div>
 
                 <!-- PANNEAU DROIT CLAIR / BLANC (comme demandé : "pas les autres cards") -->
-                <div class="bg-white rounded-lg border border-slate-200 p-2.5 min-w-0 flex flex-col h-full overflow-hidden shadow-sm text-slate-900">
+                <div
+                    v-show="!isFullscreen || showSidePanelInFullscreen"
+                    class="bg-white rounded-lg border border-slate-200 p-2.5 min-w-0 flex flex-col h-full overflow-hidden shadow-sm text-slate-900 transition-all"
+                >
                     <!-- Entête du panneau -->
                     <div class="flex items-center justify-between gap-2 flex-none">
                         <div class="min-w-0">
@@ -427,7 +492,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { MALI_VIEW, REGION_SHAPES as SHAPES, project } from './maliRegions.js';
@@ -436,6 +501,72 @@ const props = defineProps({
     regions: { type: Array, default: () => [] },
     stats: { type: Object, default: () => ({ non_rattaches: 0, generated_at: '' }) },
     regionInitiale: { type: String, default: null },
+});
+
+// Références et gestion du mode plein écran
+const carteZoneRef = ref(null);
+const isFullscreen = ref(false);
+const showSidePanelInFullscreen = ref(true);
+
+const toggleFullscreen = async () => {
+    if (!isFullscreen.value) {
+        isFullscreen.value = true;
+        if (carteZoneRef.value?.requestFullscreen) {
+            try {
+                await carteZoneRef.value.requestFullscreen();
+            } catch (e) {
+                // Ignore, le fallback CSS 'fixed inset-0' s'applique
+            }
+        } else if (carteZoneRef.value?.webkitRequestFullscreen) {
+            try {
+                await carteZoneRef.value.webkitRequestFullscreen();
+            } catch (e) {
+                // Ignore
+            }
+        }
+    } else {
+        isFullscreen.value = false;
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+            try {
+                if (document.exitFullscreen) {
+                    await document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    await document.webkitExitFullscreen();
+                }
+            } catch (e) {
+                // ignore
+            }
+        }
+    }
+};
+
+const onFullscreenChange = () => {
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        isFullscreen.value = false;
+    } else {
+        isFullscreen.value = true;
+    }
+};
+
+const onKeydown = (e) => {
+    if (e.key === 'Escape' && isFullscreen.value) {
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+            document.exitFullscreen?.();
+        }
+        isFullscreen.value = false;
+    }
+};
+
+onMounted(() => {
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+    window.addEventListener('keydown', onKeydown);
+});
+
+onUnmounted(() => {
+    document.removeEventListener('fullscreenchange', onFullscreenChange);
+    document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
+    window.removeEventListener('keydown', onKeydown);
 });
 
 const METRICS = {
@@ -930,5 +1061,20 @@ const lignesFiltrees = computed(() => {
 .fade-enter-from,
 .fade-leave-to {
     opacity: 0;
+}
+
+:fullscreen {
+    background-color: #f1f5f9;
+    padding: 0.5rem;
+    width: 100vw;
+    height: 100vh;
+    box-sizing: border-box;
+}
+:-webkit-full-screen {
+    background-color: #f1f5f9;
+    padding: 0.5rem;
+    width: 100vw;
+    height: 100vh;
+    box-sizing: border-box;
 }
 </style>
