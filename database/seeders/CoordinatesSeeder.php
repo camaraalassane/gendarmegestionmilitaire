@@ -24,6 +24,15 @@ class CoordinatesSeeder extends Seeder
             'R9' => ['lat' => 18.4411, 'lng' => 1.4078, 'chef_lieu' => 'Kidal'],
             'R10' => ['lat' => 15.2289, 'lng' => -9.5878, 'chef_lieu' => 'Nioro du Sahel'],
             'R11' => ['lat' => 15.9182, 'lng' => 2.4022, 'chef_lieu' => 'Ménaka'],
+            'R12' => ['lat' => 13.0350, 'lng' => -9.4860, 'chef_lieu' => 'Kita'],
+            'R13' => ['lat' => 12.4834, 'lng' => -6.7827, 'chef_lieu' => 'Dioïla'],
+            'R14' => ['lat' => 15.1650, 'lng' => -7.2830, 'chef_lieu' => 'Nara'],
+            'R15' => ['lat' => 11.4150, 'lng' => -7.4820, 'chef_lieu' => 'Bougouni'],
+            'R16' => ['lat' => 12.3830, 'lng' => -5.4680, 'chef_lieu' => 'Koutiala'],
+            'R17' => ['lat' => 13.3030, 'lng' => -4.8930, 'chef_lieu' => 'San'],
+            'R18' => ['lat' => 14.9970, 'lng' => -2.9480, 'chef_lieu' => 'Douentza'],
+            'R19' => ['lat' => 14.3500, 'lng' => -3.6180, 'chef_lieu' => 'Bandiagara'],
+            'R20' => ['lat' => 22.6700, 'lng' => -3.9800, 'chef_lieu' => 'Taoudénit'],
             'DGGN' => ['lat' => 12.6515, 'lng' => -8.0142, 'chef_lieu' => 'Bamako (Camp I)'],
             'GSIGN' => ['lat' => 12.6321, 'lng' => -8.0185, 'chef_lieu' => 'Bamako'],
             'CDURM' => ['lat' => 12.6412, 'lng' => -7.9945, 'chef_lieu' => 'Bamako'],
@@ -42,17 +51,80 @@ class CoordinatesSeeder extends Seeder
             ]);
         }
 
-        // 2. Coordonnées précises des localités, cercles et communes du Mali
+        $regionsByCode = Region::all()->keyBy('code');
+
+        // 2. Réassignations des unités égarées vers leur véritable région administrative des 20 régions du Mali
+        $reassignUnits = [
+            // R14 (Nara)
+            103 => 'R14', // Guiré
+            105 => 'R14', // PSIG Ballé
+            129 => 'R14', // Escadron 3/7 Ballé
+            131 => 'R14', // BT Ballé
+            132 => 'R14', // BT Fallou
+            133 => 'R14', // BT Dogofry
+            102 => 'R14', // BT Mourdiah
+
+            // R13 (Dioïla)
+            93 => 'R13',  // BR Dioïla
+            123 => 'R13', // PSIG Dioïla
+            95 => 'R13',  // BT Fana
+            96 => 'R13',  // BT Massigui
+            124 => 'R13', // BT Ména
+            125 => 'R13', // BT Beleko
+            126 => 'R13', // BT Nangola
+            127 => 'R13', // BT Banco
+
+            // R17 (San)
+            195 => 'R17', // BT Tominian
+            196 => 'R17', // BT Mandiakuy
+            197 => 'R17', // BT Kimparana
+
+            // R12 (Kita)
+            66 => 'R12', // BT Sagabari
+            68 => 'R12', // BT Seféto
+
+            // R16 (Koutiala)
+            159 => 'R16', // BT Koury
+            160 => 'R16', // BT Yorosso
+
+            // R15 (Bougouni)
+            150 => 'R15', // BT Kolondièba
+            162 => 'R15', // Escadron Selingué
+            170 => 'R15', // BT Kalana
+            171 => 'R15', // BT Sélingué
+
+            // R18 (Douentza)
+            214 => 'R18', // BT Boni
+            215 => 'R18', // BT Hombori
+
+            // R19 (Bandiagara)
+            225 => 'R19', // Escadron Diallassagou
+
+            // R20 (Taoudénit)
+            243 => 'R20', // EM Taoudénit
+        ];
+
+        foreach ($reassignUnits as $unitId => $toRegCode) {
+            $u = Unite::find($unitId);
+            if ($u && isset($regionsByCode[$toRegCode])) {
+                $u->updateQuietly([
+                    'region_id' => $regionsByCode[$toRegCode]->id,
+                ]);
+            }
+        }
+
+        // 3. Coordonnées précises des localités, cercles et communes du Mali
         $localitesPoints = [
-            // Bamako (R1)
+            // Bamako (R1) - calibré strictement dans le polygone du District
             'bamako-coura' => ['lat' => 12.6450, 'lng' => -8.0050, 'nom' => 'Bamako-Coura'],
-            'dogodouman' => ['lat' => 12.6700, 'lng' => -8.0800, 'nom' => 'Dogodouman'],
-            'ouenzindougou' => ['lat' => 12.5800, 'lng' => -8.1100, 'nom' => 'Ouenzindougou'],
-            'mountougoula' => ['lat' => 12.5200, 'lng' => -7.8700, 'nom' => 'Mountougoula'],
+            'dogodouman' => ['lat' => 12.6550, 'lng' => -8.0450, 'nom' => 'Dogodouman'],
+            'ouenzindougou' => ['lat' => 12.6050, 'lng' => -8.0400, 'nom' => 'Ouenzindougou'],
+            'mountougoula' => ['lat' => 12.5850, 'lng' => -7.9550, 'nom' => 'Mountougoula'],
             'faladiè' => ['lat' => 12.5910, 'lng' => -7.9660, 'nom' => 'Faladiè'],
-            'sénou' => ['lat' => 12.5319, 'lng' => -7.9280, 'nom' => 'Sénou'],
-            "n'golobougou" => ['lat' => 12.5000, 'lng' => -7.9800, 'nom' => "N'Golobougou"],
-            'samaya' => ['lat' => 12.5700, 'lng' => -8.0500, 'nom' => 'Samaya'],
+            'sénou' => ['lat' => 12.5650, 'lng' => -7.9600, 'nom' => 'Sénou'],
+            "n'golobougou" => ['lat' => 12.5700, 'lng' => -7.9900, 'nom' => "N'Golobougou"],
+            'samaya' => ['lat' => 12.6000, 'lng' => -8.0300, 'nom' => 'Samaya'],
+            'bamako' => ['lat' => 12.6392, 'lng' => -8.0029, 'nom' => 'Bamako'],
 
             // Kayes (R2)
             'kayes ndi' => ['lat' => 14.4451, 'lng' => -11.4490, 'nom' => 'Kayes Ndi'],
@@ -65,15 +137,13 @@ class CoordinatesSeeder extends Seeder
             'diamou' => ['lat' => 14.0667, 'lng' => -11.3167, 'nom' => 'Diamou'],
             'toukoto' => ['lat' => 13.4333, 'lng' => -10.0500, 'nom' => 'Toukoto'],
             'bafoulabé' => ['lat' => 13.8072, 'lng' => -10.8319, 'nom' => 'Bafoulabé'],
-            'diboli' => ['lat' => 14.4550, 'lng' => -12.2280, 'nom' => 'Diboli'],
+            'diboli' => ['lat' => 14.4550, 'lng' => -12.1800, 'nom' => 'Diboli'],
             'kirané' => ['lat' => 14.9333, 'lng' => -10.8500, 'nom' => 'Kirané'],
             'aourou' => ['lat' => 14.7333, 'lng' => -11.6667, 'nom' => 'Aourou'],
             'koussané' => ['lat' => 14.6502, 'lng' => -11.0455, 'nom' => 'Koussané'],
             'diadioumbéra' => ['lat' => 14.5333, 'lng' => -10.7167, 'nom' => 'Diadioumbéra'],
             'kouniakary' => ['lat' => 14.5667, 'lng' => -11.1667, 'nom' => 'Kouniakary'],
-            'sagabari' => ['lat' => 13.3333, 'lng' => -9.7500, 'nom' => 'Sagabari'],
-            'seféto' => ['lat' => 13.7500, 'lng' => -10.0500, 'nom' => 'Seféto'],
-            'kouroukoto' => ['lat' => 12.6500, 'lng' => -11.4500, 'nom' => 'Kouroukoto'],
+            'kouroukoto' => ['lat' => 12.6800, 'lng' => -11.3800, 'nom' => 'Kouroukoto'],
             'dialafara' => ['lat' => 12.6333, 'lng' => -11.2333, 'nom' => 'Dialafara'],
             'faraba' => ['lat' => 12.8000, 'lng' => -11.1500, 'nom' => 'Faraba'],
             'mahinamine' => ['lat' => 13.7667, 'lng' => -10.8500, 'nom' => 'Mahinamine'],
@@ -91,14 +161,13 @@ class CoordinatesSeeder extends Seeder
             'kati-faladié' => ['lat' => 12.7462, 'lng' => -8.0731, 'nom' => 'Kati-Faladié'],
             'kati' => ['lat' => 12.7414, 'lng' => -8.0760, 'nom' => 'Kati'],
             'kangaba' => ['lat' => 11.9333, 'lng' => -8.4167, 'nom' => 'Kangaba'],
-            'ouéléssebougou' => ['lat' => 12.1333, 'lng' => -7.9167, 'nom' => 'Ouéléssebougou'],
+            'ouéléssebougou' => ['lat' => 12.2500, 'lng' => -7.9500, 'nom' => 'Ouéléssebougou'],
             'kourouba' => ['lat' => 11.9500, 'lng' => -8.3167, 'nom' => 'Kourouba'],
             'siby' => ['lat' => 12.3833, 'lng' => -8.3333, 'nom' => 'Siby'],
             'naréna' => ['lat' => 12.2167, 'lng' => -8.5333, 'nom' => 'Naréna'],
             'tougouni' => ['lat' => 13.6333, 'lng' => -7.9500, 'nom' => 'Tougouni'],
             'néguela' => ['lat' => 12.8500, 'lng' => -8.4000, 'nom' => 'Néguela'],
             'dio' => ['lat' => 12.8833, 'lng' => -8.2833, 'nom' => 'Dio'],
-            'ballé' => ['lat' => 15.3333, 'lng' => -7.7833, 'nom' => 'Ballé'],
             'didiéni' => ['lat' => 13.5833, 'lng' => -8.2500, 'nom' => 'Didiéni'],
             'boron' => ['lat' => 13.8833, 'lng' => -7.5500, 'nom' => 'Boron'],
             'niaouléni' => ['lat' => 12.0167, 'lng' => -8.6500, 'nom' => 'Niaouléni'],
@@ -107,28 +176,12 @@ class CoordinatesSeeder extends Seeder
             'banamba' => ['lat' => 13.5504, 'lng' => -7.4454, 'nom' => 'Banamba'],
             'niamina' => ['lat' => 13.3167, 'lng' => -6.9833, 'nom' => 'Niamina'],
             'koula' => ['lat' => 13.3667, 'lng' => -7.5000, 'nom' => 'Koula'],
-            'fallou' => ['lat' => 14.4333, 'lng' => -7.8667, 'nom' => 'Fallou'],
-            'dogofry' => ['lat' => 14.5167, 'lng' => -7.3167, 'nom' => 'Dogofry'],
-            'guiré' => ['lat' => 14.8667, 'lng' => -7.1333, 'nom' => 'Guiré'],
-            'mourdiah' => ['lat' => 14.4667, 'lng' => -7.4667, 'nom' => 'Mourdiah'],
-            'dioïla' => ['lat' => 12.4834, 'lng' => -6.7827, 'nom' => 'Dioïla'],
-            'fana' => ['lat' => 12.7667, 'lng' => -6.9833, 'nom' => 'Fana'],
-            'massigui' => ['lat' => 12.1833, 'lng' => -6.9500, 'nom' => 'Massigui'],
-            'ména' => ['lat' => 12.5500, 'lng' => -7.1000, 'nom' => 'Ména'],
-            'beleko' => ['lat' => 12.4333, 'lng' => -6.5500, 'nom' => 'Beleko'],
-            'nangola' => ['lat' => 12.7500, 'lng' => -6.7167, 'nom' => 'Nangola'],
-            'banco' => ['lat' => 12.5167, 'lng' => -6.9000, 'nom' => 'Banco'],
             'koulikoro' => ['lat' => 12.8620, 'lng' => -7.5559, 'nom' => 'Koulikoro'],
 
             // Sikasso (R4)
             'kadiolo' => ['lat' => 10.5500, 'lng' => -5.7500, 'nom' => 'Kadiolo'],
-            'kolondièba' => ['lat' => 11.0833, 'lng' => -6.8833, 'nom' => 'Kolondièba'],
-            'yorosso' => ['lat' => 12.3500, 'lng' => -4.7833, 'nom' => 'Yorosso'],
-            'koury' => ['lat' => 12.1833, 'lng' => -4.7167, 'nom' => 'Koury'],
-            'sélingué' => ['lat' => 11.6900, 'lng' => -8.2300, 'nom' => 'Sélingué'],
             'nièna' => ['lat' => 11.7333, 'lng' => -6.1833, 'nom' => 'Nièna'],
             'koumantou' => ['lat' => 11.4333, 'lng' => -6.5500, 'nom' => 'Koumantou'],
-            'kalana' => ['lat' => 10.7833, 'lng' => -8.1833, 'nom' => 'Kalana'],
             'kignan' => ['lat' => 11.8333, 'lng' => -5.8667, 'nom' => 'Kignan'],
             'medine' => ['lat' => 11.3196, 'lng' => -5.6697, 'nom' => 'Médine (Sikasso)'],
             'sanoubougou' => ['lat' => 11.3171, 'lng' => -5.6676, 'nom' => 'Sanoubougou'],
@@ -144,9 +197,6 @@ class CoordinatesSeeder extends Seeder
             'saye' => ['lat' => 13.6700, 'lng' => -5.7300, 'nom' => 'Saye'],
             'niono' => ['lat' => 14.2497, 'lng' => -5.9797, 'nom' => 'Niono'],
             'markala' => ['lat' => 13.6800, 'lng' => -6.0700, 'nom' => 'Markala'],
-            'tominian' => ['lat' => 13.2800, 'lng' => -4.6000, 'nom' => 'Tominian'],
-            'mandiakuy' => ['lat' => 13.0600, 'lng' => -4.6800, 'nom' => 'Mandiakuy'],
-            'kimparana' => ['lat' => 12.8300, 'lng' => -4.9200, 'nom' => 'Kimparana'],
             'ségou' => ['lat' => 13.4325, 'lng' => -6.2148, 'nom' => 'Ségou'],
 
             // Mopti (R6)
@@ -155,9 +205,6 @@ class CoordinatesSeeder extends Seeder
             'djenné' => ['lat' => 13.9046, 'lng' => -4.5487, 'nom' => 'Djenné'],
             'ténenkou' => ['lat' => 14.4500, 'lng' => -4.9200, 'nom' => 'Ténenkou'],
             'youwarou' => ['lat' => 15.3300, 'lng' => -4.4300, 'nom' => 'Youwarou'],
-            'boni' => ['lat' => 15.1100, 'lng' => -2.1800, 'nom' => 'Boni'],
-            'hombori' => ['lat' => 15.2800, 'lng' => -1.7000, 'nom' => 'Hombori'],
-            'diallassagou' => ['lat' => 13.9500, 'lng' => -3.5300, 'nom' => 'Diallassagou'],
             'mopti' => ['lat' => 14.4936, 'lng' => -4.1852, 'nom' => 'Mopti'],
 
             // Tombouctou (R7)
@@ -169,7 +216,6 @@ class CoordinatesSeeder extends Seeder
             'niafunké' => ['lat' => 15.9356, 'lng' => -3.9863, 'nom' => 'Niafunké'],
             'léré' => ['lat' => 15.7100, 'lng' => -4.9100, 'nom' => 'Léré'],
             'tonka' => ['lat' => 16.3200, 'lng' => -3.7800, 'nom' => 'Tonka'],
-            'taoudénit' => ['lat' => 22.6700, 'lng' => -3.9800, 'nom' => 'Taoudénit'],
             'tombouctou' => ['lat' => 16.7700, 'lng' => -2.9993, 'nom' => 'Tombouctou'],
 
             // Gao (R8)
@@ -192,29 +238,61 @@ class CoordinatesSeeder extends Seeder
 
             // Kita (R12)
             'sebekoro' => ['lat' => 13.2373, 'lng' => -9.2853, 'nom' => 'Sébékoro'],
+            'sagabari' => ['lat' => 13.3333, 'lng' => -9.7500, 'nom' => 'Sagabari'],
+            'seféto' => ['lat' => 13.7500, 'lng' => -10.0500, 'nom' => 'Seféto'],
             'kita' => ['lat' => 13.0350, 'lng' => -9.4860, 'nom' => 'Kita'],
 
+            // Dioïla (R13)
+            'dioïla' => ['lat' => 12.4834, 'lng' => -6.7827, 'nom' => 'Dioïla'],
+            'dioila' => ['lat' => 12.4834, 'lng' => -6.7827, 'nom' => 'Dioïla'],
+            'fana' => ['lat' => 12.7667, 'lng' => -6.9833, 'nom' => 'Fana'],
+            'massigui' => ['lat' => 12.1833, 'lng' => -6.9500, 'nom' => 'Massigui'],
+            'ména' => ['lat' => 12.5500, 'lng' => -7.1000, 'nom' => 'Ména'],
+            'beleko' => ['lat' => 12.4333, 'lng' => -6.5500, 'nom' => 'Beleko'],
+            'nangola' => ['lat' => 12.7500, 'lng' => -6.7167, 'nom' => 'Nangola'],
+            'banco' => ['lat' => 12.5167, 'lng' => -6.9000, 'nom' => 'Banco'],
+
             // Nara (R14)
+            'ballé' => ['lat' => 15.3333, 'lng' => -7.7833, 'nom' => 'Ballé'],
+            'fallou' => ['lat' => 14.4333, 'lng' => -7.8667, 'nom' => 'Fallou'],
+            'dogofry' => ['lat' => 14.5167, 'lng' => -7.3167, 'nom' => 'Dogofry'],
+            'guiré' => ['lat' => 14.8667, 'lng' => -7.1333, 'nom' => 'Guiré'],
+            'mourdiah' => ['lat' => 14.4667, 'lng' => -7.4667, 'nom' => 'Mourdiah'],
             'nara' => ['lat' => 15.1650, 'lng' => -7.2830, 'nom' => 'Nara'],
 
             // Bougouni (R15)
             'manankoro' => ['lat' => 10.6816, 'lng' => -6.9511, 'nom' => 'Manankoro'],
             'yanfolila' => ['lat' => 11.1636, 'lng' => -8.1486, 'nom' => 'Yanfolila'],
+            'kalana' => ['lat' => 10.7833, 'lng' => -8.1833, 'nom' => 'Kalana'],
+            'sélingué' => ['lat' => 11.6900, 'lng' => -8.2300, 'nom' => 'Sélingué'],
+            'selingué' => ['lat' => 11.6900, 'lng' => -8.2300, 'nom' => 'Sélingué'],
+            'kolondièba' => ['lat' => 11.0833, 'lng' => -6.8833, 'nom' => 'Kolondièba'],
             'bougouni' => ['lat' => 11.4150, 'lng' => -7.4820, 'nom' => 'Bougouni'],
 
             // Koutiala (R16)
+            'koury' => ['lat' => 12.1833, 'lng' => -4.7167, 'nom' => 'Koury'],
+            'yorosso' => ['lat' => 12.3500, 'lng' => -4.7833, 'nom' => 'Yorosso'],
             'koutiala' => ['lat' => 12.3830, 'lng' => -5.4680, 'nom' => 'Koutiala'],
 
             // San (R17)
+            'tominian' => ['lat' => 13.2800, 'lng' => -4.6000, 'nom' => 'Tominian'],
+            'mandiakuy' => ['lat' => 13.0600, 'lng' => -4.6800, 'nom' => 'Mandiakuy'],
+            'kimparana' => ['lat' => 12.8300, 'lng' => -4.9200, 'nom' => 'Kimparana'],
             'san' => ['lat' => 13.3030, 'lng' => -4.8930, 'nom' => 'San'],
 
             // Douentza (R18)
+            'boni' => ['lat' => 15.1100, 'lng' => -2.1800, 'nom' => 'Boni'],
+            'hombori' => ['lat' => 15.2800, 'lng' => -1.7000, 'nom' => 'Hombori'],
             'douentza' => ['lat' => 14.9970, 'lng' => -2.9480, 'nom' => 'Douentza'],
 
             // Bandiagara (R19)
             'bankass' => ['lat' => 13.6647, 'lng' => -3.6714, 'nom' => 'Bankass'],
             'koro' => ['lat' => 14.0650, 'lng' => -3.0830, 'nom' => 'Koro'],
+            'diallassagou' => ['lat' => 13.9500, 'lng' => -3.5300, 'nom' => 'Diallassagou'],
             'bandiagara' => ['lat' => 14.3500, 'lng' => -3.6180, 'nom' => 'Bandiagara'],
+
+            // Taoudénit (R20)
+            'taoudénit' => ['lat' => 22.6700, 'lng' => -3.9800, 'nom' => 'Taoudénit'],
         ];
 
         // Trier par longueur de clé décroissante
