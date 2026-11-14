@@ -60,25 +60,25 @@
                 </div>
             </div>
 
-            <!-- 2. Zone principale : SEULE LA CARTE A LE THÈME BLEU MARINE / ARDOISE ADOUCI (#16212e) -->
+            <!-- 2. Zone principale : Cadre blanc standard, SEUL LE CANEVAS DE LA CARTE EST EN BLEU ARDOISE (#16212e) -->
             <div class="flex-1 min-h-0 grid gap-2 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_340px] items-stretch">
-                <!-- PANNEAU CARTE TACTIQUE (FOND BLEU NUIT ARDOISE ADOUCI DE LA DÉMO, PAS TROP NOIR) -->
-                <div class="bg-[#16212e] rounded-lg border border-[#263446] p-2 min-w-0 flex flex-col h-full overflow-hidden shadow-sm">
-                    <!-- Barre d'outils au-dessus de la carte -->
-                    <div class="flex flex-wrap items-center justify-between gap-2 mb-1 flex-none">
+                <!-- PANNEAU CARTE (Cadre blanc standard, en-tête clair, et uniquement l'endroit de la carte en fond sombre #16212e) -->
+                <div class="bg-white rounded-lg border border-slate-200 p-2.5 min-w-0 flex flex-col h-full overflow-hidden shadow-sm">
+                    <!-- En-tête de la carte CLAIR (comme demandé : "même l'en-tête faut laisser") -->
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5 flex-none">
                         <div class="flex items-center gap-1.5 flex-wrap">
                             <template v-if="sel">
                                 <button
-                                    class="chip bg-sky-600 text-white border-sky-500 hover:bg-sky-500 flex items-center gap-1.5 font-bold shadow-xs text-xs px-2.5 py-1"
+                                    class="chip bg-sky-900 text-white border-sky-900 hover:bg-sky-800 flex items-center gap-1.5 font-bold shadow-xs text-xs px-2.5 py-1"
                                     @click="retour"
                                 >
                                     <i class="pi pi-arrow-left text-[11px]"></i>
                                     <span>← Afficher tout le Mali</span>
                                 </button>
-                                <span class="text-xs font-bold px-2.5 py-0.5 rounded-full border border-sky-500/40 bg-sky-950/70 text-sky-200 flex items-center gap-1.5">
-                                    <span class="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
+                                <span class="text-xs font-bold px-2 py-0.5 rounded-full border border-slate-200 bg-slate-100 text-slate-800 flex items-center gap-1.5">
+                                    <span class="w-2 h-2 rounded-full bg-sky-600"></span>
                                     <span>{{ selRegion?.nom }}</span>
-                                    <span class="text-slate-400 font-normal">({{ selRegion?.unites.length }} unités)</span>
+                                    <span class="text-slate-500 font-normal">({{ selRegion?.unites.length }} unités)</span>
                                 </span>
                             </template>
                             <template v-else>
@@ -99,7 +99,7 @@
                             <select
                                 :value="sel || ''"
                                 @change="onSelectRegionDropdown($event.target.value)"
-                                class="text-xs border border-[#2e425b] rounded-lg px-2 py-0.5 bg-[#1f2f42] text-slate-200 focus:outline-none focus:border-sky-400 font-medium"
+                                class="text-xs border border-slate-200 rounded-lg px-2 py-0.5 bg-white text-slate-700 focus:outline-none focus:border-sky-500 font-medium"
                                 aria-label="Choisir une région"
                             >
                                 <option value="">Tout le Mali (20 régions)</option>
@@ -110,7 +110,7 @@
                         </div>
                     </div>
 
-                    <!-- CANEVAS SVG : FOND BLEU MARINE / ARDOISE ADOUCI (#16212e comme sur la photo de référence) -->
+                    <!-- UNIQUEMENT CET ENDROIT : LE CANEVAS DE LA CARTE EN BLEU ARDOISE ADOUCI (#16212E) -->
                     <div class="flex-1 min-h-0 w-full h-full relative flex items-center justify-center overflow-hidden bg-[#16212e] rounded-lg border border-[#263446] p-1">
                         <!-- Entête au survol interactif (HUD élégant) -->
                         <transition name="fade">
@@ -144,7 +144,7 @@
                                 </filter>
                             </defs>
 
-                            <!-- Tracés des régions SVG (Dégradé bleu marine tactique de la photo ; sans infobulle navigateur native redondante) -->
+                            <!-- Tracés des régions SVG (Nuances tactiques de bleu marine comme sur la photo ; sans infobulle native redondante) -->
                             <template v-for="r in regions" :key="r.code">
                                 <path
                                     v-if="SHAPES[r.code] && (!sel ? (r.code !== 'R1') : (r.code === sel))"
@@ -269,22 +269,22 @@
                         </svg>
                     </div>
 
-                    <!-- Barre de sélection rapide de régions au bas de la carte (accès en 1 clic) -->
-                    <div class="flex items-center gap-1 overflow-x-auto py-1 px-1 mt-1 bg-[#121c27] rounded-md border border-[#263446] text-[11px] flex-none custom-scrollbar">
+                    <!-- Barre de sélection rapide de régions au bas de la carte (accès en 1 clic) CLAIRE -->
+                    <div class="flex items-center gap-1 overflow-x-auto py-1 px-1 mt-1 bg-slate-50/90 rounded-md border border-slate-200 text-[11px] flex-none custom-scrollbar">
                         <button
                             class="px-2 py-0.5 rounded font-semibold transition-all flex items-center gap-1 flex-none"
-                            :class="!sel ? 'bg-sky-600 text-white shadow-xs' : 'bg-[#1f2f42] text-slate-300 hover:bg-[#2b3e55] border border-[#2e425b]'"
+                            :class="!sel ? 'bg-sky-900 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'"
                             @click="retour"
                             title="Afficher la carte complète du Mali"
                         >
                             <span>🌐 Tout le Mali</span>
                         </button>
-                        <div class="h-3 w-px bg-[#263446] flex-none mx-0.5"></div>
+                        <div class="h-3 w-px bg-slate-300 flex-none mx-0.5"></div>
                         <button
                             v-for="r in regions"
                             :key="r.code"
                             class="px-1.5 py-0.5 rounded font-medium transition-all flex items-center gap-1 flex-none"
-                            :class="sel === r.code ? 'bg-sky-600 text-white shadow-xs font-bold border border-sky-400' : 'bg-[#1f2f42]/80 text-slate-300 hover:bg-[#2b3e55] border border-[#2e425b]'"
+                            :class="sel === r.code ? 'bg-sky-900 text-white shadow-xs font-bold' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'"
                             @click="choisir(r.code)"
                             :title="r.nom + ' (' + r.unites.length + ' unités)'"
                         >
@@ -298,28 +298,28 @@
                     </div>
 
                     <!-- Légende opérationnelle au bas de la carte -->
-                    <div class="flex flex-wrap items-center justify-between gap-2 mt-1 text-[11px] text-slate-400 flex-none">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mt-1 text-[11px] text-slate-500 flex-none">
                         <template v-if="sel">
                             <div class="flex items-center gap-3">
-                                <span class="flex items-center font-medium text-emerald-400">
+                                <span class="flex items-center font-medium text-emerald-800">
                                     <i class="dot" style="background:#10b981"></i>Opérationnelle
                                 </span>
-                                <span class="flex items-center font-medium text-amber-400">
+                                <span class="flex items-center font-medium text-amber-800">
                                     <i class="dot" style="background:#f59e0b"></i>Non opérationnelle
                                 </span>
-                                <span class="text-slate-500">• Rayon = effectif</span>
+                                <span class="text-slate-400">• Rayon = effectif</span>
                             </div>
-                            <span v-if="unitesSansPoint > 0" class="text-amber-400 font-semibold">
+                            <span v-if="unitesSansPoint > 0" class="text-amber-700 font-semibold">
                                 • {{ unitesSansPoint }} unité(s) sans GPS
                             </span>
                         </template>
                         <template v-else>
                             <div class="flex items-center gap-2">
-                                <span class="font-medium text-slate-300">20 Régions militaires cartographiées</span>
-                                <span class="text-slate-600">•</span>
-                                <span class="text-slate-400">Cliquez sur une région pour isoler ses brigades</span>
+                                <span class="font-medium text-slate-700">20 Régions militaires cartographiées</span>
+                                <span class="text-slate-300">•</span>
+                                <span class="text-slate-500">Cliquez sur une région pour isoler ses brigades</span>
                             </div>
-                            <span class="text-[10px] text-slate-500">Total : {{ tot(x => x.unites.length) }} unités répertoriées</span>
+                            <span class="text-[10px] text-slate-400">Total : {{ tot(x => x.unites.length) }} unités répertoriées</span>
                         </template>
                     </div>
                 </div>
@@ -376,7 +376,7 @@
                     </div>
 
                     <!-- LISTE DÉROULANTE INTERNE (SEUL CE BLOC DÉFILE) -->
-                    <div class="flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar-light">
+                    <div class="flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar">
                         <ul v-if="lignesFiltrees.length > 0" class="rank">
                             <li v-for="row in lignesFiltrees" :key="row.key">
                                 <button
@@ -472,7 +472,7 @@ const legende = computed(() => {
     return v.length ? { min: Math.min(...v), max: Math.max(...v) } : { min: 0, max: 0 };
 });
 
-// Couleurs tactiques bleu marine douces (identiques à la photo de référence)
+// Couleurs tactiques bleu marine adoucies (identiques à la photo de référence)
 const fillFor = (r) => {
     if (!r) return '#1b2838';
     if (sel.value) {
@@ -768,24 +768,22 @@ const lignesFiltrees = computed(() => {
 <style scoped>
 .chip {
     font-size: 11.5px;
-    border: 1px solid #2e425b;
+    border: 1px solid #dde3ea;
     border-radius: 9999px;
     padding: 2.5px 9px;
-    color: #cbd5e1;
-    background: #1f2f42;
+    color: #14202e;
+    background: transparent;
     cursor: pointer;
     transition: all 0.15s ease;
 }
 .chip[aria-pressed='true'] {
-    background: #5f9bea;
-    border-color: #5f9bea;
-    color: #0b1320;
-    font-weight: 700;
-    box-shadow: 0 1px 4px rgba(95, 155, 234, 0.35);
+    background: #1d4f91;
+    border-color: #1d4f91;
+    color: #fff;
+    box-shadow: 0 1px 2px rgba(29, 79, 145, 0.25);
 }
 .chip:hover:not([aria-pressed='true']) {
-    background: #2b3e55;
-    color: #ffffff;
+    background: #f1f5f9;
 }
 
 .reg {
@@ -913,30 +911,14 @@ const lignesFiltrees = computed(() => {
     height: 5px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-    background: #121c27;
-    border-radius: 4px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #263446;
-    border-radius: 4px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #3b506b;
-}
-
-.custom-scrollbar-light::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
-}
-.custom-scrollbar-light::-webkit-scrollbar-track {
     background: #f8fafc;
     border-radius: 4px;
 }
-.custom-scrollbar-light::-webkit-scrollbar-thumb {
+.custom-scrollbar::-webkit-scrollbar-thumb {
     background: #cbd5e1;
     border-radius: 4px;
 }
-.custom-scrollbar-light::-webkit-scrollbar-thumb:hover {
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
 }
 
