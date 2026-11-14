@@ -206,25 +206,23 @@
                                             <i class="pi pi-clock text-[9px]"></i> En projet (0 effectif)
                                         </span>
                                     </td>
-                                    <td class="py-2.5 px-3 text-right space-x-1 whitespace-nowrap">
-                                        <Button
-                                            icon="pi pi-pencil"
-                                            text
-                                            rounded
-                                            severity="secondary"
-                                            class="!w-7 !h-7 text-xs text-sky-700 hover:bg-sky-50"
-                                            title="Modifier"
+                                    <td class="py-2.5 px-3 text-right space-x-1.5 whitespace-nowrap">
+                                        <button
+                                            type="button"
+                                            class="inline-flex items-center justify-center w-7 h-7 rounded-md text-sky-700 hover:text-sky-900 hover:bg-sky-50 transition border border-transparent hover:border-sky-200 cursor-pointer"
+                                            title="Modifier cette unité"
                                             @click="editUnite(u)"
-                                        />
-                                        <Button
-                                            icon="pi pi-trash"
-                                            text
-                                            rounded
-                                            severity="danger"
-                                            class="!w-7 !h-7 text-xs text-red-600 hover:bg-red-50"
-                                            title="Supprimer"
+                                        >
+                                            <i class="pi pi-pencil text-xs"></i>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="inline-flex items-center justify-center w-7 h-7 rounded-md text-red-600 hover:text-red-800 hover:bg-red-50 transition border border-transparent hover:border-red-200 cursor-pointer"
+                                            title="Supprimer cette unité"
                                             @click="confirmDeleteUnite(u)"
-                                        />
+                                        >
+                                            <i class="pi pi-trash text-xs text-red-600"></i>
+                                        </button>
                                     </td>
                                 </tr>
                                 <tr v-if="filteredUnites.length === 0">
@@ -322,25 +320,23 @@
                                             {{ r.unites_count ?? 0 }} unité(s)
                                         </span>
                                     </td>
-                                    <td class="py-2.5 px-3 text-right space-x-1 whitespace-nowrap">
-                                        <Button
-                                            icon="pi pi-pencil"
-                                            text
-                                            rounded
-                                            severity="secondary"
-                                            class="!w-7 !h-7 text-xs text-sky-700 hover:bg-sky-50"
-                                            title="Modifier"
+                                    <td class="py-2.5 px-3 text-right space-x-1.5 whitespace-nowrap">
+                                        <button
+                                            type="button"
+                                            class="inline-flex items-center justify-center w-7 h-7 rounded-md text-sky-700 hover:text-sky-900 hover:bg-sky-50 transition border border-transparent hover:border-sky-200 cursor-pointer"
+                                            title="Modifier cette région"
                                             @click="editRegion(r)"
-                                        />
-                                        <Button
-                                            icon="pi pi-trash"
-                                            text
-                                            rounded
-                                            severity="danger"
-                                            class="!w-7 !h-7 text-xs text-red-600 hover:bg-red-50"
-                                            title="Supprimer"
+                                        >
+                                            <i class="pi pi-pencil text-xs"></i>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="inline-flex items-center justify-center w-7 h-7 rounded-md text-red-600 hover:text-red-800 hover:bg-red-50 transition border border-transparent hover:border-red-200 cursor-pointer"
+                                            title="Supprimer cette région"
                                             @click="confirmDeleteRegion(r)"
-                                        />
+                                        >
+                                            <i class="pi pi-trash text-xs text-red-600"></i>
+                                        </button>
                                     </td>
                                 </tr>
                                 <tr v-if="filteredRegions.length === 0">
@@ -403,25 +399,23 @@
                                     <td class="py-2.5 px-3 text-slate-500">
                                         {{ p.description || '-' }}
                                     </td>
-                                    <td class="py-2.5 px-3 text-right space-x-1 whitespace-nowrap">
-                                        <Button
-                                            icon="pi pi-pencil"
-                                            text
-                                            rounded
-                                            severity="secondary"
-                                            class="!w-7 !h-7 text-xs text-sky-700 hover:bg-sky-50"
-                                            title="Modifier"
+                                    <td class="py-2.5 px-3 text-right space-x-1.5 whitespace-nowrap">
+                                        <button
+                                            type="button"
+                                            class="inline-flex items-center justify-center w-7 h-7 rounded-md text-sky-700 hover:text-sky-900 hover:bg-sky-50 transition border border-transparent hover:border-sky-200 cursor-pointer"
+                                            title="Modifier cette position"
                                             @click="editPosition(p)"
-                                        />
-                                        <Button
-                                            icon="pi pi-trash"
-                                            text
-                                            rounded
-                                            severity="danger"
-                                            class="!w-7 !h-7 text-xs text-red-600 hover:bg-red-50"
-                                            title="Supprimer"
+                                        >
+                                            <i class="pi pi-pencil text-xs"></i>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="inline-flex items-center justify-center w-7 h-7 rounded-md text-red-600 hover:text-red-800 hover:bg-red-50 transition border border-transparent hover:border-red-200 cursor-pointer"
+                                            title="Supprimer cette position"
                                             @click="confirmDeletePosition(p)"
-                                        />
+                                        >
+                                            <i class="pi pi-trash text-xs text-red-600"></i>
+                                        </button>
                                     </td>
                                 </tr>
                                 <tr v-if="filteredPositions.length === 0">

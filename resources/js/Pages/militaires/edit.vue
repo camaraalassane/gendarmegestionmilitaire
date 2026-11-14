@@ -412,10 +412,10 @@
                                                     </button>
                                                 </div>
                                                 <Select :id="'region_' + idx"
-                                                        v-model="aff.region"
+                                                        v-model="aff.region_id"
                                                         :options="localRegions"
                                                         optionLabel="nom"
-                                                        optionValue="nom"
+                                                        optionValue="id"
                                                         filter
                                                         placeholder="Choisir ou chercher une région..."
                                                         class="w-full text-xs"
@@ -443,10 +443,10 @@
                                                     </button>
                                                 </div>
                                                 <Select :id="'unite_' + idx"
-                                                        v-model="aff.unite"
+                                                        v-model="aff.unite_id"
                                                         :options="getUnitesForRow(idx)"
                                                         optionLabel="nom"
-                                                        optionValue="nom"
+                                                        optionValue="id"
                                                         filter
                                                         placeholder="Choisir ou chercher une unité..."
                                                         class="w-full text-xs"
@@ -550,13 +550,14 @@
                                             </button>
                                         </div>
                                         <Select id="position_actuelle"
-                                                v-model="form.position_actuelle"
+                                                v-model="form.position_id"
                                                 :options="localPositions"
                                                 optionLabel="nom"
-                                                optionValue="nom"
+                                                optionValue="id"
                                                 filter
                                                 placeholder="Sélectionner ou chercher l'endroit / théâtre où il se trouve (Ex: À l'Unité, Escadron Djiguiya, GIGM, Koulouba...)"
-                                                class="w-full">
+                                                class="w-full"
+                                                @change="onPositionSelect">
                                             <template #option="slotProps">
                                                 <div class="flex items-center justify-between w-full py-0.5">
                                                     <span class="text-xs font-medium">{{ slotProps.option.nom }}</span>
@@ -1288,18 +1289,29 @@ const form = reactive({
     date_derniere_promotion: parsePropDate(props.militaire.date_derniere_promotion),
     specialite: props.militaire.specialite || '',
     origine_formation: props.militaire.origine_formation || '',
+    position_id: props.militaire.position_id ?? (props.positions.find(p => p.nom === props.militaire.position_actuelle)?.id ?? null),
     position_actuelle: props.militaire.position_actuelle || '',
+    unite_id: props.militaire.unite_id ?? (props.unites.find(u => u.nom === props.militaire.unite)?.id ?? null),
     unite: props.militaire.unite || '',
+    region_id: props.militaire.region_id ?? (props.regions.find(r => r.nom === props.militaire.region || r.code === props.militaire.region)?.id ?? null),
     region: props.militaire.region || '',
     date_mutation: parsePropDate(props.militaire.date_mutation),
     affectations: (props.affectations && props.affectations.length > 0)
-        ? props.affectations.map(a => ({
-            unite: a.unite || '',
-            region: a.region || '',
-            date_mutation: parsePropDate(a.date_mutation)
-        }))
+        ? props.affectations.map(a => {
+            const rId = a.region_id ?? (props.regions.find(r => r.nom === a.region || r.code === a.region)?.id ?? null);
+            const uId = a.unite_id ?? (props.unites.find(u => u.nom === a.unite)?.id ?? null);
+            return {
+                region_id: rId,
+                unite_id: uId,
+                unite: a.unite || '',
+                region: a.region || '',
+                date_mutation: parsePropDate(a.date_mutation)
+            };
+        })
         : [
             {
+                region_id: props.militaire.region_id ?? (props.regions.find(r => r.nom === props.militaire.region || r.code === props.militaire.region)?.id ?? null),
+                unite_id: props.militaire.unite_id ?? (props.unites.find(u => u.nom === props.militaire.unite)?.id ?? null),
                 unite: props.militaire.unite || '',
                 region: props.militaire.region || '',
                 date_mutation: parsePropDate(props.militaire.date_mutation)
@@ -1453,35 +1465,51 @@ const quickPositionForm = ref({ nom: '', type: 'administrative' });
 const currentQuickAffIndex = ref(null);
 
 const getUnitesForRow = (idx) => {
-    const selectedRegion = form.affectations[idx]?.region;
-    if (!selectedRegion) {
+    const selectedRegionId = form.affectations[idx]?.region_id;
+    if (!selectedRegionId) {
         return localUnites.value;
     }
-    const regionObj = localRegions.value.find(r => r.nom === selectedRegion || r.code === selectedRegion);
-    if (!regionObj) {
-        return localUnites.value;
-    }
-    const filtered = localUnites.value.filter(u => u.region_id === regionObj.id);
+    const filtered = localUnites.value.filter(u => u.region_id === selectedRegionId);
     return filtered.length > 0 ? filtered : localUnites.value;
 };
 
 const onRegionSelect = (idx) => {
-    const selectedRegion = form.affectations[idx]?.region;
-    const currentUnite = form.affectations[idx]?.unite;
-    if (selectedRegion && currentUnite) {
-        const uniteObj = localUnites.value.find(u => u.nom === currentUnite);
-        if (uniteObj && uniteObj.region && uniteObj.region.nom !== selectedRegion && uniteObj.region.code !== selectedRegion) {
+    const selectedRegionId = form.affectations[idx]?.region_id;
+    const regionObj = localRegions.value.find(r => r.id === selectedRegionId);
+    if (regionObj) {
+        form.affectations[idx].region = regionObj.nom;
+    } else {
+        form.affectations[idx].region = '';
+    }
+
+    const currentUniteId = form.affectations[idx]?.unite_id;
+    if (selectedRegionId && currentUniteId) {
+        const uniteObj = localUnites.value.find(u => u.id === currentUniteId);
+        if (uniteObj && uniteObj.region_id !== selectedRegionId) {
+            form.affectations[idx].unite_id = null;
             form.affectations[idx].unite = '';
         }
     }
 };
 
 const onUniteSelect = (idx) => {
-    const selectedUnite = form.affectations[idx]?.unite;
-    if (!selectedUnite) return;
-    const uniteObj = localUnites.value.find(u => u.nom === selectedUnite);
-    if (uniteObj && uniteObj.region) {
-        form.affectations[idx].region = uniteObj.region.nom;
+    const selectedUniteId = form.affectations[idx]?.unite_id;
+    if (!selectedUniteId) return;
+    const uniteObj = localUnites.value.find(u => u.id === selectedUniteId);
+    if (uniteObj) {
+        form.affectations[idx].unite = uniteObj.nom;
+        if (uniteObj.region_id) {
+            form.affectations[idx].region_id = uniteObj.region_id;
+            const regionObj = localRegions.value.find(r => r.id === uniteObj.region_id);
+            form.affectations[idx].region = regionObj?.nom || uniteObj.region?.nom || '';
+        }
+    }
+};
+
+const onPositionSelect = () => {
+    const posObj = localPositions.value.find(p => p.id === form.position_id);
+    if (posObj) {
+        form.position_actuelle = posObj.nom;
     }
 };
 
@@ -1502,6 +1530,7 @@ const saveQuickRegion = async () => {
         if (response.data && response.data.region) {
             localRegions.value.push(response.data.region);
             if (currentQuickAffIndex.value !== null && form.affectations[currentQuickAffIndex.value]) {
+                form.affectations[currentQuickAffIndex.value].region_id = response.data.region.id;
                 form.affectations[currentQuickAffIndex.value].region = response.data.region.nom;
             }
             quickRegionVisible.value = false;
@@ -1517,11 +1546,13 @@ const saveQuickRegion = async () => {
 
 const openQuickAddUnite = (idx) => {
     currentQuickAffIndex.value = idx;
-    let preselectedRegionId = null;
-    const currentRegionNom = form.affectations[idx]?.region;
-    if (currentRegionNom) {
-        const rObj = localRegions.value.find(r => r.nom === currentRegionNom || r.code === currentRegionNom);
-        if (rObj) preselectedRegionId = rObj.id;
+    let preselectedRegionId = form.affectations[idx]?.region_id;
+    if (!preselectedRegionId) {
+        const currentRegionNom = form.affectations[idx]?.region;
+        if (currentRegionNom) {
+            const rObj = localRegions.value.find(r => r.nom === currentRegionNom || r.code === currentRegionNom);
+            if (rObj) preselectedRegionId = rObj.id;
+        }
     }
     quickUniteForm.value = {
         region_id: preselectedRegionId || (localRegions.value[0]?.id ?? null),
@@ -1543,7 +1574,11 @@ const saveQuickUnite = async () => {
         if (response.data && response.data.unite) {
             localUnites.value.push(response.data.unite);
             if (currentQuickAffIndex.value !== null && form.affectations[currentQuickAffIndex.value]) {
+                form.affectations[currentQuickAffIndex.value].unite_id = response.data.unite.id;
                 form.affectations[currentQuickAffIndex.value].unite = response.data.unite.nom;
+                if (response.data.unite.region_id) {
+                    form.affectations[currentQuickAffIndex.value].region_id = response.data.unite.region_id;
+                }
                 if (response.data.unite.region?.nom) {
                     form.affectations[currentQuickAffIndex.value].region = response.data.unite.region.nom;
                 }
@@ -1574,6 +1609,7 @@ const saveQuickPosition = async () => {
         const response = await axios.post(route('configurations.positions.store'), quickPositionForm.value);
         if (response.data && response.data.position) {
             localPositions.value.push(response.data.position);
+            form.position_id = response.data.position.id;
             form.position_actuelle = response.data.position.nom;
             quickPositionVisible.value = false;
             toast.add({ severity: 'success', summary: 'Succès', detail: 'Nouvelle position ajoutée et sélectionnée !', life: 3000 });
@@ -1716,14 +1752,16 @@ const submitForm = () => {
 
     // Synchroniser l'affectation la plus récente (par date de mutation) dans les champs principaux
     if (form.affectations && form.affectations.length > 0) {
-        const sorted = [...form.affectations].filter(a => a.unite || a.region || a.date_mutation);
+        const sorted = [...form.affectations].filter(a => a.unite_id || a.unite || a.region_id || a.region || a.date_mutation);
         sorted.sort((a, b) => {
             const dateA = a.date_mutation ? new Date(a.date_mutation).getTime() : 0;
             const dateB = b.date_mutation ? new Date(b.date_mutation).getTime() : 0;
             return dateB - dateA;
         });
         const mostRecent = sorted[0] || form.affectations[0];
+        form.unite_id = mostRecent.unite_id || null;
         form.unite = mostRecent.unite || '';
+        form.region_id = mostRecent.region_id || null;
         form.region = mostRecent.region || '';
         form.date_mutation = mostRecent.date_mutation || null;
     }
@@ -1732,6 +1770,8 @@ const submitForm = () => {
 
     if (form.affectations && form.affectations.length > 0) {
         form.affectations.forEach((aff, idx) => {
+            if (aff.region_id) formData.append(`affectations[${idx}][region_id]`, aff.region_id);
+            if (aff.unite_id) formData.append(`affectations[${idx}][unite_id]`, aff.unite_id);
             formData.append(`affectations[${idx}][unite]`, aff.unite || '');
             formData.append(`affectations[${idx}][region]`, aff.region || '');
             formData.append(`affectations[${idx}][date_mutation]`, aff.date_mutation ? formatDateForServer(aff.date_mutation) : '');
@@ -1747,7 +1787,7 @@ const submitForm = () => {
     const textFields = [
         'matricule', 'mle_grm', 'numero_info', 'numero_nina', 'grade_actuel', 'categorie',
         'nom', 'prenom', 'lieu_naissance', 'specialite', 'origine_formation',
-        'position_actuelle', 'unite', 'region', 'fonction_passee', 'fonction_actuelle',
+        'position_id', 'position_actuelle', 'unite_id', 'unite', 'region_id', 'region', 'fonction_passee', 'fonction_actuelle',
         'telephone', 'statut', 'sexe', 'groupe_sanguin', 'taille', 'status_sanitaire', 'engagement_ops',
         'personne_a_contacter', 'telephone_personne_contacter',
         'decorations', 'diplomes_academiques', 'observations',

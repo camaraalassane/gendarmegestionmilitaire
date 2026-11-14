@@ -269,8 +269,11 @@ class MilitaireController extends Controller
             'date_derniere_promotion' => 'nullable|date|before_or_equal:today',
             'specialite' => 'nullable|string|max:200',
             'origine_formation' => 'nullable|string|max:255',
+            'position_id' => 'nullable|exists:positions,id',
             'position_actuelle' => 'nullable|string|max:255',
+            'unite_id' => 'nullable|exists:unites,id',
             'unite' => 'nullable|string|max:255',
+            'region_id' => 'nullable|exists:regions,id',
             'region' => 'nullable|string|max:100',
             'date_mutation' => 'nullable|date',
             'fonction_passee' => 'nullable|string|max:255',
@@ -509,6 +512,8 @@ class MilitaireController extends Controller
         }
 
         $affectationsList = $militaire->affectations->map(fn ($aff) => [
+            'region_id' => $aff->region_id,
+            'unite_id' => $aff->unite_id,
             'unite' => $aff->unite ?? '',
             'region' => $aff->region ?? '',
             'date_mutation' => $aff->date_mutation?->format('Y-m-d') ?? '',
@@ -517,6 +522,8 @@ class MilitaireController extends Controller
         if (empty($affectationsList)) {
             $affectationsList = [
                 [
+                    'region_id' => $militaire->region_id,
+                    'unite_id' => $militaire->unite_id,
                     'unite' => $militaire->unite ?? '',
                     'region' => $militaire->region ?? '',
                     'date_mutation' => $militaire->date_mutation?->format('Y-m-d') ?? '',
@@ -547,8 +554,11 @@ class MilitaireController extends Controller
                 'date_derniere_promotion' => $militaire->date_derniere_promotion?->format('Y-m-d'),
                 'specialite' => $militaire->specialite,
                 'origine_formation' => $militaire->origine_formation,
+                'position_id' => $militaire->position_id,
                 'position_actuelle' => $militaire->position_actuelle,
+                'unite_id' => $militaire->unite_id,
                 'unite' => $militaire->unite,
+                'region_id' => $militaire->region_id,
                 'region' => $militaire->region,
                 'date_mutation' => $militaire->date_mutation?->format('Y-m-d'),
                 'fonction_passee' => $militaire->fonction_passee,
@@ -603,8 +613,11 @@ class MilitaireController extends Controller
             'date_derniere_promotion' => 'nullable|date',
             'specialite' => 'nullable|string|max:200',
             'origine_formation' => 'nullable|string|max:255',
+            'position_id' => 'nullable|exists:positions,id',
             'position_actuelle' => 'nullable|string|max:255',
+            'unite_id' => 'nullable|exists:unites,id',
             'unite' => 'nullable|string|max:255',
+            'region_id' => 'nullable|exists:regions,id',
             'region' => 'nullable|string|max:100',
             'date_mutation' => 'nullable|date',
             'fonction_passee' => 'nullable|string|max:255',
@@ -743,7 +756,7 @@ class MilitaireController extends Controller
             'nom', 'prenom', 'date_naissance', 'lieu_naissance', 'date_entree_service',
             'grade_actuel', 'categorie', 'date_derniere_promotion',
             'specialite', 'origine_formation', 'statut',
-            'position_actuelle', 'unite', 'region', 'date_mutation',
+            'position_id', 'position_actuelle', 'unite_id', 'unite', 'region_id', 'region', 'date_mutation',
             'fonction_passee', 'fonction_actuelle',
             'telephone', 'sexe', 'groupe_sanguin', 'taille', 'status_sanitaire', 'engagement_ops',
             'personne_a_contacter', 'telephone_personne_contacter',
@@ -817,10 +830,12 @@ class MilitaireController extends Controller
             $militaire->affectations()->delete();
             $createdAffectations = [];
             foreach ($affectationsData as $item) {
-                if (empty($item['unite']) && empty($item['region']) && empty($item['date_mutation'])) {
+                if (empty($item['unite']) && empty($item['region']) && empty($item['unite_id']) && empty($item['region_id']) && empty($item['date_mutation'])) {
                     continue;
                 }
                 $aff = $militaire->affectations()->create([
+                    'region_id' => !empty($item['region_id']) ? $item['region_id'] : null,
+                    'unite_id' => !empty($item['unite_id']) ? $item['unite_id'] : null,
                     'unite' => !empty($item['unite']) ? $item['unite'] : null,
                     'region' => !empty($item['region']) ? $item['region'] : null,
                     'date_mutation' => !empty($item['date_mutation']) ? Carbon::parse($item['date_mutation']) : null,
@@ -842,14 +857,18 @@ class MilitaireController extends Controller
 
             if ($affectationPlusRecente) {
                 $militaire->update([
+                    'region_id' => $affectationPlusRecente->region_id,
+                    'unite_id' => $affectationPlusRecente->unite_id,
                     'unite' => $affectationPlusRecente->unite,
                     'region' => $affectationPlusRecente->region,
                     'date_mutation' => $affectationPlusRecente->date_mutation,
                 ]);
             }
-        } elseif ($militaire->unite || $militaire->region || $militaire->date_mutation) {
+        } elseif ($militaire->unite || $militaire->region || $militaire->unite_id || $militaire->region_id || $militaire->date_mutation) {
             if ($militaire->affectations()->count() === 0) {
                 $militaire->affectations()->create([
+                    'region_id' => $militaire->region_id,
+                    'unite_id' => $militaire->unite_id,
                     'unite' => $militaire->unite,
                     'region' => $militaire->region,
                     'date_mutation' => $militaire->date_mutation,

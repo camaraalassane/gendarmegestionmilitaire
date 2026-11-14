@@ -29,7 +29,7 @@ class AppServiceProvider extends ServiceProvider
                 : $rule;
         });
 
-        foreach ([\App\Models\Region::class, \App\Models\Unite::class] as $modele) {
+        foreach ([\App\Models\Region::class, \App\Models\Unite::class, \App\Models\Militaire::class, \App\Models\Affectation::class] as $modele) {
             $modele::saved(fn () => \App\Http\Controllers\CarteController::flush());
             $modele::deleted(fn () => \App\Http\Controllers\CarteController::flush());
         }

@@ -32,6 +32,7 @@ class Militaire extends Model
         'specialite',
         'origine_formation',
         'position_actuelle',
+        'position_id',
         'unite',
         'region',
         'region_id',
@@ -97,11 +98,47 @@ class Militaire extends Model
                 $militaire->categorie = $grade ? $grade->categorie_statutaire : Grade::determinerCategorie($militaire->grade_actuel);
             }
 
-            // Garde region_id / unite_id synchronisés avec les champs texte
-            if ($militaire->isDirty(['unite', 'region']) || (!$militaire->unite_id && !$militaire->region_id)) {
+            // Synchronisation relation lieu -> texte
+            if ($militaire->unite_id && (!$militaire->unite || $militaire->isDirty('unite_id'))) {
+                $u = Unite::find($militaire->unite_id);
+                if ($u) {
+                    $militaire->unite = $u->nom;
+                    if (!$militaire->region_id) {
+                        $militaire->region_id = $u->region_id;
+                    }
+                }
+            }
+
+            if ($militaire->region_id && (!$militaire->region || $militaire->isDirty('region_id'))) {
+                $r = Region::find($militaire->region_id);
+                if ($r) {
+                    $militaire->region = $r->nom;
+                }
+            }
+
+            if ($militaire->position_id && (!$militaire->position_actuelle || $militaire->isDirty('position_id'))) {
+                $pos = Position::find($militaire->position_id);
+                if ($pos) {
+                    $militaire->position_actuelle = $pos->nom;
+                }
+            }
+
+            // Synchronisation texte -> relation lieu si les IDs sont manquants
+            if (!$militaire->position_id && !empty($militaire->position_actuelle)) {
+                $posId = Position::where('nom', trim($militaire->position_actuelle))->value('id');
+                if ($posId) {
+                    $militaire->position_id = $posId;
+                }
+            }
+
+            if ((!$militaire->unite_id || !$militaire->region_id) && ($militaire->unite || $militaire->region)) {
                 $ids = (new \App\Support\CarteRattachement())->resoudre($militaire->unite, $militaire->region);
-                $militaire->unite_id = $ids['unite_id'];
-                $militaire->region_id = $ids['region_id'];
+                if (!$militaire->unite_id && $ids['unite_id']) {
+                    $militaire->unite_id = $ids['unite_id'];
+                }
+                if (!$militaire->region_id && $ids['region_id']) {
+                    $militaire->region_id = $ids['region_id'];
+                }
             }
         });
 
@@ -171,6 +208,30 @@ class Militaire extends Model
     public function affectations(): HasMany
     {
         return $this->hasMany(Affectation::class)->orderBy('date_mutation', 'desc')->orderBy('id', 'desc');
+    }
+
+    /**
+     * Vraie relation vers la Région de rattachement.
+     */
+    public function region(): BelongsTo
+    {
+        return $this->belongsTo(Region::class, 'region_id');
+    }
+
+    /**
+     * Vraie relation vers l'Unité d'affectation.
+     */
+    public function unite(): BelongsTo
+    {
+        return $this->belongsTo(Unite::class, 'unite_id');
+    }
+
+    /**
+     * Vraie relation vers la Position géographique / administrative.
+     */
+    public function position(): BelongsTo
+    {
+        return $this->belongsTo(Position::class, 'position_id');
     }
 
     public function contratActif(): HasOne
