@@ -140,9 +140,18 @@
                     </div>
 
                     <!-- UNIQUEMENT CET ENDROIT : LE CANEVAS DE LA CARTE EN BLEU ARDOISE ADOUCI (#16212E) -->
-                    <div class="flex-1 min-h-0 w-full h-full relative flex items-center justify-center overflow-hidden bg-[#16212e] rounded-lg border border-[#263446] p-1">
-                        <!-- Bouton d'action rapide Plein écran sur le canevas tactique -->
-                        <div class="absolute top-2 right-2 z-20 flex items-center gap-1.5">
+                    <div
+                        class="flex-1 min-h-0 w-full h-full relative flex items-center justify-center overflow-hidden bg-[#16212e] rounded-lg border border-[#263446] p-1 cursor-grab select-none"
+                        :class="{ '!cursor-grabbing': isDragging }"
+                        @mousedown="onMouseDown"
+                        @wheel.prevent="onWheel"
+                        @touchstart="onTouchStart"
+                        @touchmove="onTouchMove"
+                        @touchend="onTouchEnd"
+                        @dblclick="onDblClick"
+                    >
+                        <!-- Boutons d'action rapide en haut à droite sur le canevas tactique -->
+                        <div class="absolute top-2 right-2 z-20 flex items-center gap-1.5 pointer-events-auto">
                             <button
                                 v-if="sel"
                                 type="button"
@@ -174,6 +183,48 @@
                             </button>
                         </div>
 
+                        <!-- Contrôles interactifs de Zoom (+ / % / - / Recentrer) en bas à droite -->
+                        <div class="absolute bottom-3 right-3 z-20 flex flex-col items-center bg-[#0e1621]/90 backdrop-blur border border-slate-700/80 rounded-lg shadow-xl overflow-hidden select-none pointer-events-auto">
+                            <button
+                                type="button"
+                                @click.stop="zoomIn"
+                                class="w-8 h-8 flex items-center justify-center text-white hover:bg-slate-700/60 active:bg-slate-700 transition cursor-pointer"
+                                title="Zoomer (+)"
+                                aria-label="Zoomer"
+                            >
+                                <i class="pi pi-plus text-xs"></i>
+                            </button>
+                            <div class="w-5 h-px bg-slate-700/80"></div>
+                            <button
+                                type="button"
+                                @click.stop="resetZoom"
+                                class="px-1.5 py-0.5 text-[10px] font-mono font-bold text-sky-400 hover:bg-slate-700/60 active:bg-slate-700 transition cursor-pointer"
+                                title="Réinitialiser le zoom (100%)"
+                            >
+                                {{ Math.round(userZoom * 100) }}%
+                            </button>
+                            <div class="w-5 h-px bg-slate-700/80"></div>
+                            <button
+                                type="button"
+                                @click.stop="zoomOut"
+                                class="w-8 h-8 flex items-center justify-center text-white hover:bg-slate-700/60 active:bg-slate-700 transition cursor-pointer"
+                                title="Dézoomer (-)"
+                                aria-label="Dézoomer"
+                            >
+                                <i class="pi pi-minus text-xs"></i>
+                            </button>
+                            <div class="w-5 h-px bg-slate-700/80"></div>
+                            <button
+                                type="button"
+                                @click.stop="resetZoom"
+                                class="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-700/60 active:bg-slate-700 transition cursor-pointer"
+                                title="Recentrer la carte"
+                                aria-label="Recentrer"
+                            >
+                                <i class="pi pi-compass text-xs"></i>
+                            </button>
+                        </div>
+
                         <!-- Entête au survol interactif (HUD élégant) -->
                         <transition name="fade">
                             <div
@@ -194,8 +245,9 @@
                         </transition>
 
                         <svg
+                            ref="svgRef"
                             :viewBox="viewBox.join(' ')"
-                            class="w-full h-full max-h-full block select-none"
+                            class="w-full h-full max-h-full block select-none pointer-events-auto"
                             preserveAspectRatio="xMidYMid meet"
                             role="img"
                             aria-label="Carte du Mali par région"
@@ -221,7 +273,7 @@
                                         stroke: sel === r.code ? '#38bdf8' : '#16212e',
                                         strokeWidth: (sel === r.code ? 2.2 : 1.2) * zoom
                                     }"
-                                    @click="choisir(r.code)"
+                                    @click="handleRegionClick(r.code)"
                                     @mouseenter="onHoverRegion(r)"
                                     @mouseleave="onLeaveHover"
                                 />
@@ -248,7 +300,7 @@
                                         :cy="SHAPES.R1.cy"
                                         r="6"
                                         style="fill: #5f9bea; stroke: #ffffff; stroke-width: 1.2px;"
-                                        @click="choisir('R1')"
+                                        @click="handleRegionClick('R1')"
                                         @mouseenter="onHoverRegion(r)"
                                         @mouseleave="onLeaveHover"
                                     />
@@ -272,7 +324,7 @@
                                     v-for="u in unitesAvecPoint"
                                     :key="u.id"
                                     class="unit-marker cursor-pointer"
-                                    @click="toggleUnit(u.id)"
+                                    @click="handleUnitClick(u.id)"
                                     @mouseenter="onHoverUnit(u)"
                                     @mouseleave="onLeaveHover"
                                 >
@@ -567,6 +619,8 @@ onUnmounted(() => {
     document.removeEventListener('fullscreenchange', onFullscreenChange);
     document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
     window.removeEventListener('keydown', onKeydown);
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
 });
 
 const METRICS = {
@@ -655,19 +709,32 @@ const onLeaveHover = () => {
 
 const hoveredInfo = computed(() => hoveredItem.value);
 
-// ---------- Sélection / zoom ----------
+// ---------- Sélection / zoom interactif (Pan & Zoom) ----------
 const selRegion = computed(() => props.regions.find((r) => r.code === sel.value));
+
+const svgRef = ref(null);
+const userZoom = ref(1); // 1 = 100%, 2 = 200%, etc.
+const panOffset = ref({ x: 0, y: 0 });
+const isDragging = ref(false);
+const hasDragged = ref(false);
+const dragStart = { x: 0, y: 0 };
+let touchStartDist = 0;
+let touchStartZoom = 1;
 
 const choisir = (code) => {
     sel.value = code;
     selUnit.value = null;
     searchQuery.value = '';
+    userZoom.value = 1;
+    panOffset.value = { x: 0, y: 0 };
 };
 
 const retour = () => {
     sel.value = null;
     selUnit.value = null;
     searchQuery.value = '';
+    userZoom.value = 1;
+    panOffset.value = { x: 0, y: 0 };
 };
 
 const onSelectRegionDropdown = (code) => {
@@ -682,20 +749,188 @@ const toggleUnit = (id) => {
     selUnit.value = selUnit.value === id ? null : id;
 };
 
-const viewBox = computed(() => {
+const handleRegionClick = (code) => {
+    if (hasDragged.value) return;
+    choisir(code);
+};
+
+const handleUnitClick = (id) => {
+    if (hasDragged.value) return;
+    toggleUnit(id);
+};
+
+// Contrôles de zoom (+ / - / recentrer)
+const zoomIn = () => {
+    userZoom.value = Math.min(Number((userZoom.value * 1.35).toFixed(2)), 20);
+};
+
+const zoomOut = () => {
+    userZoom.value = Math.max(Number((userZoom.value / 1.35).toFixed(2)), 0.35);
+};
+
+const resetZoom = () => {
+    userZoom.value = 1;
+    panOffset.value = { x: 0, y: 0 };
+};
+
+// Projection des coordonnées écran vers le canevas SVG
+const getSvgPoint = (clientX, clientY) => {
+    if (!svgRef.value) return null;
+    const pt = svgRef.value.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const ctm = svgRef.value.getScreenCTM();
+    if (!ctm) return null;
+    return pt.matrixTransform(ctm.inverse());
+};
+
+// Zoom à la molette fluide centré sur le curseur
+const onWheel = (e) => {
+    const factor = e.deltaY < 0 ? 1.2 : 0.83;
+    const newZoom = Math.min(Math.max(Number((userZoom.value * factor).toFixed(2)), 0.35), 20);
+    if (newZoom === userZoom.value) return;
+
+    const pt = getSvgPoint(e.clientX, e.clientY);
+    if (pt) {
+        const [vx, vy, vw, vh] = viewBox.value;
+        const currentCenterX = vx + vw / 2;
+        const currentCenterY = vy + vh / 2;
+        const dx = (pt.x - currentCenterX) * (1 - 1 / factor);
+        const dy = (pt.y - currentCenterY) * (1 - 1 / factor);
+        panOffset.value.x += dx;
+        panOffset.value.y += dy;
+    }
+    userZoom.value = newZoom;
+};
+
+// Double clic pour zoomer rapidement en avant
+const onDblClick = (e) => {
+    if (e.target.closest('button, select')) return;
+    const pt = getSvgPoint(e.clientX, e.clientY);
+    if (pt) {
+        const [vx, vy, vw, vh] = viewBox.value;
+        const currentCenterX = vx + vw / 2;
+        const currentCenterY = vy + vh / 2;
+        panOffset.value.x += (pt.x - currentCenterX) * 0.35;
+        panOffset.value.y += (pt.y - currentCenterY) * 0.35;
+    }
+    userZoom.value = Math.min(Number((userZoom.value * 1.5).toFixed(2)), 20);
+};
+
+// Glisser-déplacer (Pan & Drag) à la souris
+const onMouseDown = (e) => {
+    if (e.button !== 0) return;
+    if (e.target.closest('button, select, input')) return;
+
+    isDragging.value = true;
+    hasDragged.value = false;
+    dragStart.x = e.clientX;
+    dragStart.y = e.clientY;
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+};
+
+const onMouseMove = (e) => {
+    if (!isDragging.value) return;
+    const dx = e.clientX - dragStart.x;
+    const dy = e.clientY - dragStart.y;
+    if (Math.hypot(dx, dy) > 4) {
+        hasDragged.value = true;
+    }
+
+    const svgRect = svgRef.value?.getBoundingClientRect();
+    if (!svgRect || svgRect.width === 0 || svgRect.height === 0) return;
+
+    const [,, vw, vh] = viewBox.value;
+    panOffset.value.x -= dx * (vw / svgRect.width);
+    panOffset.value.y -= dy * (vh / svgRect.height);
+
+    dragStart.x = e.clientX;
+    dragStart.y = e.clientY;
+};
+
+const onMouseUp = () => {
+    isDragging.value = false;
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+};
+
+// Gestes tactiles (mobile & tablettes)
+const onTouchStart = (e) => {
+    if (e.touches.length === 1) {
+        if (e.target.closest('button, select, input')) return;
+        isDragging.value = true;
+        hasDragged.value = false;
+        dragStart.x = e.touches[0].clientX;
+        dragStart.y = e.touches[0].clientY;
+    } else if (e.touches.length === 2) {
+        isDragging.value = false;
+        touchStartDist = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY
+        );
+        touchStartZoom = userZoom.value;
+    }
+};
+
+const onTouchMove = (e) => {
+    if (e.touches.length === 1 && isDragging.value) {
+        const dx = e.touches[0].clientX - dragStart.x;
+        const dy = e.touches[0].clientY - dragStart.y;
+        if (Math.hypot(dx, dy) > 4) hasDragged.value = true;
+
+        const svgRect = svgRef.value?.getBoundingClientRect();
+        if (svgRect) {
+            const [,, vw, vh] = viewBox.value;
+            panOffset.value.x -= dx * (vw / svgRect.width);
+            panOffset.value.y -= dy * (vh / svgRect.height);
+        }
+        dragStart.x = e.touches[0].clientX;
+        dragStart.y = e.touches[0].clientY;
+    } else if (e.touches.length === 2 && touchStartDist > 0) {
+        const dist = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY
+        );
+        const factor = dist / touchStartDist;
+        userZoom.value = Math.min(Math.max(Number((touchStartZoom * factor).toFixed(2)), 0.35), 20);
+    }
+};
+
+const onTouchEnd = () => {
+    isDragging.value = false;
+    touchStartDist = 0;
+};
+
+// Cadrage de base de la région sélectionnée
+const baseRegionBox = computed(() => {
     const full = [0, 0, MALI_VIEW.w, MALI_VIEW.h];
     const shape = sel.value && SHAPES[sel.value];
     if (!shape) return full;
     const [a, b, c, d] = shape.bb;
-    const pw = Math.max(c - a, 28), ph = Math.max(d - b, 28);
-    const pad = Math.max(pw, ph) * 0.16; // 16% de marge élégante
+    const isBamako = sel.value === 'R1';
+    const minSpan = isBamako ? 60 : 28;
+    const pw = Math.max(c - a, minSpan), ph = Math.max(d - b, minSpan);
+    const pad = Math.max(pw, ph) * (isBamako ? 0.08 : 0.16);
     let w = pw + 2 * pad, h = ph + 2 * pad;
     const ar = MALI_VIEW.w / MALI_VIEW.h;
     if (w / h < ar) w = h * ar; else h = w / ar;
     return [(a + c) / 2 - w / 2, (b + d) / 2 - h / 2, w, h];
 });
 
-const zoom = computed(() => viewBox.value[2] / MALI_VIEW.w); // garde les traits et pins visibles à toute échelle
+// ViewBox réactive combinant boîte de base, niveau de zoom et décalage panoramique
+const viewBox = computed(() => {
+    const [baseX, baseY, baseW, baseH] = baseRegionBox.value;
+    const z = Math.max(0.35, Math.min(userZoom.value, 20));
+    const w = baseW / z;
+    const h = baseH / z;
+    const centerX = baseX + baseW / 2 + panOffset.value.x;
+    const centerY = baseY + baseH / 2 + panOffset.value.y;
+    return [centerX - w / 2, centerY - h / 2, w, h];
+});
+
+const zoom = computed(() => viewBox.value[2] / MALI_VIEW.w); // échelle pour pins et traits au zoom
 
 // ---------- Unités de la région choisie avec dispersion intelligente en grappes tactiques ----------
 const unitesAvecPoint = computed(() => {
