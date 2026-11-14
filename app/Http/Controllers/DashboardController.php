@@ -21,6 +21,15 @@ use App\Exports\RetraitesAnneeN1Export;
 class DashboardController extends Controller
 {
     /**
+     * Militaires en service actif. LOWER(TRIM()) rend la comparaison identique sur SQLite et PostgreSQL
+     * (PostgreSQL distingue « Actif » de « actif », pas SQLite).
+     */
+    private function actifs()
+    {
+        return Militaire::query()->whereRaw("LOWER(TRIM(statut)) = 'actif'");
+    }
+
+    /**
      * Affiche le tableau de bord.
      */
     public function index()
@@ -35,23 +44,25 @@ class DashboardController extends Controller
             $proposablesBoth = $this->getProposablesBoth();
             $totalRetraitesN = $retraitesBoth['retraitesN']['total'] ?? 0;
             $totalProposablesN = $proposablesBoth['proposablesN']['total'] ?? 0;
-            $totalActifs = Militaire::where('statut', 'actif')->count();
+            $totalActifs = $this->actifs()->count();
 
             $totalDecedesCetteAnnee = Militaire::where(function ($q) {
-                $q->where('statut', 'LIKE', 'd%c%d%')
-                  ->orWhere('statut', 'LIKE', 'mort%')
+                $q->whereRaw("LOWER(statut) LIKE 'd_c_d%'")
+                  ->orWhereRaw("LOWER(statut) LIKE 'mort%'")
                   ->orWhereNotNull('date_deces');
             })->where(function ($q) use ($anneeCourante) {
-                $q->whereYear('date_deces', $anneeCourante)
-                  ->orWhere(function ($sub) use ($anneeCourante) {
-                      $sub->whereNull('date_deces')->whereYear('updated_at', $anneeCourante);
+                $debut = Carbon::create($anneeCourante, 1, 1)->startOfDay();
+                $fin = Carbon::create($anneeCourante, 12, 31)->endOfDay();
+                $q->whereBetween('date_deces', [$debut, $fin])
+                  ->orWhere(function ($sub) use ($debut, $fin) {
+                      $sub->whereNull('date_deces')->whereBetween('updated_at', [$debut, $fin]);
                   });
             })->count();
 
             $totalDeserteurs = Militaire::where(function ($q) {
-                $q->where('statut', 'LIKE', 'd%serteur%')
-                  ->orWhere('statut', 'LIKE', 'desert%')
-                  ->orWhere('motif_radiation', 'LIKE', '%desert%');
+                $q->whereRaw("LOWER(statut) LIKE 'd_serteur%'")
+                  ->orWhereRaw("LOWER(statut) LIKE 'desert%'")
+                  ->orWhereRaw("LOWER(motif_radiation) LIKE '%desert%'");
             })->count();
 
             return [
@@ -79,20 +90,24 @@ class DashboardController extends Controller
             'décédé' => ['label' => 'Décédé', 'color' => '#e11d48', 'bg' => 'bg-rose-50 text-rose-800 border-rose-200'],
         ];
 
-        $statutRaw = Militaire::selectRaw('statut, count(*) as count')
-            ->groupBy('statut')
-            ->pluck('count', 'statut')
+        $statutRaw = Militaire::selectRaw('LOWER(TRIM(statut)) AS s, COUNT(*) AS c')
+            ->groupByRaw('LOWER(TRIM(statut))')
+            ->pluck('c', 's')
             ->toArray();
 
         $statutsDistribution = [];
+        $totalStatuts = array_sum(array_map('intval', $statutRaw));
+        $totalClasse = 0;
         foreach ($statutsMeta as $code => $meta) {
             $cnt = 0;
+            $prefixe = mb_substr(mb_strtolower($code), 0, 5);
             foreach ($statutRaw as $dbStatut => $val) {
-                if (mb_strtolower(trim($dbStatut)) === mb_strtolower($code) ||
-                    str_starts_with(mb_strtolower(trim($dbStatut)), mb_substr(mb_strtolower($code), 0, 5))) {
+                $st = (string) $dbStatut;
+                if ($st === mb_strtolower($code) || str_starts_with($st, $prefixe)) {
                     $cnt += (int) $val;
                 }
             }
+            $totalClasse += $cnt;
             $statutsDistribution[] = [
                 'code' => $code,
                 'label' => $meta['label'],
@@ -101,10 +116,20 @@ class DashboardController extends Controller
                 'bg' => $meta['bg'],
             ];
         }
+        // Statuts inconnus ou vides : visibles au lieu de disparaître silencieusement
+        if ($totalStatuts - $totalClasse > 0) {
+            $statutsDistribution[] = [
+                'code' => 'autres',
+                'label' => 'Autres / non classés',
+                'value' => $totalStatuts - $totalClasse,
+                'color' => '#94a3b8',
+                'bg' => 'bg-slate-50 text-slate-800 border-slate-200',
+            ];
+        }
 
         // 2. STATISTIQUES PAR POSITION (Où se trouvent les personnels ACTIFS sur le terrain)
         $allConfiguredPositions = Position::orderBy('nom')->pluck('nom')->toArray();
-        $dbPositions = Militaire::where('statut', 'actif')
+        $dbPositions = $this->actifs()
             ->whereNotNull('position_actuelle')
             ->where('position_actuelle', '!=', '')
             ->selectRaw('position_actuelle, count(*) as count')
@@ -139,7 +164,7 @@ class DashboardController extends Controller
         }
 
         // Ajouter les militaires actifs sans position renseignée
-        $actifsSansPosition = Militaire::where('statut', 'actif')
+        $actifsSansPosition = $this->actifs()
             ->where(function ($q) {
                 $q->whereNull('position_actuelle')->orWhere('position_actuelle', '');
             })->count();
@@ -159,76 +184,22 @@ class DashboardController extends Controller
             return strcasecmp($a['label'], $b['label']);
         });
 
-        // 3. STATISTIQUES PAR RÉGION (Toutes les 20 Régions & Commandements réels)
-        $allConfiguredRegions = Region::orderByRaw('CASE WHEN ordre IS NULL OR ordre = 0 THEN 999 ELSE ordre END ASC')
-            ->orderBy('nom', 'asc')
-            ->get();
+        // 3. STATISTIQUES PAR RÉGION : une seule requête, par région_id (plus d'alias ni de comparaison de textes)
+        $regionsDistribution = Region::query()
+            ->leftJoin('militaires', function ($j) {
+                $j->on('militaires.region_id', '=', 'regions.id')
+                  ->whereNull('militaires.deleted_at')
+                  ->whereRaw("LOWER(TRIM(militaires.statut)) = 'actif'");
+            })
+            ->groupBy('regions.id', 'regions.code', 'regions.nom', 'regions.ordre')
+            ->orderByRaw('CASE WHEN regions.ordre IS NULL OR regions.ordre = 0 THEN 999 ELSE regions.ordre END')
+            ->orderBy('regions.nom')
+            ->selectRaw('regions.code, regions.nom AS label, COUNT(militaires.id) AS value')
+            ->get()
+            ->map(fn ($r) => ['code' => $r->code, 'label' => $r->label, 'value' => (int) $r->value])
+            ->all();
 
-        $militairesParRegion = Militaire::where('statut', 'actif')
-            ->whereNotNull('region')
-            ->where('region', '!=', '')
-            ->selectRaw('region, count(*) as count')
-            ->groupBy('region')
-            ->pluck('count', 'region')
-            ->toArray();
-
-        // Normaliser les alias courants (ex: 'REGION N°1', 'BKO', 'Bamako' -> 'R1')
-        $normalizedParRegion = [];
-        foreach ($militairesParRegion as $dbReg => $c) {
-            $cleanReg = trim($dbReg);
-            $lower = mb_strtolower($cleanReg);
-
-            // Aliases historiques pour Bamako
-            if ($lower === 'bko' || $lower === 'region n°1' || $lower === 'région n°1' || $lower === 'bamako' || $lower === 'district de bamako') {
-                $code = 'R1';
-            } elseif (preg_match('/^r[eé]gion\s*n°?\s*(\d+)$/iu', $cleanReg, $m)) {
-                $code = 'R' . $m[1];
-            } else {
-                $code = $cleanReg;
-            }
-
-            $normalizedParRegion[$code] = ($normalizedParRegion[$code] ?? 0) + (int) $c;
-        }
-
-        $regionsDistribution = [];
-        $matchedKeys = [];
-
-        foreach ($allConfiguredRegions as $reg) {
-            $regNom = $reg->nom;
-            $regCode = $reg->code;
-
-            $total = 0;
-            foreach ($normalizedParRegion as $normCode => $c) {
-                if (strcasecmp(trim($normCode), trim($regNom)) === 0 || strcasecmp(trim($normCode), trim($regCode)) === 0) {
-                    $total += (int) $c;
-                    $matchedKeys[] = mb_strtolower(trim($normCode));
-                }
-            }
-
-            $regionsDistribution[] = [
-                'code' => $regCode,
-                'label' => $regNom,
-                'value' => $total,
-            ];
-        }
-
-        // Ajouter uniquement les éventuelles régions libres inconnues réelles
-        foreach ($normalizedParRegion as $normCode => $c) {
-            if (!in_array(mb_strtolower(trim($normCode)), $matchedKeys)) {
-                $regionsDistribution[] = [
-                    'code' => $normCode,
-                    'label' => $normCode,
-                    'value' => (int) $c,
-                ];
-            }
-        }
-
-        // Ajouter les militaires actifs sans région renseignée
-        $actifsSansRegion = Militaire::where('statut', 'actif')
-            ->where(function ($q) {
-                $q->whereNull('region')->orWhere('region', '');
-            })->count();
-
+        $actifsSansRegion = $this->actifs()->whereNull('region_id')->count();
         if ($actifsSansRegion > 0) {
             $regionsDistribution[] = [
                 'code' => 'N/A',
@@ -247,7 +218,7 @@ class DashboardController extends Controller
             'Militaire du Rang',
         ];
 
-        $dbCategories = Militaire::where('statut', 'actif')
+        $dbCategories = $this->actifs()
             ->whereNotNull('categorie')
             ->where('categorie', '!=', '')
             ->selectRaw('categorie, count(*) as count')
@@ -270,10 +241,9 @@ class DashboardController extends Controller
         }
 
         // 5. STATISTIQUES PAR GRADE (Militaires actifs)
-        $gradesDistribution = Grade::withCount(['militaires' => fn($q) => $q->where('statut', 'actif')])
+        $gradesDistribution = Grade::orderByDesc('ordre')->withCount(['militaires' => fn($q) => $q->whereRaw("LOWER(TRIM(militaires.statut)) = 'actif'")])
             ->get()
             ->filter(fn($g) => $g->militaires_count > 0)
-            ->sortByDesc('militaires_count')
             ->values()
             ->map(fn($g) => ['label' => $g->nom_grade, 'value' => (int) $g->militaires_count])
             ->toArray();
@@ -288,7 +258,8 @@ class DashboardController extends Controller
         });
 
         // Pré-réchauffer les modules lourds (Éligibilités & Avancement) en arrière-plan sans ralentir le dashboard
-        dispatch(function () {
+        // Une seule fois par version de cache (et non à chaque affichage du dashboard)
+        if (Cache::add("v{$v}:dashboard:prewarm", 1, 1800)) dispatch(function () {
             try {
                 app(\App\Http\Controllers\EligibiliteController::class)->getAllComputedData();
                 app(\App\Http\Controllers\AvancementController::class)->buildCandidatesList((int) date('Y'));
@@ -346,8 +317,8 @@ class DashboardController extends Controller
             }
 
             $militaires = Militaire::where(function($q) {
-                    $q->where('statut', 'LIKE', 'actif%')
-                      ->orWhere('statut', 'LIKE', 'retrait%');
+                    $q->whereRaw("LOWER(statut) LIKE 'actif%'")
+                      ->orWhereRaw("LOWER(statut) LIKE 'retrait%'");
                 })
                 ->whereNotNull('date_naissance')
                 ->whereNotNull('grade_actuel')
@@ -442,7 +413,7 @@ class DashboardController extends Controller
             $datePropN = Carbon::create($anneeCourante, 12, 31, 23, 59, 59);
             $datePropN1 = Carbon::create($anneeN1, 12, 31, 23, 59, 59);
 
-            $militairesActifs = Militaire::where('statut', 'actif')
+            $militairesActifs = $this->actifs()
                 ->select('id', 'nom', 'prenom', 'matricule', 'grade_actuel', 'date_naissance', 'date_entree_service', 'date_derniere_promotion', 'antecedent_judiciaire', 'antecedent_disciplinaire')
                 ->with(['certificats' => fn($q) => $q->select('certificats.id', 'certificats.nom_certificat', 'certificats.niveau_certificat')])
                 ->get();

@@ -30,8 +30,12 @@ class AppServiceProvider extends ServiceProvider
         });
 
         foreach ([\App\Models\Region::class, \App\Models\Unite::class, \App\Models\Militaire::class, \App\Models\Affectation::class] as $modele) {
-            $modele::saved(fn () => \App\Http\Controllers\CarteController::flush());
-            $modele::deleted(fn () => \App\Http\Controllers\CarteController::flush());
+            $vider = function () {
+                \App\Http\Controllers\CarteController::flush();   // carte à jour
+                \App\Support\CarteRattachement::oublier();          // régions/unités relues au prochain besoin
+            };
+            $modele::saved($vider);
+            $modele::deleted($vider);
         }
     }
 }

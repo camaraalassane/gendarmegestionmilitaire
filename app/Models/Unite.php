@@ -6,22 +6,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Http\Controllers\CarteController;
 
 class Unite extends Model
 {
     use HasFactory;
-
-    protected static function booted(): void
-    {
-        static::saved(function () {
-            CarteController::flush();
-        });
-
-        static::deleted(function () {
-            CarteController::flush();
-        });
-    }
 
     protected $fillable = [
         'region_id',

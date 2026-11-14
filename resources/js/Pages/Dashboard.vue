@@ -300,7 +300,7 @@
                 </div>
 
                 <!-- Graphique Régions (Barres verticales avec nombres au-dessus de chaque barre) -->
-                <div class="h-80 w-full relative">
+                <div class="w-full relative" :style="{ height: regionChartHeight }">
                     <Chart v-if="regionsDisplayList.length > 0"
                            type="bar"
                            :data="regionChartData"
@@ -351,7 +351,7 @@
             <!-- ========================================================================= -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-                <!-- GRAPHIQUE C : Pyramide des Catégories Statutaires -->
+                <!-- GRAPHIQUE C : Catégories Statutaires -->
                 <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
                     <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-3">
                         <div class="flex items-center gap-2.5">
@@ -359,7 +359,7 @@
                                 <i class="pi pi-shield"></i>
                             </div>
                             <div>
-                                <h3 class="font-bold text-sm text-slate-900">Pyramide des Catégories Statutaires</h3>
+                                <h3 class="font-bold text-sm text-slate-900">Catégories Statutaires</h3>
                                 <p class="text-[11px] text-slate-500">Officiers, Sous-Officiers et Militaires du Rang en activité</p>
                             </div>
                         </div>
@@ -367,10 +367,11 @@
 
                     <div class="flex-1 min-h-[260px] flex items-center justify-center">
                         <div v-if="hasCategoriesData" class="w-full h-64 flex items-center justify-center">
-                            <Chart type="doughnut"
+                            <Chart type="bar"
                                    :data="categoryChartData"
-                                   :options="doughnutOptions"
-                                   class="h-full w-full max-w-sm" />
+                                   :options="categoryChartOptions"
+                                   :plugins="[chartNumbersPlugin]"
+                                   class="h-full w-full" />
                         </div>
                         <div v-else class="text-center py-10 text-slate-400">
                             <i class="pi pi-chart-pie text-3xl mb-1 opacity-40"></i>
@@ -407,7 +408,7 @@
                     </div>
 
                     <div class="flex-1 min-h-[260px] flex items-center justify-center">
-                        <div v-if="hasGradesData" class="w-full h-64">
+                        <div v-if="hasGradesData" class="w-full" :style="{ height: gradesChartHeight }">
                             <Chart type="bar"
                                    :data="gradesChartData"
                                    :options="horizontalBarOptions"
@@ -515,13 +516,13 @@ const chartNumbersPlugin = {
                     ctx.textAlign = 'left';
                     ctx.textBaseline = 'middle';
                     ctx.fillStyle = '#0f172a';
-                    ctx.fillText(` ${val}`, element.x + 4, element.y);
+                    ctx.fillText(` ${val.toLocaleString('fr-FR')}`, element.x + 4, element.y);
                 } else {
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'bottom';
                     ctx.fillStyle = '#0f172a';
                     const yPos = Math.max(element.y - 3, 14);
-                    ctx.fillText(String(val), element.x, yPos);
+                    ctx.fillText(val.toLocaleString('fr-FR'), element.x, yPos);
                 }
                 ctx.restore();
             });
@@ -537,8 +538,12 @@ const totalTousStatuts = computed(() => {
     return list.reduce((acc, curr) => acc + (Number(curr.value) || 0), 0);
 });
 
+const statutsAffiches = computed(() =>
+    (props.chartsData?.statuts || []).filter(s => s.value > 0).slice().sort((a, b) => b.value - a.value)
+);
+
 const statutChartData = computed(() => {
-    const data = props.chartsData?.statuts || [];
+    const data = statutsAffiches.value;
     return {
         labels: data.map(s => s.label),
         datasets: [
@@ -546,7 +551,7 @@ const statutChartData = computed(() => {
                 label: 'Effectif',
                 data: data.map(s => s.value),
                 backgroundColor: data.map(s => s.color || '#0284c7'),
-                borderRadius: 8,
+                borderRadius: 6,
                 borderWidth: 1,
                 borderColor: '#ffffff',
             }
@@ -555,39 +560,27 @@ const statutChartData = computed(() => {
 });
 
 const statutChartOptions = {
+    indexAxis: 'y',
     responsive: true,
     maintainAspectRatio: false,
-    layout: {
-        padding: { top: 20 }
-    },
+    layout: { padding: { right: 36 } },
     plugins: {
         legend: { display: false },
         tooltip: {
             padding: 10,
             cornerRadius: 8,
             callbacks: {
-                label: (ctx) => ` Effectif : ${ctx.raw} personnel(s)`
+                label: (ctx) => {
+                    const total = totalTousStatuts.value || 1;
+                    const pct = ((Number(ctx.raw) / total) * 100).toFixed(1).replace('.', ',');
+                    return ` ${Number(ctx.raw).toLocaleString('fr-FR')} personnel(s) · ${pct} %`;
+                }
             }
         }
     },
     scales: {
-        x: {
-            grid: { display: false },
-            ticks: {
-                autoSkip: false,
-                font: { size: 10 },
-                maxRotation: 40,
-                minRotation: 20,
-            }
-        },
-        y: {
-            beginAtZero: true,
-            grid: { color: '#f1f5f9' },
-            ticks: {
-                precision: 0,
-                font: { size: 10 }
-            }
-        }
+        x: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { precision: 0, font: { size: 10 } } },
+        y: { grid: { display: false }, ticks: { autoSkip: false, font: { size: 11 } } }
     }
 };
 
@@ -695,7 +688,7 @@ const regionsDisplayList = computed(() => {
 const regionChartData = computed(() => {
     const data = regionsDisplayList.value;
     return {
-        labels: data.map(r => r.code || r.label),
+        labels: data.map(r => r.label.replace(/^(Région de |Région du |District de )/, '')),
         datasets: [
             {
                 label: 'Effectifs actifs',
@@ -709,11 +702,21 @@ const regionChartData = computed(() => {
     };
 });
 
+const regionChartHeight = computed(() => `${Math.max(320, regionsDisplayList.value.length * 26)}px`);
+
 const regionChartOptions = {
+    indexAxis: 'y',
     responsive: true,
     maintainAspectRatio: false,
-    layout: {
-        padding: { top: 20 }
+    layout: { padding: { right: 36 } },
+    onClick: (evt, elements) => {
+        if (!elements.length) return;
+        const item = regionsDisplayList.value[elements[0].index];
+        if (item && item.code && item.code !== 'N/A') router.visit(route('carte.index', { region: item.code }));
+    },
+    onHover: (evt, elements) => {
+        const el = evt.native?.target;
+        if (el) el.style.cursor = elements.length ? 'pointer' : 'default';
     },
     plugins: {
         legend: { display: false },
@@ -723,29 +726,20 @@ const regionChartOptions = {
             callbacks: {
                 title: (items) => {
                     if (!items.length) return '';
-                    const idx = items[0].dataIndex;
-                    const item = regionsDisplayList.value[idx];
+                    const item = regionsDisplayList.value[items[0].dataIndex];
                     return item ? `${item.code ? '[' + item.code + '] ' : ''}${item.label}` : '';
                 },
-                label: (ctx) => ` Effectifs actifs : ${ctx.raw} personnel(s)`
+                label: (ctx) => {
+                    const total = totalActifsRegions.value || 1;
+                    const pct = ((Number(ctx.raw) / total) * 100).toFixed(1).replace('.', ',');
+                    return ` ${Number(ctx.raw).toLocaleString('fr-FR')} actifs · ${pct} %  (clic : ouvrir la carte)`;
+                }
             }
         }
     },
     scales: {
-        x: {
-            grid: { display: false },
-            ticks: {
-                autoSkip: false,
-                font: { size: 10 },
-                maxRotation: 45,
-                minRotation: 0,
-            }
-        },
-        y: {
-            beginAtZero: true,
-            grid: { color: '#f1f5f9' },
-            ticks: { precision: 0, font: { size: 10 } }
-        }
+        x: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { precision: 0, font: { size: 10 } } },
+        y: { grid: { display: false }, ticks: { autoSkip: false, font: { size: 11 } } }
     }
 };
 
@@ -769,34 +763,37 @@ const categoryChartData = computed(() => {
                     '#d97706', // Amber
                     '#64748b', // Slate
                 ],
-                borderWidth: 2,
+                borderWidth: 1,
+                borderRadius: 6,
                 borderColor: '#ffffff',
             }
         ]
     };
 });
 
-const doughnutOptions = {
+const categoryChartOptions = {
+    indexAxis: 'y',
     responsive: true,
     maintainAspectRatio: false,
+    layout: { padding: { right: 36 } },
     plugins: {
-        legend: {
-            position: 'bottom',
-            labels: {
-                boxWidth: 10,
-                padding: 10,
-                font: { size: 10 }
-            }
-        },
+        legend: { display: false },
         tooltip: {
             padding: 10,
             cornerRadius: 8,
             callbacks: {
-                label: (ctx) => ` ${ctx.label} : ${ctx.raw} personnel(s)`
+                label: (ctx) => {
+                    const total = (props.chartsData?.categories || []).reduce((a, c) => a + (Number(c.value) || 0), 0) || 1;
+                    const pct = ((Number(ctx.raw) / total) * 100).toFixed(1).replace('.', ',');
+                    return ` ${Number(ctx.raw).toLocaleString('fr-FR')} personnel(s) · ${pct} %`;
+                }
             }
         }
     },
-    cutout: '62%'
+    scales: {
+        x: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { precision: 0, font: { size: 10 } } },
+        y: { grid: { display: false }, ticks: { autoSkip: false, font: { size: 11 } } }
+    }
 };
 
 // =========================================================================
@@ -820,6 +817,8 @@ const gradesChartData = computed(() => {
         ]
     };
 });
+
+const gradesChartHeight = computed(() => `${Math.max(256, (props.chartsData?.grades || []).length * 26)}px`);
 
 const horizontalBarOptions = {
     indexAxis: 'y',

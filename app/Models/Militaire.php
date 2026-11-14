@@ -98,24 +98,6 @@ class Militaire extends Model
                 $militaire->categorie = $grade ? $grade->categorie_statutaire : Grade::determinerCategorie($militaire->grade_actuel);
             }
 
-            // Synchronisation relation lieu -> texte
-            if ($militaire->unite_id && (!$militaire->unite || $militaire->isDirty('unite_id'))) {
-                $u = Unite::find($militaire->unite_id);
-                if ($u) {
-                    $militaire->unite = $u->nom;
-                    if (!$militaire->region_id) {
-                        $militaire->region_id = $u->region_id;
-                    }
-                }
-            }
-
-            if ($militaire->region_id && (!$militaire->region || $militaire->isDirty('region_id'))) {
-                $r = Region::find($militaire->region_id);
-                if ($r) {
-                    $militaire->region = $r->nom;
-                }
-            }
-
             if ($militaire->position_id && (!$militaire->position_actuelle || $militaire->isDirty('position_id'))) {
                 $pos = Position::find($militaire->position_id);
                 if ($pos) {
@@ -131,25 +113,16 @@ class Militaire extends Model
                 }
             }
 
-            if ((!$militaire->unite_id || !$militaire->region_id) && ($militaire->unite || $militaire->region)) {
-                $ids = (new \App\Support\CarteRattachement())->resoudre($militaire->unite, $militaire->region);
-                if (!$militaire->unite_id && $ids['unite_id']) {
-                    $militaire->unite_id = $ids['unite_id'];
-                }
-                if (!$militaire->region_id && $ids['region_id']) {
-                    $militaire->region_id = $ids['region_id'];
-                }
-            }
+            // Région, unité et textes cohérents entre eux (voir CarteRattachement::synchroniser)
+            \App\Support\CarteRattachement::synchroniser($militaire);
         });
 
         static::saved(function () {
             static::incrementCacheVersion();
-            \App\Http\Controllers\CarteController::flush();
         });
 
         static::deleted(function () {
             static::incrementCacheVersion();
-            \App\Http\Controllers\CarteController::flush();
         });
     }
 

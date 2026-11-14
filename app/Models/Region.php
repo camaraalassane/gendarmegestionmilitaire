@@ -5,22 +5,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Http\Controllers\CarteController;
 
 class Region extends Model
 {
     use HasFactory;
-
-    protected static function booted(): void
-    {
-        static::saved(function () {
-            CarteController::flush();
-        });
-
-        static::deleted(function () {
-            CarteController::flush();
-        });
-    }
 
     protected $fillable = [
         'code',

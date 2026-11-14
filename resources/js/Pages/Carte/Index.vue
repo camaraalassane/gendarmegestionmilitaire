@@ -435,6 +435,7 @@ import { MALI_VIEW, REGION_SHAPES as SHAPES, project } from './maliRegions.js';
 const props = defineProps({
     regions: { type: Array, default: () => [] },
     stats: { type: Object, default: () => ({ non_rattaches: 0, generated_at: '' }) },
+    regionInitiale: { type: String, default: null },
 });
 
 const METRICS = {
@@ -446,7 +447,7 @@ const METRICS = {
 };
 
 const metric = ref('eff');
-const sel = ref(null);         // code de la région choisie (ex. "R2") ou null = Mali entier
+const sel = ref(props.regionInitiale && props.regions.some(r => r.code === props.regionInitiale) ? props.regionInitiale : null); // code de la région choisie ou null = Mali entier
 const selUnit = ref(null);     // id de l'unité mise en évidence
 const searchQuery = ref('');   // recherche rapide dans le volet déroulant
 const hoveredItem = ref(null); // objet survolé (région ou unité)

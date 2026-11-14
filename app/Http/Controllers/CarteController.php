@@ -21,7 +21,8 @@ class CarteController extends Controller
     {
         $cle = 'carte:v' . Cache::get('carte:ver', 1);
 
-        return Inertia::render('Carte/Index', Cache::remember($cle, self::CACHE_TTL, fn () => $this->construire()));
+        return Inertia::render('Carte/Index', Cache::remember($cle, self::CACHE_TTL, fn () => $this->construire())
+            + ['regionInitiale' => request('region')]);
     }
 
     private function construire(): array
