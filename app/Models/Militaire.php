@@ -34,6 +34,8 @@ class Militaire extends Model
         'position_actuelle',
         'unite',
         'region',
+        'region_id',
+        'unite_id',
         'date_mutation',
         'fonction_passee',
         'fonction_actuelle',
@@ -94,14 +96,23 @@ class Militaire extends Model
                     ->first();
                 $militaire->categorie = $grade ? $grade->categorie_statutaire : Grade::determinerCategorie($militaire->grade_actuel);
             }
+
+            // Garde region_id / unite_id synchronisés avec les champs texte
+            if ($militaire->isDirty(['unite', 'region']) || (!$militaire->unite_id && !$militaire->region_id)) {
+                $ids = (new \App\Support\CarteRattachement())->resoudre($militaire->unite, $militaire->region);
+                $militaire->unite_id = $ids['unite_id'];
+                $militaire->region_id = $ids['region_id'];
+            }
         });
 
         static::saved(function () {
             static::incrementCacheVersion();
+            \App\Http\Controllers\CarteController::flush();
         });
 
         static::deleted(function () {
             static::incrementCacheVersion();
+            \App\Http\Controllers\CarteController::flush();
         });
     }
 

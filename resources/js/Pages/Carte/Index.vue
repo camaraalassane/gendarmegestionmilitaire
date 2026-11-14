@@ -1,380 +1,350 @@
 <template>
     <AuthenticatedLayout>
-        <template #header>
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div>
-                    <h1 class="text-xl font-bold text-white flex items-center gap-2">
-                        <i class="pi pi-map text-amber-400"></i>
-                        Carte Opérationnelle du Mali
-                    </h1>
-                    <p class="text-xs text-sky-200">
-                        Territoire national souverain du Mali • Situation tactique et maillage territorial en direct
-                    </p>
-                </div>
+        <Head title="Carte Opérationnelle du Mali" />
 
-                <!-- Badges rapides -->
-                <div class="flex items-center gap-2 flex-wrap">
-                    <div class="bg-white/10 backdrop-blur-sm px-3 py-1 rounded-lg border border-white/20 text-white text-xs">
-                        <span class="text-sky-200">Militaires :</span>
-                        <strong class="ml-1 text-amber-300">{{ statsGlobales.total_militaires }}</strong>
+        <template #header>
+            <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300">
+                        <i class="pi pi-map text-base"></i>
                     </div>
-                    <div class="bg-white/10 backdrop-blur-sm px-3 py-1 rounded-lg border border-white/20 text-white text-xs">
-                        <span class="text-sky-200">Unités op. :</span>
-                        <strong class="ml-1 text-emerald-300">{{ statsGlobales.unites_operationnelles }} / {{ statsGlobales.total_unites }}</strong>
+                    <div>
+                        <h1 class="text-lg font-bold text-white leading-tight">
+                            Carte Opérationnelle du Mali
+                        </h1>
+                        <p class="text-[11px] text-sky-200">
+                            {{ regions.length }} régions administratives • Maillage territorial en direct
+                        </p>
                     </div>
-                    <div class="bg-white/10 backdrop-blur-sm px-3 py-1 rounded-lg border border-white/20 text-white text-xs">
-                        <span class="text-sky-200">Régions :</span>
-                        <strong class="ml-1 text-white">{{ statsGlobales.total_regions }}</strong>
-                    </div>
+                </div>
+                <div class="hidden sm:flex items-center gap-2 text-xs text-sky-100 bg-sky-900/40 border border-sky-600/30 px-3 py-1.5 rounded-lg">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>Situation au {{ stats.generated_at || 'ce jour' }}</span>
                 </div>
             </div>
         </template>
 
-        <div class="space-y-2.5">
-            <!-- Barre d'action supérieure compacte et épurée -->
-            <div class="bg-white rounded-xl shadow-xs border border-slate-200 px-3 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <!-- Statut vue actuelle -->
-                <div class="flex items-center gap-2 text-xs">
-                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span class="font-bold text-slate-800">RÉPUBLIQUE DU MALI</span>
-                    <span v-if="selectedRegion" class="bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded text-[11px] border border-amber-300 flex items-center gap-1">
-                        <span>📍 Vue isolée : {{ selectedRegion.nom }} ({{ selectedRegion.code }})</span>
-                    </span>
-                    <span v-else class="text-slate-500 text-[11px] hidden md:inline">
-                        • Vue nationale (20 Régions • Seul le Mali est affiché)
-                    </span>
-                </div>
-
-                <!-- Boutons d'action -->
-                <div class="flex items-center gap-2 text-xs">
-                    <button
-                        @click="resetToFullMaliView"
-                        :class="[
-                            'px-3 py-1 rounded-lg font-bold border transition-all flex items-center gap-1.5 shadow-2xs text-xs',
-                            selectedRegion !== null
-                                ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-600 ring-2 ring-amber-300'
-                                : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border-sky-200'
-                        ]"
-                        title="Afficher tout le Mali (vue générale complète)"
-                    >
-                        <i :class="selectedRegion ? 'pi pi-arrow-left text-xs' : 'pi pi-globe text-xs'"></i>
-                        <span>{{ selectedRegion ? '← Afficher tout le Mali' : 'Recentrer le Mali' }}</span>
-                    </button>
-
-                    <button
-                        @click="toggleSidebar"
-                        class="px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-slate-50 hover:bg-white text-slate-700 font-medium transition-all flex items-center gap-1.5 shadow-2xs hover:border-slate-300"
-                        :title="isSidebarOpen ? 'Agrandir la carte au maximum' : 'Afficher le volet latéral'"
-                    >
-                        <i :class="isSidebarOpen ? 'pi pi-arrows-alt text-sky-700' : 'pi pi-list text-sky-700'"></i>
-                        <span>{{ isSidebarOpen ? 'Agrandir carte' : 'Volet Régions' }}</span>
-                    </button>
+        <!-- Container principal fixé dans le viewport (aucun défilement global de la page) -->
+        <div class="h-[calc(100vh-5.25rem)] flex flex-col gap-2.5 overflow-hidden -m-1 sm:-m-2">
+            <!-- 1. Chiffres clés (KPIs) en une seule ligne compacte -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 flex-none">
+                <div
+                    v-for="k in kpis"
+                    :key="k.label"
+                    class="bg-white rounded-lg border border-slate-200 px-3.5 py-2 shadow-sm flex flex-col justify-between"
+                >
+                    <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 truncate">
+                        {{ k.label }}
+                    </div>
+                    <div class="text-xl sm:text-2xl font-bold text-slate-900 tabular-nums leading-tight my-0.5">
+                        {{ k.value }}
+                    </div>
+                    <div class="text-[11px] text-slate-500 truncate">
+                        {{ k.hint }}
+                    </div>
                 </div>
             </div>
 
-            <!-- Grille principale : Carte (pleine hauteur) + Volet latéral -->
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-3">
-                <!-- Zone Carte : 8 ou 9 colonnes (ou 12 si volet fermé) -->
-                <div :class="[
-                    isSidebarOpen ? 'lg:col-span-8 xl:col-span-9' : 'col-span-12',
-                    'bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden flex flex-col relative transition-all duration-300',
-                    'h-[calc(100vh-175px)] min-h-[660px]'
-                ]">
-                    <!-- Carte Leaflet -->
-                    <div id="map-mali" class="w-full h-full z-0 bg-slate-100"></div>
+            <!-- Alerte non rattachés si existants -->
+            <div
+                v-if="stats.non_rattaches > 0"
+                class="rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-xs px-3 py-1.5 flex items-center justify-between flex-none"
+            >
+                <div class="flex items-center gap-2">
+                    <i class="pi pi-exclamation-triangle text-amber-600"></i>
+                    <span>
+                        <strong>{{ fmt(stats.non_rattaches) }}</strong> militaires ne sont rattachés à aucune région ni unité répertoriée (non comptés sur la carte).
+                    </span>
+                </div>
+            </div>
 
-                    <!-- Bouton flottant de retour en haut à gauche si région isolée -->
-                    <div v-if="selectedRegion" class="absolute top-3 left-3 z-[400] flex items-center gap-2">
-                        <button
-                            @click="resetToFullMaliView"
-                            class="bg-sky-950/90 hover:bg-sky-900 text-white px-3 py-1.5 rounded-lg shadow-xl font-bold text-xs flex items-center gap-1.5 border border-sky-500 backdrop-blur-sm transition-all"
-                            title="Quitter la vue isolée et réafficher tout le Mali"
-                        >
-                            <i class="pi pi-arrow-left text-amber-300 text-xs"></i>
-                            <span>Tout le Mali</span>
-                        </button>
-                        <div class="bg-white/95 backdrop-blur-sm text-sky-950 font-bold px-3 py-1.5 rounded-lg shadow-md border border-slate-200 text-xs flex items-center gap-1.5">
-                            <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                            <span>{{ selectedRegion.nom }} • Chef-lieu : {{ selectedRegion.chef_lieu }}</span>
+            <!-- 2. Zone principale : Carte à gauche (56%) et Détails/Classement à droite (44%) -->
+            <div class="flex-1 min-h-0 grid gap-2.5 lg:grid-cols-[minmax(0,1.28fr)_minmax(0,1fr)] items-stretch">
+                <!-- PANNEAU CARTE -->
+                <div class="bg-white rounded-lg border border-slate-200 p-3 min-w-0 flex flex-col h-full overflow-hidden shadow-sm">
+                    <!-- Barre d'actions / Filtres au dessus de la carte -->
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-2 flex-none">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <template v-if="sel">
+                                <button
+                                    class="chip bg-sky-900 text-white border-sky-900 hover:bg-sky-800 flex items-center gap-1.5 font-medium shadow-sm"
+                                    @click="retour"
+                                >
+                                    <i class="pi pi-arrow-left text-xs"></i>
+                                    <span>Retour au Mali entier</span>
+                                </button>
+                                <span class="text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200">
+                                    {{ selRegion?.nom }} : {{ selRegion?.unites.length }} unités
+                                </span>
+                            </template>
+                            <template v-else>
+                                <button
+                                    v-for="(m, key) in METRICS"
+                                    :key="key"
+                                    class="chip"
+                                    :aria-pressed="metric === key"
+                                    @click="metric = key"
+                                >
+                                    {{ m.label }}
+                                </button>
+                            </template>
+                        </div>
+
+                        <!-- Menu rapide pour cibler une région -->
+                        <div class="flex items-center gap-1.5">
+                            <select
+                                :value="sel || ''"
+                                @change="onSelectRegionDropdown($event.target.value)"
+                                class="text-xs border border-slate-200 rounded-lg px-2.5 py-1 bg-white text-slate-700 focus:outline-none focus:border-sky-500 font-medium"
+                                aria-label="Choisir une région"
+                            >
+                                <option value="">Tout le Mali (20 régions)</option>
+                                <option v-for="r in regions" :key="r.code" :value="r.code">
+                                    {{ r.code }} - {{ r.nom }}
+                                </option>
+                            </select>
                         </div>
                     </div>
 
-                    <!-- Bouton flottant réouvrir volet si masqué -->
-                    <button
-                        v-if="!isSidebarOpen"
-                        @click="toggleSidebar"
-                        class="absolute top-3 right-3 z-[400] bg-white/95 hover:bg-white text-sky-900 font-bold px-3 py-1.5 rounded-lg shadow-xl text-xs flex items-center gap-1.5 border border-sky-300 backdrop-blur-sm transition-all"
-                    >
-                        <i class="pi pi-list text-sky-700"></i>
-                        <span>Volet Régions (20)</span>
-                    </button>
-
-                    <!-- Barre de sélection rapide au bas de la carte -->
-                    <div class="absolute bottom-3 left-3 right-3 z-[400] pointer-events-none">
-                        <div class="bg-white/95 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-slate-200/90 shadow-xl pointer-events-auto overflow-x-auto no-scrollbar flex items-center gap-1.5">
-                            <!-- Bouton Tout le Mali -->
-                            <button
-                                @click="resetToFullMaliView"
-                                :class="[
-                                    'px-3 py-1 text-xs rounded-lg font-bold whitespace-nowrap transition-all shrink-0 border flex items-center gap-1.5',
-                                    selectedRegion === null
-                                        ? 'bg-sky-900 text-white border-sky-950 shadow-xs ring-2 ring-sky-300'
-                                        : 'bg-white text-slate-700 border-slate-200 hover:bg-sky-50 hover:text-sky-800'
-                                ]"
+                    <!-- Canevas Carte SVG (redimensionnement automatique pour remplir l'espace disponible) -->
+                    <div class="flex-1 min-h-0 w-full h-full relative flex items-center justify-center overflow-hidden bg-gradient-to-b from-slate-50/50 to-sky-50/20 rounded-lg border border-slate-100">
+                        <!-- Entête au survol interactif (affiche immédiatement nom, code, effectif et unités de la région survolée) -->
+                        <transition name="fade">
+                            <div
+                                v-if="hoveredInfo"
+                                class="absolute top-2.5 left-2.5 z-20 bg-slate-900/90 backdrop-blur text-white px-3 py-1.5 rounded-lg shadow-lg text-xs pointer-events-none flex items-center gap-2 border border-slate-700"
                             >
-                                <i class="pi pi-globe text-xs"></i>
-                                <span>Tout le Mali</span>
-                            </button>
+                                <span
+                                    class="w-2.5 h-2.5 rounded-full flex-none"
+                                    :style="{ background: hoveredInfo.isUnit ? (hoveredInfo.op ? '#10b981' : '#f59e0b') : '#38bdf8' }"
+                                ></span>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-white">{{ hoveredInfo.title }}</span>
+                                    <span class="text-slate-300">•</span>
+                                    <span class="text-sky-300 font-medium">{{ hoveredInfo.subtitle }}</span>
+                                    <span v-if="hoveredInfo.extra" class="text-slate-400 text-[11px]">({{ hoveredInfo.extra }})</span>
+                                </div>
+                            </div>
+                        </transition>
 
-                            <span class="text-slate-300 px-0.5">|</span>
+                        <svg
+                            :viewBox="viewBox.join(' ')"
+                            class="w-full h-full max-h-full block select-none"
+                            preserveAspectRatio="xMidYMid meet"
+                            role="img"
+                            aria-label="Carte du Mali par région"
+                        >
+                            <!-- Tracés des régions SVG -->
+                            <template v-for="r in regions" :key="r.code">
+                                <path
+                                    v-if="SHAPES[r.code] && !(r.code === 'R1' && !sel)"
+                                    :d="SHAPES[r.code].d"
+                                    class="reg"
+                                    :class="{
+                                        sel: r.code === sel,
+                                        dim: sel && r.code !== sel,
+                                        hovered: hoveredCode === r.code
+                                    }"
+                                    :style="{ fill: fillFor(r), strokeWidth: 1.2 * zoom }"
+                                    @click="choisir(r.code)"
+                                    @mouseenter="onHoverRegion(r)"
+                                    @mouseleave="onLeaveHover"
+                                >
+                                    <title>{{ r.nom }} : {{ fmt(valueOf(r)) }}{{ METRICS[metric].unit }}</title>
+                                </path>
+                            </template>
 
-                            <!-- Boutons de pointage direct pour chaque région R1 à R20 -->
-                            <button
-                                v-for="reg in regionsTerritoriales"
-                                :key="reg.id"
-                                @click="selectAndFocusRegion(reg)"
-                                :class="[
-                                    'px-2 py-0.5 text-xs rounded-md font-semibold whitespace-nowrap transition-all shrink-0 border',
-                                    selectedRegion?.id === reg.id
-                                        ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-xs ring-2 ring-amber-300 font-bold'
-                                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-sky-50 hover:text-sky-700'
-                                ]"
-                            >
-                                📍 {{ reg.code }} <span class="text-[10px] opacity-75 font-normal">({{ reg.stats?.total || 0 }})</span>
-                            </button>
-                        </div>
+                            <!-- Vue nationale : étiquettes noms + chiffres -->
+                            <template v-if="!sel">
+                                <template v-for="r in regions" :key="'l' + r.code">
+                                    <g v-if="SHAPES[r.code] && r.code !== 'R1'" class="lbl-g">
+                                        <text class="lbl nm" :x="SHAPES[r.code].cx" :y="SHAPES[r.code].cy - 2">
+                                            {{ shortName(r.nom) }}
+                                        </text>
+                                        <text class="lbl" :x="SHAPES[r.code].cx" :y="SHAPES[r.code].cy + 10">
+                                            {{ fmt(valueOf(r)) }}
+                                        </text>
+                                    </g>
+                                </template>
+
+                                <!-- District de Bamako : point + ligne directrice + étiquette -->
+                                <template v-for="r in regions.filter(x => x.code === 'R1' && SHAPES.R1)" :key="'b'">
+                                    <circle
+                                        class="reg"
+                                        :cx="SHAPES.R1.cx"
+                                        :cy="SHAPES.R1.cy"
+                                        r="6"
+                                        :style="{ fill: fillFor(r) }"
+                                        @click="choisir('R1')"
+                                        @mouseenter="onHoverRegion(r)"
+                                        @mouseleave="onLeaveHover"
+                                    >
+                                        <title>{{ r.nom }} : {{ fmt(valueOf(r)) }}{{ METRICS[metric].unit }}</title>
+                                    </circle>
+                                    <line
+                                        class="lead"
+                                        :x1="SHAPES.R1.cx"
+                                        :y1="SHAPES.R1.cy"
+                                        :x2="SHAPES.R1.cx - 26"
+                                        :y2="SHAPES.R1.cy + 30"
+                                    />
+                                    <text class="lbl" :x="SHAPES.R1.cx - 26" :y="SHAPES.R1.cy + 42">
+                                        Bamako {{ fmt(valueOf(r)) }}
+                                    </text>
+                                </template>
+                            </template>
+
+                            <!-- Région sélectionnée : pins géolocalisés des unités -->
+                            <template v-else>
+                                <circle
+                                    v-for="u in unitesAvecPoint"
+                                    :key="u.id"
+                                    class="pin"
+                                    :class="{ on: selUnit === u.id }"
+                                    :cx="u.x"
+                                    :cy="u.y"
+                                    :r="rayon(u) * (selUnit === u.id ? 1.6 : 1)"
+                                    :style="{
+                                        fill: u.operationnelle ? '#1f7a4d' : '#b4540a',
+                                        strokeWidth: (selUnit === u.id ? 2.5 : 1.6) * zoom
+                                    }"
+                                    @click="toggleUnit(u.id)"
+                                    @mouseenter="onHoverUnit(u)"
+                                    @mouseleave="onLeaveHover"
+                                >
+                                    <title>{{ u.nom }} : {{ fmt(u.effectif) }} militaires ({{ u.operationnelle ? 'Opérationnelle' : 'Non opérationnelle' }})</title>
+                                </circle>
+
+                                <!-- Étiquette unité active -->
+                                <text
+                                    v-if="unitePointee"
+                                    class="lbl text-highlight"
+                                    :style="{ fontSize: Math.max(9, 12 * zoom) + 'px', strokeWidth: 3 * zoom + 'px' }"
+                                    :x="unitePointee.x"
+                                    :y="unitePointee.y - 12 * zoom"
+                                >
+                                    {{ unitePointee.nom }} ({{ fmt(unitePointee.effectif) }} pers.)
+                                </text>
+                            </template>
+                        </svg>
+                    </div>
+
+                    <!-- Légende au bas de la carte -->
+                    <div class="flex flex-wrap items-center justify-between gap-3 mt-2 pt-2 border-t border-slate-100 text-xs text-slate-500 flex-none">
+                        <template v-if="sel">
+                            <div class="flex items-center gap-3">
+                                <span class="flex items-center"><i class="dot" style="background:#1f7a4d"></i>Opérationnelle</span>
+                                <span class="flex items-center"><i class="dot" style="background:#b4540a"></i>Non opérationnelle</span>
+                                <span>• Rayon = effectif</span>
+                            </div>
+                            <span v-if="unitesSansPoint > 0" class="text-amber-700 font-medium">
+                                • {{ unitesSansPoint }} unité(s) sans coordonnées GPS (listées à droite)
+                            </span>
+                        </template>
+                        <template v-else>
+                            <div class="flex items-center gap-2">
+                                <span class="tabular-nums font-semibold">{{ fmt(legende.min) }}{{ METRICS[metric].unit }}</span>
+                                <i class="legend-bar"></i>
+                                <span class="tabular-nums font-semibold">{{ fmt(legende.max) }}{{ METRICS[metric].unit }}</span>
+                            </div>
+                            <span class="font-medium text-slate-600">• Indicateur : {{ METRICS[metric].label }}</span>
+                        </template>
                     </div>
                 </div>
 
-                <!-- Volet latéral : Léger, moderne et bien organisé -->
-                <div v-show="isSidebarOpen" class="lg:col-span-4 xl:col-span-3 flex flex-col h-[calc(100vh-175px)] min-h-[660px]">
-                    <div class="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden flex flex-col h-full">
-                        <!-- En-tête du volet -->
-                        <div class="p-3 border-b border-slate-200/80 bg-slate-50/70 flex items-center justify-between shrink-0">
-                            <div class="flex items-center gap-2">
-                                <i class="pi pi-map text-sky-700 text-sm"></i>
-                                <span class="text-xs font-bold text-slate-800">
-                                    {{ selectedRegion ? `Détail : ${selectedRegion.nom}` : `Régions du Mali` }}
-                                </span>
-                                <span v-if="!selectedRegion" class="text-[10px] font-semibold bg-sky-100 text-sky-800 px-1.5 py-0.2 rounded-full">
-                                    {{ regionsTerritoriales.length }}
-                                </span>
-                            </div>
-
-                            <div class="flex items-center gap-1">
-                                <button
-                                    v-if="selectedRegion"
-                                    @click="resetToFullMaliView"
-                                    class="text-[11px] font-bold text-sky-700 hover:text-sky-900 hover:underline flex items-center gap-1 mr-1"
-                                >
-                                    <i class="pi pi-arrow-left text-[10px]"></i>
-                                    <span>Toutes</span>
-                                </button>
-                                <button
-                                    @click="toggleSidebar"
-                                    class="text-slate-400 hover:text-slate-600 text-xs p-1"
-                                    title="Fermer le volet"
-                                >
-                                    <i class="pi pi-times"></i>
-                                </button>
-                            </div>
+                <!-- PANNEAU DROIT : DÉTAIL & CLASSEMENT OU RÉPARTITION (SEUL CE VOLET EST SCROLLABLE EN INTERNE) -->
+                <div class="bg-white rounded-lg border border-slate-200 p-3 min-w-0 flex flex-col h-full overflow-hidden shadow-sm">
+                    <!-- Entête du panneau -->
+                    <div class="flex items-center justify-between gap-2 flex-none">
+                        <div class="min-w-0">
+                            <h2 class="text-sm sm:text-base font-bold text-slate-900 truncate">
+                                {{ sel ? selRegion.nom : 'Vue Nationale (Mali)' }}
+                            </h2>
+                            <p v-if="sel && selRegion.chef_lieu" class="text-xs text-slate-500 truncate">
+                                Chef-lieu : {{ selRegion.chef_lieu }}
+                            </p>
                         </div>
+                        <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                            {{ sel ? selRegion.unites.length + ' unités' : regions.length + ' régions' }}
+                        </span>
+                    </div>
 
-                        <!-- Corps du volet -->
-                        <div class="flex-1 overflow-hidden flex flex-col">
-                            <!-- CAS 1 : UNE RÉGION EST SÉLECTIONNÉE (AFFICHE SES UNITÉS ET SES STATS) -->
-                            <div v-if="selectedRegion" class="flex flex-col flex-1 overflow-hidden p-3 space-y-2.5">
-                                <!-- En-tête de la région sélectionnée -->
-                                <div class="bg-gradient-to-r from-slate-900 to-sky-950 text-white rounded-lg p-3 shadow-xs shrink-0">
-                                    <div class="flex items-center justify-between">
-                                        <div class="flex items-center gap-2">
-                                            <span class="w-7 h-7 rounded-md bg-amber-500 text-slate-950 font-bold text-xs flex items-center justify-center">
-                                                {{ selectedRegion.code }}
-                                            </span>
-                                            <div>
-                                                <h3 class="font-bold text-xs">{{ selectedRegion.nom }}</h3>
-                                                <p class="text-[10px] text-sky-300">
-                                                    Chef-lieu : <strong class="text-white">{{ selectedRegion.chef_lieu || 'N/A' }}</strong>
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <button
-                                            @click="resetToFullMaliView"
-                                            class="text-[10px] text-amber-300 hover:text-amber-200 border border-amber-400/40 px-2 py-0.5 rounded transition-colors"
-                                        >
-                                            <i class="pi pi-times mr-0.5"></i> Fermer
-                                        </button>
-                                    </div>
-
-                                    <!-- Statistiques régionales en 3 colonnes -->
-                                    <div class="grid grid-cols-3 gap-1.5 mt-2.5 pt-2 border-t border-white/10 text-center">
-                                        <div class="bg-white/5 rounded p-1">
-                                            <div class="text-[9px] text-sky-200">TOTAL</div>
-                                            <div class="text-xs font-bold text-white">{{ selectedRegion.stats?.total || 0 }}</div>
-                                            <div class="text-[8px] text-slate-400">Gendarmes</div>
-                                        </div>
-                                        <div class="bg-white/5 rounded p-1">
-                                            <div class="text-[9px] text-emerald-300">PRÉSENTS</div>
-                                            <div class="text-xs font-bold text-emerald-400">{{ selectedRegion.stats?.presents || 0 }}</div>
-                                            <div class="text-[8px] text-emerald-400/80">{{ selectedRegion.stats?.taux_presence || 100 }}%</div>
-                                        </div>
-                                        <div class="bg-white/5 rounded p-1">
-                                            <div class="text-[9px] text-rose-300">ABSENTS</div>
-                                            <div class="text-xs font-bold text-rose-400">{{ (selectedRegion.stats?.total || 0) - (selectedRegion.stats?.presents || 0) }}</div>
-                                            <div class="text-[8px] text-rose-300/80">Indispos</div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Recherche rapide de brigade -->
-                                <div class="relative shrink-0">
-                                    <i class="pi pi-search absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                                    <input
-                                        v-model="searchQuery"
-                                        type="text"
-                                        placeholder="Filtrer les brigades..."
-                                        class="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-sky-500 focus:bg-white transition-all placeholder:text-slate-400"
-                                    />
-                                    <button
-                                        v-if="searchQuery"
-                                        @click="searchQuery = ''"
-                                        class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
-                                    >
-                                        <i class="pi pi-times text-[10px]"></i>
-                                    </button>
-                                </div>
-
-                                <!-- Indicateur des unités de la région -->
-                                <div class="flex items-center justify-between text-[11px] text-slate-600 px-0.5 shrink-0">
-                                    <span class="font-semibold">
-                                        Points d'unités ({{ filteredRegionUnits.length }})
-                                    </span>
-                                    <button
-                                        @click="filterOnlyOp = !filterOnlyOp"
-                                        :class="[
-                                            'text-[10px] px-2 py-0.5 rounded border transition-colors',
-                                            filterOnlyOp ? 'bg-emerald-600 text-white border-emerald-700' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                                        ]"
-                                    >
-                                        {{ filterOnlyOp ? '✓ Op. seules' : 'Toutes op.' }}
-                                    </button>
-                                </div>
-
-                                <!-- Liste scrollable des unités -->
-                                <div class="space-y-1.5 overflow-y-auto flex-1 pr-1 custom-scrollbar">
-                                    <div
-                                        v-for="unite in filteredRegionUnits"
-                                        :key="unite.id"
-                                        @click="focusOnUnit(unite)"
-                                        :class="[
-                                            'p-2 rounded-lg border transition-all cursor-pointer text-xs space-y-1 shadow-2xs',
-                                            selectedUnit?.id === unite.id
-                                                ? 'border-sky-500 bg-sky-50/80 ring-1 ring-sky-300'
-                                                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                                        ]"
-                                    >
-                                        <div class="flex items-center justify-between gap-1.5">
-                                            <span class="font-bold text-slate-900 truncate flex items-center gap-1">
-                                                <span class="text-rose-500">📍</span>
-                                                <span>{{ unite.nom }}</span>
-                                            </span>
-                                            <span
-                                                :class="[
-                                                    'px-1.5 py-0.2 rounded text-[9px] font-bold shrink-0',
-                                                    unite.est_operationnelle
-                                                        ? 'bg-emerald-100 text-emerald-800'
-                                                        : 'bg-rose-100 text-rose-700'
-                                                ]"
-                                            >
-                                                {{ unite.est_operationnelle ? 'Op.' : 'Non op.' }}
-                                            </span>
-                                        </div>
-
-                                        <div class="flex items-center justify-between text-[10px] text-slate-500">
-                                            <span class="truncate">{{ unite.type || 'Unité' }} <span v-if="unite.ville">• {{ unite.ville }}</span></span>
-                                            <span class="text-sky-700 font-semibold hover:underline flex items-center gap-1 shrink-0">
-                                                <i class="pi pi-search text-[9px]"></i> Zoomer
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <p v-if="filteredRegionUnits.length === 0" class="text-xs text-slate-400 italic text-center py-4">
-                                        Aucune brigade trouvée avec ce filtre.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <!-- CAS 2 : AUCUNE RÉGION N'EST SÉLECTIONNÉE (LISTE DES 20 RÉGIONS DU MALI) -->
-                            <div v-else class="flex flex-col flex-1 overflow-hidden p-3 space-y-2.5">
-                                <!-- Recherche rapide de région -->
-                                <div class="relative shrink-0">
-                                    <i class="pi pi-search absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                                    <input
-                                        v-model="regionSearchQuery"
-                                        type="text"
-                                        placeholder="Filtrer par région, chef-lieu..."
-                                        class="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:ring-1 focus:ring-sky-500 focus:bg-white transition-all placeholder:text-slate-400"
-                                    />
-                                    <button
-                                        v-if="regionSearchQuery"
-                                        @click="regionSearchQuery = ''"
-                                        class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
-                                    >
-                                        <i class="pi pi-times text-[10px]"></i>
-                                    </button>
-                                </div>
-
-                                <!-- Indication discrète -->
-                                <div class="flex items-center justify-between text-[11px] text-slate-500 px-0.5 shrink-0">
-                                    <span class="flex items-center gap-1 text-slate-600">
-                                        <i class="pi pi-compass text-sky-600"></i>
-                                        <span>Cliquez pour isoler une région</span>
-                                    </span>
-                                    <span class="text-[10px] text-slate-400 font-medium">
-                                        {{ filteredRegions.length }} / {{ regionsTerritoriales.length }}
-                                    </span>
-                                </div>
-
-                                <!-- Liste légère des 20 Régions -->
-                                <div class="space-y-1.5 overflow-y-auto flex-1 pr-1 custom-scrollbar">
-                                    <div
-                                        v-for="reg in filteredRegions"
-                                        :key="reg.id"
-                                        @click="selectAndFocusRegion(reg)"
-                                        class="p-2 rounded-lg border border-slate-200/80 bg-white hover:border-sky-300 hover:bg-sky-50/50 cursor-pointer transition-all flex items-center justify-between group shadow-2xs"
-                                    >
-                                        <div class="flex items-center gap-2.5 min-w-0">
-                                            <span class="w-8 h-8 rounded-md bg-sky-50 border border-sky-200/80 text-sky-800 font-bold text-xs flex items-center justify-center shrink-0 group-hover:bg-sky-700 group-hover:text-white group-hover:border-sky-700 transition-colors">
-                                                {{ reg.code }}
-                                            </span>
-                                            <div class="min-w-0">
-                                                <span class="font-bold text-xs text-slate-800 group-hover:text-sky-900 block truncate">
-                                                    {{ reg.nom }}
-                                                </span>
-                                                <span class="text-[11px] text-slate-500 block truncate">
-                                                    {{ reg.chef_lieu || 'N/A' }} • <span class="text-slate-600 font-medium">{{ reg.unites_count }} unités</span>
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <div class="text-right shrink-0 pl-2">
-                                            <span class="inline-block text-[11px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded group-hover:bg-sky-100 group-hover:text-sky-800 transition-colors">
-                                                {{ reg.stats?.total || 0 }} pers.
-                                            </span>
-                                            <div class="text-[10px] text-emerald-600 font-medium flex items-center justify-end gap-1 mt-0.5">
-                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                                <span>{{ reg.stats?.taux_presence || 100 }}%</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <p v-if="filteredRegions.length === 0" class="text-xs text-slate-400 italic text-center py-4">
-                                        Aucune région ne correspond à votre recherche.
-                                    </p>
-                                </div>
+                    <!-- Grille métriques détaillées (3 ou 6 cellules) -->
+                    <div class="grid grid-cols-3 gap-x-2 gap-y-1.5 my-2 pb-2 border-b border-slate-100 flex-none bg-slate-50/70 p-2 rounded-lg">
+                        <div v-for="d in detail" :key="d.label" class="min-w-0">
+                            <div class="text-[11px] text-slate-500 truncate">{{ d.label }}</div>
+                            <div class="text-sm sm:text-base font-bold text-slate-900 tabular-nums truncate">
+                                {{ d.value }}
                             </div>
                         </div>
                     </div>
+
+                    <!-- Titre de liste + Barre de recherche instantanée -->
+                    <div class="flex items-center justify-between gap-2 mb-1.5 flex-none">
+                        <h3 class="text-xs sm:text-sm font-bold text-slate-900 truncate">
+                            {{ sel ? 'Unités de la région' : 'Classement : ' + METRICS[metric].label }}
+                        </h3>
+
+                        <!-- Champ filtre rapide -->
+                        <div class="relative w-36 sm:w-44">
+                            <i class="pi pi-search absolute left-2 top-2 text-[11px] text-slate-400"></i>
+                            <input
+                                v-model="searchQuery"
+                                type="text"
+                                :placeholder="sel ? 'Filtrer unités...' : 'Filtrer régions...'"
+                                class="w-full pl-6 pr-6 py-1 text-xs border border-slate-200 rounded-md focus:outline-none focus:border-sky-500 bg-white placeholder:text-slate-400"
+                            />
+                            <button
+                                v-if="searchQuery"
+                                @click="searchQuery = ''"
+                                class="absolute right-1.5 top-1.5 text-slate-400 hover:text-slate-600 text-xs"
+                                aria-label="Effacer recherche"
+                            >
+                                <i class="pi pi-times"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- LISTE DÉROULANTE INTERNE (SEUL LE FOND DES RÉGIONS / UNITÉS EST SCROLLABLE) -->
+                    <div class="flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar">
+                        <ul v-if="lignesFiltrees.length > 0" class="rank">
+                            <li v-for="row in lignesFiltrees" :key="row.key">
+                                <button
+                                    :class="{ sel: row.active }"
+                                    @click="row.click"
+                                    :title="sel ? row.nom : 'Cliquez pour isoler ' + row.nom"
+                                >
+                                    <span class="n">
+                                        <i
+                                            v-if="sel"
+                                            class="dot"
+                                            :style="{ background: row.op ? '#1f7a4d' : '#b4540a' }"
+                                        ></i>
+                                        <span class="truncate">{{ row.nom }}</span>
+                                        <small v-if="row.horsCarte" class="ml-1 text-amber-700 text-[10px]" title="Pas de coordonnées GPS">
+                                            (sans GPS)
+                                        </small>
+                                    </span>
+                                    <span class="t">
+                                        <i :style="{ width: Math.max(3, row.pct) + '%' }"></i>
+                                    </span>
+                                    <span class="v">
+                                        {{ fmt(row.value) }}{{ sel ? '' : METRICS[metric].unit }}
+                                    </span>
+                                </button>
+                            </li>
+                        </ul>
+                        <div v-else class="py-8 text-center text-xs text-slate-400">
+                            Aucun élément ne correspond à « {{ searchQuery }} »
+                        </div>
+                    </div>
+
+                    <!-- Guide d'interaction en pied de volet -->
+                    <p class="text-[11px] text-slate-400 mt-1.5 pt-1.5 border-t border-slate-100 flex-none truncate">
+                        {{ sel
+                            ? 'Cliquez sur une unité pour la pointer sur la carte. Le zoom s\'adapte aux limites de la région.'
+                            : 'Cliquez sur une région pour zoomer et afficher le détail de ses unités opérationnelles.' }}
+                    </p>
                 </div>
             </div>
         </div>
@@ -382,627 +352,406 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, watch } from 'vue';
+import { ref, computed } from 'vue';
+import { Head } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-
-// Sécurisation globale contre les crashs Leaflet pendant les animations de zoom / transition
-if (L.Marker && L.Marker.prototype._animateZoom) {
-    const origMarker = L.Marker.prototype._animateZoom;
-    L.Marker.prototype._animateZoom = function (opt) {
-        if (!this._map) return;
-        return origMarker.call(this, opt);
-    };
-}
-if (L.Popup && L.Popup.prototype._animateZoom) {
-    const origPopup = L.Popup.prototype._animateZoom;
-    L.Popup.prototype._animateZoom = function (opt) {
-        if (!this._map) return;
-        return origPopup.call(this, opt);
-    };
-}
-if (L.Tooltip && L.Tooltip.prototype._animateZoom) {
-    const origTooltip = L.Tooltip.prototype._animateZoom;
-    L.Tooltip.prototype._animateZoom = function (opt) {
-        if (!this._map) return;
-        return origTooltip.call(this, opt);
-    };
-}
-import { 
-    MALI_BOUNDS, 
-    REGION_BOUNDS, 
-    MALI_20_REGIONS, 
-    MALI_BORDER,
-    CHEF_LIEUX_COORDS,
-    WORLD_MASK_RING,
-    MALI_BORDER_LATLNGS,
-    REGION_RINGS_LATLNGS
-} from './maliGeoData.js';
+import { MALI_VIEW, REGION_SHAPES as SHAPES, project } from './maliRegions.js';
 
 const props = defineProps({
-    regions: {
-        type: Array,
-        default: () => []
-    },
-    statsGlobales: {
-        type: Object,
-        default: () => ({
-            total_militaires: 0,
-            total_regions: 0,
-            total_unites: 0,
-            unites_operationnelles: 0,
-            unites_non_operationnelles: 0,
-        })
-    }
+    regions: { type: Array, default: () => [] },
+    stats: { type: Object, default: () => ({ non_rattaches: 0, generated_at: '' }) },
 });
 
-// État réactif
-const mapInstance = ref(null);
-const maskLayer = ref(null);
-const borderLayer = ref(null);
-const regionsLayerGroup = ref(null);
-const markersLayerGroup = ref(null);
-const unitsLayerGroup = ref(null);
+const METRICS = {
+    eff: { label: 'Effectif', unit: '' },
+    pres: { label: 'Présents', unit: '' },
+    abs: { label: 'Absents', unit: '' },
+    fem: { label: 'Femmes', unit: '' },
+    opp: { label: 'Unités op.', unit: ' %' },
+};
 
-let canvasRenderer = null;
+const metric = ref('eff');
+const sel = ref(null);         // code de la région choisie (ex. "R4") ou null = Mali entier
+const selUnit = ref(null);     // id de l'unité mise en évidence
+const searchQuery = ref('');   // recherche rapide dans le volet déroulant
+const hoveredItem = ref(null); // objet survolé (région ou unité)
+const hoveredCode = ref(null); // code de la région survolée
 
-const isSidebarOpen = ref(true);
-const regionSearchQuery = ref('');
-const selectedRegion = ref(null);
-const selectedUnit = ref(null);
-const searchQuery = ref('');
-const filterOnlyOp = ref(false);
+const fmt = (n) => Number(n ?? 0).toLocaleString('fr-FR');
+const shortName = (n) => n.replace(/^(Région de |Région du |District de )/, '');
 
-// Toutes les régions sont des régions territoriales officielles du Mali (20 Régions)
-const regionsTerritoriales = computed(() => {
-    return props.regions;
+// ---------- Valeurs par région ----------
+const opCount = (r) => r.unites.filter((u) => u.operationnelle).length;
+const valueOf = (r) => {
+    switch (metric.value) {
+        case 'pres': return r.effectif - r.absents;
+        case 'abs': return r.absents;
+        case 'fem': return r.femmes;
+        case 'opp': return r.unites.length ? Math.round((opCount(r) / r.unites.length) * 100) : 0;
+        default: return r.effectif;
+    }
+};
+
+const legende = computed(() => {
+    const v = props.regions.map(valueOf);
+    return v.length ? { min: Math.min(...v), max: Math.max(...v) } : { min: 0, max: 0 };
 });
 
-// Filtre dynamique des régions dans le volet latéral
-const filteredRegions = computed(() => {
-    if (!regionSearchQuery.value) return regionsTerritoriales.value;
-    const q = regionSearchQuery.value.toLowerCase().trim();
-    return regionsTerritoriales.value.filter(r =>
-        r.nom.toLowerCase().includes(q) ||
-        r.code.toLowerCase().includes(q) ||
-        (r.chef_lieu && r.chef_lieu.toLowerCase().includes(q))
-    );
-});
-
-// Unités avec coordonnées garanties à l'intérieur de leur région
-const unitesAvecCoords = computed(() => {
-    const list = [];
-    props.regions.forEach(r => {
-        const chef = CHEF_LIEUX_COORDS[r.code] || (r.latitude && r.longitude ? [Number(r.latitude), Number(r.longitude)] : null);
-        if (r.unites) {
-            r.unites.forEach((u, idx) => {
-                let lat = u.latitude !== null && u.latitude !== undefined ? Number(u.latitude) : null;
-                let lon = u.longitude !== null && u.longitude !== undefined ? Number(u.longitude) : null;
-
-                // Fallback garanti à proximité du Chef-lieu si pas de coordonnées
-                if ((lat === null || lon === null || isNaN(lat) || isNaN(lon)) && chef) {
-                    const angle = (idx * 137.5) * (Math.PI / 180);
-                    const radius = 0.015 + (idx % 6) * 0.006;
-                    lat = chef[0] + Math.sin(angle) * radius;
-                    lon = chef[1] + Math.cos(angle) * radius;
-                }
-
-                if (lat !== null && lon !== null && !isNaN(lat) && !isNaN(lon)) {
-                    list.push({
-                        ...u,
-                        latitude: lat,
-                        longitude: lon,
-                        region_id: r.id,
-                        region_nom: r.nom,
-                        region_code: r.code
-                    });
-                }
-            });
-        }
-    });
-    return list;
-});
-
-// Unités filtrées dans le volet latéral
-const filteredRegionUnits = computed(() => {
-    if (!selectedRegion.value || !selectedRegion.value.unites) return [];
-    let list = selectedRegion.value.unites;
-
-    if (searchQuery.value) {
-        const q = searchQuery.value.toLowerCase();
-        list = list.filter(u =>
-            u.nom.toLowerCase().includes(q) ||
-            (u.ville && u.ville.toLowerCase().includes(q)) ||
-            (u.type && u.type.toLowerCase().includes(q))
-        );
+const fillFor = (r) => {
+    let pct = 8;
+    if (!sel.value) {
+        const { min, max } = legende.value;
+        pct = Math.round(12 + (max === min ? 1 : (valueOf(r) - min) / (max - min)) * 88);
+    } else if (r.code === sel.value) {
+        pct = 18;
     }
-
-    if (filterOnlyOp.value) {
-        list = list.filter(u => u.est_operationnelle);
-    }
-
-    return list;
-});
-
-// Bascule du volet latéral pour maximiser l'espace de la carte
-const toggleSidebar = () => {
-    isSidebarOpen.value = !isSidebarOpen.value;
-    nextTick(() => {
-        setTimeout(() => {
-            if (mapInstance.value) {
-                mapInstance.value.invalidateSize();
-            }
-        }, 200);
-    });
+    return `color-mix(in srgb, #1d4f91 ${pct}%, #e4ebf3)`;
 };
 
-// ===============================================================
-// PINS / ÉPINGLES POINTANT PRÉCISÉMENT SUR LA CARTE
-// ===============================================================
-
-/**
- * Pin pointé pour les Régions / Chefs-lieux
- */
-const createRegionPin = (code, count, isSelected = false) => {
-    const pinColor = isSelected ? '#d97706' : '#0369a1';
-    const ringColor = isSelected ? '#fbbf24' : '#38bdf8';
-
-    const html = `
-        <div style="position: relative; width: 34px; height: 42px; cursor: pointer; transition: transform 0.2s ease;">
-            <svg width="34" height="42" viewBox="0 0 34 42" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 3px 6px rgba(0,0,0,0.45));">
-                <path d="M17 0C7.61116 0 0 7.61116 0 17C0 26.5 13.5 39.8 16.15 41.6C16.65 41.95 17.35 41.95 17.85 41.6C20.5 39.8 34 26.5 34 17C34 7.61116 26.3888 0 17 0Z" fill="${pinColor}"/>
-                <circle cx="17" cy="16" r="11" fill="#0f172a" stroke="${ringColor}" stroke-width="2"/>
-            </svg>
-            <div style="position: absolute; top: 10px; left: 0; width: 34px; text-align: center; color: #ffffff; font-weight: 800; font-size: ${code.length > 2 ? '8px' : '9.5px'}; line-height: 1; pointer-events: none; letter-spacing: -0.5px;">
-                ${code}
-            </div>
-            <div style="position: absolute; top: -6px; right: -6px; background: #eab308; color: #000; font-weight: 800; font-size: 9px; border-radius: 999px; padding: 1px 4px; border: 1px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">
-                ${count}
-            </div>
-        </div>
-    `;
-
-    return L.divIcon({
-        className: 'mali-pin-region',
-        html: html,
-        iconSize: [34, 42],
-        iconAnchor: [17, 42],
-        popupAnchor: [0, -38]
-    });
+// ---------- Survol interactif ----------
+const onHoverRegion = (r) => {
+    hoveredCode.value = r.code;
+    hoveredItem.value = {
+        isUnit: false,
+        title: r.nom,
+        subtitle: `${fmt(valueOf(r))}${METRICS[metric.value].unit} (${METRICS[metric.value].label})`,
+        extra: `${r.unites.length} unités répertoriées`
+    };
 };
 
-/**
- * Pin pointé pour les Unités / Brigades de terrain
- */
-const createUnitPin = (estOp = true, isSelected = false) => {
-    const pinColor = estOp ? '#10b981' : '#ef4444';
-    const strokeColor = isSelected ? '#f59e0b' : '#ffffff';
-    const strokeWidth = isSelected ? '2.5' : '1.5';
-
-    const html = `
-        <div style="position: relative; width: 20px; height: 26px; cursor: pointer;">
-            <svg width="20" height="26" viewBox="0 0 20 26" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35));">
-                <path d="M10 0C4.47715 0 0 4.47715 0 10C0 16 8 24.5 9.4 25.7C9.75 25.95 10.25 25.95 10.6 25.7C12 24.5 20 16 20 10C20 4.47715 15.5228 0 10 0Z" fill="${pinColor}" stroke="${strokeColor}" stroke-width="${strokeWidth}"/>
-                <circle cx="10" cy="10" r="4" fill="#ffffff"/>
-            </svg>
-        </div>
-    `;
-
-    return L.divIcon({
-        className: 'mali-pin-unit',
-        html: html,
-        iconSize: [20, 26],
-        iconAnchor: [10, 26],
-        popupAnchor: [0, -24]
-    });
+const onHoverUnit = (u) => {
+    hoveredItem.value = {
+        isUnit: true,
+        op: u.operationnelle,
+        title: u.nom,
+        subtitle: `${fmt(u.effectif)} militaires`,
+        extra: u.operationnelle ? 'Opérationnelle' : 'Non opérationnelle'
+    };
 };
 
-// ===============================================================
-// GESTION DU MASQUE CANVAS ANTI-BUG
-// ===============================================================
-
-/**
- * Met à jour le masque Canvas opaque qui recouvre tous les pays voisins
- * et isole éventuellement la région sélectionnée
- */
-const updateMask = (holeLatLngs) => {
-    if (!mapInstance.value) return;
-
-    if (maskLayer.value) {
-        mapInstance.value.removeLayer(maskLayer.value);
-    }
-
-    if (!canvasRenderer) {
-        canvasRenderer = L.canvas({ padding: 0.5 });
-    }
-
-    maskLayer.value = L.polygon([WORLD_MASK_RING, holeLatLngs], {
-        fillColor: '#f8fafc',
-        fillOpacity: 1.0,
-        stroke: false,
-        interactive: false,
-        renderer: canvasRenderer
-    }).addTo(mapInstance.value);
-
-    maskLayer.value.bringToBack();
+const onLeaveHover = () => {
+    hoveredItem.value = null;
+    hoveredCode.value = null;
 };
 
-// ===============================================================
-// INITIALISATION DE LA CARTE LEAFLET
-// ===============================================================
-const initMap = async () => {
-    await nextTick();
-    const mapContainer = document.getElementById('map-mali');
-    if (!mapContainer || mapInstance.value) return;
+const hoveredInfo = computed(() => hoveredItem.value);
 
-    const map = L.map('map-mali', {
-        center: [16.5, -3.5],
-        zoom: 6,
-        minZoom: 5.5,
-        maxZoom: 18,
-        maxBounds: L.latLngBounds([9.5, -13.0], [25.5, 4.8]),
-        maxBoundsViscosity: 1.0,
-    });
+// ---------- Sélection / zoom ----------
+const selRegion = computed(() => props.regions.find((r) => r.code === sel.value));
 
-    // 1. Fond de carte OpenStreetMap
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap | Gendarmerie Nationale du Mali'
-    }).addTo(map);
-
-    // 2. Initialiser le Canvas Renderer
-    canvasRenderer = L.canvas({ padding: 0.5 });
-
-    // 3. Masque Canvas initial couvrant tous les pays voisins (Mali seul visible)
-    maskLayer.value = L.polygon([WORLD_MASK_RING, MALI_BORDER_LATLNGS], {
-        fillColor: '#f8fafc',
-        fillOpacity: 1.0,
-        stroke: false,
-        interactive: false,
-        renderer: canvasRenderer
-    }).addTo(map);
-
-    // 4. Contour officiel de la frontière nationale du Mali
-    borderLayer.value = L.geoJSON(MALI_BORDER, {
-        style: {
-            color: '#0369a1',
-            weight: 3.0,
-            opacity: 0.95,
-            fill: false,
-            interactive: false,
-        }
-    }).addTo(map);
-
-    // 5. Groupes de couches dynamiques
-    regionsLayerGroup.value = L.layerGroup().addTo(map);
-    markersLayerGroup.value = L.layerGroup().addTo(map);
-    unitsLayerGroup.value = L.layerGroup().addTo(map);
-
-    mapInstance.value = map;
-
-    // 6. Rendu initial : Tout le Mali (20 pins régionaux au Chef-lieu, 0 unités pour aérer)
-    updateMapDisplay();
-
-    // 7. Centrer sur l'ensemble du territoire national
-    map.fitBounds(MALI_BOUNDS, { padding: [25, 25] });
+const choisir = (code) => {
+    sel.value = code;
+    selUnit.value = null;
+    searchQuery.value = '';
 };
 
-/**
- * Met à jour dynamiquement toutes les couches de la carte
- */
-const updateMapDisplay = () => {
-    if (!mapInstance.value) return;
-
-    // Si une région est isolée, masquer le contour national extérieur
-    if (borderLayer.value) {
-        borderLayer.value.setStyle({
-            opacity: selectedRegion.value ? 0 : 0.95
-        });
-    }
-
-    renderRegions();
-    renderRegionPins();
-    renderUnitPins();
+const retour = () => {
+    sel.value = null;
+    selUnit.value = null;
+    searchQuery.value = '';
 };
 
-/**
- * Rendu dynamique des polygones des régions :
- * - Si région sélectionnée : affiche uniquement cette région avec contour net
- * - Par défaut : affiche les 20 régions avec contours fins
- */
-const renderRegions = () => {
-    if (!mapInstance.value || !regionsLayerGroup.value) return;
-    regionsLayerGroup.value.clearLayers();
-
-    const isIsolated = selectedRegion.value !== null;
-
-    const featuresToShow = isIsolated
-        ? MALI_20_REGIONS.features.filter(f => f.properties?.code === selectedRegion.value.code)
-        : MALI_20_REGIONS.features;
-
-    const layer = L.geoJSON({ type: 'FeatureCollection', features: featuresToShow }, {
-        style: (feature) => {
-            const isTarget = isIsolated && feature.properties?.code === selectedRegion.value?.code;
-            return {
-                fillColor: '#0284c7',
-                fillOpacity: isTarget ? 0.06 : 0.04,
-                color: isTarget ? '#0369a1' : '#0284c7',
-                weight: isTarget ? 3.5 : 1.5,
-                dashArray: isTarget ? '' : '3, 4',
-            };
-        },
-        onEachFeature: (feature, l) => {
-            const code = feature.properties?.code;
-            const reg = props.regions.find(r => r.code === code);
-            const nomAffiche = reg ? reg.nom : (feature.properties?.nom || code);
-            const chef = reg?.chef_lieu || feature.properties?.chef_lieu || '';
-            const effectif = reg?.stats?.total || 0;
-            const presence = reg?.stats?.taux_presence || 100;
-
-            l.bindTooltip(`
-                <div style="font-size: 12px; font-weight: bold; color: #0c4a6e;">
-                    📍 ${nomAffiche} (${code})
-                </div>
-                <div style="font-size: 11px; color: #334155;">
-                    Chef-lieu : <strong>${chef}</strong><br/>
-                    Effectif : <strong>${effectif}</strong> gendarmes (${presence}% présents)
-                </div>
-            `, { sticky: true });
-
-            l.on({
-                mouseover: (e) => {
-                    if (!isIsolated) {
-                        e.target.setStyle({
-                            weight: 2.5,
-                            color: '#0369a1',
-                            fillOpacity: 0.12
-                        });
-                        e.target.bringToFront();
-                    }
-                },
-                mouseout: (e) => {
-                    if (!isIsolated) {
-                        layer.resetStyle(e.target);
-                    }
-                },
-                click: () => {
-                    if (reg) {
-                        selectAndFocusRegion(reg);
-                    }
-                }
-            });
-        }
-    });
-
-    regionsLayerGroup.value.addLayer(layer);
-};
-
-/**
- * Pointer les Régions sur la carte :
- * - Si isolée : n'afficher que le pin au Chef-lieu de cette région
- * - Par défaut (vue nationale) : afficher les 20 pins au Chef-lieu
- */
-const renderRegionPins = () => {
-    if (!mapInstance.value || !markersLayerGroup.value) return;
-    markersLayerGroup.value.clearLayers();
-
-    const list = selectedRegion.value
-        ? regionsTerritoriales.value.filter(r => r.id === selectedRegion.value.id || r.code === selectedRegion.value.code)
-        : regionsTerritoriales.value;
-
-    list.forEach(reg => {
-        const coords = CHEF_LIEUX_COORDS[reg.code] || (reg.latitude && reg.longitude ? [Number(reg.latitude), Number(reg.longitude)] : null);
-        if (!coords) return;
-
-        const isSelected = selectedRegion.value?.id === reg.id || selectedRegion.value?.code === reg.code;
-        const icon = createRegionPin(reg.code, reg.stats?.total || 0, isSelected);
-
-        const marker = L.marker(coords, {
-            icon,
-            zIndexOffset: isSelected ? 1200 : 1000
-        });
-
-        marker.on('click', () => {
-            selectAndFocusRegion(reg);
-        });
-
-        marker.bindPopup(`
-            <div style="font-size: 12px; min-width: 175px; line-height: 1.4;">
-                <div style="font-size: 13px; font-weight: 800; color: #0369a1; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px; margin-bottom: 4px;">
-                    📍 ${reg.nom} (${reg.code})
-                </div>
-                <span>Chef-lieu : <strong>${reg.chef_lieu || 'N/A'}</strong></span><br/>
-                <span>Effectif total : <strong style="color: #0369a1;">${reg.stats?.total || 0}</strong></span><br/>
-                <span>Présents en service : <strong style="color: #059669;">${reg.stats?.presents || 0}</strong></span><br/>
-                <span>Unités rattachées : <strong>${reg.unites_count}</strong></span>
-            </div>
-        `);
-
-        markersLayerGroup.value.addLayer(marker);
-    });
-};
-
-/**
- * Pointer les Unités / Brigades de terrain :
- * - En vue nationale : 0 unité affichée (carte aérée et épurée)
- * - En vue isolée : affiche STRICTEMENT les unités de la région sélectionnée
- */
-const renderUnitPins = () => {
-    if (!mapInstance.value || !unitsLayerGroup.value) return;
-    unitsLayerGroup.value.clearLayers();
-
-    // RÈGLE DEMANDÉE : À l'arrivée sur la carte, les unités de terrain sont masquées.
-    // Elles ne s'affichent QUE lorsqu'une région est sélectionnée.
-    if (!selectedRegion.value) return;
-
-    let list = unitesAvecCoords.value.filter(u => 
-        u.region_id === selectedRegion.value.id || u.region_code === selectedRegion.value.code
-    );
-
-    if (searchQuery.value) {
-        const q = searchQuery.value.toLowerCase();
-        list = list.filter(u =>
-            u.nom.toLowerCase().includes(q) ||
-            (u.ville && u.ville.toLowerCase().includes(q)) ||
-            (u.type && u.type.toLowerCase().includes(q))
-        );
-    }
-
-    if (filterOnlyOp.value) {
-        list = list.filter(u => u.est_operationnelle);
-    }
-
-    list.forEach(u => {
-        const isSelected = selectedUnit.value?.id === u.id;
-        const icon = createUnitPin(u.est_operationnelle, isSelected);
-
-        const marker = L.marker([u.latitude, u.longitude], {
-            icon,
-            zIndexOffset: isSelected ? 900 : 500
-        });
-
-        marker.on('click', () => {
-            selectedUnit.value = u;
-        });
-
-        marker.bindPopup(`
-            <div style="font-size: 12px; min-width: 170px; line-height: 1.4;">
-                <div style="font-weight: 800; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 3px; margin-bottom: 4px;">
-                    📍 ${u.nom}
-                </div>
-                <span style="color: #64748b;">${u.type || 'Unité'} • ${u.ville || ''}</span><br/>
-                <span>Région : <strong>${u.region_nom}</strong></span><br/>
-                <span>Statut : <strong style="color: ${u.est_operationnelle ? '#059669' : '#dc2626'};">${u.est_operationnelle ? 'Opérationnelle' : 'Non opérationnelle'}</strong></span><br/>
-                <span>Effectif : <strong>${u.stats?.total || 0}</strong></span>
-            </div>
-        `);
-
-        unitsLayerGroup.value.addLayer(marker);
-    });
-};
-
-/**
- * Sélectionne une région et active l'isolation parfaite
- */
-const selectAndFocusRegion = (reg) => {
-    if (!mapInstance.value) return;
-
-    // Arrêter toute animation en cours pour éviter les désorganisations de points
-    mapInstance.value.stop();
-    mapInstance.value.closePopup();
-
-    selectedRegion.value = reg;
-    selectedUnit.value = null;
-    isSidebarOpen.value = true;
-
-    // 1. Mettre à jour le masque Canvas avec l'anneau de cette région
-    const regionRing = REGION_RINGS_LATLNGS[reg.code];
-    if (regionRing) {
-        updateMask(regionRing);
-    }
-
-    // 2. Mettre à jour l'affichage (pins et unités)
-    updateMapDisplay();
-
-    // 3. Zoom fluide sur les limites de la région
-    mapInstance.value.invalidateSize();
-    const bounds = REGION_BOUNDS[reg.code];
-    if (bounds) {
-        mapInstance.value.fitBounds(bounds, {
-            padding: [45, 45],
-            maxZoom: 10,
-            animate: true,
-            duration: 0.8
-        });
+const onSelectRegionDropdown = (code) => {
+    if (code) {
+        choisir(code);
     } else {
-        const chef = CHEF_LIEUX_COORDS[reg.code] || [Number(reg.latitude), Number(reg.longitude)];
-        if (chef) {
-            mapInstance.value.flyTo(chef, 9, { duration: 0.8 });
+        retour();
+    }
+};
+
+const toggleUnit = (id) => {
+    selUnit.value = selUnit.value === id ? null : id;
+};
+
+const viewBox = computed(() => {
+    const full = [0, 0, MALI_VIEW.w, MALI_VIEW.h];
+    const shape = sel.value && SHAPES[sel.value];
+    if (!shape) return full;
+    const [a, b, c, d] = shape.bb;
+    const pw = Math.max(c - a, 32), ph = Math.max(d - b, 32), pad = Math.max(pw, ph) * 0.15;
+    let w = pw + 2 * pad, h = ph + 2 * pad;
+    const ar = MALI_VIEW.w / MALI_VIEW.h;
+    if (w / h < ar) w = h * ar; else h = w / ar;
+    return [(a + c) / 2 - w / 2, (b + d) / 2 - h / 2, w, h];
+});
+
+const zoom = computed(() => viewBox.value[2] / MALI_VIEW.w); // garde les traits et pins lisibles à l'échelle du zoom
+
+// ---------- Unités de la région choisie ----------
+const unitesAvecPoint = computed(() => {
+    if (!selRegion.value) return [];
+    return selRegion.value.unites
+        .filter((u) => u.lat !== null && u.lon !== null)
+        .map((u) => ({ ...u, ...project(u.lat, u.lon) }));
+});
+
+const unitesSansPoint = computed(() => (selRegion.value ? selRegion.value.unites.length - unitesAvecPoint.value.length : 0));
+const maxEff = computed(() => Math.max(1, ...(selRegion.value?.unites ?? []).map((u) => u.effectif)));
+const rayon = (u) => (3.5 + (u.effectif / maxEff.value) * 5) * zoom.value;
+const unitePointee = computed(() => unitesAvecPoint.value.find((u) => u.id === selUnit.value));
+
+// ---------- Panneaux statistiques ----------
+const tot = (f) => props.regions.reduce((s, r) => s + f(r), 0);
+
+const kpis = computed(() => {
+    const r = selRegion.value;
+    const eff = r ? r.effectif : tot((x) => x.effectif);
+    const abs = r ? r.absents : tot((x) => x.absents);
+    const nU = r ? r.unites.length : tot((x) => x.unites.length);
+    const nOp = r ? opCount(r) : tot(opCount);
+    return [
+        {
+            label: r ? 'Effectif de la région' : 'Effectif total',
+            value: fmt(eff),
+            hint: r ? r.nom : 'hors retraités et radiés'
+        },
+        {
+            label: 'Présents',
+            value: fmt(eff - abs),
+            hint: eff ? Math.round(((eff - abs) / eff) * 100) + ' % d’activité' : '—'
+        },
+        {
+            label: 'Absents',
+            value: fmt(abs),
+            hint: 'congés, missions, stages'
+        },
+        {
+            label: 'Unités opérationnelles',
+            value: `${nOp} / ${nU}`,
+            hint: nU ? Math.round((nOp / nU) * 100) + ' % maillage' : '—'
+        },
+    ];
+});
+
+const detail = computed(() => {
+    const r = selRegion.value;
+    if (!r) {
+        return [
+            { label: 'Régions', value: props.regions.length },
+            { label: 'Total Unités', value: fmt(tot((x) => x.unites.length)) },
+            { label: 'Effectif Global', value: fmt(tot((x) => x.effectif)) },
+        ];
+    }
+    const total = tot((x) => x.effectif);
+    return [
+        { label: 'Effectif', value: fmt(r.effectif) },
+        { label: 'Part nationale', value: (total ? (r.effectif / total) * 100 : 0).toFixed(1).replace('.', ',') + ' %' },
+        { label: 'Femmes', value: fmt(r.femmes) },
+        { label: 'Présents', value: fmt(r.effectif - r.absents) },
+        { label: 'Absents', value: fmt(r.absents) },
+        { label: 'Unités op.', value: `${opCount(r)} / ${r.unites.length}` },
+    ];
+});
+
+const lignes = computed(() => {
+    if (selRegion.value) {
+        const r = selRegion.value;
+        const rows = r.unites.map((u) => ({
+            key: 'u' + u.id,
+            nom: u.nom,
+            value: u.effectif,
+            op: u.operationnelle,
+            horsCarte: u.lat === null || u.lon === null,
+            active: selUnit.value === u.id,
+            click: () => toggleUnit(u.id),
+        }));
+        if (r.sans_unite > 0) {
+            rows.push({
+                key: 'su',
+                nom: 'Sans unité précise',
+                value: r.sans_unite,
+                op: true,
+                horsCarte: false,
+                active: false,
+                click: () => {},
+            });
         }
+        rows.sort((a, b) => b.value - a.value);
+        const hi = rows[0]?.value || 1;
+        return rows.map((x) => ({ ...x, pct: (x.value / hi) * 100 }));
     }
-};
 
-/**
- * Zoomer sur une brigade ou unité précise
- */
-const focusOnUnit = (unite) => {
-    selectedUnit.value = unite;
-    renderUnitPins();
+    const rows = props.regions
+        .map((r) => ({
+            key: r.code,
+            nom: shortName(r.nom),
+            fullName: r.nom,
+            code: r.code,
+            value: valueOf(r),
+            active: false,
+            click: () => choisir(r.code),
+        }))
+        .sort((a, b) => b.value - a.value);
+    const hi = rows[0]?.value || 1;
+    return rows.map((x) => ({ ...x, pct: (x.value / hi) * 100 }));
+});
 
-    if (mapInstance.value && unite.latitude && unite.longitude) {
-        mapInstance.value.stop();
-        mapInstance.value.flyTo([unite.latitude, unite.longitude], 12, {
-            duration: 1.0
-        });
-    }
-};
-
-/**
- * Réinitialiser la vue complète (Tout le Mali)
- */
-const resetToFullMaliView = () => {
-    if (!mapInstance.value) return;
-
-    // Arrêter toute animation en cours
-    mapInstance.value.stop();
-    mapInstance.value.closePopup();
-
-    selectedRegion.value = null;
-    selectedUnit.value = null;
-
-    // 1. Restaurer le masque Canvas national (Mali seul visible, pays voisins masqués)
-    updateMask(MALI_BORDER_LATLNGS);
-
-    // 2. Restaurer l'affichage (20 pins régionaux, 0 unités)
-    updateMapDisplay();
-
-    // 3. Recentrer de manière fiable sur l'ensemble du territoire national
-    mapInstance.value.invalidateSize();
-    mapInstance.value.fitBounds(MALI_BOUNDS, {
-        padding: [30, 30],
-        animate: true,
-        duration: 0.8
+const lignesFiltrees = computed(() => {
+    const q = searchQuery.value.trim().toLowerCase();
+    if (!q) return lignes.value;
+    return lignes.value.filter((row) => {
+        const text = (row.nom + ' ' + (row.fullName || '') + ' ' + (row.code || '')).toLowerCase();
+        return text.includes(q);
     });
-};
-
-// Watchers
-watch(searchQuery, () => {
-    renderUnitPins();
-});
-
-watch(filterOnlyOp, () => {
-    renderUnitPins();
-});
-
-onMounted(() => {
-    initMap();
 });
 </script>
 
-<style>
-/* Style des popups Leaflet adaptés au thème */
-.leaflet-popup-content-wrapper {
-    border-radius: 10px;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    border: 1px solid #e2e8f0;
+<style scoped>
+.chip {
+    font-size: 12px;
+    border: 1px solid #dde3ea;
+    border-radius: 9999px;
+    padding: 3px 10px;
+    color: #14202e;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
 }
-.leaflet-container {
-    font-family: inherit;
-    background-color: #f8fafc;
+.chip[aria-pressed='true'] {
+    background: #1d4f91;
+    border-color: #1d4f91;
+    color: #fff;
+    box-shadow: 0 1px 2px rgba(29, 79, 145, 0.25);
 }
-.no-scrollbar::-webkit-scrollbar {
-    display: none;
+.chip:hover:not([aria-pressed='true']) {
+    background: #f1f5f9;
 }
-.no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+
+.reg {
+    stroke: #ffffff;
+    cursor: pointer;
+    transition: opacity 0.15s, stroke-width 0.15s;
 }
+.reg:hover,
+.reg.hovered {
+    opacity: 0.85;
+    stroke: #0284c7;
+}
+.reg.sel {
+    stroke: #0f172a;
+    stroke-width: 2.2;
+}
+.reg.dim {
+    opacity: 0.45;
+}
+
+.pin {
+    stroke: #ffffff;
+    cursor: pointer;
+    transition: r 0.15s, stroke 0.15s;
+}
+.pin:hover {
+    stroke: #0284c7;
+}
+.pin.on {
+    stroke: #0f172a;
+}
+
+.lbl {
+    font: 600 11px system-ui, -apple-system, sans-serif;
+    fill: #0f172a;
+    paint-order: stroke;
+    stroke: #ffffff;
+    stroke-width: 3px;
+    stroke-linejoin: round;
+    pointer-events: none;
+    text-anchor: middle;
+}
+.lbl.nm {
+    font-size: 8.5px;
+    font-weight: 500;
+    stroke-width: 2.5px;
+}
+.lbl.text-highlight {
+    fill: #1e3a8a;
+    font-weight: 700;
+}
+
+.lead {
+    stroke: #475569;
+    stroke-width: 1;
+    pointer-events: none;
+}
+.dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 5px;
+    flex: none;
+}
+.legend-bar {
+    width: 140px;
+    max-width: 35%;
+    height: 7px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, color-mix(in srgb, #1d4f91 12%, #e4ebf3), #1d4f91);
+}
+
+.rank {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.rank button {
+    all: unset;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: minmax(110px, 1.3fr) 1fr 50px;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+    padding: 4px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.12s ease;
+}
+.rank button:hover,
+.rank button.sel {
+    background: #f1f5f9;
+}
+.rank button.sel {
+    border-left: 3px solid #1d4f91;
+}
+.rank button:focus-visible {
+    outline: 2px solid #1d4f91;
+}
+.rank .n {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    white-space: nowrap;
+}
+.rank .t {
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+}
+.rank .t i {
+    display: block;
+    height: 100%;
+    background: #1d4f91;
+    border-radius: 4px;
+}
+.rank .v {
+    text-align: right;
+    font-weight: 600;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: #0f172a;
+}
+
 .custom-scrollbar::-webkit-scrollbar {
-    width: 4px;
+    width: 5px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
+    background: #f8fafc;
+    border-radius: 4px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
     background: #cbd5e1;
@@ -1010,5 +759,14 @@ onMounted(() => {
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.15s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
 }
 </style>

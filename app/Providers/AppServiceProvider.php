@@ -28,5 +28,10 @@ class AppServiceProvider extends ServiceProvider
                 ? $rule->mixedCase()->numbers()->symbols()->uncompromised()
                 : $rule;
         });
+
+        foreach ([\App\Models\Region::class, \App\Models\Unite::class] as $modele) {
+            $modele::saved(fn () => \App\Http\Controllers\CarteController::flush());
+            $modele::deleted(fn () => \App\Http\Controllers\CarteController::flush());
+        }
     }
 }

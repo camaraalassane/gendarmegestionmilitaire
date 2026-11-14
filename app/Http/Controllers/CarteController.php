@@ -4,203 +4,90 @@ namespace App\Http\Controllers;
 
 use App\Models\Militaire;
 use App\Models\Region;
-use App\Models\Unite;
-use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 
 class CarteController extends Controller
 {
-    /**
-     * Affiche la carte opérationnelle et le maillage territorial du Mali.
-     */
-    public function index(Request $request)
+    private const CACHE_TTL = 300; // 5 minutes ; invalidé aussitôt par flush() à chaque modification
+
+    /** Invalide la carte (à appeler quand un militaire, une région ou une unité change). */
+    public static function flush(): void
     {
-        // 1. Récupérer toutes les régions avec leurs unités
-        $regions = Region::with(['unites' => function ($q) {
-            $q->orderBy('nom');
-        }])
-        ->orderByRaw('COALESCE(ordre, 999) ASC')
-        ->orderBy('nom')
-        ->get();
+        Cache::forever('carte:ver', (int) Cache::get('carte:ver', 1) + 1);
+    }
 
-        // 2. Récupérer les militaires avec leurs statuts
-        $militaires = Militaire::select([
-            'id', 'matricule', 'mle_grm', 'nom', 'prenom', 'grade_actuel', 
-            'sexe', 'statut', 'position_actuelle', 'unite', 'region'
-        ])->get();
+    public function index()
+    {
+        $cle = 'carte:v' . Cache::get('carte:ver', 1);
 
-        // 3. Calculer les effectifs agrégés par région et par unité
-        $regionStats = [];
-        $uniteStats = [];
+        return Inertia::render('Carte/Index', Cache::remember($cle, self::CACHE_TTL, fn () => $this->construire()));
+    }
 
-        foreach ($regions as $reg) {
-            $regionStats[$reg->id] = [
-                'total' => 0,
-                'presents' => 0,
-                'absents' => 0,
-                'hommes' => 0,
-                'femmes' => 0,
-                'en_mission' => 0,
-                'en_conge' => 0,
-                'en_stage' => 0,
-                'autres_absences' => 0,
-            ];
+    private function construire(): array
+    {
+        // 1) Régions + unités : 2 requêtes
+        $regions = Region::with(['unites' => fn ($q) => $q
+            ->select('id', 'region_id', 'nom', 'type', 'ville', 'latitude', 'longitude', 'est_operationnelle')
+            ->orderBy('nom')])
+            ->orderByRaw('COALESCE(ordre, 999)')->orderBy('nom')
+            ->get(['id', 'code', 'nom', 'chef_lieu']);
 
-            foreach ($reg->unites as $u) {
-                $uniteStats[$u->id] = [
-                    'total' => 0,
-                    'presents' => 0,
-                    'absents' => 0,
-                ];
-            }
-        }
+        // 2) Effectifs : UNE requête d'agrégation (plus de boucle PHP militaire × région × unité)
+        $retire = "(LOWER(COALESCE(statut,'')) LIKE 'retrait%' OR LOWER(COALESCE(statut,'')) LIKE 'radi%' OR LOWER(COALESCE(statut,'')) LIKE 'd_c_s%')";
+        $absent = "(LOWER(COALESCE(statut,'')) LIKE '%cong%' OR LOWER(COALESCE(statut,'')) LIKE '%miss%'
+                 OR LOWER(COALESCE(statut,'')) LIKE '%stag%' OR LOWER(COALESCE(statut,'')) LIKE '%malad%'
+                 OR LOWER(COALESCE(statut,'')) LIKE '%susp%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%cong%'
+                 OR LOWER(COALESCE(position_actuelle,'')) LIKE '%miss%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%stag%'
+                 OR LOWER(COALESCE(position_actuelle,'')) LIKE '%form%')";
 
-        // Affecter chaque militaire à sa région et son unité
-        foreach ($militaires as $mil) {
-            $matchedRegionId = null;
-            $milRegClean = mb_strtolower(trim($mil->region ?? ''));
-            $milPosClean = mb_strtolower(trim($mil->position_actuelle ?? ''));
+        $lignes = Militaire::query()                    // SoftDeletes exclut déjà les supprimés
+            ->whereRaw("NOT {$retire}")
+            ->selectRaw("region_id, unite_id, COUNT(*) AS total,
+                SUM(CASE WHEN {$absent} THEN 1 ELSE 0 END) AS absents,
+                SUM(CASE WHEN LOWER(COALESCE(sexe,'')) LIKE 'f%' THEN 1 ELSE 0 END) AS femmes")
+            ->groupBy('region_id', 'unite_id')
+            ->get();
 
-            // Trouver la région correspondante
-            foreach ($regions as $reg) {
-                if (
-                    $reg->id == $mil->region ||
-                    mb_strtolower($reg->code) === $milRegClean ||
-                    mb_strtolower($reg->nom) === $milRegClean ||
-                    (($milRegClean === 'bko' || str_contains($milRegClean, 'region n°1') || str_contains($milRegClean, 'région n°1')) && $reg->code === 'R1') ||
-                    (!empty($milRegClean) && str_contains(mb_strtolower($reg->description ?? ''), $milRegClean)) ||
-                    (!empty($milPosClean) && (mb_strtolower($reg->nom) === $milPosClean || mb_strtolower($reg->code) === $milPosClean))
-                ) {
-                    $matchedRegionId = $reg->id;
-                    break;
-                }
-            }
+        $parUnite = $lignes->whereNotNull('unite_id')->keyBy('unite_id');
+        $parRegion = $lignes->whereNotNull('region_id')->groupBy('region_id');
+        $nonRattaches = (int) $lignes->whereNull('region_id')->whereNull('unite_id')->sum('total');
 
-            // Statut de disponibilité
-            $statut = mb_strtolower(trim($mil->statut ?? ''));
-            $pos = mb_strtolower(trim($mil->position_actuelle ?? ''));
-            $isAbsent = (
-                str_contains($statut, 'cong') || str_contains($pos, 'cong') ||
-                str_contains($statut, 'miss') || str_contains($pos, 'miss') ||
-                str_contains($statut, 'stag') || str_contains($pos, 'stag') || str_contains($pos, 'form') ||
-                str_contains($statut, 'malad') || str_contains($pos, 'malad') ||
-                str_contains($statut, 'susp') || str_contains($pos, 'susp') ||
-                str_contains($statut, 'retrait') || str_contains($statut, 'radi') || str_contains($statut, 'décès')
-            );
+        // 3) Mise en forme pour la vue
+        $out = $regions->map(function ($r) use ($parUnite, $parRegion) {
+            $l = $parRegion->get($r->id, collect());
+            $unites = $r->unites->map(fn ($u) => [
+                'id' => $u->id,
+                'nom' => $u->nom,
+                'type' => $u->type,
+                'ville' => $u->ville,
+                'lat' => $u->latitude !== null ? (float) $u->latitude : null,
+                'lon' => $u->longitude !== null ? (float) $u->longitude : null,
+                'operationnelle' => (bool) $u->est_operationnelle,
+                'effectif' => (int) ($parUnite->get($u->id)->total ?? 0),
+            ])->values();
 
-            $isHomme = (mb_strtoupper(trim($mil->sexe ?? '')) === 'M' || mb_strtoupper(trim($mil->sexe ?? '')) === 'H' || empty($mil->sexe));
-
-            if ($matchedRegionId && isset($regionStats[$matchedRegionId])) {
-                $regionStats[$matchedRegionId]['total']++;
-                if ($isAbsent) {
-                    $regionStats[$matchedRegionId]['absents']++;
-                    if (str_contains($statut, 'miss') || str_contains($pos, 'miss')) {
-                        $regionStats[$matchedRegionId]['en_mission']++;
-                    } elseif (str_contains($statut, 'cong') || str_contains($pos, 'cong')) {
-                        $regionStats[$matchedRegionId]['en_conge']++;
-                    } elseif (str_contains($statut, 'stag') || str_contains($pos, 'stag')) {
-                        $regionStats[$matchedRegionId]['en_stage']++;
-                    } else {
-                        $regionStats[$matchedRegionId]['autres_absences']++;
-                    }
-                } else {
-                    $regionStats[$matchedRegionId]['presents']++;
-                }
-
-                if ($isHomme) {
-                    $regionStats[$matchedRegionId]['hommes']++;
-                } else {
-                    $regionStats[$matchedRegionId]['femmes']++;
-                }
-            }
-
-            // Unité correspondante
-            $milUnitClean = mb_strtolower(trim($mil->unite ?? ''));
-            if (!empty($milUnitClean)) {
-                foreach ($regions as $reg) {
-                    foreach ($reg->unites as $u) {
-                        if (
-                            $u->id == $mil->unite ||
-                            mb_strtolower($u->nom) === $milUnitClean ||
-                            (!empty($u->code) && mb_strtolower($u->code) === $milUnitClean) ||
-                            str_contains(mb_strtolower($u->nom), $milUnitClean)
-                        ) {
-                            if (isset($uniteStats[$u->id])) {
-                                $uniteStats[$u->id]['total']++;
-                                if ($isAbsent) {
-                                    $uniteStats[$u->id]['absents']++;
-                                } else {
-                                    $uniteStats[$u->id]['presents']++;
-                                }
-                            }
-                            break 2;
-                        }
-                    }
-                }
-            }
-        }
-
-        // Formatage pour le frontend
-        $regionsFormatted = $regions->map(function ($reg) use ($regionStats, $uniteStats) {
-            $stats = $regionStats[$reg->id] ?? [
-                'total' => 0, 'presents' => 0, 'absents' => 0,
-                'hommes' => 0, 'femmes' => 0, 'en_mission' => 0,
-                'en_conge' => 0, 'en_stage' => 0, 'autres_absences' => 0
-            ];
-
-            $tauxPresence = $stats['total'] > 0 
-                ? round(($stats['presents'] / $stats['total']) * 100, 1) 
-                : 100;
+            $total = (int) $l->sum('total');
 
             return [
-                'id' => $reg->id,
-                'code' => $reg->code,
-                'nom' => $reg->nom,
-                'description' => $reg->description,
-                'latitude' => $reg->latitude !== null ? (float) $reg->latitude : null,
-                'longitude' => $reg->longitude !== null ? (float) $reg->longitude : null,
-                'chef_lieu' => $reg->chef_lieu,
-                'ordre' => $reg->ordre,
-                'is_central' => false,
-                'stats' => array_merge($stats, ['taux_presence' => $tauxPresence]),
-                'unites_count' => $reg->unites->count(),
-                'unites_operationnelles_count' => $reg->unites->where('est_operationnelle', true)->count(),
-                'unites' => $reg->unites->map(function ($u) use ($uniteStats, $reg) {
-                    $uStat = $uniteStats[$u->id] ?? ['total' => 0, 'presents' => 0, 'absents' => 0];
-                    return [
-                        'id' => $u->id,
-                        'region_id' => $reg->id,
-                        'region_code' => $reg->code,
-                        'nom' => $u->nom,
-                        'code' => $u->code,
-                        'type' => $u->type,
-                        'compagnie' => $u->compagnie,
-                        'groupement' => $u->groupement,
-                        'latitude' => $u->latitude !== null ? (float) $u->latitude : null,
-                        'longitude' => $u->longitude !== null ? (float) $u->longitude : null,
-                        'ville' => $u->ville,
-                        'est_operationnelle' => $u->est_operationnelle,
-                        'stats' => $uStat,
-                    ];
-                }),
+                'id' => $r->id,
+                'code' => $r->code,
+                'nom' => $r->nom,
+                'chef_lieu' => $r->chef_lieu,
+                'effectif' => $total,
+                'absents' => (int) $l->sum('absents'),
+                'femmes' => (int) $l->sum('femmes'),
+                'sans_unite' => max(0, $total - (int) $unites->sum('effectif')),
+                'unites' => $unites,
             ];
-        });
+        })->values();
 
-        // Statistiques globales nationales
-        $totalEffectif = $militaires->count();
-        $totalPresents = $militaires->filter(fn($m) => !str_contains(mb_strtolower($m->statut ?? ''), 'retrait') && !str_contains(mb_strtolower($m->position_actuelle ?? ''), 'cong'))->count();
-
-        $statsGlobales = [
-            'total_militaires' => $totalEffectif,
-            'total_regions' => $regions->count(),
-            'total_unites' => Unite::count(),
-            'unites_operationnelles' => Unite::where('est_operationnelle', true)->count(),
-            'unites_non_operationnelles' => Unite::where('est_operationnelle', false)->count(),
+        return [
+            'regions' => $out,
+            'stats' => [
+                'non_rattaches' => $nonRattaches,
+                'generated_at' => now()->format('d/m/Y H:i'),
+            ],
         ];
-
-        return Inertia::render('Carte/Index', [
-            'regions' => $regionsFormatted,
-            'statsGlobales' => $statsGlobales,
-        ]);
     }
 }
