@@ -158,8 +158,28 @@
                             </thead>
                             <tbody class="divide-y divide-slate-200 bg-white">
                                 <tr v-for="u in paginatedUnites" :key="u.id" class="hover:bg-slate-50 transition-colors">
-                                    <td class="py-2.5 px-3 font-medium text-slate-900">
-                                        {{ u.nom }}
+                                    <td class="py-2.5 px-3">
+                                        <div class="font-medium text-slate-900">{{ u.nom }}</div>
+                                        <div class="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
+                                            <span v-if="u.ville" class="inline-flex items-center gap-1">
+                                                <i class="pi pi-building text-[10px] text-slate-400"></i>{{ u.ville }}
+                                            </span>
+                                            <span
+                                                v-if="u.latitude !== null && u.longitude !== null"
+                                                class="inline-flex items-center gap-1 font-mono text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200"
+                                                :title="'GPS : ' + u.latitude + ', ' + u.longitude"
+                                            >
+                                                <i class="pi pi-map-marker text-[9px] text-emerald-600"></i>
+                                                {{ Number(u.latitude).toFixed(4) }}, {{ Number(u.longitude).toFixed(4) }}
+                                            </span>
+                                            <span
+                                                v-else
+                                                class="inline-flex items-center gap-1 text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200"
+                                            >
+                                                <i class="pi pi-exclamation-triangle text-[9px] text-amber-500"></i>
+                                                Sans GPS
+                                            </span>
+                                        </div>
                                     </td>
                                     <td class="py-2.5 px-3">
                                         <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-semibold bg-sky-50 text-sky-800 border border-sky-200">
@@ -279,8 +299,20 @@
                                             {{ r.code }}
                                         </span>
                                     </td>
-                                    <td class="py-2.5 px-3 font-semibold text-slate-900">
-                                        {{ r.nom }}
+                                    <td class="py-2.5 px-3">
+                                        <div class="font-semibold text-slate-900">{{ r.nom }}</div>
+                                        <div class="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
+                                            <span v-if="r.chef_lieu" class="inline-flex items-center gap-1">
+                                                <i class="pi pi-compass text-[10px] text-slate-400"></i>Chef-lieu : {{ r.chef_lieu }}
+                                            </span>
+                                            <span
+                                                v-if="r.latitude !== null && r.longitude !== null"
+                                                class="inline-flex items-center gap-1 font-mono text-[10px] text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200"
+                                            >
+                                                <i class="pi pi-map-marker text-[9px]"></i>
+                                                {{ Number(r.latitude).toFixed(4) }}, {{ Number(r.longitude).toFixed(4) }}
+                                            </span>
+                                        </div>
                                     </td>
                                     <td class="py-2.5 px-3 text-slate-500">
                                         {{ r.description || '-' }}
@@ -413,19 +445,32 @@
             v-model:visible="regionDialogVisible"
             :header="regionEditMode ? 'Modifier la Région' : 'Ajouter une Région'"
             :modal="true"
-            class="w-full max-w-md"
+            class="w-full max-w-lg"
         >
             <div class="space-y-4 pt-2">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 mb-1">
-                        Code Officiel <span class="text-red-500">*</span>
-                    </label>
-                    <InputText
-                        v-model="regionForm.code"
-                        placeholder="Ex: R1, R2, DGGN, GSIGN, DETACHEMENT"
-                        class="w-full text-xs font-mono"
-                    />
-                    <small class="text-[10px] text-slate-500">Le code court reconnu pour la région.</small>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">
+                            Code Officiel <span class="text-red-500">*</span>
+                        </label>
+                        <InputText
+                            v-model="regionForm.code"
+                            placeholder="Ex: R1, R2, DGGN, GSIGN..."
+                            class="w-full text-xs font-mono"
+                        />
+                        <small class="text-[10px] text-slate-500">Le code court reconnu pour la région.</small>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">
+                            Chef-lieu
+                        </label>
+                        <InputText
+                            v-model="regionForm.chef_lieu"
+                            placeholder="Ex: Bamako, Kayes, Gao..."
+                            class="w-full text-xs"
+                        />
+                    </div>
                 </div>
 
                 <div>
@@ -434,9 +479,36 @@
                     </label>
                     <InputText
                         v-model="regionForm.nom"
-                        placeholder="Ex: REGION N°1, Direction Générale..."
+                        placeholder="Ex: REGION N°1, Région de Kayes..."
                         class="w-full text-xs"
                     />
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">
+                            <i class="pi pi-map-marker text-sky-600 mr-1"></i>Latitude GPS (WGS84)
+                        </label>
+                        <InputText
+                            v-model="regionForm.latitude"
+                            type="number"
+                            step="0.000001"
+                            placeholder="Ex: 14.4469"
+                            class="w-full text-xs font-mono"
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">
+                            <i class="pi pi-map-marker text-sky-600 mr-1"></i>Longitude GPS (WGS84)
+                        </label>
+                        <InputText
+                            v-model="regionForm.longitude"
+                            type="number"
+                            step="0.000001"
+                            placeholder="Ex: -11.4445"
+                            class="w-full text-xs font-mono"
+                        />
+                    </div>
                 </div>
 
                 <div>
@@ -450,14 +522,29 @@
             </div>
 
             <template #footer>
-                <Button label="Annuler" text severity="secondary" @click="regionDialogVisible = false" />
-                <Button
-                    :label="regionEditMode ? 'Enregistrer' : 'Créer'"
-                    icon="pi pi-check"
-                    class="bg-sky-700 hover:bg-sky-800 text-white border-0"
-                    :loading="savingRegion"
-                    @click="saveRegion"
-                />
+                <div class="flex items-center justify-between w-full">
+                    <div>
+                        <Button
+                            v-if="regionEditMode"
+                            label="Supprimer cette région"
+                            icon="pi pi-trash"
+                            severity="danger"
+                            text
+                            class="!text-xs text-red-600 hover:bg-red-50"
+                            @click="triggerDelete('region', regionForm)"
+                        />
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <Button label="Annuler" text severity="secondary" @click="regionDialogVisible = false" />
+                        <Button
+                            :label="regionEditMode ? 'Enregistrer les modifications' : 'Créer la région'"
+                            icon="pi pi-check"
+                            class="bg-sky-700 hover:bg-sky-800 text-white border-0 text-xs"
+                            :loading="savingRegion"
+                            @click="saveRegion"
+                        />
+                    </div>
+                </div>
             </template>
         </Dialog>
 
@@ -466,7 +553,7 @@
             v-model:visible="uniteDialogVisible"
             :header="uniteEditMode ? 'Modifier l\'Unité' : 'Ajouter une Unité / Brigade / Escadron'"
             :modal="true"
-            class="w-full max-w-lg"
+            class="w-full max-w-xl"
         >
             <div class="space-y-4 pt-2">
                 <div>
@@ -523,7 +610,54 @@
                     </div>
                 </div>
 
-                <div class="pt-2">
+                <!-- Ville et Coordonnées GPS -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">
+                            <i class="pi pi-building text-slate-400 mr-1"></i>Ville / Localité
+                        </label>
+                        <InputText
+                            v-model="uniteForm.ville"
+                            placeholder="Ex: Kayes, Sénou, Gao..."
+                            class="w-full text-xs"
+                        />
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">
+                            <i class="pi pi-map-marker text-sky-600 mr-1"></i>Latitude GPS (WGS84)
+                        </label>
+                        <InputText
+                            v-model="uniteForm.latitude"
+                            type="number"
+                            step="0.000001"
+                            placeholder="Ex: 14.4469"
+                            class="w-full text-xs font-mono"
+                        />
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">
+                            <i class="pi pi-map-marker text-sky-600 mr-1"></i>Longitude GPS (WGS84)
+                        </label>
+                        <InputText
+                            v-model="uniteForm.longitude"
+                            type="number"
+                            step="0.000001"
+                            placeholder="Ex: -11.4445"
+                            class="w-full text-xs font-mono"
+                        />
+                    </div>
+                </div>
+
+                <div class="bg-sky-50 border border-sky-200 rounded-lg p-2.5 text-[11px] text-sky-900 flex items-start gap-2">
+                    <i class="pi pi-info-circle text-sky-600 mt-0.5 shrink-0"></i>
+                    <span>
+                        <strong>Point sur la Carte Opérationnelle :</strong> Ces coordonnées (format décimal WGS84, ex: <code>14.4469</code> / <code>-11.4445</code>) déterminent l'emplacement exact du point de l'unité sur la carte. Modifiez-les pour ajuster la position de l'unité.
+                    </span>
+                </div>
+
+                <div class="pt-1">
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input
                             type="checkbox"
@@ -541,14 +675,29 @@
             </div>
 
             <template #footer>
-                <Button label="Annuler" text severity="secondary" @click="uniteDialogVisible = false" />
-                <Button
-                    :label="uniteEditMode ? 'Enregistrer' : 'Créer'"
-                    icon="pi pi-check"
-                    class="bg-sky-700 hover:bg-sky-800 text-white border-0"
-                    :loading="savingUnite"
-                    @click="saveUnite"
-                />
+                <div class="flex items-center justify-between w-full">
+                    <div>
+                        <Button
+                            v-if="uniteEditMode"
+                            label="Supprimer cette unité"
+                            icon="pi pi-trash"
+                            severity="danger"
+                            text
+                            class="!text-xs text-red-600 hover:bg-red-50"
+                            @click="triggerDelete('unite', uniteForm)"
+                        />
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <Button label="Annuler" text severity="secondary" @click="uniteDialogVisible = false" />
+                        <Button
+                            :label="uniteEditMode ? 'Enregistrer les modifications' : 'Créer l\'unité'"
+                            icon="pi pi-check"
+                            class="bg-sky-700 hover:bg-sky-800 text-white border-0 text-xs"
+                            :loading="savingUnite"
+                            @click="saveUnite"
+                        />
+                    </div>
+                </div>
             </template>
         </Dialog>
 
@@ -597,14 +746,69 @@
             </div>
 
             <template #footer>
-                <Button label="Annuler" text severity="secondary" @click="positionDialogVisible = false" />
-                <Button
-                    :label="positionEditMode ? 'Enregistrer' : 'Créer'"
-                    icon="pi pi-check"
-                    class="bg-sky-700 hover:bg-sky-800 text-white border-0"
-                    :loading="savingPosition"
-                    @click="savePosition"
-                />
+                <div class="flex items-center justify-between w-full">
+                    <div>
+                        <Button
+                            v-if="positionEditMode"
+                            label="Supprimer cette position"
+                            icon="pi pi-trash"
+                            severity="danger"
+                            text
+                            class="!text-xs text-red-600 hover:bg-red-50"
+                            @click="triggerDelete('position', positionForm)"
+                        />
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <Button label="Annuler" text severity="secondary" @click="positionDialogVisible = false" />
+                        <Button
+                            :label="positionEditMode ? 'Enregistrer' : 'Créer'"
+                            icon="pi pi-check"
+                            class="bg-sky-700 hover:bg-sky-800 text-white border-0 text-xs"
+                            :loading="savingPosition"
+                            @click="savePosition"
+                        />
+                    </div>
+                </div>
+            </template>
+        </Dialog>
+
+        <!-- DIALOG DE CONFIRMATION DE SUPPRESSION CENTRALISÉ -->
+        <Dialog
+            v-model:visible="deleteDialogVisible"
+            header="Confirmation de suppression"
+            :modal="true"
+            class="w-full max-w-md"
+        >
+            <div class="flex items-start gap-3 pt-2">
+                <div class="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0 text-lg">
+                    <i class="pi pi-exclamation-triangle"></i>
+                </div>
+                <div class="space-y-1">
+                    <p class="text-sm font-semibold text-slate-900">
+                        {{ deleteDialogTitle }}
+                    </p>
+                    <p class="text-xs text-slate-600">
+                        {{ deleteDialogMessage }}
+                    </p>
+                    <div v-if="deleteWarningCascade" class="text-xs font-medium text-red-700 bg-red-50 p-2.5 rounded-lg border border-red-200 mt-2 flex items-start gap-2">
+                        <i class="pi pi-shield text-red-600 mt-0.5 shrink-0"></i>
+                        <span>Attention : La suppression de cette région entraînera la suppression en cascade de toutes les unités qui lui sont rattachées.</span>
+                    </div>
+                </div>
+            </div>
+
+            <template #footer>
+                <div class="flex items-center justify-end gap-2 w-full">
+                    <Button label="Annuler" text severity="secondary" @click="deleteDialogVisible = false" />
+                    <Button
+                        label="Confirmer la suppression"
+                        icon="pi pi-trash"
+                        severity="danger"
+                        class="bg-red-600 hover:bg-red-700 text-white border-0 text-xs font-semibold"
+                        :loading="deletingItem"
+                        @click="executeDelete"
+                    />
+                </div>
             </template>
         </Dialog>
     </AuthenticatedLayout>
@@ -718,6 +922,80 @@ const filteredPositions = computed(() => {
 });
 
 // ==========================================
+// SUPPRESSION CENTRALISÉE AVEC MODAL DE CONFIRMATION
+// ==========================================
+const deleteDialogVisible = ref(false);
+const deletingItem = ref(false);
+const deleteType = ref(null); // 'unite', 'region', 'position'
+const deleteItem = ref(null);
+const deleteDialogTitle = ref('');
+const deleteDialogMessage = ref('');
+const deleteWarningCascade = ref(false);
+
+const triggerDelete = (type, item) => {
+    deleteType.value = type;
+    deleteItem.value = item;
+    if (type === 'unite') {
+        deleteDialogTitle.value = `Supprimer l'unité "${item.nom}" ?`;
+        deleteDialogMessage.value = `Êtes-vous sûr de vouloir supprimer définitivement cette unité du maillage territorial ? Les militaires qui y étaient rattachés ne seront plus affectés à cette unité.`;
+        deleteWarningCascade.value = false;
+    } else if (type === 'region') {
+        deleteDialogTitle.value = `Supprimer la région "${item.nom}" ?`;
+        deleteDialogMessage.value = `Êtes-vous sûr de vouloir supprimer cette région ?`;
+        deleteWarningCascade.value = true;
+    } else if (type === 'position') {
+        deleteDialogTitle.value = `Supprimer la position "${item.nom}" ?`;
+        deleteDialogMessage.value = `Êtes-vous sûr de vouloir supprimer cette position / emplacement ?`;
+        deleteWarningCascade.value = false;
+    }
+    deleteDialogVisible.value = true;
+};
+
+const executeDelete = () => {
+    if (!deleteItem.value || !deleteType.value) return;
+
+    deletingItem.value = true;
+    let url = '';
+    if (deleteType.value === 'unite') {
+        url = route('configurations.unites.destroy', deleteItem.value.id);
+    } else if (deleteType.value === 'region') {
+        url = route('configurations.regions.destroy', deleteItem.value.id);
+    } else if (deleteType.value === 'position') {
+        url = route('configurations.positions.destroy', deleteItem.value.id);
+    }
+
+    router.delete(url, {
+        onSuccess: () => {
+            deleteDialogVisible.value = false;
+            uniteDialogVisible.value = false;
+            regionDialogVisible.value = false;
+            positionDialogVisible.value = false;
+            toast.add({
+                severity: 'success',
+                summary: 'Suppression réussie',
+                detail: 'L\'élément a été supprimé avec succès.',
+                life: 3000
+            });
+        },
+        onError: () => {
+            toast.add({
+                severity: 'error',
+                summary: 'Erreur',
+                detail: 'Impossible de supprimer cet élément.',
+                life: 4000
+            });
+        },
+        onFinish: () => {
+            deletingItem.value = false;
+        }
+    });
+};
+
+const confirmDeleteUnite = (u) => triggerDelete('unite', u);
+const confirmDeleteRegion = (r) => triggerDelete('region', r);
+const confirmDeletePosition = (p) => triggerDelete('position', p);
+
+// ==========================================
 // GESTION RÉGIONS (MODAL & ACTIONS)
 // ==========================================
 const regionDialogVisible = ref(false);
@@ -728,17 +1006,36 @@ const regionForm = ref({
     code: '',
     nom: '',
     description: '',
+    chef_lieu: '',
+    latitude: null,
+    longitude: null,
 });
 
 const openCreateRegionDialog = () => {
     regionEditMode.value = false;
-    regionForm.value = { id: null, code: '', nom: '', description: '' };
+    regionForm.value = {
+        id: null,
+        code: '',
+        nom: '',
+        description: '',
+        chef_lieu: '',
+        latitude: null,
+        longitude: null,
+    };
     regionDialogVisible.value = true;
 };
 
 const editRegion = (r) => {
     regionEditMode.value = true;
-    regionForm.value = { id: r.id, code: r.code, nom: r.nom, description: r.description || '' };
+    regionForm.value = {
+        id: r.id,
+        code: r.code,
+        nom: r.nom,
+        description: r.description || '',
+        chef_lieu: r.chef_lieu || '',
+        latitude: r.latitude !== null && r.latitude !== undefined ? r.latitude : null,
+        longitude: r.longitude !== null && r.longitude !== undefined ? r.longitude : null,
+    };
     regionDialogVisible.value = true;
 };
 
@@ -768,16 +1065,6 @@ const saveRegion = () => {
     }
 };
 
-const confirmDeleteRegion = (r) => {
-    if (confirm(`Êtes-vous sûr de vouloir supprimer la région "${r.nom}" ? Toutes les unités rattachées seront également supprimées.`)) {
-        router.delete(route('configurations.regions.destroy', r.id), {
-            onSuccess: () => {
-                toast.add({ severity: 'success', summary: 'Suppression réussie', detail: 'Région supprimée.', life: 3000 });
-            }
-        });
-    }
-};
-
 // ==========================================
 // GESTION UNITÉS (MODAL & ACTIONS)
 // ==========================================
@@ -790,6 +1077,9 @@ const uniteForm = ref({
     nom: '',
     code: '',
     type: 'Brigade Territoriale',
+    ville: '',
+    latitude: null,
+    longitude: null,
     est_operationnelle: true,
 });
 
@@ -801,6 +1091,9 @@ const openCreateUniteDialog = () => {
         nom: '',
         code: '',
         type: 'Brigade Territoriale',
+        ville: '',
+        latitude: null,
+        longitude: null,
         est_operationnelle: true,
     };
     uniteDialogVisible.value = true;
@@ -814,6 +1107,9 @@ const editUnite = (u) => {
         nom: u.nom,
         code: u.code || '',
         type: u.type || 'Autre',
+        ville: u.ville || '',
+        latitude: u.latitude !== null && u.latitude !== undefined ? u.latitude : null,
+        longitude: u.longitude !== null && u.longitude !== undefined ? u.longitude : null,
         est_operationnelle: !!u.est_operationnelle,
     };
     uniteDialogVisible.value = true;
@@ -841,16 +1137,6 @@ const saveUnite = () => {
                 toast.add({ severity: 'success', summary: 'Succès', detail: 'Unité enregistrée avec succès.', life: 3000 });
             },
             onFinish: () => savingUnite.value = false,
-        });
-    }
-};
-
-const confirmDeleteUnite = (u) => {
-    if (confirm(`Êtes-vous sûr de vouloir supprimer l'unité "${u.nom}" ?`)) {
-        router.delete(route('configurations.unites.destroy', u.id), {
-            onSuccess: () => {
-                toast.add({ severity: 'success', summary: 'Suppression réussie', detail: 'Unité supprimée.', life: 3000 });
-            }
         });
     }
 };
@@ -902,16 +1188,6 @@ const savePosition = () => {
                 toast.add({ severity: 'success', summary: 'Succès', detail: 'Position enregistrée avec succès.', life: 3000 });
             },
             onFinish: () => savingPosition.value = false,
-        });
-    }
-};
-
-const confirmDeletePosition = (p) => {
-    if (confirm(`Êtes-vous sûr de vouloir supprimer la position "${p.nom}" ?`)) {
-        router.delete(route('configurations.positions.destroy', p.id), {
-            onSuccess: () => {
-                toast.add({ severity: 'success', summary: 'Suppression réussie', detail: 'Position supprimée.', life: 3000 });
-            }
         });
     }
 };

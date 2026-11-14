@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Position;
 use App\Models\Region;
 use App\Models\Unite;
+use App\Http\Controllers\CarteController;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -85,6 +86,8 @@ class ConfigurationController extends Controller
             'ordre' => $validated['ordre'] ?? 0,
         ]);
 
+        CarteController::flush();
+
         if ($request->wantsJson()) {
             return response()->json([
                 'success' => true,
@@ -122,12 +125,15 @@ class ConfigurationController extends Controller
             'ordre' => $validated['ordre'] ?? 0,
         ]);
 
+        CarteController::flush();
+
         return redirect()->back()->with('success', 'Région modifiée avec succès.');
     }
 
     public function destroyRegion(Region $region)
     {
         $region->delete();
+        CarteController::flush();
         return redirect()->back()->with('success', 'Région supprimée avec succès.');
     }
 
@@ -168,6 +174,8 @@ class ConfigurationController extends Controller
         ]);
 
         $unite->load('region');
+
+        CarteController::flush();
 
         if ($request->wantsJson()) {
             return response()->json([
@@ -211,12 +219,15 @@ class ConfigurationController extends Controller
             'est_operationnelle' => $validated['est_operationnelle'] ?? true,
         ]);
 
+        CarteController::flush();
+
         return redirect()->back()->with('success', 'Unité modifiée avec succès.');
     }
 
     public function destroyUnite(Unite $unite)
     {
         $unite->delete();
+        CarteController::flush();
         return redirect()->back()->with('success', 'Unité supprimée avec succès.');
     }
 
