@@ -141,7 +141,7 @@
                                 ▸ Vue isolée : {{ selectedRegion.nom }} ({{ selectedRegion.code }})
                             </span>
                             <span v-else class="text-emerald-700 font-medium ml-1 text-[11px] hidden sm:inline">
-                                ▸ Vue générale par défaut (11 Régions)
+                                ▸ Vue générale par défaut (20 Régions)
                             </span>
                         </div>
 
@@ -201,7 +201,7 @@
                         title="Réouvrir le volet latéral des régions"
                     >
                         <i class="pi pi-list text-sky-700"></i>
-                        <span>Volet Régions (11)</span>
+                        <span>Volet Régions (20)</span>
                     </button>
 
                     <!-- Barre de sélection rapide au bas de la carte (ultra-légère) -->
@@ -223,7 +223,7 @@
 
                             <span class="text-slate-300 px-0.5">|</span>
 
-                            <!-- Boutons de pointage direct pour chaque région R1 à R11 -->
+                            <!-- Boutons de pointage direct pour chaque région R1 à R20 -->
                             <button
                                 v-for="reg in regionsTerritoriales"
                                 :key="reg.id"
@@ -432,7 +432,7 @@
                                     </span>
                                 </div>
 
-                                <!-- Liste légère des 11 Régions (cartes compactes, aérées et fluides) -->
+                                <!-- Liste légère des 20 Régions (cartes compactes, aérées et fluides) -->
                                 <div class="space-y-1.5 overflow-y-auto flex-1 pr-1 custom-scrollbar">
                                     <div
                                         v-for="reg in filteredRegions"
@@ -483,7 +483,7 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { MALI_BOUNDS, REGION_BOUNDS, MALI_11_REGIONS, MALI_BORDER, MALI_MASK } from './maliGeoData.js';
+import { MALI_BOUNDS, REGION_BOUNDS, MALI_20_REGIONS, MALI_BORDER, MALI_MASK } from './maliGeoData.js';
 
 const props = defineProps({
     regions: {
@@ -540,14 +540,36 @@ const regionsAvecCoords = computed(() => {
     return props.regions.filter(r => r.latitude && r.longitude);
 });
 
-// Unités avec coordonnées
+// Unités avec coordonnées garanties à l'intérieur de leur région
 const unitesAvecCoords = computed(() => {
     const list = [];
     props.regions.forEach(r => {
         if (r.unites) {
-            r.unites.forEach(u => {
-                if (u.latitude && u.longitude) {
-                    list.push({ ...u, region_id: r.id, region_nom: r.nom, region_code: r.code });
+            r.unites.forEach((u, idx) => {
+                let lat = u.latitude;
+                let lon = u.longitude;
+
+                // Sécurité / Fallback géographique : Si l'unité n'a pas de coordonnées GPS précises,
+                // elle est positionnée automatiquement à l'intérieur de sa région officielle
+                // autour du centre régional en spirale légère pour éviter la superposition
+                if (!lat || !lon) {
+                    if (r.latitude && r.longitude) {
+                        const angle = (idx * 137.5) * (Math.PI / 180);
+                        const radius = 0.035 + (idx % 8) * 0.015;
+                        lat = r.latitude + Math.sin(angle) * radius;
+                        lon = r.longitude + Math.cos(angle) * radius;
+                    }
+                }
+
+                if (lat && lon) {
+                    list.push({
+                        ...u,
+                        latitude: lat,
+                        longitude: lon,
+                        region_id: r.id,
+                        region_nom: r.nom,
+                        region_code: r.code
+                    });
                 }
             });
         }
@@ -619,7 +641,7 @@ const createRegionPin = (code, count, isSelected = false) => {
                 <path d="M17 0C7.61116 0 0 7.61116 0 17C0 26.5 13.5 39.8 16.15 41.6C16.65 41.95 17.35 41.95 17.85 41.6C20.5 39.8 34 26.5 34 17C34 7.61116 26.3888 0 17 0Z" fill="${pinColor}"/>
                 <circle cx="17" cy="16" r="11" fill="#0f172a" stroke="${ringColor}" stroke-width="2"/>
             </svg>
-            <div style="position: absolute; top: 9px; left: 0; width: 34px; text-align: center; color: #ffffff; font-weight: 800; font-size: 10px; line-height: 1; pointer-events: none; letter-spacing: -0.5px;">
+            <div style="position: absolute; top: 10px; left: 0; width: 34px; text-align: center; color: #ffffff; font-weight: 800; font-size: ${code.length > 2 ? '8px' : '9.5px'}; line-height: 1; pointer-events: none; letter-spacing: -0.5px;">
                 ${code}
             </div>
             <div style="position: absolute; top: -6px; right: -6px; background: #eab308; color: #000; font-weight: 800; font-size: 9px; border-radius: 999px; padding: 1px 4px; border: 1px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">
@@ -677,8 +699,8 @@ const initMap = async () => {
         zoom: 6,
         minZoom: 5.5,
         maxZoom: 18,
-        maxBounds: L.latLngBounds([9.0, -13.5], [26.0, 5.5]),
-        maxBoundsViscosity: 0.9,
+        maxBounds: L.latLngBounds([9.5, -13.0], [25.5, 4.8]),
+        maxBoundsViscosity: 1.0,
     });
 
     // 1. Fond de carte OpenStreetMap
@@ -687,13 +709,12 @@ const initMap = async () => {
         attribution: '&copy; OpenStreetMap | Gendarmerie Nationale du Mali'
     }).addTo(map);
 
-    // 2. Masque 100% opaque pour recouvrir TOUS les pays voisins
+    // 2. Masque opaque couvrant TOUS les pays voisins (seul le Mali apparaît)
     maskLayer.value = L.geoJSON(MALI_MASK, {
         style: {
-            fillColor: '#f8fafc',
+            fillColor: '#f1f5f9',
             fillOpacity: 1.0,
-            color: '#cbd5e1',
-            weight: 1,
+            stroke: false,
             interactive: false,
         }
     }).addTo(map);
@@ -756,8 +777,8 @@ const renderRegions = () => {
 
     // Filtrer les features : n'avoir que la région pointée si isolée
     const featuresToShow = isIsolated
-        ? MALI_11_REGIONS.features.filter(f => f.properties?.code === selectedRegion.value.code)
-        : MALI_11_REGIONS.features;
+        ? MALI_20_REGIONS.features.filter(f => f.properties?.code === selectedRegion.value.code)
+        : MALI_20_REGIONS.features;
 
     const layer = L.geoJSON({ type: 'FeatureCollection', features: featuresToShow }, {
         style: (feature) => {
@@ -817,7 +838,7 @@ const renderRegions = () => {
 /**
  * Pointer les Régions sur la carte :
  * - Si une région est isolée : n'afficher que le point de cette région
- * - Par défaut : afficher tous les points R1 à R11
+ * - Par défaut : afficher tous les points R1 à R20
  */
 const renderRegionPins = () => {
     if (!mapInstance.value || !markersLayerGroup.value) return;
@@ -863,11 +884,16 @@ const renderRegionPins = () => {
 /**
  * Pointer les Unités / Brigades de terrain sur la carte :
  * - Si une région est sélectionnée : n'afficher QUE les unités de cette région
- * - Par défaut : afficher toutes les unités
+ * - Par défaut (vue générale) : les unités sont masquées pour garder la carte nationale aérée et nette
  */
 const renderUnitPins = () => {
     if (!mapInstance.value || !unitsLayerGroup.value) return;
     unitsLayerGroup.value.clearLayers();
+
+    // RÈGLE DEMANDÉE : À l'arrivée de la carte (vue nationale de tout le Mali),
+    // on n'affiche PAS les 325 unités de terrain pour que la carte soit parfaitement lisible.
+    // Les unités de terrain ne sont affichées QUE lorsqu'une région précise est sélectionnée !
+    if (!selectedRegion.value && filterDisplayMode.value !== 'unites') return;
 
     if (filterDisplayMode.value === 'regions') return;
 
@@ -957,7 +983,7 @@ const focusOnUnit = (unite) => {
 
 /**
  * Réinitialiser la vue complète :
- * Par défaut, tout afficher (toutes les 11 régions, tous les pins, tout le Mali)
+ * Par défaut, tout afficher (toutes les 20 régions, tous les pins, tout le Mali)
  */
 const resetToFullMaliView = () => {
     selectedRegion.value = null;

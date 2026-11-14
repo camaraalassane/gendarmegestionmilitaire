@@ -159,7 +159,7 @@ class DashboardController extends Controller
             return strcasecmp($a['label'], $b['label']);
         });
 
-        // 3. STATISTIQUES PAR RÉGION (Toutes les Régions & Commandements réels)
+        // 3. STATISTIQUES PAR RÉGION (Toutes les 20 Régions & Commandements réels)
         $allConfiguredRegions = Region::orderByRaw('CASE WHEN ordre IS NULL OR ordre = 0 THEN 999 ELSE ordre END ASC')
             ->orderBy('nom', 'asc')
             ->get();
@@ -172,6 +172,24 @@ class DashboardController extends Controller
             ->pluck('count', 'region')
             ->toArray();
 
+        // Normaliser les alias courants (ex: 'REGION N°1', 'BKO', 'Bamako' -> 'R1')
+        $normalizedParRegion = [];
+        foreach ($militairesParRegion as $dbReg => $c) {
+            $cleanReg = trim($dbReg);
+            $lower = mb_strtolower($cleanReg);
+
+            // Aliases historiques pour Bamako
+            if ($lower === 'bko' || $lower === 'region n°1' || $lower === 'région n°1' || $lower === 'bamako' || $lower === 'district de bamako') {
+                $code = 'R1';
+            } elseif (preg_match('/^r[eé]gion\s*n°?\s*(\d+)$/iu', $cleanReg, $m)) {
+                $code = 'R' . $m[1];
+            } else {
+                $code = $cleanReg;
+            }
+
+            $normalizedParRegion[$code] = ($normalizedParRegion[$code] ?? 0) + (int) $c;
+        }
+
         $regionsDistribution = [];
         $matchedKeys = [];
 
@@ -180,10 +198,10 @@ class DashboardController extends Controller
             $regCode = $reg->code;
 
             $total = 0;
-            foreach ($militairesParRegion as $dbReg => $c) {
-                if (strcasecmp(trim($dbReg), trim($regNom)) === 0 || strcasecmp(trim($dbReg), trim($regCode)) === 0) {
+            foreach ($normalizedParRegion as $normCode => $c) {
+                if (strcasecmp(trim($normCode), trim($regNom)) === 0 || strcasecmp(trim($normCode), trim($regCode)) === 0) {
                     $total += (int) $c;
-                    $matchedKeys[] = mb_strtolower(trim($dbReg));
+                    $matchedKeys[] = mb_strtolower(trim($normCode));
                 }
             }
 
@@ -194,12 +212,12 @@ class DashboardController extends Controller
             ];
         }
 
-        // Ajouter les régions libres présentes en base (ex: "BAMAKO")
-        foreach ($militairesParRegion as $dbReg => $c) {
-            if (!in_array(mb_strtolower(trim($dbReg)), $matchedKeys)) {
+        // Ajouter uniquement les éventuelles régions libres inconnues réelles
+        foreach ($normalizedParRegion as $normCode => $c) {
+            if (!in_array(mb_strtolower(trim($normCode)), $matchedKeys)) {
                 $regionsDistribution[] = [
-                    'code' => $dbReg,
-                    'label' => $dbReg,
+                    'code' => $normCode,
+                    'label' => $normCode,
                     'value' => (int) $c,
                 ];
             }

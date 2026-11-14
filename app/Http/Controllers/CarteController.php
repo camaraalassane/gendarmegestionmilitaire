@@ -19,7 +19,7 @@ class CarteController extends Controller
         $regions = Region::with(['unites' => function ($q) {
             $q->orderBy('nom');
         }])
-        ->orderByRaw('CASE WHEN ordre = 0 OR ordre IS NULL THEN 999 ELSE ordre END')
+        ->orderByRaw('COALESCE(ordre, 999) ASC')
         ->orderBy('nom')
         ->get();
 
@@ -67,6 +67,7 @@ class CarteController extends Controller
                     $reg->id == $mil->region ||
                     mb_strtolower($reg->code) === $milRegClean ||
                     mb_strtolower($reg->nom) === $milRegClean ||
+                    (($milRegClean === 'bko' || str_contains($milRegClean, 'region n°1') || str_contains($milRegClean, 'région n°1')) && $reg->code === 'R1') ||
                     (!empty($milRegClean) && str_contains(mb_strtolower($reg->description ?? ''), $milRegClean)) ||
                     (!empty($milPosClean) && (mb_strtolower($reg->nom) === $milPosClean || mb_strtolower($reg->code) === $milPosClean))
                 ) {
