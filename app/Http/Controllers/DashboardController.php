@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Militaire;
+use App\Support\Effectif;
 use App\Models\Alerte;
 use App\Models\Grade;
 use App\Models\Region;
@@ -24,6 +25,12 @@ class DashboardController extends Controller
      * Militaires en service actif. LOWER(TRIM()) rend la comparaison identique sur SQLite et PostgreSQL
      * (PostgreSQL distingue « Actif » de « actif », pas SQLite).
      */
+    /** Effectif en activité (actif, détaché, mission, stage, radié) : même définition que la carte. */
+    private function enActivite()
+    {
+        return Militaire::query()->whereRaw(Effectif::sqlActivite());
+    }
+
     private function actifs()
     {
         return Militaire::query()->whereRaw("LOWER(TRIM(statut)) = 'actif'");
@@ -44,7 +51,7 @@ class DashboardController extends Controller
             $proposablesBoth = $this->getProposablesBoth();
             $totalRetraitesN = $retraitesBoth['retraitesN']['total'] ?? 0;
             $totalProposablesN = $proposablesBoth['proposablesN']['total'] ?? 0;
-            $totalActifs = $this->actifs()->count();
+            $totalActifs = $this->enActivite()->count();
 
             $totalDecedesCetteAnnee = Militaire::where(function ($q) {
                 $q->whereRaw("LOWER(statut) LIKE 'd_c_d%'")
@@ -65,10 +72,21 @@ class DashboardController extends Controller
                   ->orWhereRaw("LOWER(motif_radiation) LIKE '%desert%'");
             })->count();
 
+            $actifsStricts = Militaire::whereRaw("LOWER(TRIM(COALESCE(statut,''))) = 'actif'")->count();
+            $totalDetaches = Militaire::whereRaw("LOWER(TRIM(COALESCE(statut,''))) LIKE 'd_tach_%'")->count();
+            $totalMissions = Militaire::whereRaw("LOWER(TRIM(COALESCE(statut,''))) LIKE 'mission%'")->count();
+            $totalStages = Militaire::whereRaw("LOWER(TRIM(COALESCE(statut,''))) LIKE 'stage%'")->count();
+            $totalRadies = Militaire::whereRaw("LOWER(TRIM(COALESCE(statut,''))) LIKE 'radi%'")->count();
+
             return [
                 'annee' => $anneeCourante,
                 'total_militaires' => $totalActifs,
                 'militaires_actifs' => $totalActifs,
+                'actifs_stricts' => $actifsStricts,
+                'detaches' => $totalDetaches,
+                'missions' => $totalMissions,
+                'stages' => $totalStages,
+                'radies' => $totalRadies,
                 'proposables_n' => $totalProposablesN,
                 'retraites_n' => $totalRetraitesN,
                 'decedes_cette_annee' => $totalDecedesCetteAnnee,
@@ -129,7 +147,7 @@ class DashboardController extends Controller
 
         // 2. STATISTIQUES PAR POSITION (Où se trouvent les personnels ACTIFS sur le terrain)
         $allConfiguredPositions = Position::orderBy('nom')->pluck('nom')->toArray();
-        $dbPositions = $this->actifs()
+        $dbPositions = $this->enActivite()
             ->whereNotNull('position_actuelle')
             ->where('position_actuelle', '!=', '')
             ->selectRaw('position_actuelle, count(*) as count')
@@ -164,7 +182,7 @@ class DashboardController extends Controller
         }
 
         // Ajouter les militaires actifs sans position renseignée
-        $actifsSansPosition = $this->actifs()
+        $actifsSansPosition = $this->enActivite()
             ->where(function ($q) {
                 $q->whereNull('position_actuelle')->orWhere('position_actuelle', '');
             })->count();
@@ -189,7 +207,7 @@ class DashboardController extends Controller
             ->leftJoin('militaires', function ($j) {
                 $j->on('militaires.region_id', '=', 'regions.id')
                   ->whereNull('militaires.deleted_at')
-                  ->whereRaw("LOWER(TRIM(militaires.statut)) = 'actif'");
+                  ->whereRaw(Effectif::sqlActivite('militaires.statut'));
             })
             ->groupBy('regions.id', 'regions.code', 'regions.nom', 'regions.ordre')
             ->orderByRaw('CASE WHEN regions.ordre IS NULL OR regions.ordre = 0 THEN 999 ELSE regions.ordre END')
@@ -199,7 +217,7 @@ class DashboardController extends Controller
             ->map(fn ($r) => ['code' => $r->code, 'label' => $r->label, 'value' => (int) $r->value])
             ->all();
 
-        $actifsSansRegion = $this->actifs()->whereNull('region_id')->count();
+        $actifsSansRegion = $this->enActivite()->whereNull('region_id')->count();
         if ($actifsSansRegion > 0) {
             $regionsDistribution[] = [
                 'code' => 'N/A',
@@ -218,7 +236,7 @@ class DashboardController extends Controller
             'Militaire du Rang',
         ];
 
-        $dbCategories = $this->actifs()
+        $dbCategories = $this->enActivite()
             ->whereNotNull('categorie')
             ->where('categorie', '!=', '')
             ->selectRaw('categorie, count(*) as count')
@@ -241,7 +259,7 @@ class DashboardController extends Controller
         }
 
         // 5. STATISTIQUES PAR GRADE (Militaires actifs)
-        $gradesDistribution = Grade::orderByDesc('ordre')->withCount(['militaires' => fn($q) => $q->whereRaw("LOWER(TRIM(militaires.statut)) = 'actif'")])
+        $gradesDistribution = Grade::orderByDesc('ordre')->withCount(['militaires' => fn($q) => $q->whereRaw(Effectif::sqlActivite('militaires.statut'))])
             ->get()
             ->filter(fn($g) => $g->militaires_count > 0)
             ->values()

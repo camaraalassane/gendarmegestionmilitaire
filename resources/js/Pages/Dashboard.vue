@@ -31,86 +31,199 @@
 
         <div class="py-8 max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-8">
             <!-- ========================================================================= -->
-            <!-- 1. CARTES STATISTIQUES (KPIs - Retraités exclus du total actif)           -->
+            <!-- 1. AXE A : EFFECTIF OPÉRATIONNEL EN ACTIVITÉ (COMPTABILISÉS SÉPARÉMENT)    -->
             <!-- ========================================================================= -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                <!-- 1. Total Militaires Actifs (Retraités, radiés, décédés exclus) -->
-                <div @click="router.visit(route('militaires.index', { statut: 'actif' }))"
-                     class="bg-white rounded-2xl shadow-xs p-4 border border-slate-200 border-l-4 border-sky-800 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
-                     title="Consulter les militaires en service actif uniquement">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Militaires Actifs</span>
-                        <div class="w-9 h-9 rounded-full bg-sky-50 flex items-center justify-center text-sky-800 group-hover:bg-sky-100 transition-colors">
-                            <i class="pi pi-users text-lg"></i>
-                        </div>
-                    </div>
-                    <div class="text-3xl font-black text-sky-950">{{ statistiques.total_militaires }}</div>
-                    <div class="text-[11px] text-sky-700 mt-1 flex items-center gap-1 font-medium">
-                        <span>En service actif</span> <i class="pi pi-arrow-right text-[9px]"></i>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full bg-sky-700"></span>
+                            <span>Effectif Opérationnel en Activité</span>
+                        </h2>
+                        <p class="text-[11px] text-slate-500">
+                            Comptabilisation séparée : Actifs au poste, Détachés, En mission et En stage (Somme = Effectif Total)
+                        </p>
                     </div>
                 </div>
 
-                <!-- 2. Proposables Avancement (Année N) -->
-                <div @click="router.visit(route('avancements.index'))"
-                     class="bg-white rounded-2xl shadow-xs p-4 border border-slate-200 border-l-4 border-amber-500 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
-                     title="Consulter le tableau d'avancement de l'année en cours">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Proposables {{ statistiques.annee }}</span>
-                        <div class="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center text-amber-600 group-hover:bg-amber-100 transition-colors">
-                            <i class="pi pi-star text-lg"></i>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <!-- 1. Total Effectif en Activité -->
+                    <div @click="router.visit(route('militaires.index', { statut: 'all' }))"
+                         class="bg-gradient-to-br from-sky-900 to-slate-900 text-white rounded-2xl shadow-xs p-4 border border-sky-800 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
+                         title="Consulter l'ensemble de l'effectif en activité">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[11px] uppercase tracking-wider font-semibold text-sky-200">Total en Activité</span>
+                            <div class="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sky-200 group-hover:bg-white/20 transition-colors">
+                                <i class="pi pi-shield text-base"></i>
+                            </div>
+                        </div>
+                        <div class="text-3xl font-black text-white">{{ statistiques.total_militaires }}</div>
+                        <div class="text-[11px] text-sky-300 mt-1 flex items-center gap-1 font-medium">
+                            <span>Effectif sous les drapeaux</span> <i class="pi pi-arrow-right text-[9px]"></i>
                         </div>
                     </div>
-                    <div class="text-3xl font-black text-amber-700">{{ statistiques.proposables_n }}</div>
-                    <div class="text-[11px] text-amber-700 mt-1 flex items-center gap-1 font-medium">
-                        <span>Tableau d'avancement</span> <i class="pi pi-arrow-right text-[9px]"></i>
+
+                    <!-- 2. Actifs au Poste (En service régulier) -->
+                    <div @click="router.visit(route('militaires.index', { statut: 'actif' }))"
+                         class="bg-white rounded-2xl shadow-xs p-4 border border-slate-200 border-l-4 border-emerald-600 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
+                         title="Consulter les militaires actifs au poste / aux unités">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[11px] uppercase tracking-wider font-semibold text-slate-500">Actifs au Poste</span>
+                            <div class="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-700 group-hover:bg-emerald-100 transition-colors">
+                                <i class="pi pi-users text-base"></i>
+                            </div>
+                        </div>
+                        <div class="text-3xl font-black text-emerald-900">{{ statistiques.actifs_stricts }}</div>
+                        <div class="text-[11px] text-emerald-700 mt-1 flex items-center gap-1 font-medium">
+                            <span>En service régulier</span> <i class="pi pi-arrow-right text-[9px]"></i>
+                        </div>
+                    </div>
+
+                    <!-- 3. Détachés -->
+                    <div @click="router.visit(route('militaires.index', { statut: 'détaché' }))"
+                         class="bg-white rounded-2xl shadow-xs p-4 border border-slate-200 border-l-4 border-sky-500 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
+                         title="Consulter les militaires en détachement (ministères, institutions...)">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[11px] uppercase tracking-wider font-semibold text-slate-500">Détachés</span>
+                            <div class="w-8 h-8 rounded-full bg-sky-50 flex items-center justify-center text-sky-600 group-hover:bg-sky-100 transition-colors">
+                                <i class="pi pi-external-link text-base"></i>
+                            </div>
+                        </div>
+                        <div class="text-3xl font-black text-sky-900">{{ statistiques.detaches }}</div>
+                        <div class="text-[11px] text-sky-700 mt-1 flex items-center gap-1 font-medium">
+                            <span>Organismes extérieurs</span> <i class="pi pi-arrow-right text-[9px]"></i>
+                        </div>
+                    </div>
+
+                    <!-- 4. En Mission -->
+                    <div @click="router.visit(route('militaires.index', { statut: 'mission' }))"
+                         class="bg-white rounded-2xl shadow-xs p-4 border border-slate-200 border-l-4 border-purple-500 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
+                         title="Consulter les militaires déployés en mission opérationnelle">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[11px] uppercase tracking-wider font-semibold text-slate-500">En Mission</span>
+                            <div class="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 group-hover:bg-purple-100 transition-colors">
+                                <i class="pi pi-send text-base"></i>
+                            </div>
+                        </div>
+                        <div class="text-3xl font-black text-purple-900">{{ statistiques.missions }}</div>
+                        <div class="text-[11px] text-purple-700 mt-1 flex items-center gap-1 font-medium">
+                            <span>Théâtres d'opération</span> <i class="pi pi-arrow-right text-[9px]"></i>
+                        </div>
+                    </div>
+
+                    <!-- 5. En Stage -->
+                    <div @click="router.visit(route('militaires.index', { statut: 'stage' }))"
+                         class="bg-white rounded-2xl shadow-xs p-4 border border-slate-200 border-l-4 border-amber-500 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
+                         title="Consulter les militaires en stage / formation">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[11px] uppercase tracking-wider font-semibold text-slate-500">En Stage</span>
+                            <div class="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center text-amber-600 group-hover:bg-amber-100 transition-colors">
+                                <i class="pi pi-book text-base"></i>
+                            </div>
+                        </div>
+                        <div class="text-3xl font-black text-amber-900">{{ statistiques.stages }}</div>
+                        <div class="text-[11px] text-amber-700 mt-1 flex items-center gap-1 font-medium">
+                            <span>Écoles & formation</span> <i class="pi pi-arrow-right text-[9px]"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================================================= -->
+            <!-- 2. AXE B : HORS EFFECTIF & SUIVI STATUTAIRE (COMPTABILISÉS À PART)        -->
+            <!-- ========================================================================= -->
+            <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full bg-rose-600"></span>
+                            <span>Hors Effectif & Situations Spécifiques</span>
+                        </h2>
+                        <p class="text-[11px] text-slate-500">
+                            Comptabilisés strictement à part (JAMAIS additionnés à l'effectif actif)
+                        </p>
                     </div>
                 </div>
 
-                <!-- 3. Retraites Prévues (Année N) -->
-                <div @click="router.visit(route('militaires.index', { statut: 'retraites_n' }))"
-                     class="bg-white rounded-2xl shadow-xs p-4 border border-slate-200 border-l-4 border-purple-600 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
-                     title="Consulter les départs en retraite de l'année en cours">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Retraites {{ statistiques.annee }}</span>
-                        <div class="w-9 h-9 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 group-hover:bg-purple-100 transition-colors">
-                            <i class="pi pi-calendar text-lg"></i>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <!-- 1. Radiés des cadres (Hors effectif) -->
+                    <div @click="router.visit(route('militaires.index', { statut: 'radié' }))"
+                         class="bg-white rounded-2xl shadow-xs p-4 border border-slate-200 border-l-4 border-slate-500 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
+                         title="Consulter les militaires radiés des cadres (hors effectif)">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[11px] uppercase tracking-wider font-semibold text-slate-500">Radiés</span>
+                            <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 group-hover:bg-slate-200 transition-colors">
+                                <i class="pi pi-user-minus text-base"></i>
+                            </div>
+                        </div>
+                        <div class="text-3xl font-black text-slate-800">{{ statistiques.radies }}</div>
+                        <div class="text-[11px] text-slate-600 mt-1 flex items-center gap-1 font-medium">
+                            <span>Rayés des cadres (à part)</span> <i class="pi pi-arrow-right text-[9px]"></i>
                         </div>
                     </div>
-                    <div class="text-3xl font-black text-purple-700">{{ statistiques.retraites_n }}</div>
-                    <div class="text-[11px] text-purple-700 mt-1 flex items-center gap-1 font-medium">
-                        <span>Départs prévus {{ statistiques.annee }}</span> <i class="pi pi-arrow-right text-[9px]"></i>
-                    </div>
-                </div>
 
-                <!-- 4. Décédés cette année -->
-                <div @click="router.visit(route('militaires.index', { statut: 'decedes_annee_n' }))"
-                     class="bg-white rounded-2xl shadow-xs p-4 border border-slate-200 border-l-4 border-rose-600 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
-                     title="Consulter les militaires décédés cette année">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Décédés en {{ statistiques.annee }}</span>
-                        <div class="w-9 h-9 rounded-full bg-rose-50 flex items-center justify-center text-rose-600 group-hover:bg-rose-100 transition-colors">
-                            <i class="pi pi-heart text-lg"></i>
+                    <!-- 2. Retraites Prévues (Année N) -->
+                    <div @click="router.visit(route('militaires.index', { statut: 'retraites_n' }))"
+                         class="bg-white rounded-2xl shadow-xs p-4 border border-slate-200 border-l-4 border-purple-600 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
+                         title="Consulter les départs en retraite de l'année en cours">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[11px] uppercase tracking-wider font-semibold text-slate-500">Retraites {{ statistiques.annee }}</span>
+                            <div class="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 group-hover:bg-purple-100 transition-colors">
+                                <i class="pi pi-calendar text-base"></i>
+                            </div>
+                        </div>
+                        <div class="text-3xl font-black text-purple-700">{{ statistiques.retraites_n }}</div>
+                        <div class="text-[11px] text-purple-700 mt-1 flex items-center gap-1 font-medium">
+                            <span>Départs prévus {{ statistiques.annee }}</span> <i class="pi pi-arrow-right text-[9px]"></i>
                         </div>
                     </div>
-                    <div class="text-3xl font-black text-rose-700">{{ statistiques.decedes_cette_annee }}</div>
-                    <div class="text-[11px] text-rose-700 mt-1 flex items-center gap-1 font-medium">
-                        <span>Consulter liste décès</span> <i class="pi pi-arrow-right text-[9px]"></i>
-                    </div>
-                </div>
 
-                <!-- 5. Déserteurs -->
-                <div @click="router.visit(route('militaires.index', { statut: 'deserteur' }))"
-                     class="bg-white rounded-2xl shadow-xs p-4 border border-slate-200 border-l-4 border-orange-500 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
-                     title="Consulter les militaires en situation de désertion">
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs uppercase tracking-wider font-semibold text-slate-500">Déserteurs</span>
-                        <div class="w-9 h-9 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 group-hover:bg-orange-100 transition-colors">
-                            <i class="pi pi-exclamation-triangle text-lg"></i>
+                    <!-- 3. Déserteurs -->
+                    <div @click="router.visit(route('militaires.index', { statut: 'deserteur' }))"
+                         class="bg-white rounded-2xl shadow-xs p-4 border border-slate-200 border-l-4 border-orange-500 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
+                         title="Consulter les militaires en situation de désertion">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[11px] uppercase tracking-wider font-semibold text-slate-500">Déserteurs</span>
+                            <div class="w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center text-orange-600 group-hover:bg-orange-100 transition-colors">
+                                <i class="pi pi-exclamation-triangle text-base"></i>
+                            </div>
+                        </div>
+                        <div class="text-3xl font-black text-orange-700">{{ statistiques.deserteurs }}</div>
+                        <div class="text-[11px] text-orange-700 mt-1 flex items-center gap-1 font-medium">
+                            <span>Militaires déserteurs</span> <i class="pi pi-arrow-right text-[9px]"></i>
                         </div>
                     </div>
-                    <div class="text-3xl font-black text-orange-700">{{ statistiques.deserteurs }}</div>
-                    <div class="text-[11px] text-orange-700 mt-1 flex items-center gap-1 font-medium">
-                        <span>Militaires déserteurs</span> <i class="pi pi-arrow-right text-[9px]"></i>
+
+                    <!-- 4. Décédés cette année -->
+                    <div @click="router.visit(route('militaires.index', { statut: 'decedes_annee_n' }))"
+                         class="bg-white rounded-2xl shadow-xs p-4 border border-slate-200 border-l-4 border-rose-600 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
+                         title="Consulter les militaires décédés cette année">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[11px] uppercase tracking-wider font-semibold text-slate-500">Décédés en {{ statistiques.annee }}</span>
+                            <div class="w-8 h-8 rounded-full bg-rose-50 flex items-center justify-center text-rose-600 group-hover:bg-rose-100 transition-colors">
+                                <i class="pi pi-heart text-base"></i>
+                            </div>
+                        </div>
+                        <div class="text-3xl font-black text-rose-700">{{ statistiques.decedes_cette_annee }}</div>
+                        <div class="text-[11px] text-rose-700 mt-1 flex items-center gap-1 font-medium">
+                            <span>Consulter liste décès</span> <i class="pi pi-arrow-right text-[9px]"></i>
+                        </div>
+                    </div>
+
+                    <!-- 5. Proposables Avancement (Année N) -->
+                    <div @click="router.visit(route('avancements.index'))"
+                         class="bg-white rounded-2xl shadow-xs p-4 border border-slate-200 border-l-4 border-amber-500 cursor-pointer hover:shadow-md hover:scale-[1.01] transition-all group"
+                         title="Consulter le tableau d'avancement de l'année en cours">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[11px] uppercase tracking-wider font-semibold text-slate-500">Proposables {{ statistiques.annee }}</span>
+                            <div class="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center text-amber-600 group-hover:bg-amber-100 transition-colors">
+                                <i class="pi pi-star text-base"></i>
+                            </div>
+                        </div>
+                        <div class="text-3xl font-black text-amber-700">{{ statistiques.proposables_n }}</div>
+                        <div class="text-[11px] text-amber-700 mt-1 flex items-center gap-1 font-medium">
+                            <span>Tableau d'avancement</span> <i class="pi pi-arrow-right text-[9px]"></i>
+                        </div>
                     </div>
                 </div>
             </div>

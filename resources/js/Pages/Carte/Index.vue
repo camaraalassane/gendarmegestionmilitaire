@@ -47,6 +47,38 @@
                 </div>
             </div>
 
+            <!-- Répartition de l'effectif en activité + éléments hors effectif sur UNE SEULE LIGNE COMPACTE -->
+            <div class="flex items-center justify-between gap-3 px-3 py-1 rounded-lg border border-slate-200/90 bg-white text-[11px] shadow-2xs flex-none overflow-x-auto whitespace-nowrap custom-scrollbar">
+                <!-- En activité -->
+                <div class="flex items-center gap-2.5 flex-none">
+                    <span class="font-bold uppercase tracking-wider text-[10px] text-sky-800 flex items-center gap-1 flex-none">
+                        <i class="pi pi-shield text-[10px]"></i>
+                        <span>En activité<span v-if="selRegion" class="text-slate-700"> ({{ selRegion.nom }})</span> :</span>
+                    </span>
+                    <span v-for="h in repartition" :key="h.label" class="inline-flex items-center gap-1 flex-none">
+                        <span class="w-1.5 h-1.5 rounded-full flex-none" :style="{ backgroundColor: h.color }"></span>
+                        <span class="text-slate-500">{{ h.label }} :</span>
+                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(h.value) }}</strong>
+                    </span>
+                </div>
+
+                <!-- Séparateur vertical discret -->
+                <div class="h-3.5 w-px bg-slate-200 flex-none mx-1"></div>
+
+                <!-- Hors effectif (comptabilisés strictement à part) -->
+                <div class="flex items-center gap-2.5 flex-none">
+                    <span class="font-bold uppercase tracking-wider text-[10px] text-rose-800 flex items-center gap-1 flex-none">
+                        <i class="pi pi-info-circle text-[10px]"></i>
+                        <span>Hors effectif<span v-if="selRegion" class="text-slate-700"> ({{ selRegion.nom }})</span> :</span>
+                    </span>
+                    <span v-for="h in horsEffectif" :key="h.label" class="inline-flex items-center gap-1 flex-none">
+                        <span class="w-1.5 h-1.5 rounded-full flex-none" :style="{ backgroundColor: h.color }"></span>
+                        <span class="text-slate-500">{{ h.label }} :</span>
+                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(h.value) }}</strong>
+                    </span>
+                </div>
+            </div>
+
             <!-- Alerte non rattachés si existants -->
             <div
                 v-if="stats.non_rattaches > 0"
@@ -468,6 +500,67 @@
                         </div>
                     </div>
 
+                    <!-- Décomposition En activité vs Hors effectif de la région / du pays -->
+                    <div class="my-1.5 p-2 rounded-lg border border-slate-200 bg-slate-50/70 space-y-2 flex-none text-xs">
+                        <!-- En activité -->
+                        <div>
+                            <div class="text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1 flex items-center justify-between">
+                                <span class="flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                    <span>En activité ({{ fmt(sel ? selRegion.effectif : tot(r => r.effectif)) }})</span>
+                                </span>
+                                <span class="text-[9px] text-slate-400 font-normal">Somme = Effectif</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-1 text-[11px]">
+                                <div class="flex items-center justify-between px-1.5 py-0.5 rounded bg-white border border-slate-200/80">
+                                    <span class="text-slate-600">Actifs au poste</span>
+                                    <strong class="text-slate-900 tabular-nums">{{ fmt(sel ? selRegion.actifs : tot(r => r.actifs) + (props.stats.hors_region?.actifs ?? 0)) }}</strong>
+                                </div>
+                                <div class="flex items-center justify-between px-1.5 py-0.5 rounded bg-white border border-slate-200/80">
+                                    <span class="text-slate-600">Détachés</span>
+                                    <strong class="text-slate-900 tabular-nums">{{ fmt(sel ? selRegion.detaches : tot(r => r.detaches) + (props.stats.hors_region?.detaches ?? 0)) }}</strong>
+                                </div>
+                                <div class="flex items-center justify-between px-1.5 py-0.5 rounded bg-white border border-slate-200/80">
+                                    <span class="text-slate-600">En mission</span>
+                                    <strong class="text-slate-900 tabular-nums">{{ fmt(sel ? selRegion.missions : tot(r => r.missions) + (props.stats.hors_region?.missions ?? 0)) }}</strong>
+                                </div>
+                                <div class="flex items-center justify-between px-1.5 py-0.5 rounded bg-white border border-slate-200/80">
+                                    <span class="text-slate-600">En stage</span>
+                                    <strong class="text-slate-900 tabular-nums">{{ fmt(sel ? selRegion.stages : tot(r => r.stages) + (props.stats.hors_region?.stages ?? 0)) }}</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Hors effectif (comptabilisés à part) -->
+                        <div class="pt-1.5 border-t border-slate-200/80">
+                            <div class="text-[10px] font-bold uppercase tracking-wider text-rose-700 mb-1 flex items-center justify-between">
+                                <span class="flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                    <span>Hors effectif (à part)</span>
+                                </span>
+                                <span class="text-[9px] text-slate-400 font-normal">Non comptés dans total</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-1 text-[11px]">
+                                <div class="flex items-center justify-between px-1.5 py-0.5 rounded bg-white border border-slate-200/80">
+                                    <span class="text-slate-600">Radiés</span>
+                                    <strong class="text-slate-900 tabular-nums">{{ fmt(sel ? selRegion.radies : tot(r => r.radies) + (props.stats.hors_region?.radies ?? 0)) }}</strong>
+                                </div>
+                                <div class="flex items-center justify-between px-1.5 py-0.5 rounded bg-white border border-slate-200/80">
+                                    <span class="text-slate-600">Retraites {{ props.stats.annee ?? new Date().getFullYear() }}</span>
+                                    <strong class="text-slate-900 tabular-nums">{{ fmt(sel ? selRegion.retraites : tot(r => r.retraites) + (props.stats.hors_region?.retraites ?? 0)) }}</strong>
+                                </div>
+                                <div class="flex items-center justify-between px-1.5 py-0.5 rounded bg-white border border-slate-200/80">
+                                    <span class="text-slate-600">Déserteurs</span>
+                                    <strong class="text-slate-900 tabular-nums">{{ fmt(sel ? selRegion.deserteurs : tot(r => r.deserteurs) + (props.stats.hors_region?.deserteurs ?? 0)) }}</strong>
+                                </div>
+                                <div class="flex items-center justify-between px-1.5 py-0.5 rounded bg-white border border-slate-200/80">
+                                    <span class="text-slate-600">Décédés {{ props.stats.annee ?? new Date().getFullYear() }}</span>
+                                    <strong class="text-slate-900 tabular-nums">{{ fmt(sel ? selRegion.decedes : tot(r => r.decedes) + (props.stats.hors_region?.decedes ?? 0)) }}</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Titre de liste + Barre de recherche instantanée -->
                     <div class="flex items-center justify-between gap-1.5 mb-1 flex-none">
                         <h3 class="text-xs font-bold text-slate-900 truncate">
@@ -551,7 +644,7 @@ import { MALI_VIEW, REGION_SHAPES as SHAPES, project } from './maliRegions.js';
 
 const props = defineProps({
     regions: { type: Array, default: () => [] },
-    stats: { type: Object, default: () => ({ non_rattaches: 0, generated_at: '' }) },
+    stats: { type: Object, default: () => ({ non_rattaches: 0, generated_at: '', annee: new Date().getFullYear(), hors_region: {} }) },
     regionInitiale: { type: String, default: null },
 });
 
@@ -1038,7 +1131,7 @@ const kpis = computed(() => {
         {
             label: r ? 'Effectif région' : 'Effectif total',
             value: fmt(eff),
-            hint: r ? r.nom : 'hors retraités et radiés'
+            hint: r ? r.nom : 'en activité (hors retraités & radiés)'
         },
         {
             label: 'Présents',
@@ -1048,13 +1141,38 @@ const kpis = computed(() => {
         {
             label: 'Absents',
             value: fmt(abs),
-            hint: 'congés, missions'
+            hint: 'congés, missions, stages'
         },
         {
             label: 'Unités opérationnelles',
             value: `${fmt(nOp)} / ${fmt(nU)}`,
             hint: nU ? Math.round((nOp / nU) * 100) + ' % maillage' : '—'
         },
+    ];
+});
+
+// Détail de l'effectif en activité : la somme des 4 catégories égale exactement l'effectif total
+const repartition = computed(() => {
+    const r = selRegion.value;
+    const v = (k) => (r ? (r[k] ?? 0) : tot((x) => x[k] ?? 0) + (props.stats.hors_region?.[k] ?? 0));
+    return [
+        { label: 'Actifs', value: v('actifs'), color: '#10b981' },
+        { label: 'Détachés', value: v('detaches'), color: '#0ea5e9' },
+        { label: 'En mission', value: v('missions'), color: '#8b5cf6' },
+        { label: 'En stage', value: v('stages'), color: '#f59e0b' },
+    ];
+});
+
+// Hors effectif : Radiés, retraites, déserteurs et décédés de l'année (affichés et comptabilisés à part)
+const horsEffectif = computed(() => {
+    const r = selRegion.value;
+    const annee = props.stats.annee ?? new Date().getFullYear();
+    const v = (k) => (r ? (r[k] ?? 0) : tot((x) => x[k] ?? 0) + (props.stats.hors_region?.[k] ?? 0));
+    return [
+        { label: 'Radiés', value: v('radies'), color: '#64748b' },
+        { label: `Retraites ${annee}`, value: v('retraites'), color: '#9333ea' },
+        { label: 'Déserteurs', value: v('deserteurs'), color: '#ea580c' },
+        { label: `Décédés ${annee}`, value: v('decedes'), color: '#e11d48' },
     ];
 });
 

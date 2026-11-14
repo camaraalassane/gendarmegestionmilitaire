@@ -133,6 +133,14 @@ class MilitaireController extends Controller
             });
         } elseif (str_starts_with(mb_strtolower($statutFilter), 'retrait')) {
             $query->where('militaires.statut', 'LIKE', 'retrait%');
+        } elseif (str_starts_with(mb_strtolower($statutFilter), 'radi')) {
+            $query->where('militaires.statut', 'LIKE', 'radi%');
+        } elseif (str_starts_with(mb_strtolower($statutFilter), 'd_tach') || str_starts_with(mb_strtolower($statutFilter), 'detach') || str_starts_with(mb_strtolower($statutFilter), 'détach')) {
+            $query->where('militaires.statut', 'LIKE', 'd%tach%');
+        } elseif (str_starts_with(mb_strtolower($statutFilter), 'miss')) {
+            $query->where('militaires.statut', 'LIKE', 'miss%');
+        } elseif (str_starts_with(mb_strtolower($statutFilter), 'stag')) {
+            $query->where('militaires.statut', 'LIKE', 'stag%');
         } elseif (str_starts_with(mb_strtolower($statutFilter), 'dec') || str_starts_with(mb_strtolower($statutFilter), 'déc')) {
             $query->where('militaires.statut', 'LIKE', 'd%c%d%');
         } elseif (!empty($statutFilter)) {
