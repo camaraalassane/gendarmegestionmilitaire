@@ -5,7 +5,7 @@
         <template #header>
             <div class="flex items-center justify-between gap-3">
                 <div class="flex items-center gap-2">
-                    <div class="w-7 h-7 rounded-lg bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-300">
+                    <div class="w-7 h-7 rounded-lg bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300">
                         <i class="pi pi-map text-sm"></i>
                     </div>
                     <div>
@@ -17,7 +17,7 @@
                         </p>
                     </div>
                 </div>
-                <div class="hidden sm:flex items-center gap-2 text-[11px] text-sky-100 bg-sky-950/60 border border-sky-700/40 px-2.5 py-1 rounded-md">
+                <div class="hidden sm:flex items-center gap-2 text-[11px] text-sky-100 bg-sky-900/40 border border-sky-600/30 px-2.5 py-1 rounded-md">
                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                     <span>Situation au {{ stats.generated_at || 'ce jour' }}</span>
                 </div>
@@ -26,22 +26,22 @@
 
         <!-- Container principal fixé dans le viewport (zéro défilement externe de page) -->
         <div class="h-[calc(100vh-4.75rem)] flex flex-col gap-2 overflow-hidden -m-1 sm:-m-2">
-            <!-- 1. Chiffres clés (KPIs) compacts style Centre de Commandement -->
+            <!-- 1. Chiffres clés (KPIs) CLAIRS / BLANCS (comme demandé : "pas les autres cards") -->
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 flex-none">
                 <div
                     v-for="k in kpis"
                     :key="k.label"
-                    class="bg-[#16212e] rounded-lg border border-[#263446] px-3 py-1.5 shadow-xs flex items-center justify-between gap-2"
+                    class="bg-white rounded-lg border border-slate-200/90 px-3 py-1.5 shadow-xs flex items-center justify-between gap-2"
                 >
                     <div class="min-w-0">
-                        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 truncate">
+                        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500 truncate">
                             {{ k.label }}
                         </div>
-                        <div class="text-[10px] text-slate-500 truncate">
+                        <div class="text-[10px] text-slate-400 truncate">
                             {{ k.hint }}
                         </div>
                     </div>
-                    <div class="text-lg sm:text-xl font-extrabold text-white tabular-nums leading-none flex-none">
+                    <div class="text-lg sm:text-xl font-extrabold text-slate-900 tabular-nums leading-none flex-none">
                         {{ k.value }}
                     </div>
                 </div>
@@ -50,21 +50,21 @@
             <!-- Alerte non rattachés si existants -->
             <div
                 v-if="stats.non_rattaches > 0"
-                class="rounded-lg border border-amber-600/40 bg-amber-950/40 text-amber-200 text-xs px-2.5 py-1 flex items-center justify-between flex-none"
+                class="rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-xs px-2.5 py-1 flex items-center justify-between flex-none"
             >
                 <div class="flex items-center gap-1.5">
-                    <i class="pi pi-exclamation-triangle text-amber-400 text-xs"></i>
+                    <i class="pi pi-exclamation-triangle text-amber-600 text-xs"></i>
                     <span>
-                        <strong class="text-white">{{ fmt(stats.non_rattaches) }}</strong> militaires non rattachés à une région/unité.
+                        <strong>{{ fmt(stats.non_rattaches) }}</strong> militaires non rattachés à une région/unité.
                     </span>
                 </div>
             </div>
 
-            <!-- 2. Zone principale : Carte tactique à gauche et panneau latéral réduit à droite -->
+            <!-- 2. Zone principale : SEULE LA CARTE A LE THÈME BLEU MARINE / ARDOISE ADOUCI (#16212e) -->
             <div class="flex-1 min-h-0 grid gap-2 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_340px] items-stretch">
-                <!-- PANNEAU CARTE TACTIQUE -->
+                <!-- PANNEAU CARTE TACTIQUE (FOND BLEU NUIT ARDOISE ADOUCI DE LA DÉMO, PAS TROP NOIR) -->
                 <div class="bg-[#16212e] rounded-lg border border-[#263446] p-2 min-w-0 flex flex-col h-full overflow-hidden shadow-sm">
-                    <!-- Barre d'outils / Filtres au-dessus de la carte -->
+                    <!-- Barre d'outils au-dessus de la carte -->
                     <div class="flex flex-wrap items-center justify-between gap-2 mb-1 flex-none">
                         <div class="flex items-center gap-1.5 flex-wrap">
                             <template v-if="sel">
@@ -99,7 +99,7 @@
                             <select
                                 :value="sel || ''"
                                 @change="onSelectRegionDropdown($event.target.value)"
-                                class="text-xs border border-slate-700 rounded-lg px-2 py-0.5 bg-[#1b2838] text-slate-200 focus:outline-none focus:border-sky-400 font-medium"
+                                class="text-xs border border-[#2e425b] rounded-lg px-2 py-0.5 bg-[#1f2f42] text-slate-200 focus:outline-none focus:border-sky-400 font-medium"
                                 aria-label="Choisir une région"
                             >
                                 <option value="">Tout le Mali (20 régions)</option>
@@ -110,13 +110,13 @@
                         </div>
                     </div>
 
-                    <!-- CANEVAS CARTE : FOND NOIR TACTIQUE (#0a0f18) -->
-                    <div class="flex-1 min-h-0 w-full h-full relative flex items-center justify-center overflow-hidden bg-[#0a0f18] rounded-lg border border-slate-900 p-1">
-                        <!-- Entête au survol interactif -->
+                    <!-- CANEVAS SVG : FOND BLEU MARINE / ARDOISE ADOUCI (#16212e comme sur la photo de référence) -->
+                    <div class="flex-1 min-h-0 w-full h-full relative flex items-center justify-center overflow-hidden bg-[#16212e] rounded-lg border border-[#263446] p-1">
+                        <!-- Entête au survol interactif (HUD élégant) -->
                         <transition name="fade">
                             <div
                                 v-if="hoveredInfo"
-                                class="absolute top-2 left-2 z-20 bg-slate-950/95 backdrop-blur text-white px-2.5 py-1 rounded-md shadow-lg text-xs pointer-events-none flex items-center gap-2 border border-slate-700"
+                                class="absolute top-2 left-2 z-20 bg-[#0e1621]/95 backdrop-blur text-white px-2.5 py-1 rounded-md shadow-lg text-xs pointer-events-none flex items-center gap-2 border border-slate-700"
                             >
                                 <span
                                     class="w-2 h-2 rounded-full flex-none"
@@ -140,11 +140,11 @@
                         >
                             <defs>
                                 <filter id="pin-shadow" x="-30%" y="-30%" width="160%" height="160%">
-                                    <feDropShadow dx="0" dy="0.8" stdDeviation="0.8" flood-opacity="0.6" flood-color="#000000" />
+                                    <feDropShadow dx="0" dy="0.8" stdDeviation="0.8" flood-opacity="0.5" flood-color="#000000" />
                                 </filter>
                             </defs>
 
-                            <!-- Tracés des régions SVG (Nuances tactiques de bleu marine comme la démo ; seule la région choisie apparaît si isolée) -->
+                            <!-- Tracés des régions SVG (Dégradé bleu marine tactique de la photo ; sans infobulle navigateur native redondante) -->
                             <template v-for="r in regions" :key="r.code">
                                 <path
                                     v-if="SHAPES[r.code] && (!sel ? (r.code !== 'R1') : (r.code === sel))"
@@ -156,15 +156,13 @@
                                     }"
                                     :style="{
                                         fill: fillFor(r),
-                                        stroke: sel === r.code ? '#38bdf8' : '#0a0f18',
-                                        strokeWidth: (sel === r.code ? 2.2 : 1.3) * zoom
+                                        stroke: sel === r.code ? '#38bdf8' : '#16212e',
+                                        strokeWidth: (sel === r.code ? 2.2 : 1.2) * zoom
                                     }"
                                     @click="choisir(r.code)"
                                     @mouseenter="onHoverRegion(r)"
                                     @mouseleave="onLeaveHover"
-                                >
-                                    <title>{{ r.nom }} : {{ fmt(valueOf(r)) }}{{ METRICS[metric].unit }}</title>
-                                </path>
+                                />
                             </template>
 
                             <!-- Vue nationale : étiquettes noms + chiffres blancs nets avec halo sombre -->
@@ -191,9 +189,7 @@
                                         @click="choisir('R1')"
                                         @mouseenter="onHoverRegion(r)"
                                         @mouseleave="onLeaveHover"
-                                    >
-                                        <title>{{ r.nom }} : {{ fmt(valueOf(r)) }}{{ METRICS[metric].unit }}</title>
-                                    </circle>
+                                    />
                                     <line
                                         class="lead"
                                         :x1="SHAPES.R1.cx"
@@ -208,7 +204,7 @@
                                 </template>
                             </template>
 
-                            <!-- Région sélectionnée : PINS TACTIQUES HAUTE VISIBILITÉ DES UNITÉS SUR FOND BLEU/NOIR -->
+                            <!-- Région sélectionnée : PINS TACTIQUES HAUTE VISIBILITÉ DES UNITÉS -->
                             <template v-else>
                                 <g
                                     v-for="u in unitesAvecPoint"
@@ -274,21 +270,21 @@
                     </div>
 
                     <!-- Barre de sélection rapide de régions au bas de la carte (accès en 1 clic) -->
-                    <div class="flex items-center gap-1 overflow-x-auto py-1 px-1 mt-1 bg-[#0a0f18] rounded-md border border-slate-800 text-[11px] flex-none custom-scrollbar">
+                    <div class="flex items-center gap-1 overflow-x-auto py-1 px-1 mt-1 bg-[#121c27] rounded-md border border-[#263446] text-[11px] flex-none custom-scrollbar">
                         <button
                             class="px-2 py-0.5 rounded font-semibold transition-all flex items-center gap-1 flex-none"
-                            :class="!sel ? 'bg-sky-600 text-white shadow-xs' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'"
+                            :class="!sel ? 'bg-sky-600 text-white shadow-xs' : 'bg-[#1f2f42] text-slate-300 hover:bg-[#2b3e55] border border-[#2e425b]'"
                             @click="retour"
                             title="Afficher la carte complète du Mali"
                         >
                             <span>🌐 Tout le Mali</span>
                         </button>
-                        <div class="h-3 w-px bg-slate-700 flex-none mx-0.5"></div>
+                        <div class="h-3 w-px bg-[#263446] flex-none mx-0.5"></div>
                         <button
                             v-for="r in regions"
                             :key="r.code"
                             class="px-1.5 py-0.5 rounded font-medium transition-all flex items-center gap-1 flex-none"
-                            :class="sel === r.code ? 'bg-sky-600 text-white shadow-xs font-bold border border-sky-400' : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 border border-slate-700'"
+                            :class="sel === r.code ? 'bg-sky-600 text-white shadow-xs font-bold border border-sky-400' : 'bg-[#1f2f42]/80 text-slate-300 hover:bg-[#2b3e55] border border-[#2e425b]'"
                             @click="choisir(r.code)"
                             :title="r.nom + ' (' + r.unites.length + ' unités)'"
                         >
@@ -328,28 +324,28 @@
                     </div>
                 </div>
 
-                <!-- PANNEAU DROIT (STYLE COMMANDEMENT TACTIQUE) -->
-                <div class="bg-[#16212e] rounded-lg border border-[#263446] p-2.5 min-w-0 flex flex-col h-full overflow-hidden shadow-sm text-slate-100">
+                <!-- PANNEAU DROIT CLAIR / BLANC (comme demandé : "pas les autres cards") -->
+                <div class="bg-white rounded-lg border border-slate-200 p-2.5 min-w-0 flex flex-col h-full overflow-hidden shadow-sm text-slate-900">
                     <!-- Entête du panneau -->
                     <div class="flex items-center justify-between gap-2 flex-none">
                         <div class="min-w-0">
-                            <h2 class="text-sm font-bold text-white truncate">
+                            <h2 class="text-sm font-bold text-slate-900 truncate">
                                 {{ sel ? selRegion.nom : 'Vue Nationale (Mali)' }}
                             </h2>
-                            <p v-if="sel && selRegion.chef_lieu" class="text-[11px] text-slate-400 truncate">
+                            <p v-if="sel && selRegion.chef_lieu" class="text-[11px] text-slate-500 truncate">
                                 Chef-lieu : {{ selRegion.chef_lieu }}
                             </p>
                         </div>
-                        <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-sky-300 border border-slate-700 flex-none">
+                        <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex-none">
                             {{ sel ? selRegion.unites.length + ' unités' : regions.length + ' régions' }}
                         </span>
                     </div>
 
-                    <!-- Grille métriques compacte -->
-                    <div class="grid grid-cols-3 gap-1.5 my-1.5 p-1.5 border border-[#263446] flex-none bg-[#1b2838]/80 rounded-md text-center">
+                    <!-- Grille métriques compacte claire -->
+                    <div class="grid grid-cols-3 gap-1.5 my-1.5 p-1.5 border border-slate-100 flex-none bg-slate-50/80 rounded-md text-center">
                         <div v-for="d in detail" :key="d.label" class="min-w-0">
-                            <div class="text-[10px] text-slate-400 truncate">{{ d.label }}</div>
-                            <div class="text-xs sm:text-sm font-bold text-white tabular-nums truncate">
+                            <div class="text-[10px] text-slate-500 truncate">{{ d.label }}</div>
+                            <div class="text-xs sm:text-sm font-bold text-slate-900 tabular-nums truncate">
                                 {{ d.value }}
                             </div>
                         </div>
@@ -357,7 +353,7 @@
 
                     <!-- Titre de liste + Barre de recherche instantanée -->
                     <div class="flex items-center justify-between gap-1.5 mb-1 flex-none">
-                        <h3 class="text-xs font-bold text-slate-200 truncate">
+                        <h3 class="text-xs font-bold text-slate-900 truncate">
                             {{ sel ? 'Unités de la région' : 'Classement : ' + METRICS[metric].label }}
                         </h3>
                         <div class="relative w-36 sm:w-44">
@@ -365,13 +361,13 @@
                                 v-model="searchQuery"
                                 type="text"
                                 :placeholder="sel ? 'Filtrer brigades...' : 'Filtrer régions...'"
-                                class="w-full text-[11px] py-1 pl-6 pr-2 rounded border border-slate-700 bg-slate-800 text-white placeholder-slate-400 focus:outline-none focus:border-sky-400"
+                                class="w-full text-[11px] py-1 pl-6 pr-2 rounded border border-slate-200 bg-white placeholder-slate-400 focus:outline-none focus:border-sky-500"
                             />
                             <i class="pi pi-search absolute left-2 top-2 text-[10px] text-slate-400"></i>
                             <button
                                 v-if="searchQuery"
                                 @click="searchQuery = ''"
-                                class="absolute right-1.5 top-1.5 text-slate-400 hover:text-white text-[10px]"
+                                class="absolute right-1.5 top-1.5 text-slate-400 hover:text-slate-600 text-[10px]"
                                 title="Effacer"
                             >
                                 <i class="pi pi-times"></i>
@@ -380,7 +376,7 @@
                     </div>
 
                     <!-- LISTE DÉROULANTE INTERNE (SEUL CE BLOC DÉFILE) -->
-                    <div class="flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar">
+                    <div class="flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar-light">
                         <ul v-if="lignesFiltrees.length > 0" class="rank">
                             <li v-for="row in lignesFiltrees" :key="row.key">
                                 <button
@@ -399,27 +395,27 @@
                                             class="dot"
                                             :style="{ background: fillFor(row.rawRegion) }"
                                         ></i>
-                                        <span class="truncate text-slate-200">{{ row.nom }}</span>
-                                        <small v-if="row.horsCarte" class="ml-1 text-amber-400 text-[9px]" title="Pas de coordonnées GPS">
+                                        <span class="truncate text-slate-700 font-medium">{{ row.nom }}</span>
+                                        <small v-if="row.horsCarte" class="ml-1 text-amber-700 text-[9px]" title="Pas de coordonnées GPS">
                                             (sans GPS)
                                         </small>
                                     </span>
                                     <span class="t">
-                                        <i :style="{ width: Math.max(3, row.pct) + '%', background: sel ? '#38bdf8' : '#5f9bea' }"></i>
+                                        <i :style="{ width: Math.max(3, row.pct) + '%', background: sel ? '#0284c7' : '#1d4f91' }"></i>
                                     </span>
-                                    <span class="v text-white">
+                                    <span class="v text-slate-900 font-bold">
                                         {{ fmt(row.value) }}{{ sel ? '' : METRICS[metric].unit }}
                                     </span>
                                 </button>
                             </li>
                         </ul>
-                        <div v-else class="py-6 text-center text-xs text-slate-500">
+                        <div v-else class="py-6 text-center text-xs text-slate-400">
                             Aucun élément pour « {{ searchQuery }} »
                         </div>
                     </div>
 
                     <!-- Guide d'interaction en bas -->
-                    <p class="text-[10px] text-slate-500 mt-1 pt-1 border-t border-slate-800 flex-none truncate">
+                    <p class="text-[10px] text-slate-400 mt-1 pt-1 border-t border-slate-100 flex-none truncate">
                         {{ sel
                             ? 'Cliquez sur une unité pour la cibler sur la carte.'
                             : 'Cliquez sur une région pour zoomer et afficher ses unités.' }}
@@ -476,7 +472,7 @@ const legende = computed(() => {
     return v.length ? { min: Math.min(...v), max: Math.max(...v) } : { min: 0, max: 0 };
 });
 
-// Couleurs tactiques bleu marine (identiques à la capture d'écran de référence)
+// Couleurs tactiques bleu marine douces (identiques à la photo de référence)
 const fillFor = (r) => {
     if (!r) return '#1b2838';
     if (sel.value) {
@@ -484,18 +480,16 @@ const fillFor = (r) => {
     }
     const { min, max } = legende.value;
     const val = valueOf(r);
-    let pct = 16;
+    let pct = 18;
     if (max > min) {
-        pct = Math.round(18 + ((val - min) / (max - min)) * 70);
+        pct = Math.round(20 + ((val - min) / (max - min)) * 68);
     } else {
-        // En l'absence d'écart, modulation subtile selon le nombre d'unités
         const uCount = r.unites?.length || 0;
-        pct = Math.round(16 + Math.min(uCount / 40, 1) * 32);
+        pct = Math.round(18 + Math.min(uCount / 40, 1) * 32);
     }
-    // Si valeur à 0, légère nuance naturelle pour distinguer chaque région sans casser l'harmonie
     if (val === 0 && max > min) {
         const uMod = ((r.unites?.length || 0) % 6) * 2;
-        pct = 15 + uMod;
+        pct = 16 + uMod;
     }
     return `color-mix(in srgb, #5f9bea ${pct}%, #1b2838)`;
 };
@@ -577,17 +571,14 @@ const unitesAvecPoint = computed(() => {
     const units = selRegion.value.unites.filter((u) => u.lat !== null && u.lon !== null);
     if (!units.length) return [];
 
-    // Projection initiale de chaque unité
     const pts = units.map((u) => {
         const p = project(Number(u.lat), Number(u.lon));
         return { ...u, origX: p.x, origY: p.y };
     });
 
-    // Rayon visuel d'un marqueur à l'échelle courante
     const baseR = 5.2 * zoom.value;
     const proximityThreshold = baseR * 2.8;
 
-    // Regroupement en clusters par proximité géographique dans la vue
     const clusters = [];
     pts.forEach((pt) => {
         let targetCluster = null;
@@ -612,7 +603,6 @@ const unitesAvecPoint = computed(() => {
         }
     });
 
-    // Éclatement des grappes d'unités en anneaux concentriques nets et lisibles
     const result = [];
     clusters.forEach((cl) => {
         const count = cl.items.length;
@@ -653,7 +643,6 @@ const unitesAvecPoint = computed(() => {
 const unitesSansPoint = computed(() => (selRegion.value ? selRegion.value.unites.length - unitesAvecPoint.value.length : 0));
 const maxEff = computed(() => Math.max(1, ...(selRegion.value?.unites ?? []).map((u) => u.effectif)));
 
-// Rayon calibré pour être nettement visible quelle que soit la région (min ~5.5 * zoom)
 const rayon = (u) => {
     const base = 5.2;
     const add = maxEff.value > 0 ? (u.effectif / maxEff.value) * 4 : 0;
@@ -779,11 +768,11 @@ const lignesFiltrees = computed(() => {
 <style scoped>
 .chip {
     font-size: 11.5px;
-    border: 1px solid #334155;
+    border: 1px solid #2e425b;
     border-radius: 9999px;
     padding: 2.5px 9px;
     color: #cbd5e1;
-    background: #1e293b;
+    background: #1f2f42;
     cursor: pointer;
     transition: all 0.15s ease;
 }
@@ -795,7 +784,7 @@ const lignesFiltrees = computed(() => {
     box-shadow: 0 1px 4px rgba(95, 155, 234, 0.35);
 }
 .chip:hover:not([aria-pressed='true']) {
-    background: #334155;
+    background: #2b3e55;
     color: #ffffff;
 }
 
@@ -809,7 +798,7 @@ const lignesFiltrees = computed(() => {
     stroke: #5f9bea !important;
 }
 .reg.sel {
-    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
 }
 
 .unit-marker {
@@ -823,7 +812,7 @@ const lignesFiltrees = computed(() => {
     font: 600 11px system-ui, -apple-system, sans-serif;
     fill: #ffffff;
     paint-order: stroke;
-    stroke: #0a0f18;
+    stroke: #16212e;
     stroke-width: 3.5px;
     stroke-linejoin: round;
     pointer-events: none;
@@ -833,20 +822,20 @@ const lignesFiltrees = computed(() => {
     font-size: 8.5px;
     font-weight: 500;
     fill: #e2e8f0;
-    stroke: #0a0f18;
+    stroke: #16212e;
     stroke-width: 2.8px;
 }
 .lbl.num {
     font-size: 11.5px;
     font-weight: 700;
     fill: #ffffff;
-    stroke: #0a0f18;
+    stroke: #16212e;
     stroke-width: 3.2px;
 }
 .lbl.text-highlight {
     fill: #38bdf8;
     font-weight: 800;
-    stroke: #0a0f18;
+    stroke: #16212e;
 }
 
 .lead {
@@ -886,14 +875,14 @@ const lignesFiltrees = computed(() => {
 }
 .rank button:hover,
 .rank button.sel {
-    background: #1f2f44;
+    background: #f1f5f9;
 }
 .rank button.sel {
-    border-left: 3px solid #5f9bea;
+    border-left: 3px solid #1d4f91;
     font-weight: 600;
 }
 .rank button:focus-visible {
-    outline: 2px solid #5f9bea;
+    outline: 2px solid #1d4f91;
 }
 .rank .n {
     display: flex;
@@ -903,7 +892,7 @@ const lignesFiltrees = computed(() => {
 }
 .rank .t {
     height: 6px;
-    background: #1b2838;
+    background: #e2e8f0;
     border-radius: 3px;
     overflow: hidden;
 }
@@ -924,7 +913,7 @@ const lignesFiltrees = computed(() => {
     height: 5px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-    background: #0a0f18;
+    background: #121c27;
     border-radius: 4px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
@@ -933,6 +922,22 @@ const lignesFiltrees = computed(() => {
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #3b506b;
+}
+
+.custom-scrollbar-light::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+.custom-scrollbar-light::-webkit-scrollbar-track {
+    background: #f8fafc;
+    border-radius: 4px;
+}
+.custom-scrollbar-light::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+.custom-scrollbar-light::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
 }
 
 .fade-enter-active,
