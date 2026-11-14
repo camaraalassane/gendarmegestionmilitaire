@@ -79,10 +79,74 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
     protected function getGradesCache(): Collection
     {
         if ($this->gradesCache === null) {
-            // Mapping: nom_grade_minuscule => nom_grade_exact
-            $this->gradesCache = \App\Models\Grade::pluck('nom_grade')->mapWithKeys(function ($nom) {
-                return [mb_strtolower(trim($nom)) => trim($nom)];
-            });
+            $map = [];
+            foreach (\App\Models\Grade::all(['nom_grade', 'code_grade']) as $g) {
+                $nom = trim($g->nom_grade);
+                $map[mb_strtolower($nom)] = $nom;
+                if ($g->code_grade) {
+                    $map[mb_strtolower(trim($g->code_grade))] = $nom;
+                }
+            }
+
+            // Aliases militaires courants et abréviations des armées
+            $aliases = [
+                '2°cl' => 'Soldat 2',
+                '2° cl' => 'Soldat 2',
+                '2cl' => 'Soldat 2',
+                '2e cl' => 'Soldat 2',
+                '2eme classe' => 'Soldat 2',
+                '2e classe' => 'Soldat 2',
+                'soldat 2' => 'Soldat 2',
+                'soldat 2e classe' => 'Soldat 2',
+                'soldat 2eme classe' => 'Soldat 2',
+                '1°cl' => 'Soldat 1',
+                '1cl' => 'Soldat 1',
+                '1ere classe' => 'Soldat 1',
+                '1e classe' => 'Soldat 1',
+                'cpl' => 'Caporal',
+                'cpl-chef' => 'Caporal-chef',
+                'cpl chef' => 'Caporal-chef',
+                'sgt' => 'Sergent',
+                'mdl' => 'Sergent',
+                'marechal des logis' => 'Sergent',
+                'sch' => 'Sergent-Chef',
+                'mdc' => 'Sergent-Chef',
+                'marechal des logis-chef' => 'Sergent-Chef',
+                'marechal des logis chef' => 'Sergent-Chef',
+                'adj' => 'Adjudant',
+                'adc' => 'Adjudant-Chef',
+                'adjudant chef' => 'Adjudant-Chef',
+                'adjudant-chef' => 'Adjudant-Chef',
+                'acm' => 'Adjudant-Chef major',
+                'adjudant-chef major' => 'Adjudant-Chef major',
+                'adjudant chef major' => 'Adjudant-Chef major',
+                'slt' => 'Sous-lieutenant',
+                'sous lieutenant' => 'Sous-lieutenant',
+                'sous-lieutenant' => 'Sous-lieutenant',
+                'ltn' => 'Lieutenant',
+                'cne' => 'Capitaine',
+                'ces' => 'Commandant',
+                'cdt' => 'Commandant',
+                'chef d escadron' => 'Commandant',
+                'chef d\'escadron' => 'Commandant',
+                'chef d\'escadrons' => 'Commandant',
+                'lcl' => 'Lieutenant-colonel',
+                'col' => 'Colonel',
+                'clm' => 'Colonel-Major',
+                'colonel major' => 'Colonel-Major',
+                'gdb' => 'Général de brigade',
+                'gbr' => 'Général de brigade',
+                'general de brigade' => 'Général de brigade',
+                'gdd' => 'Général de division',
+                'gdv' => 'Général de division',
+                'general de division' => 'Général de division',
+            ];
+
+            foreach ($aliases as $k => $v) {
+                $map[mb_strtolower($k)] = $v;
+            }
+
+            $this->gradesCache = collect($map);
         }
         return $this->gradesCache;
     }
@@ -280,19 +344,30 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
 
         $value = mb_strtolower(trim((string)$value));
 
-        $statuts = ['actif', 'retraité', 'déserteur', 'décédé', 'formation', 'stage'];
-
-        if (in_array($value, $statuts)) {
-            return $value;
-        }
-
         $mapping = [
+            'actif' => 'actif',
             'retraite' => 'retraité',
+            'retraité' => 'retraité',
             'deserteur' => 'déserteur',
+            'déserteur' => 'déserteur',
             'decede' => 'décédé',
+            'décédé' => 'décédé',
+            'formation' => 'en stage',
+            'stage' => 'en stage',
+            'en stage' => 'en stage',
+            'mission' => 'en mission',
+            'en mission' => 'en mission',
+            'detache' => 'détaché',
+            'détache' => 'détaché',
+            'detachement' => 'détaché',
+            'détachement' => 'détaché',
+            'detachee' => 'détaché',
+            'radie' => 'radié',
+            'radié' => 'radié',
+            'radiee' => 'radié',
         ];
 
-        return $mapping[$value] ?? 'actif';
+        return $mapping[$value] ?? (in_array($value, ['actif', 'retraité', 'déserteur', 'décédé', 'détaché', 'en mission', 'en stage', 'radié']) ? $value : 'actif');
     }
 
     /**

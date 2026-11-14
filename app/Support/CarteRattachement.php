@@ -89,8 +89,16 @@ class CarteRattachement
             // « Région de Kayes » => « kayes » ; « District de Bamako » => « bamako »
             $court = preg_replace('/^(region|district)\s+(de\s+|du\s+|d\')?/', '', self::norm($r->nom));
             $this->regions[$court] = $r->id;
+            $num = (int) preg_replace('/\D/', '', $r->code);
+            if ($num > 0) {
+                $this->regions["region n°{$num}"] = $r->id;
+                $this->regions["region n {$num}"] = $r->id;
+                $this->regions["region n{$num}"] = $r->id;
+                $this->regions["region {$num}"] = $r->id;
+                $this->regions["r{$num}"] = $r->id;
+            }
             if ($r->code === 'R1') {
-                foreach (['bko', 'bamako', 'region n°1', 'region n1'] as $alias) {
+                foreach (['bko', 'bamako', 'dggn', 'inspection', 's i j', 'sij', 'cdurm', 'emga', 'district de bamako'] as $alias) {
                     $this->regions[$alias] = $r->id;
                 }
             }
