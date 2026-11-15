@@ -1625,24 +1625,41 @@ const saveQuickPosition = async () => {
 // --- Décorations & Diplômes dynamiques ---
 const parseList = (val) => {
     if (!val) return [];
-    if (Array.isArray(val)) return val.map(s => String(s).trim()).filter(Boolean);
+    if (Array.isArray(val)) {
+        const seen = new Set();
+        return val.map(s => String(s).trim()).filter(s => {
+            if (!s || s === '#N/A' || s === 'N/A') return false;
+            const k = s.toLowerCase();
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+        });
+    }
     if (typeof val === 'string') {
         const trimmed = val.trim();
+        if (trimmed === '#N/A' || trimmed === 'N/A' || trimmed === 'null' || trimmed === '' || trimmed === '-') return [];
         if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
             try {
                 const parsed = JSON.parse(trimmed);
                 if (Array.isArray(parsed)) {
-                    return parsed.map(s => String(s).trim()).filter(Boolean);
+                    return parseList(parsed);
                 }
             } catch (e) {}
         }
-        if (trimmed.includes('\n')) {
-            return trimmed.split('\n').map(s => s.trim().replace(/^[-•*]\s*/, '')).filter(Boolean);
+        const rawParts = trimmed.split(/[;\n]+/);
+        const seen = new Set();
+        const result = [];
+
+        for (const p of rawParts) {
+            const clean = p.replace(/\s+/g, ' ').replace(/^[-•*]\s*/, '').replace(/,+$/, '').trim();
+            if (!clean || clean === '#N/A' || clean === 'N/A' || clean === '-') continue;
+            const key = clean.toLowerCase();
+            if (!seen.has(key)) {
+                seen.add(key);
+                result.push(clean);
+            }
         }
-        if (trimmed.includes(',')) {
-            return trimmed.split(',').map(s => s.trim()).filter(Boolean);
-        }
-        return [trimmed].filter(Boolean);
+        return result;
     }
     return [];
 };
