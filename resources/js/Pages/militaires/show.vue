@@ -176,38 +176,48 @@
 
                         <div v-if="sortedAffectations && sortedAffectations.length" class="space-y-3">
                             <div v-for="(aff, idx) in sortedAffectations" :key="idx"
-                                class="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                <div class="flex items-center gap-3">
-                                    <div class="w-8 h-8 rounded-full bg-sky-800 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                                class="p-4 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition-colors">
+                                <div class="flex items-start gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-sky-800 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-2xs">
                                         {{ idx + 1 }}
                                     </div>
-                                    <div>
-                                        <div class="flex items-center gap-2">
-                                            <span class="font-bold text-slate-900 text-sm">{{ aff.unite || 'Unité non renseignée' }}</span>
-                                            <Tag v-if="idx === 0" value="Actuelle" style="background: #0284c7; color: white;" class="text-[10px]" />
+                                    <div class="min-w-0 flex-1">
+                                        <!-- Nom de l'unité + Badge Actuelle -->
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="font-bold text-slate-900 text-sm leading-snug break-words">
+                                                {{ aff.unite || 'Unité non renseignée' }}
+                                            </span>
+                                            <Tag v-if="idx === 0" value="Actuelle" style="background: #0284c7; color: white;" class="text-[10px] font-semibold shrink-0" />
                                         </div>
-                                        <div class="text-xs text-slate-500 mt-0.5">
-                                            Région : <span class="font-medium text-slate-700">{{ aff.region || '-' }}</span>
+
+                                        <!-- Métadonnées : Région & Date de mutation -->
+                                        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2.5 pt-2 border-t border-slate-200/60 text-xs">
+                                            <div class="flex items-center gap-1.5 text-slate-600">
+                                                <i class="pi pi-map-marker text-sky-600 text-xs shrink-0"></i>
+                                                <span class="text-slate-500">Région :</span>
+                                                <span class="font-semibold text-slate-800">{{ aff.region || '-' }}</span>
+                                            </div>
+                                            <div class="flex items-center gap-1.5 text-slate-600 bg-white px-2.5 py-1 rounded-md border border-slate-200/80 shadow-2xs">
+                                                <i class="pi pi-calendar text-sky-600 text-xs shrink-0"></i>
+                                                <span class="text-slate-500 text-[11px]">Dernière mutation :</span>
+                                                <span class="font-bold text-slate-800 text-[11px]">{{ aff.date_mutation || '-' }}</span>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                                <div class="text-xs text-slate-600 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shrink-0">
-                                    <span class="text-slate-400 block text-[10px] uppercase font-semibold">Date de dernière mutation</span>
-                                    <span class="font-bold text-slate-800">{{ aff.date_mutation || '-' }}</span>
                                 </div>
                             </div>
                         </div>
-                        <div v-else class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                            <div>
-                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Unité / Brigade / Escadron</span>
-                                <span class="text-sm font-bold text-slate-800">{{ militaire.unite || '-' }}</span>
+                        <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div class="min-w-0">
+                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Unité / Brigade / Escadron</span>
+                                <span class="text-sm font-bold text-slate-800 break-words">{{ militaire.unite || '-' }}</span>
                             </div>
-                            <div>
-                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Région de Gendarmerie</span>
-                                <span class="text-sm font-medium text-slate-800">{{ militaire.region || '-' }}</span>
+                            <div class="min-w-0">
+                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Région de Gendarmerie</span>
+                                <span class="text-sm font-medium text-slate-800 break-words">{{ militaire.region || '-' }}</span>
                             </div>
-                            <div>
-                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Date de dernière mutation</span>
+                            <div class="min-w-0">
+                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Date de dernière mutation</span>
                                 <span class="text-sm font-medium text-slate-800">{{ militaire.date_mutation || '-' }}</span>
                             </div>
                         </div>
