@@ -45,6 +45,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
     // Carte opérationnelle & Déploiement
     Route::get('/carte', [CarteController::class, 'index'])->name('carte.index');
+    Route::get('/carte/export', [\App\Http\Controllers\StatistiquesExportController::class, 'carte'])->name('carte.export');
+    Route::get('/dashboard/export-statistiques', [\App\Http\Controllers\StatistiquesExportController::class, 'dashboard'])->name('dashboard.export-statistiques');
 
     // Alertes
     Route::get('/alertes', [AlerteController::class, 'index'])->name('alertes.index');

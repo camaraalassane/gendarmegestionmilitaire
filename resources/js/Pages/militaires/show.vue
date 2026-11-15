@@ -12,12 +12,12 @@
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
 
                 <!-- BARRE D'ACTIONS RESPONSIVE -->
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 bg-white p-3.5 sm:p-4 rounded-xl shadow-xs border border-slate-200">
+                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3.5 bg-white p-3.5 sm:p-4 rounded-xl shadow-xs border border-slate-200">
                     <div class="min-w-0 flex-1">
                         <h3 class="font-bold text-slate-800 text-sm sm:text-base truncate">{{ militaire.grade_actuel }} {{ militaire.nom }} {{ militaire.prenom }}</h3>
                         <p class="text-xs text-slate-500 font-mono truncate">Matricule FAMA : {{ militaire.matricule }} <span v-if="militaire.mle_grm">| MLE GRM : {{ militaire.mle_grm }}</span></p>
                     </div>
-                    <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap w-full md:w-auto">
+                    <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap w-full lg:w-auto shrink-0">
                         <button type="button" @click="openCertificatPresenceModal"
                             class="flex-1 sm:flex-none justify-center px-3 py-2 rounded-lg text-xs font-semibold !text-white bg-gradient-to-r from-sky-800 to-sky-700 hover:from-sky-900 hover:to-sky-800 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer whitespace-nowrap">
                             <i class="pi pi-file-check text-xs !text-white"></i> <span>Certificat de présence</span>

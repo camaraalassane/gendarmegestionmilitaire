@@ -21,6 +21,14 @@
                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                     <span>Situation au {{ stats.generated_at || 'ce jour' }}</span>
                 </div>
+                <a
+                    :href="route('carte.export', sel ? { region: sel } : {})"
+                    class="flex items-center gap-1.5 text-[11px] font-semibold text-white bg-emerald-600 hover:bg-emerald-500 border border-emerald-400/50 px-2.5 py-1 rounded-md shadow-sm whitespace-nowrap transition-colors"
+                    :title="sel ? 'Exporter les statistiques de cette région en Excel' : 'Exporter les statistiques de la carte en Excel'"
+                >
+                    <i class="pi pi-file-excel text-xs"></i>
+                    <span>{{ sel ? 'Exporter la région' : 'Exporter Excel' }}</span>
+                </a>
             </div>
         </template>
 

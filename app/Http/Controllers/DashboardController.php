@@ -46,7 +46,34 @@ class DashboardController extends Controller
 
         $v = \App\Models\Militaire::getCacheVersion();
 
-        $statistiques = Cache::remember("v{$v}:dashboard:statistiques_summary", 600, function () use ($anneeCourante) {
+        $statistiques = $this->statistiquesResume($anneeCourante, $v);
+
+        $chartsData = $this->donneesGraphiques($v);
+
+        // Pré-réchauffer les modules lourds (Éligibilités & Avancement) en arrière-plan sans ralentir le dashboard
+        // Une seule fois par version de cache (et non à chaque affichage du dashboard)
+        if (Cache::add("v{$v}:dashboard:prewarm", 1, 1800)) dispatch(function () {
+            try {
+                app(\App\Http\Controllers\EligibiliteController::class)->getAllComputedData();
+                app(\App\Http\Controllers\AvancementController::class)->buildCandidatesList((int) date('Y'));
+            } catch (\Throwable $e) {
+                // Silencieux pour préserver la fluidité
+            }
+        })->afterResponse();
+
+        return Inertia::render('Dashboard', [
+            'statistiques' => $statistiques,
+            'chartsData' => $chartsData,
+        ]);
+    }
+
+    /** Indicateurs clés du dashboard (en cache). Utilisés par l'écran ET par l'export Excel. */
+    public function statistiquesResume(?int $anneeCourante = null, ?int $v = null): array
+    {
+        $anneeCourante ??= (int) Carbon::now()->year;
+        $v ??= \App\Models\Militaire::getCacheVersion();
+
+        return Cache::remember("v{$v}:dashboard:statistiques_summary", 600, function () use ($anneeCourante) {
             $retraitesBoth = $this->getRetraitesBoth();
             $proposablesBoth = $this->getProposablesBoth();
             $totalRetraitesN = $retraitesBoth['retraitesN']['total'] ?? 0;
@@ -93,8 +120,14 @@ class DashboardController extends Controller
                 'deserteurs' => $totalDeserteurs,
             ];
         });
+    }
 
-        $chartsData = Cache::remember("v{$v}:dashboard:charts_data", 600, function () {
+    /** Données des graphiques du dashboard (en cache). Utilisées par l'écran ET par l'export Excel. */
+    public function donneesGraphiques(?int $v = null): array
+    {
+        $v ??= \App\Models\Militaire::getCacheVersion();
+
+        return Cache::remember("v{$v}:dashboard:charts_data", 600, function () {
             // 1. STATISTIQUES PAR STATUT (Situation de tous les personnels)
         $statutsMeta = [
             'actif' => ['label' => 'Actif (En service)', 'color' => '#059669', 'bg' => 'bg-emerald-50 text-emerald-800 border-emerald-200'],
@@ -306,22 +339,6 @@ class DashboardController extends Controller
                 'grades' => $gradesDistribution,
             ];
         });
-
-        // Pré-réchauffer les modules lourds (Éligibilités & Avancement) en arrière-plan sans ralentir le dashboard
-        // Une seule fois par version de cache (et non à chaque affichage du dashboard)
-        if (Cache::add("v{$v}:dashboard:prewarm", 1, 1800)) dispatch(function () {
-            try {
-                app(\App\Http\Controllers\EligibiliteController::class)->getAllComputedData();
-                app(\App\Http\Controllers\AvancementController::class)->buildCandidatesList((int) date('Y'));
-            } catch (\Throwable $e) {
-                // Silencieux pour préserver la fluidité
-            }
-        })->afterResponse();
-
-        return Inertia::render('Dashboard', [
-            'statistiques' => $statistiques,
-            'chartsData' => $chartsData,
-        ]);
     }
 
     /**

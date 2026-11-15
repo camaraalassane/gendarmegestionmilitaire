@@ -17,6 +17,12 @@
                     </p>
                 </div>
                 <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                    <a :href="route('dashboard.export-statistiques')"
+                       class="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 border border-emerald-400/50 px-3 py-1.5 rounded-md shadow-sm whitespace-nowrap transition-colors"
+                       title="Exporter les statistiques du tableau de bord en Excel">
+                        <i class="pi pi-file-excel text-xs"></i>
+                        <span>Exporter Excel</span>
+                    </a>
                     <Button icon="pi pi-refresh"
                             label="Rafraîchir"
                             size="small"

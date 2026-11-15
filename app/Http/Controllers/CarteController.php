@@ -20,10 +20,15 @@ class CarteController extends Controller
 
     public function index()
     {
+        return Inertia::render('Carte/Index', $this->donnees() + ['regionInitiale' => request('region')]);
+    }
+
+    /** Données de la carte (en cache). Utilisées par l'écran ET par l'export Excel : chiffres identiques. */
+    public function donnees(): array
+    {
         $cle = 'carte:v' . Cache::get('carte:ver', 1);
 
-        return Inertia::render('Carte/Index', Cache::remember($cle, self::CACHE_TTL, fn () => $this->construire())
-            + ['regionInitiale' => request('region')]);
+        return Cache::remember($cle, self::CACHE_TTL, fn () => $this->construire());
     }
 
     private function construire(): array
