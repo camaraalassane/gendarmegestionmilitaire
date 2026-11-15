@@ -1,35 +1,35 @@
 <template>
-    <div class="min-h-screen py-3 sm:py-6 px-3 sm:px-4 flex flex-col items-center justify-center bg-gradient-to-br from-sky-950 via-sky-900 to-slate-950 relative overflow-y-auto">
+    <div class="h-screen flex items-center justify-center bg-gradient-to-br from-sky-950 via-sky-900 to-slate-950 relative overflow-hidden">
         <!-- Formes décoratives animées -->
-        <div class="absolute inset-0 overflow-hidden pointer-events-none">
+        <div class="absolute inset-0 overflow-hidden">
             <div class="absolute -top-40 -right-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
             <div class="absolute -bottom-40 -left-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse animation-delay-2000"></div>
         </div>
         
-        <div class="relative z-10 w-full max-w-sm sm:max-w-md mx-auto my-auto flex flex-col items-center">
-            <!-- Logo et titre - très compact -->
-            <div class="text-center mb-2.5 sm:mb-3 animate-fade-in-down">
-                <div class="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-white/20 backdrop-blur-sm rounded-2xl shadow-lg mb-1.5 transition-all duration-300 hover:scale-105 p-1.5">
+        <div class="relative z-10 w-full max-w-md mx-4">
+            <!-- Logo et titre - version Gendarmerie Nationale -->
+            <div class="text-center mb-4 animate-fade-in-down">
+                <div class="inline-flex items-center justify-center w-14 h-14 bg-white/20 backdrop-blur-sm rounded-2xl shadow-lg mb-2 transition-all duration-300 hover:scale-105 p-1.5">
                     <img src="/images/logo-gendarmerie-officiel.png" alt="Gendarmerie Nationale" class="w-full h-full object-contain" />
                 </div>
-                <h1 class="text-white text-lg sm:text-xl font-bold tracking-tight leading-tight">Gestion Militaire</h1>
-                <p class="text-sky-200/90 text-[10px] sm:text-[11px] mt-0.5 font-medium tracking-wide">Gendarmerie Nationale • Direction Générale de la Gendarmerie Nationale</p>
+                <h1 class="text-white text-xl font-bold tracking-tight">Gestion Militaire</h1>
+                <p class="text-white/80 text-[11px] mt-0.5 font-medium tracking-wide">Gendarmerie Nationale • Direction Générale de la Gendarmerie Nationale</p>
             </div>
             
-            <!-- Carte de connexion - ultra compacte, paddings réduits -->
-            <div class="w-full bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-100 transition-all duration-300">
-                <!-- En-tête de la carte -->
-                <div class="text-center py-2.5 sm:py-3 px-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 via-white to-gray-50">
-                    <div class="inline-flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-r from-sky-800 to-sky-700 rounded-lg shadow-sm mb-1 text-white">
-                        <i class="pi pi-user text-sm"></i>
+            <!-- Carte de connexion - ultra compacte -->
+            <Card class="shadow-2xl border-0 transition-all duration-300">
+                <template #header>
+                    <div class="text-center py-3 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                        <div class="inline-flex items-center justify-center w-10 h-10 bg-gradient-to-r from-sky-800 to-sky-700 rounded-lg shadow-md mb-1">
+                            <i class="pi pi-user text-base text-white"></i>
+                        </div>
+                        <h2 class="text-lg font-bold text-gray-800">Se connecter</h2>
+                        <p class="text-gray-500 text-[11px] mt-0.5">Accédez à votre espace</p>
                     </div>
-                    <h2 class="text-base sm:text-lg font-bold text-gray-800 leading-tight">Se connecter</h2>
-                    <p class="text-gray-500 text-[10px] sm:text-[11px] mt-0.5">Accédez à votre espace</p>
-                </div>
+                </template>
 
-                <!-- Corps du formulaire -->
-                <div class="p-3.5 sm:p-5">
-                    <form @submit.prevent="submit" class="space-y-2.5 sm:space-y-3">
+                <template #content>
+                    <form @submit.prevent="submit" class="space-y-3">
                         <!-- Session Status -->
                         <Message v-if="status" severity="success" :closable="false" class="mb-2 text-xs">
                             <div class="flex items-center gap-1">
@@ -41,19 +41,19 @@
                         <!-- Email -->
                         <div class="field">
                             <label class="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
-                                <i class="pi pi-envelope text-sky-800 text-[11px]"></i>
+                                <i class="pi pi-envelope text-sky-500 text-[11px]"></i>
                                 Email
                             </label>
                             <div class="relative group">
                                 <InputText 
                                     v-model="form.email" 
                                     type="email" 
-                                    class="w-full pl-8 pr-3 py-1.5 sm:py-2 text-xs sm:text-sm border-gray-200 focus:border-sky-800 focus:ring-sky-800"
+                                    class="w-full pl-8 pr-3 py-2 text-sm border-gray-200 focus:border-sky-400 focus:ring-sky-400"
                                     :class="{ 'p-invalid': form.errors.email }"
                                     placeholder="admin@gendarmerie.ml" />
                             </div>
-                            <small v-if="form.errors.email" class="text-red-500 text-[10px] mt-0.5 flex items-center gap-1">
-                                <i class="pi pi-exclamation-circle text-[9px]"></i>
+                            <small v-if="form.errors.email" class="text-red-500 text-[11px] mt-1 flex items-center gap-1">
+                                <i class="pi pi-exclamation-circle text-[10px]"></i>
                                 {{ form.errors.email }}
                             </small>
                         </div>
@@ -61,36 +61,36 @@
                         <!-- Password -->
                         <div class="field">
                             <label class="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
-                                <i class="pi pi-lock text-sky-800 text-[11px]"></i>
+                                <i class="pi pi-lock text-sky-500 text-[11px]"></i>
                                 Mot de passe
                             </label>
                             <div class="relative group">
                                 <InputText 
                                     :type="showPassword ? 'text' : 'password'"
                                     v-model="form.password" 
-                                    class="w-full pl-8 pr-8 py-1.5 sm:py-2 text-xs sm:text-sm border-gray-200 focus:border-sky-800 focus:ring-sky-800"
+                                    class="w-full pl-8 pr-8 py-2 text-sm border-gray-200 focus:border-sky-400 focus:ring-sky-400"
                                     :class="{ 'p-invalid': form.errors.password }"
                                     placeholder="••••••••" />
-                                <button type="button" @click="showPassword = !showPassword" class="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-sky-800">
+                                <button type="button" @click="showPassword = !showPassword" class="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-sky-500">
                                     <i :class="showPassword ? 'pi pi-eye-slash text-xs' : 'pi pi-eye text-xs'"></i>
                                 </button>
                             </div>
-                            <small v-if="form.errors.password" class="text-red-500 text-[10px] mt-0.5 flex items-center gap-1">
-                                <i class="pi pi-exclamation-circle text-[9px]"></i>
+                            <small v-if="form.errors.password" class="text-red-500 text-[11px] mt-1 flex items-center gap-1">
+                                <i class="pi pi-exclamation-circle text-[10px]"></i>
                                 {{ form.errors.password }}
                             </small>
                         </div>
 
                         <!-- Remember & Forgot -->
-                        <div class="flex items-center justify-between pt-0.5">
-                            <label class="flex items-center gap-1.5 cursor-pointer group">
+                        <div class="flex items-center justify-between">
+                            <label class="flex items-center gap-1 cursor-pointer group">
                                 <Checkbox v-model="form.remember" :binary="true" class="scale-75" />
-                                <span class="text-[11px] text-gray-600 group-hover:text-gray-800 font-medium">Se souvenir</span>
+                                <span class="text-[11px] text-gray-600 group-hover:text-gray-800">Se souvenir</span>
                             </label>
                             <Link 
                                 v-if="canResetPassword" 
                                 :href="route('password.request')" 
-                                class="text-[11px] text-sky-800 hover:text-sky-950 hover:underline font-semibold">
+                                class="text-[11px] text-sky-600 hover:text-sky-700 hover:underline">
                                 Mot de passe oublié ?
                             </Link>
                         </div>
@@ -101,27 +101,25 @@
                             :label="form.processing ? 'Connexion...' : 'Se connecter'"
                             :icon="form.processing ? 'pi pi-spinner pi-spin' : 'pi pi-sign-in'"
                             :loading="form.processing"
-                            class="w-full !bg-gradient-to-r !from-sky-800 !to-sky-700 hover:!from-sky-900 hover:!to-sky-800 !border-0 text-white py-2 text-xs sm:text-sm font-semibold shadow-md cursor-pointer mt-1" />
+                            class="w-full !bg-gradient-to-r !from-sky-800 !to-sky-700 hover:!from-sky-900 hover:!to-sky-800 !border-0 text-white py-2 text-sm font-semibold shadow-md cursor-pointer" />
                         
-                        <!-- Footer dans la carte bien visible -->
-                        <div class="text-center pt-2.5 border-t border-gray-100">
-                            <div class="flex justify-center items-center gap-2 text-[11px] font-semibold text-slate-500">
+                        <!-- Footer compact -->
+                        <div class="text-center pt-2 border-t border-gray-100">
+                            <div class="flex justify-center gap-2 text-[10px] text-gray-400">
                                 <span>Gendarmerie</span>
-                                <span class="text-slate-300">•</span>
+                                <span>•</span>
                                 <span>Gestion Militaire</span>
-                                <span class="text-slate-300">•</span>
-                                <span class="px-1.5 py-0.2 bg-slate-100 rounded text-slate-600 text-[10px]">v1.0</span>
+                                <span>•</span>
+                                <span>v1.0</span>
                             </div>
                         </div>
                     </form>
-                </div>
-            </div>
+                </template>
+            </Card>
             
-            <!-- Footer extérieur sous la carte : très net et bien visible -->
-            <div class="text-center mt-2.5 sm:mt-3 animate-fade-in-up">
-                <p class="text-sky-200/90 text-[11px] sm:text-xs font-medium tracking-wide drop-shadow-xs">
-                    © {{ new Date().getFullYear() }} — Gestion Militaire (Gendarmerie Nationale)
-                </p>
+            <!-- Footer ultra compact -->
+            <div class="text-center mt-3 animate-fade-in-up">
+                <p class="text-white/40 text-[10px]">© {{ new Date().getFullYear() }} - Gestion Militaire (Gendarmerie Nationale)</p>
             </div>
         </div>
     </div>
