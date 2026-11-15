@@ -94,6 +94,11 @@ class Militaire extends Model
                 $militaire->statut = 'retraité';
             }
 
+            // Déduction automatique de la position administrative pour les détachés si non renseignée
+            if ($militaire->statut === 'détaché' && empty($militaire->position_actuelle) && empty($militaire->position_id)) {
+                $militaire->position_actuelle = 'En détachement';
+            }
+
             // Déduction automatique de la catégorie statutaire si le grade est connu
             if (empty($militaire->categorie) && !empty($militaire->grade_actuel)) {
                 $grade = Grade::where('nom_grade', $militaire->grade_actuel)
