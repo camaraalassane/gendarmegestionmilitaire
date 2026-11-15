@@ -127,8 +127,8 @@ class MilitaireController extends Controller
             $query->where('militaires.statut', 'actif');
         } elseif ($statutFilter === 'otage') {
             $query->where(function($q) {
-                $q->where('militaires.position_actuelle', 'ILIKE', '%otage%')
-                  ->orWhere('militaires.observations', 'ILIKE', '%otage%');
+                $q->whereRaw("LOWER(COALESCE(militaires.position_actuelle, '')) LIKE ?", ['%otage%'])
+                  ->orWhereRaw("LOWER(COALESCE(militaires.observations, '')) LIKE ?", ['%otage%']);
             });
         } elseif ($statutFilter === 'retraites_n') {
             $query->whereIn('militaires.id', $this->getIdsRetraitePourAnnee($anneeN));

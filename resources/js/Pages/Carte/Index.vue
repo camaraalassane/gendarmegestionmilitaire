@@ -826,7 +826,6 @@
                                 <th class="p-2.5 font-bold">Nom & Prénom</th>
                                 <th class="p-2.5 font-bold">Grade</th>
                                 <th class="p-2.5 font-bold">Statut / Position</th>
-                                <th class="p-2.5 font-bold">Contact</th>
                                 <th class="p-2.5 font-bold text-right">Actions</th>
                             </tr>
                         </thead>
@@ -852,9 +851,6 @@
                                     <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-[10px]">
                                         {{ m.position_actuelle || m.statut || 'En attente' }}
                                     </span>
-                                </td>
-                                <td class="p-2.5 text-slate-600">
-                                    {{ m.telephone || '—' }}
                                 </td>
                                 <td class="p-2.5 text-right whitespace-nowrap">
                                     <div class="inline-flex items-center gap-1.5 justify-end">
@@ -937,7 +933,6 @@ const nonRattachesFiltres = computed(() => {
         (m.prenom && m.prenom.toLowerCase().includes(q)) ||
         (m.matricule && String(m.matricule).toLowerCase().includes(q)) ||
         (m.mle_grm && String(m.mle_grm).toLowerCase().includes(q)) ||
-        (m.telephone && String(m.telephone).toLowerCase().includes(q)) ||
         (m.grade_actuel && m.grade_actuel.toLowerCase().includes(q))
     );
 });

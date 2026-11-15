@@ -21,7 +21,7 @@ namespace App\Support;
 class Effectif
 {
     /** Motifs SQL des statuts considérés « en activité » dans l'effectif (les radiés sont EXCLUS et comptabilisés à part). */
-    public const MOTIFS = ['actif', 'actif%', 'd_tach_%', 'detach%', 'mission%', 'stage%', 'format%'];
+    public const MOTIFS = ['actif', 'actif%', 'd_tach_%', 'detach%', '%mission%', '%stage%', '%format%'];
 
     /** Condition SQL (PostgreSQL et SQLite) pour cibler les militaires en activité. */
     public static function sqlActivite(string $colonne = 'statut'): string
@@ -39,6 +39,16 @@ class Effectif
     public static function sqlStatut(string $motif, string $colonne = 'statut'): string
     {
         $st = "LOWER(TRIM(COALESCE({$colonne},'')))";
+
+        if ($motif === 'mission%' || $motif === '%mission%') {
+            return "({$st} LIKE '%miss%')";
+        }
+        if ($motif === 'stage%' || $motif === '%stage%') {
+            return "({$st} LIKE '%stag%' OR {$st} LIKE '%format%')";
+        }
+        if ($motif === 'd_tach_%' || $motif === '%detach%') {
+            return "({$st} LIKE 'd_tach_%' OR {$st} LIKE 'detach%')";
+        }
 
         return (str_contains($motif, '%') || str_contains($motif, '_')) ? "{$st} LIKE '{$motif}'" : "{$st} = '{$motif}'";
     }

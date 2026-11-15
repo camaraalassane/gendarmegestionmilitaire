@@ -92,7 +92,7 @@ class CarteController extends Controller
             ->where(function ($q) {
                 $q->whereNull('unite_id')->orWhere('unite_id', 0);
             })
-            ->select('id', 'matricule', 'mle_grm', 'nom', 'prenom', 'grade_actuel', 'statut', 'position_actuelle', 'telephone', 'observations')
+            ->select('id', 'matricule', 'mle_grm', 'nom', 'prenom', 'grade_actuel', 'statut', 'position_actuelle')
             ->orderBy('nom')
             ->orderBy('prenom')
             ->get();

@@ -100,7 +100,10 @@ class Militaire extends Model
             } elseif (empty($militaire->position_actuelle) && empty($militaire->position_id)) {
                 if (!empty($militaire->unite_id) || !empty($militaire->unite)) {
                     $militaire->position_actuelle = "À l'Unité / Au Poste";
-                    $militaire->position_id = 21;
+                    $posId = Position::where('nom', "À l'Unité / Au Poste")->value('id');
+                    if ($posId) {
+                        $militaire->position_id = $posId;
+                    }
                 }
             }
 
