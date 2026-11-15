@@ -881,19 +881,19 @@
                         <!-- ================================================================================= -->
                         <!-- BARRE DE NAVIGATION INFÉRIEURE DU STEPPER (COMPACTE & FIXE AU BAS DE L'ÉCRAN)      -->
                         <!-- ================================================================================= -->
-                        <div class="sticky bottom-2 z-30 mt-6 bg-white/95 backdrop-blur-md px-4 py-2.5 rounded-xl border border-slate-200 shadow-lg flex items-center justify-between">
+                        <div class="sticky bottom-2 z-30 mt-6 bg-white/95 backdrop-blur-md px-3 sm:px-4 py-2.5 rounded-xl border border-slate-200 shadow-lg flex flex-wrap items-center justify-between gap-2">
                             <!-- Bouton Précédent -->
                             <Button v-if="currentStep > 0"
                                     type="button"
-                                    label="Étape précédente"
+                                    label="Précédent"
                                     icon="pi pi-arrow-left"
                                     size="small"
-                                    class="p-button-outlined p-button-secondary font-bold text-xs cursor-pointer"
+                                    class="p-button-outlined p-button-secondary font-bold text-xs cursor-pointer flex-1 sm:flex-none justify-center"
                                     @click="prevStep" />
-                            <div v-else></div>
+                            <div v-else class="hidden sm:block"></div>
 
                             <!-- Actions Droite -->
-                            <div class="flex items-center gap-2 sm:gap-3">
+                            <div class="flex items-center gap-2 sm:gap-3 flex-1 sm:flex-none justify-end">
                                 <Button type="button"
                                         label="Annuler"
                                         icon="pi pi-times"
@@ -903,7 +903,7 @@
 
                                 <Button v-if="currentStep < steps.length - 1"
                                         type="button"
-                                        label="Étape suivante"
+                                        label="Suivant"
                                         icon="pi pi-arrow-right"
                                         iconPos="right"
                                         size="small"
@@ -912,11 +912,11 @@
 
                                 <Button v-else
                                         type="submit"
-                                        label="Enregistrer les modifications"
+                                        label="Enregistrer"
                                         icon="pi pi-check"
                                         size="small"
                                         :loading="saving"
-                                        class="!bg-gradient-to-r !from-sky-800 !to-sky-700 hover:!from-sky-900 hover:!to-sky-800 text-white font-bold text-xs px-5 py-2 rounded-lg shadow-md cursor-pointer flex items-center gap-1.5" />
+                                        class="!bg-gradient-to-r !from-sky-800 !to-sky-700 hover:!from-sky-900 hover:!to-sky-800 text-white font-bold text-xs px-4 sm:px-5 py-2 rounded-lg shadow-md cursor-pointer flex items-center gap-1.5" />
                             </div>
                         </div>
                     </form>

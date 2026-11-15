@@ -181,16 +181,48 @@ class DashboardController extends Controller
             }
         }
 
-        // Ajouter les militaires actifs sans position renseignée
-        $actifsSansPosition = $this->enActivite()
+        // Traitement des militaires actifs sans position renseignée
+        $actifsSansPositionAvecUnite = $this->enActivite()
             ->where(function ($q) {
                 $q->whereNull('position_actuelle')->orWhere('position_actuelle', '');
+            })
+            ->where(function ($q) {
+                $q->whereNotNull('unite_id')->orWhere(function ($sq) {
+                    $sq->whereNotNull('unite')->where('unite', '!=', '');
+                });
             })->count();
 
-        if ($actifsSansPosition > 0) {
+        if ($actifsSansPositionAvecUnite > 0) {
+            $found = false;
+            foreach ($positionsDistribution as &$pos) {
+                if (strcasecmp($pos['label'], "À l'Unité / Au Poste") === 0) {
+                    $pos['value'] += $actifsSansPositionAvecUnite;
+                    $found = true;
+                    break;
+                }
+            }
+            unset($pos);
+            if (!$found) {
+                $positionsDistribution[] = [
+                    'label' => "À l'Unité / Au Poste",
+                    'value' => (int) $actifsSansPositionAvecUnite,
+                ];
+            }
+        }
+
+        $actifsEnAttenteAffectation = $this->enActivite()
+            ->where(function ($q) {
+                $q->whereNull('position_actuelle')->orWhere('position_actuelle', '');
+            })
+            ->whereNull('unite_id')
+            ->where(function ($q) {
+                $q->whereNull('unite')->orWhere('unite', '');
+            })->count();
+
+        if ($actifsEnAttenteAffectation > 0) {
             $positionsDistribution[] = [
-                'label' => 'Non assigné / En attente',
-                'value' => (int) $actifsSansPosition,
+                'label' => "En attente d'affectation (Recrues)",
+                'value' => (int) $actifsEnAttenteAffectation,
             ];
         }
 

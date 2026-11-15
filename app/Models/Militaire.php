@@ -97,6 +97,11 @@ class Militaire extends Model
             // Déduction automatique de la position administrative pour les détachés si non renseignée
             if ($militaire->statut === 'détaché' && empty($militaire->position_actuelle) && empty($militaire->position_id)) {
                 $militaire->position_actuelle = 'En détachement';
+            } elseif (empty($militaire->position_actuelle) && empty($militaire->position_id)) {
+                if (!empty($militaire->unite_id) || !empty($militaire->unite)) {
+                    $militaire->position_actuelle = "À l'Unité / Au Poste";
+                    $militaire->position_id = 21;
+                }
             }
 
             // Déduction automatique de la catégorie statutaire si le grade est connu
@@ -128,10 +133,12 @@ class Militaire extends Model
 
         static::saved(function () {
             static::incrementCacheVersion();
+            \App\Http\Controllers\CarteController::flush();
         });
 
         static::deleted(function () {
             static::incrementCacheVersion();
+            \App\Http\Controllers\CarteController::flush();
         });
     }
 

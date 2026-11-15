@@ -1,19 +1,19 @@
 <template>
-    <div class="min-h-screen bg-gray-100">
+    <div class="min-h-screen bg-gray-100 overflow-x-hidden w-full max-w-full">
         <Sidebar v-model:is-open="sidebarOpen" :is-mobile="isMobile" @close-mobile="closeMobileMenu" />
 
         <div
-            :class="['transition-all duration-300 print:!ml-0 print:!p-0 print:!w-full', !isMobile && sidebarOpen ? 'lg:ml-64' : (!isMobile ? 'lg:ml-20' : '')]">
+            :class="['transition-all duration-300 print:!ml-0 print:!p-0 print:!w-full min-w-0 max-w-full overflow-x-hidden', !isMobile && sidebarOpen ? 'lg:ml-64' : (!isMobile ? 'lg:ml-20' : '')]">
 
             <header class="bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 shadow-md z-10 border-b border-sky-600/30 print:hidden">
-                <div class="flex justify-between items-center px-4 py-3">
-                    <button @click="toggleSidebarMobile" class="lg:hidden text-white">
+                <div class="flex justify-between items-center px-3 sm:px-4 py-2.5 sm:py-3 gap-2">
+                    <button @click="toggleSidebarMobile" class="lg:hidden text-white p-1 hover:bg-white/10 rounded-lg shrink-0" aria-label="Menu">
                         <i class="pi pi-bars text-xl"></i>
                     </button>
 
-                    <div class="lg:hidden flex-1 text-center min-w-0 px-2">
+                    <div class="lg:hidden flex-1 text-center min-w-0 px-1 overflow-hidden">
                         <slot name="header">
-                            <h1 class="text-lg font-semibold text-white truncate">{{ title }}</h1>
+                            <h1 class="text-base font-semibold text-white truncate">{{ title }}</h1>
                         </slot>
                     </div>
 
@@ -23,9 +23,7 @@
                         </slot>
                     </div>
 
-                    <div class="lg:hidden w-8"></div>
-
-                    <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2 sm:gap-4 shrink-0">
                         
 
                         <button v-if="$page.props.auth.user.role !== 1" @click="showNotifications" class="relative text-white hover:text-sky-200"
@@ -66,7 +64,7 @@
                 </div>
             </header>
 
-            <main class="p-4 print:p-0 print:m-0">
+            <main class="p-2.5 sm:p-4 print:p-0 print:m-0 min-w-0 max-w-full">
                 <slot />
             </main>
         </div>

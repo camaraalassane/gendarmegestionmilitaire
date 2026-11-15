@@ -34,3 +34,4 @@ test_import_militaires.csv
 /*.png
 /dump_r6_json.php
 /check_units_in_props.php
+/scratch/

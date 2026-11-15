@@ -1,14 +1,14 @@
 <template>
     <AuthenticatedLayout>
         <template #header>
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                    <h2 class="font-bold text-xl text-white leading-tight flex items-center gap-2">
-                        <i class="pi pi-chart-line text-sky-300"></i>
-                        Tableau de bord — Situation des Effectifs & Déploiements
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
+                <div class="min-w-0">
+                    <h2 class="font-bold text-base sm:text-xl text-white leading-tight flex items-center gap-2 truncate">
+                        <i class="pi pi-chart-line text-sky-300 shrink-0"></i>
+                        <span>Tableau de bord — Situation des Effectifs & Déploiements</span>
                     </h2>
-                    <p class="text-xs text-sky-100 mt-0.5 flex items-center gap-2">
-                        <span>Année en cours : <strong>{{ statistiques.annee }}</strong></span>
+                    <p class="text-xs text-sky-100 mt-0.5 flex items-center gap-2 flex-wrap">
+                        <span>Année : <strong>{{ statistiques.annee }}</strong></span>
                         <span class="text-sky-300">|</span>
                         <span class="flex items-center gap-1.5">
                             <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -16,7 +16,7 @@
                         </span>
                     </p>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                     <Button icon="pi pi-refresh"
                             label="Rafraîchir"
                             size="small"
@@ -29,7 +29,7 @@
 
         <Toast />
 
-        <div class="py-8 max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-8">
+        <div class="py-4 sm:py-8 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 space-y-6 sm:space-y-8 min-w-0">
             <!-- ========================================================================= -->
             <!-- 1. AXE A : EFFECTIF OPÉRATIONNEL EN ACTIVITÉ (COMPTABILISÉS SÉPARÉMENT)    -->
             <!-- ========================================================================= -->
