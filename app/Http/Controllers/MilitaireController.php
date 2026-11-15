@@ -109,8 +109,17 @@ class MilitaireController extends Controller
         $anneeN = Carbon::now()->year;
         $statutFilter = $request->input('statut', 'actif');
 
+        if ($request->boolean('non_rattaches') || $request->input('non_rattaches') === '1') {
+            $statutFilter = 'non_rattaches';
+        }
+
         if ($statutFilter === 'all') {
             // Afficher tous les militaires (sans restriction de statut)
+        } elseif ($statutFilter === 'non_rattaches') {
+            $query->whereNull('militaires.region_id')
+                  ->where(function ($q) {
+                      $q->whereNull('militaires.unite_id')->orWhere('militaires.unite_id', 0);
+                  });
         } elseif ($statutFilter === 'actif') {
             // Actifs, détachés, en détachement, en stage, en formation, en mission : tous comptés en activité
             $query->whereRaw(Effectif::sqlActivite('militaires.statut'));
@@ -167,10 +176,15 @@ class MilitaireController extends Controller
         $v = Militaire::getCacheVersion();
         $statistiques = Cache::remember("v{$v}:militaires:stats_summary", 600, function () use ($anneeN) {
             return [
-                'total'        => Militaire::count(),
-                'actifs'       => Militaire::whereRaw(Effectif::sqlActivite('statut'))->count(),
-                'retraites_n'  => count($this->getIdsRetraitePourAnnee($anneeN)),
-                'retraites_n1' => count($this->getIdsRetraitePourAnnee($anneeN + 1)),
+                'total'         => Militaire::count(),
+                'actifs'        => Militaire::whereRaw(Effectif::sqlActivite('statut'))->count(),
+                'non_rattaches' => Militaire::whereRaw(Effectif::sqlActivite('statut'))
+                    ->whereNull('region_id')
+                    ->where(function ($q) {
+                        $q->whereNull('unite_id')->orWhere('unite_id', 0);
+                    })->count(),
+                'retraites_n'   => count($this->getIdsRetraitePourAnnee($anneeN)),
+                'retraites_n1'  => count($this->getIdsRetraitePourAnnee($anneeN + 1)),
             ];
         });
 
@@ -230,12 +244,13 @@ class MilitaireController extends Controller
             'militaires'   => $militaires,
             'statistiques' => $statistiques,
             'filters'      => [
-                'search'   => $request->search,
-                'grade'    => $request->grade,
-                'statut'   => $statutFilter,
-                'region'   => $request->region,
-                'unite'    => $request->unite,
-                'position' => $request->position,
+                'search'        => $request->search,
+                'grade'         => $request->grade,
+                'statut'        => $statutFilter,
+                'region'        => $request->region,
+                'unite'         => $request->unite,
+                'position'      => $request->position,
+                'non_rattaches' => $request->boolean('non_rattaches') || $request->input('non_rattaches') === '1' || $statutFilter === 'non_rattaches',
             ],
             'grades'       => $grades,
             'regions'      => $regions,

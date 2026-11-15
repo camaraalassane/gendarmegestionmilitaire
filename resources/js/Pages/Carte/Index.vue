@@ -25,7 +25,7 @@
         </template>
 
         <!-- Container principal fixé dans le viewport (zéro défilement externe de page) -->
-        <div class="h-[calc(100vh-4.75rem)] flex flex-col gap-2 overflow-hidden -m-1 sm:-m-2">
+        <div class="min-h-[calc(100vh-4.75rem)] flex flex-col gap-2 overflow-y-auto lg:overflow-hidden -m-1 sm:-m-2">
             <!-- 1. Chiffres clés (KPIs) CLAIRS / BLANCS (comme demandé : "pas les autres cards") -->
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 flex-none">
                 <div
@@ -79,16 +79,42 @@
                 </div>
             </div>
 
-            <!-- Alerte non rattachés si existants -->
+            <!-- Alerte non rattachés si existants avec accès direct aux recrues pour correction -->
             <div
                 v-if="stats.non_rattaches > 0"
-                class="rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-xs px-2.5 py-1 flex items-center justify-between flex-none"
+                class="rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-xs px-3 py-2 flex flex-wrap items-center justify-between gap-2 flex-none shadow-xs"
             >
-                <div class="flex items-center gap-1.5">
-                    <i class="pi pi-exclamation-triangle text-amber-600 text-xs"></i>
-                    <span>
-                        <strong>{{ fmt(stats.non_rattaches) }}</strong> militaires non rattachés à une région/unité.
+                <div class="flex items-center gap-2">
+                    <span class="w-6 h-6 rounded-full bg-amber-200 text-amber-800 flex items-center justify-center shrink-0">
+                        <i class="pi pi-exclamation-triangle text-xs"></i>
                     </span>
+                    <div>
+                        <div class="font-bold text-slate-900">
+                            {{ fmt(stats.non_rattaches) }} recrues en attente d'affectation
+                        </div>
+                        <div class="text-[11px] text-amber-800">
+                            Ces militaires sont enregistrés sans région ni unité d'affectation.
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        @click="showNonRattachesModal = true"
+                        class="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                        title="Voir la liste détaillée des recrues pour leur assigner une région et unité"
+                    >
+                        <i class="pi pi-users text-xs"></i>
+                        <span>Consulter & Corriger ({{ fmt(stats.non_rattaches) }})</span>
+                    </button>
+                    <Link
+                        :href="route('militaires.index', { non_rattaches: 1 })"
+                        class="px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-md font-semibold text-xs flex items-center gap-1.5 transition-colors"
+                        title="Ouvrir dans l'annuaire complet"
+                    >
+                        <i class="pi pi-external-link text-[10px]"></i>
+                        <span>Dans l'annuaire</span>
+                    </Link>
                 </div>
             </div>
 
@@ -173,7 +199,7 @@
 
                     <!-- UNIQUEMENT CET ENDROIT : LE CANEVAS DE LA CARTE EN BLEU ARDOISE ADOUCI (#16212E) -->
                     <div
-                        class="flex-1 min-h-0 w-full h-full relative flex items-center justify-center overflow-hidden bg-[#16212e] rounded-lg border border-[#263446] p-1 cursor-grab select-none"
+                        class="flex-1 min-h-[480px] lg:min-h-[540px] w-full h-full relative flex items-center justify-center overflow-hidden bg-[#16212e] rounded-lg border border-[#263446] p-1 cursor-grab select-none"
                         :class="{ '!cursor-grabbing': isDragging }"
                         @mousedown="onMouseDown"
                         @wheel.prevent="onWheel"
@@ -288,6 +314,9 @@
                                 <filter id="pin-shadow" x="-30%" y="-30%" width="160%" height="160%">
                                     <feDropShadow dx="0" dy="0.8" stdDeviation="0.8" flood-opacity="0.5" flood-color="#000000" />
                                 </filter>
+                                <filter id="badge-glow" x="-20%" y="-20%" width="140%" height="140%">
+                                    <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-opacity="0.75" flood-color="#000000" />
+                                </filter>
                             </defs>
 
                             <!-- Tracés des régions SVG (Nuances tactiques de bleu marine comme sur la photo ; sans infobulle native redondante) -->
@@ -311,42 +340,123 @@
                                 />
                             </template>
 
-                            <!-- Vue nationale : étiquettes noms + chiffres blancs nets avec halo sombre -->
+                            <!-- Vue nationale : BADGES TACTIQUES HAUTE VISIBILITÉ DES RÉGIONS & CHIFFRES CLAIRS -->
                             <template v-if="!sel">
-                                <template v-for="r in regions" :key="'l' + r.code">
-                                    <g v-if="SHAPES[r.code] && r.code !== 'R1'" class="lbl-g pointer-events-none">
-                                        <text class="lbl nm" :x="SHAPES[r.code].cx" :y="SHAPES[r.code].cy - 2">
-                                            {{ shortName(r.nom) }}
+                                <!-- 1. Régions avec effectif > 0 (hors Bamako) : Badges tactiques contrastés avec chiffre agrandi -->
+                                <template v-for="r in regions" :key="'badge-' + r.code">
+                                    <g
+                                        v-if="SHAPES[r.code] && r.code !== 'R1' && valueOf(r) > 0"
+                                        class="tactical-badge pointer-events-none"
+                                        :transform="`translate(${SHAPES[r.code].cx}, ${SHAPES[r.code].cy})`"
+                                    >
+                                        <!-- Boîtier sombre avec bordure cyan lumineuse et ombre portée -->
+                                        <rect
+                                            :x="-badgeWidth(r) / 2"
+                                            y="-11"
+                                            :width="badgeWidth(r)"
+                                            height="22"
+                                            rx="5"
+                                            ry="5"
+                                            fill="#090e17"
+                                            stroke="#38bdf8"
+                                            stroke-width="1.4"
+                                            filter="url(#badge-glow)"
+                                        />
+                                        <!-- Ligne 1 : Nom de la région en majuscules cyan pastel -->
+                                        <text
+                                            x="0"
+                                            y="-2"
+                                            text-anchor="middle"
+                                            class="tactical-badge-nom"
+                                        >
+                                            {{ shortName(r.nom).toUpperCase() }}
                                         </text>
-                                        <text class="lbl num" :x="SHAPES[r.code].cx" :y="SHAPES[r.code].cy + 11">
+                                        <!-- Ligne 2 : CHIFFRE GRAND ET EXTRA-VISIBLE (BLANC ÉCLATANT) -->
+                                        <text
+                                            x="0"
+                                            y="8"
+                                            text-anchor="middle"
+                                            class="tactical-badge-val"
+                                        >
                                             {{ fmt(valueOf(r)) }}
                                         </text>
                                     </g>
                                 </template>
 
-                                <!-- District de Bamako (R1) : cercle bleu + trait guide + étiquette blanche -->
+                                <!-- 2. Régions avec effectif == 0 : Libellé discret mais propre (aucun flou) -->
+                                <template v-for="r in regions" :key="'zero-' + r.code">
+                                    <g
+                                        v-if="SHAPES[r.code] && r.code !== 'R1' && valueOf(r) === 0"
+                                        class="lbl-zero pointer-events-none"
+                                        :transform="`translate(${SHAPES[r.code].cx}, ${SHAPES[r.code].cy})`"
+                                    >
+                                        <text x="0" y="-2" text-anchor="middle" class="lbl-zero-nm">
+                                            {{ shortName(r.nom) }}
+                                        </text>
+                                        <text x="0" y="8" text-anchor="middle" class="lbl-zero-num">
+                                            0
+                                        </text>
+                                    </g>
+                                </template>
+
+                                <!-- 3. District de Bamako (R1) : Grand badge HQ avec ligne guide lumineuse sans chevauchement -->
                                 <template v-for="r in regions.filter(x => x.code === 'R1' && SHAPES.R1)" :key="'b'">
+                                    <!-- Point d'ancrage central Bamako avec impulsion lumineuse -->
                                     <circle
-                                        class="reg"
+                                        class="reg cursor-pointer"
                                         :cx="SHAPES.R1.cx"
                                         :cy="SHAPES.R1.cy"
                                         r="6"
-                                        style="fill: #5f9bea; stroke: #ffffff; stroke-width: 1.2px;"
+                                        fill="#38bdf8"
+                                        stroke="#ffffff"
+                                        stroke-width="1.8"
+                                        filter="url(#badge-glow)"
                                         @click="handleRegionClick('R1')"
                                         @mouseenter="onHoverRegion(r)"
                                         @mouseleave="onLeaveHover"
                                     />
+                                    <circle
+                                        :cx="SHAPES.R1.cx"
+                                        :cy="SHAPES.R1.cy"
+                                        r="2.5"
+                                        fill="#ffffff"
+                                        class="pointer-events-none"
+                                    />
+                                    <!-- Ligne guide tactique vers l'ouest dégagé -->
                                     <line
-                                        class="lead"
+                                        class="lead pointer-events-none"
                                         :x1="SHAPES.R1.cx"
                                         :y1="SHAPES.R1.cy"
-                                        :x2="SHAPES.R1.cx - 26"
-                                        :y2="SHAPES.R1.cy + 30"
-                                        style="stroke: #5f9bea; stroke-width: 1.2px;"
+                                        :x2="SHAPES.R1.cx - 45"
+                                        :y2="SHAPES.R1.cy + 22"
+                                        stroke="#38bdf8"
+                                        stroke-width="1.5"
+                                        stroke-dasharray="3,2"
                                     />
-                                    <text class="lbl num" :x="SHAPES.R1.cx - 26" :y="SHAPES.R1.cy + 42">
-                                        Bamako {{ fmt(valueOf(r)) }}
-                                    </text>
+                                    <!-- Grand badge tactique Bamako -->
+                                    <g
+                                        class="pointer-events-none"
+                                        :transform="`translate(${SHAPES.R1.cx - 45}, ${SHAPES.R1.cy + 22})`"
+                                    >
+                                        <rect
+                                            x="-38"
+                                            y="-12"
+                                            width="76"
+                                            height="24"
+                                            rx="6"
+                                            ry="6"
+                                            fill="#082f49"
+                                            stroke="#38bdf8"
+                                            stroke-width="1.8"
+                                            filter="url(#badge-glow)"
+                                        />
+                                        <text x="0" y="-2" text-anchor="middle" class="tactical-bamako-nom">
+                                            ★ BAMAKO (HQ)
+                                        </text>
+                                        <text x="0" y="8" text-anchor="middle" class="tactical-bamako-val">
+                                            {{ fmt(valueOf(r)) }}
+                                        </text>
+                                    </g>
                                 </template>
                             </template>
 
@@ -660,17 +770,150 @@
                 </div>
             </div>
         </div>
+
+        <!-- Modal: Recrues en attente d'affectation (Sans région / unité) -->
+        <Dialog
+            v-model:visible="showNonRattachesModal"
+            modal
+            :header="`Recrues en attente d'affectation (${props.stats.non_rattaches} sans région/unité)`"
+            :style="{ width: '920px', maxWidth: '96vw' }"
+            class="p-fluid"
+        >
+            <div class="space-y-3">
+                <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 flex items-start gap-2.5">
+                    <i class="pi pi-info-circle text-amber-600 text-base mt-0.5 shrink-0"></i>
+                    <div>
+                        <div class="font-bold text-amber-950">
+                            {{ props.stats.non_rattaches }} recrues actives sans affectation territoriale
+                        </div>
+                        <p class="text-amber-800 mt-0.5">
+                            Ces soldats sont actifs dans l'effectif mais n'ont pas encore été affectés à une région militaire ni à une unité. Cliquez sur <strong>« Affecter »</strong> pour leur assigner une région et une unité.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Barre de recherche rapide + action globale -->
+                <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    <div class="relative flex-1 min-w-[220px]">
+                        <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                        <input
+                            v-model="searchRecrues"
+                            type="text"
+                            placeholder="Rechercher par nom, prénom, matricule, MLE GRM..."
+                            class="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-800"
+                        />
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-semibold text-slate-500">
+                            {{ nonRattachesFiltres.length }} sur {{ props.stats.non_rattaches }}
+                        </span>
+                        <Link
+                            :href="route('militaires.index', { non_rattaches: 1 })"
+                            class="px-2.5 py-1.5 bg-sky-900 hover:bg-sky-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors"
+                        >
+                            <i class="pi pi-external-link text-xs"></i>
+                            <span>Ouvrir dans l'Annuaire</span>
+                        </Link>
+                    </div>
+                </div>
+
+                <!-- Liste des recrues (Tableau responsive) -->
+                <div class="max-h-[58vh] overflow-y-auto border border-slate-200 rounded-lg custom-scrollbar">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead class="bg-slate-100 text-slate-700 sticky top-0 z-10 border-b border-slate-200">
+                            <tr>
+                                <th class="p-2.5 font-bold">Matricule / MLE</th>
+                                <th class="p-2.5 font-bold">Nom & Prénom</th>
+                                <th class="p-2.5 font-bold">Grade</th>
+                                <th class="p-2.5 font-bold">Statut / Position</th>
+                                <th class="p-2.5 font-bold">Contact</th>
+                                <th class="p-2.5 font-bold text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <tr
+                                v-for="m in nonRattachesFiltres"
+                                :key="m.id"
+                                class="hover:bg-sky-50/50 transition-colors"
+                            >
+                                <td class="p-2.5 font-mono text-[11px] font-semibold text-slate-800">
+                                    <div>FAMA: {{ m.matricule || 'N/A' }}</div>
+                                    <div class="text-[10px] text-slate-500">GRM: {{ m.mle_grm || 'N/A' }}</div>
+                                </td>
+                                <td class="p-2.5 font-bold text-slate-900">
+                                    {{ m.nom }} {{ m.prenom }}
+                                </td>
+                                <td class="p-2.5">
+                                    <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-semibold text-[11px] border border-slate-200">
+                                        {{ m.grade_actuel || 'Soldat 2' }}
+                                    </span>
+                                </td>
+                                <td class="p-2.5">
+                                    <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-[10px]">
+                                        {{ m.position_actuelle || m.statut || 'En attente' }}
+                                    </span>
+                                </td>
+                                <td class="p-2.5 text-slate-600">
+                                    {{ m.telephone || '—' }}
+                                </td>
+                                <td class="p-2.5 text-right whitespace-nowrap">
+                                    <div class="inline-flex items-center gap-1.5 justify-end">
+                                        <Link
+                                            :href="route('militaires.edit', m.id)"
+                                            class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold text-[11px] flex items-center gap-1 shadow-xs transition-colors"
+                                            title="Affecter une région et une unité à cette recrue"
+                                        >
+                                            <i class="pi pi-pencil text-[10px]"></i>
+                                            <span>Affecter</span>
+                                        </Link>
+                                        <Link
+                                            :href="route('militaires.show', m.id)"
+                                            class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded font-semibold text-[11px] flex items-center gap-1 transition-colors"
+                                            title="Voir la fiche détaillée"
+                                        >
+                                            <i class="pi pi-eye text-[10px]"></i>
+                                        </Link>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr v-if="nonRattachesFiltres.length === 0">
+                                <td colspan="6" class="p-6 text-center text-slate-500">
+                                    Aucune recrue trouvée pour cette recherche.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <template #footer>
+                <div class="flex items-center justify-between w-full pt-2 border-t border-slate-200">
+                    <span class="text-xs text-slate-500">
+                        Total recrues en attente : <strong>{{ props.stats.non_rattaches }}</strong>
+                    </span>
+                    <button
+                        type="button"
+                        @click="showNonRattachesModal = false"
+                        class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg text-xs font-semibold cursor-pointer"
+                    >
+                        Fermer
+                    </button>
+                </div>
+            </template>
+        </Dialog>
     </AuthenticatedLayout>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
+import Dialog from 'primevue/dialog';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { MALI_VIEW, REGION_SHAPES as SHAPES, project } from './maliRegions.js';
 
 const props = defineProps({
     regions: { type: Array, default: () => [] },
+    non_rattaches_liste: { type: Array, default: () => [] },
     stats: { type: Object, default: () => ({ non_rattaches: 0, generated_at: '', annee: new Date().getFullYear(), hors_region: {} }) },
     regionInitiale: { type: String, default: null },
 });
@@ -680,6 +923,24 @@ const carteZoneRef = ref(null);
 const isFullscreen = ref(false);
 const showSidePanelInFullscreen = ref(true);
 const sidebarTab = ref('liste');
+
+// Modal pour consulter et corriger les recrues non rattachées
+const showNonRattachesModal = ref(false);
+const searchRecrues = ref('');
+
+const nonRattachesFiltres = computed(() => {
+    const list = props.non_rattaches_liste || [];
+    if (!searchRecrues.value || !searchRecrues.value.trim()) return list;
+    const q = searchRecrues.value.toLowerCase().trim();
+    return list.filter(m =>
+        (m.nom && m.nom.toLowerCase().includes(q)) ||
+        (m.prenom && m.prenom.toLowerCase().includes(q)) ||
+        (m.matricule && String(m.matricule).toLowerCase().includes(q)) ||
+        (m.mle_grm && String(m.mle_grm).toLowerCase().includes(q)) ||
+        (m.telephone && String(m.telephone).toLowerCase().includes(q)) ||
+        (m.grade_actuel && m.grade_actuel.toLowerCase().includes(q))
+    );
+});
 
 const toggleFullscreen = async () => {
     if (!isFullscreen.value) {
@@ -844,6 +1105,13 @@ const hasDragged = ref(false);
 const dragStart = { x: 0, y: 0 };
 let touchStartDist = 0;
 let touchStartZoom = 1;
+
+// Calcul automatique et compact de la largeur des badges tactiques selon le nom de région
+const badgeWidth = (r) => {
+    if (!r) return 46;
+    const len = shortName(r.nom).length;
+    return Math.max(38, Math.min(len * 5.6 + 12, 60));
+};
 
 const choisir = (code) => {
     sel.value = code;
@@ -1031,7 +1299,8 @@ const onTouchEnd = () => {
 
 // Cadrage de base de la région sélectionnée
 const baseRegionBox = computed(() => {
-    const full = [0, 0, MALI_VIEW.w, MALI_VIEW.h];
+    // Vue nationale : cadrage aéré incluant Kayes à l'ouest, Ménaka à l'est, Sikasso au sud et Taoudénit au nord
+    const full = [-24, 30, 685, 575];
     const shape = sel.value && SHAPES[sel.value];
     if (!shape) return full;
     const [a, b, c, d] = shape.bb;
@@ -1325,6 +1594,54 @@ const lignesFiltrees = computed(() => {
 }
 .unit-marker:hover circle {
     filter: brightness(1.2);
+}
+
+/* Badges tactiques haute visibilité des régions */
+.tactical-badge-nom {
+    font-size: 7px;
+    font-weight: 700;
+    fill: #bae6fd;
+    letter-spacing: 0.4px;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    pointer-events: none;
+}
+.tactical-badge-val {
+    font-size: 11.5px;
+    font-weight: 900;
+    fill: #ffffff;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+}
+.tactical-bamako-nom {
+    font-size: 7.5px;
+    font-weight: 800;
+    fill: #7dd3fc;
+    letter-spacing: 0.5px;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    pointer-events: none;
+}
+.tactical-bamako-val {
+    font-size: 13px;
+    font-weight: 900;
+    fill: #ffffff;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+}
+.lbl-zero-nm {
+    font-size: 8px;
+    font-weight: 600;
+    fill: #64748b;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    pointer-events: none;
+}
+.lbl-zero-num {
+    font-size: 9.5px;
+    font-weight: 700;
+    fill: #475569;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    pointer-events: none;
 }
 
 .lbl {

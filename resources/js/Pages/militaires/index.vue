@@ -8,41 +8,41 @@
             </div>
         </template>
 
-        <div class="py-12">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+        <div class="py-4 sm:py-8">
+            <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-w-0">
                 <!-- Header de la page et barre d'actions responsive -->
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 md:gap-4 mb-4 sm:mb-6">
                     <div class="min-w-0">
-                        <h2 class="font-bold text-xl md:text-2xl text-sky-950">Gestion des Militaires - Gendarmerie Nationale</h2>
-                        <p class="text-xs text-slate-500 mt-1">Annuaire et suivi du personnel militaire et territorial</p>
+                        <h2 class="font-bold text-lg sm:text-xl md:text-2xl text-sky-950 truncate">Gestion des Militaires - Gendarmerie Nationale</h2>
+                        <p class="text-xs text-slate-500 mt-0.5">Annuaire et suivi du personnel militaire et territorial</p>
                     </div>
-                    <div class="flex flex-wrap items-center gap-2.5 shrink-0">
+                    <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
                         <!-- Bouton d'impression groupée visible dès qu'au moins 1 militaire est coché -->
                         <button v-if="selectedMilitaires.length > 0" @click="openBatchCertificatsModal" type="button"
-                            class="px-3.5 py-2 bg-gradient-to-r from-emerald-700 to-emerald-600 text-white rounded-lg font-semibold hover:from-emerald-800 hover:to-emerald-700 transition-all flex items-center gap-2 shadow-xs text-xs sm:text-sm whitespace-nowrap cursor-pointer">
+                            class="flex-1 sm:flex-none justify-center px-3 py-2 bg-gradient-to-r from-emerald-700 to-emerald-600 text-white rounded-lg font-semibold hover:from-emerald-800 hover:to-emerald-700 transition-all flex items-center gap-1.5 shadow-xs text-xs whitespace-nowrap cursor-pointer">
                             <i class="pi pi-print text-xs"></i> <span>Imprimer certificats ({{ selectedMilitaires.length }})</span>
                         </button>
 
                         <button @click="createMilitaire" type="button"
-                            class="px-3.5 py-2 bg-gradient-to-r from-sky-800 to-sky-700 text-white rounded-lg font-semibold hover:from-sky-900 hover:to-sky-800 transition-all flex items-center gap-2 shadow-xs text-xs sm:text-sm whitespace-nowrap cursor-pointer">
-                            <i class="pi pi-plus text-xs"></i> <span>Nouveau militaire</span>
+                            class="flex-1 sm:flex-none justify-center px-3 py-2 bg-gradient-to-r from-sky-800 to-sky-700 text-white rounded-lg font-semibold hover:from-sky-900 hover:to-sky-800 transition-all flex items-center gap-1.5 shadow-xs text-xs whitespace-nowrap cursor-pointer">
+                            <i class="pi pi-plus text-xs"></i> <span>Nouveau</span>
                         </button>
                         <button @click="importExcel" type="button"
-                            class="px-3.5 py-2 bg-white text-sky-900 rounded-lg font-semibold hover:bg-sky-50 transition-colors flex items-center gap-2 shadow-xs text-xs sm:text-sm border border-sky-200 whitespace-nowrap cursor-pointer">
-                            <i class="pi pi-upload text-xs"></i> <span>Importer Excel</span>
+                            class="flex-1 sm:flex-none justify-center px-3 py-2 bg-white text-sky-900 rounded-lg font-semibold hover:bg-sky-50 transition-colors flex items-center gap-1.5 shadow-xs text-xs border border-sky-200 whitespace-nowrap cursor-pointer">
+                            <i class="pi pi-upload text-xs"></i> <span>Importer</span>
                         </button>
                         <button @click="openExportModal" type="button"
-                            class="px-3.5 py-2 bg-white text-sky-900 rounded-lg font-semibold hover:bg-sky-50 transition-colors flex items-center gap-2 shadow-xs text-xs sm:text-sm border border-sky-200 whitespace-nowrap cursor-pointer">
+                            class="flex-1 sm:flex-none justify-center px-3 py-2 bg-white text-sky-900 rounded-lg font-semibold hover:bg-sky-50 transition-colors flex items-center gap-1.5 shadow-xs text-xs border border-sky-200 whitespace-nowrap cursor-pointer">
                             <i class="pi pi-file-excel text-xs"></i> <span>Exporter</span>
                         </button>
                     </div>
                 </div>
 
                 <!-- Statistiques -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
                     <div @click="setStatutFilter('all')" 
                          :class="filters.statut === 'all' ? 'ring-2 ring-sky-800 shadow-md bg-sky-50/50' : 'bg-white shadow-sm hover:shadow-md'"
-                         class="rounded-lg p-4 border-l-4 border-sky-900 cursor-pointer transition-all">
+                         class="rounded-lg p-3 sm:p-4 border-l-4 border-sky-900 cursor-pointer transition-all">
                         <div class="flex items-center justify-between mb-1">
                             <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Total militaires</span>
                             <i class="pi pi-users text-sky-800 text-sm"></i>
@@ -51,17 +51,27 @@
                     </div>
                     <div @click="setStatutFilter('actif')" 
                          :class="filters.statut === 'actif' ? 'ring-2 ring-emerald-500 shadow-md bg-emerald-50/50' : 'bg-white shadow-sm hover:shadow-md'"
-                         class="rounded-lg p-4 border-l-4 border-emerald-500 cursor-pointer transition-all">
+                         class="rounded-lg p-3 sm:p-4 border-l-4 border-emerald-500 cursor-pointer transition-all">
                         <div class="flex items-center justify-between mb-1">
                             <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Militaires actifs</span>
                             <i class="pi pi-check-circle text-emerald-600 text-sm"></i>
                         </div>
                         <div class="text-xl md:text-2xl font-bold text-emerald-600">{{ statistiques.actifs }}</div>
-                        <p class="text-[11px] text-emerald-700 font-medium mt-0.5">Actifs, détachés, stages & missions</p>
+                        <p class="text-[11px] text-emerald-700 font-medium mt-0.5">Actifs, détachés, stages</p>
+                    </div>
+                    <div @click="setStatutFilter('non_rattaches')" 
+                         :class="(filters.statut === 'non_rattaches' || filters.non_rattaches) ? 'ring-2 ring-amber-500 shadow-md bg-amber-50/70' : 'bg-white shadow-sm hover:shadow-md'"
+                         class="rounded-lg p-3 sm:p-4 border-l-4 border-amber-500 cursor-pointer transition-all">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Sans région / unité</span>
+                            <i class="pi pi-exclamation-triangle text-amber-600 text-sm"></i>
+                        </div>
+                        <div class="text-xl md:text-2xl font-bold text-amber-600">{{ statistiques.non_rattaches ?? 0 }}</div>
+                        <p class="text-[11px] text-amber-700 font-medium mt-0.5">Recrues à affecter</p>
                     </div>
                     <div @click="setStatutFilter('retraites_n')" 
                          :class="filters.statut === 'retraites_n' ? 'ring-2 ring-purple-500 shadow-md bg-purple-50/50' : 'bg-white shadow-sm hover:shadow-md'"
-                         class="rounded-lg p-4 border-l-4 border-purple-500 cursor-pointer transition-all">
+                         class="rounded-lg p-3 sm:p-4 border-l-4 border-purple-500 cursor-pointer transition-all">
                         <div class="flex items-center justify-between mb-1">
                             <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Retraites N</span>
                             <i class="pi pi-calendar text-purple-600 text-sm"></i>
@@ -70,7 +80,7 @@
                     </div>
                     <div @click="setStatutFilter('retraites_n1')" 
                          :class="filters.statut === 'retraites_n1' ? 'ring-2 ring-indigo-500 shadow-md bg-indigo-50/50' : 'bg-white shadow-sm hover:shadow-md'"
-                         class="rounded-lg p-4 border-l-4 border-indigo-500 cursor-pointer transition-all">
+                         class="rounded-lg p-3 sm:p-4 border-l-4 border-indigo-500 cursor-pointer transition-all">
                         <div class="flex items-center justify-between mb-1">
                             <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Retraites N+1</span>
                             <i class="pi pi-calendar text-indigo-600 text-sm"></i>
@@ -141,6 +151,22 @@
                             Désélectionner tout
                         </button>
                     </div>
+                </div>
+
+                <!-- Alerte contextuelle lorsque le filtre des recrues sans région/unité est actif -->
+                <div v-if="filters.statut === 'non_rattaches'" 
+                    class="mb-4 p-3 bg-amber-50 border border-amber-300 rounded-lg flex flex-wrap items-center justify-between gap-3 text-xs text-amber-900 shadow-xs">
+                    <div class="flex items-center gap-2">
+                        <i class="pi pi-exclamation-triangle text-amber-600 text-base"></i>
+                        <div>
+                            <span class="font-bold">Affichage des {{ statistiques.non_rattaches ?? 0 }} recrues en attente d'affectation</span>
+                            <span class="text-amber-800 ml-1">Ces militaires sont enregistrés sans région ni unité. Cliquez sur <strong>Modifier</strong> pour leur attribuer leur unité ou région.</span>
+                        </div>
+                    </div>
+                    <button type="button" @click="setStatutFilter('actif')" 
+                        class="px-2.5 py-1 bg-white hover:bg-amber-100 text-amber-800 border border-amber-300 rounded font-semibold text-xs whitespace-nowrap cursor-pointer transition-colors">
+                        Voir tous les actifs
+                    </button>
                 </div>
 
                 <!-- DataTable -->
@@ -710,6 +736,7 @@ const positionOptions = ref([]);
 const statutOptions = [
     { label: 'Tous les statuts', value: 'all' },
     { label: 'En activité (Actifs, Détachés, Stages)', value: 'actif' },
+    { label: 'Sans région / unité (Recrues)', value: 'non_rattaches' },
     { label: 'Actifs stricts (Unité rég.)', value: 'actif_strict' },
     { label: 'Détachés / En détachement', value: 'détaché' },
     { label: 'En stage / Formation', value: 'stage' },

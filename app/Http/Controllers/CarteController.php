@@ -85,6 +85,18 @@ class CarteController extends Controller
         $parRegion = $lignes->whereNotNull('region_id')->groupBy('region_id');
         $nonRattaches = (int) $lignes->whereNull('region_id')->whereNull('unite_id')->sum('total');
 
+        // Liste nominative des recrues et militaires actifs sans région ni unité pour correction rapide
+        $nonRattachesListe = Militaire::query()
+            ->whereRaw(Effectif::sqlActivite())
+            ->whereNull('region_id')
+            ->where(function ($q) {
+                $q->whereNull('unite_id')->orWhere('unite_id', 0);
+            })
+            ->select('id', 'matricule', 'mle_grm', 'nom', 'prenom', 'grade_actuel', 'statut', 'position_actuelle', 'telephone', 'observations')
+            ->orderBy('nom')
+            ->orderBy('prenom')
+            ->get();
+
         // 3) Mise en forme pour la vue
         $out = $regions->map(function ($r) use ($parUnite, $parRegion, $horsEffectif, $retraitesParRegion) {
             $l = $parRegion->get($r->id, collect());
@@ -127,6 +139,7 @@ class CarteController extends Controller
 
         return [
             'regions' => $out,
+            'non_rattaches_liste' => $nonRattachesListe,
             'stats' => [
                 'non_rattaches' => $nonRattaches,
                 'annee' => $annee,
