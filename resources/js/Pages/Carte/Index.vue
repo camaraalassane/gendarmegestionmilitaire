@@ -331,7 +331,7 @@
                             <template v-for="r in regions" :key="r.code">
                                 <path
                                     v-if="SHAPES[r.code] && (!sel ? (r.code !== 'R1') : (r.code === sel))"
-                                    :d="SHAPES[r.code].d"
+                                    :d="pathD(r)"
                                     class="reg"
                                     :class="{
                                         sel: r.code === sel,
@@ -468,7 +468,7 @@
                                 </template>
                             </template>
 
-                            <!-- Région sélectionnée : PINS TACTIQUES HAUTE VISIBILITÉ DES UNITÉS -->
+                            <!-- Région sélectionnée : CERCLES PROPORTIONNELS TACTIQUES DES UNITÉS -->
                             <template v-else>
                                 <g
                                     v-for="u in unitesAvecPoint"
@@ -478,55 +478,57 @@
                                     @mouseenter="onHoverUnit(u)"
                                     @mouseleave="onLeaveHover"
                                 >
-                                    <!-- Anneau de sélection / pulsation cyan si actif -->
+                                    <!-- Halo de sélection / pulsation cyan si actif -->
                                     <circle
                                         v-if="selUnit === u.id"
                                         :cx="u.x"
                                         :cy="u.y"
-                                        :r="rayon(u) * 2.3"
+                                        :r="rayon(u) + 4.5 * zoom"
                                         fill="none"
                                         stroke="#38bdf8"
-                                        :stroke-width="2 * zoom"
-                                        opacity="0.9"
+                                        :stroke-width="2.5 * zoom"
+                                        opacity="0.95"
+                                        class="animate-pulse"
                                     />
 
-                                    <!-- Disque de contour extérieur avec ombre -->
+                                    <!-- Cercle Proportionnel (Rouge vif tactique avec bordure noire épaisse comme sur l'exemple) -->
                                     <circle
                                         :cx="u.x"
                                         :cy="u.y"
-                                        :r="rayon(u) * (selUnit === u.id ? 1.5 : 1)"
-                                        fill="#ffffff"
-                                        :stroke="selUnit === u.id ? '#0f172a' : (u.operationnelle ? '#065f46' : '#9a3412')"
-                                        :stroke-width="1.8 * zoom"
+                                        :r="rayon(u)"
+                                        :fill="u.effectif > 0 ? '#ef4444' : '#cbd5e1'"
+                                        fill-opacity="0.92"
+                                        :stroke="selUnit === u.id ? '#0284c7' : (!u.operationnelle && u.effectif > 0 ? '#b45309' : '#000000')"
+                                        :stroke-width="(selUnit === u.id ? 2.8 : 2.2) * zoom"
+                                        :stroke-dasharray="!u.operationnelle && u.effectif > 0 ? (3.5 * zoom) + ' ' + (2 * zoom) : 'none'"
                                         filter="url(#pin-shadow)"
                                     />
 
-                                    <!-- Cœur coloré vif (Vert émeraude = opérationnelle, Orange vif = non op) -->
-                                    <circle
-                                        :cx="u.x"
-                                        :cy="u.y"
-                                        :r="rayon(u) * (selUnit === u.id ? 1.1 : 0.72)"
-                                        :fill="u.operationnelle ? '#10b981' : '#f59e0b'"
-                                    />
-
-                                    <!-- Pip central blanc -->
-                                    <circle
-                                        :cx="u.x"
-                                        :cy="u.y"
-                                        :r="rayon(u) * 0.28"
-                                        fill="#ffffff"
-                                    />
+                                    <!-- Chiffre de l'effectif au centre du cercle proportionnel -->
+                                    <text
+                                        :x="u.x"
+                                        :y="u.y"
+                                        text-anchor="middle"
+                                        dominant-baseline="central"
+                                        :font-size="fontSize(u) + 'px'"
+                                        font-weight="900"
+                                        fill="#000000"
+                                        class="select-none pointer-events-none"
+                                        style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"
+                                    >
+                                        {{ u.effectif }}
+                                    </text>
                                 </g>
 
                                 <!-- Libellé de l'unité sélectionnée ou survolée -->
                                 <template v-if="uniteActivePourLabel">
                                     <text
                                         class="lbl text-highlight"
-                                        :style="{ fontSize: 12.5 * zoom + 'px', strokeWidth: 3.5 * zoom + 'px' }"
+                                        :style="{ fontSize: 13 * zoom + 'px', strokeWidth: 3.5 * zoom + 'px' }"
                                         :x="uniteActivePourLabel.x"
-                                        :y="uniteActivePourLabel.y - rayon(uniteActivePourLabel) * 1.7"
+                                        :y="uniteActivePourLabel.y - rayon(uniteActivePourLabel) - 4 * zoom"
                                     >
-                                        {{ uniteActivePourLabel.nom }}
+                                        {{ uniteActivePourLabel.nom }} ({{ fmt(uniteActivePourLabel.effectif) }})
                                     </text>
                                 </template>
                             </template>
@@ -565,13 +567,18 @@
                     <div class="flex flex-wrap items-center justify-between gap-2 mt-1 text-[11px] text-slate-500 flex-none">
                         <template v-if="sel">
                             <div class="flex items-center gap-3">
-                                <span class="flex items-center font-medium text-emerald-800">
-                                    <i class="dot" style="background:#10b981"></i>Opérationnelle
+                                <span class="flex items-center gap-1.5 font-medium text-slate-700">
+                                    <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-500 border border-black text-[9px] font-black text-black">N</span>
+                                    Cercles proportionnels (Taille = Effectif de l'unité)
                                 </span>
-                                <span class="flex items-center font-medium text-amber-800">
-                                    <i class="dot" style="background:#f59e0b"></i>Non opérationnelle
+                                <span class="text-slate-300">•</span>
+                                <span class="flex items-center font-medium text-slate-600">
+                                    Bord continu = Opérationnelle
                                 </span>
-                                <span class="text-slate-400">• Rayon = effectif</span>
+                                <span class="text-slate-300">•</span>
+                                <span class="flex items-center font-medium text-amber-700">
+                                    Bord tireté = Non opérationnelle
+                                </span>
                             </div>
                             <span v-if="unitesSansPoint > 0" class="text-amber-700 font-semibold">
                                 • {{ unitesSansPoint }} unité(s) sans GPS
@@ -1306,16 +1313,35 @@ const baseRegionBox = computed(() => {
     const full = [-24, 30, 685, 575];
     const shape = sel.value && SHAPES[sel.value];
     if (!shape) return full;
+
+    // Si District de Bamako : cadrage adapté à la forme agrandie pour contenir toutes ses 78 unités concentriques
+    if (sel.value === 'R1') {
+        const [a, b, c, d] = [135.7, 462.3, 190.1, 531.1];
+        const pw = c - a, ph = d - b;
+        const pad = Math.max(pw, ph) * 0.14;
+        let w = pw + 2 * pad, h = ph + 2 * pad;
+        const ar = MALI_VIEW.w / MALI_VIEW.h;
+        if (w / h < ar) w = h * ar; else h = w / ar;
+        return [(a + c) / 2 - w / 2, (b + d) / 2 - h / 2, w, h];
+    }
+
     const [a, b, c, d] = shape.bb;
-    const isBamako = sel.value === 'R1';
-    const minSpan = isBamako ? 60 : 28;
+    const minSpan = 28;
     const pw = Math.max(c - a, minSpan), ph = Math.max(d - b, minSpan);
-    const pad = Math.max(pw, ph) * (isBamako ? 0.08 : 0.16);
+    const pad = Math.max(pw, ph) * 0.16;
     let w = pw + 2 * pad, h = ph + 2 * pad;
     const ar = MALI_VIEW.w / MALI_VIEW.h;
     if (w / h < ar) w = h * ar; else h = w / ar;
     return [(a + c) / 2 - w / 2, (b + d) / 2 - h / 2, w, h];
 });
+
+// Tracé SVG adapté (Bamako agrandi lorsqu'il est isolé pour que tout son maillage soit à l'intérieur)
+const pathD = (r) => {
+    if (r.code === 'R1' && sel.value === 'R1') {
+        return 'M181.6 472.5L177.4 462.3L164.6 473.3L156.9 473.3L152.7 480.1L145.9 475.9L139.1 492.9L135.7 507.3L142.5 512.4L145.9 504.8L153.6 507.3L164.6 526L182.4 531.1L183.3 504.8L190.1 497.1L190.1 485.2L187.6 477.6L181.6 472.5Z';
+    }
+    return SHAPES[r.code]?.d || '';
+};
 
 // ViewBox réactive combinant boîte de base, niveau de zoom et décalage panoramique
 const viewBox = computed(() => {
@@ -1341,7 +1367,7 @@ const unitesAvecPoint = computed(() => {
         return { ...u, origX: p.x, origY: p.y };
     });
 
-    const baseR = 5.2 * zoom.value;
+    const baseR = 10 * zoom.value;
     const proximityThreshold = baseR * 2.8;
 
     const clusters = [];
@@ -1380,7 +1406,7 @@ const unitesAvecPoint = computed(() => {
         } else {
             let itemIdx = 0;
             let ring = 1;
-            const ringSpacing = baseR * 2.3;
+            const ringSpacing = (sel.value === 'R1' ? baseR * 2.05 : baseR * 2.4);
 
             while (itemIdx < count) {
                 const ringCap = ring === 1 ? Math.min(6, count) : ring * 6;
@@ -1402,16 +1428,31 @@ const unitesAvecPoint = computed(() => {
         }
     });
 
+    // Règle sémiologique cartographique : trier par effectif décroissant
+    // Les grands cercles sont dessinés au fond et les plus petits par-dessus pour rester toujours visibles
+    result.sort((a, b) => (Number(b.effectif) || 0) - (Number(a.effectif) || 0));
+
     return result;
 });
 
 const unitesSansPoint = computed(() => (selRegion.value ? selRegion.value.unites.length - unitesAvecPoint.value.length : 0));
 const maxEff = computed(() => Math.max(1, ...(selRegion.value?.unites ?? []).map((u) => u.effectif)));
 
+// Cercles proportionnels (Sémiologie graphique de Bertin : Surface proportionnelle à l'effectif)
 const rayon = (u) => {
-    const base = 5.2;
-    const add = maxEff.value > 0 ? (u.effectif / maxEff.value) * 4 : 0;
-    return (base + add) * zoom.value;
+    const eff = Math.max(0, Number(u?.effectif) || 0);
+    const rMin = eff === 0 ? 8 : 10.5;
+    const rAdd = Math.min(26, Math.sqrt(eff) * 3.4);
+    return (rMin + rAdd) * zoom.value;
+};
+
+// Taille du texte au centre du cercle adaptée au nombre de chiffres
+const fontSize = (u) => {
+    const r = rayon(u);
+    const eff = Math.max(0, Number(u?.effectif) || 0);
+    const len = String(eff).length;
+    const factor = len >= 3 ? 0.72 : (len === 2 ? 0.88 : 1.02);
+    return Math.max(7 * zoom.value, r * factor * 0.75);
 };
 
 const unitePointee = computed(() => unitesAvecPoint.value.find((u) => u.id === selUnit.value));
