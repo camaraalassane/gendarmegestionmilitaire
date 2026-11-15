@@ -37,6 +37,27 @@
                     </div>
                 </div>
 
+                <!-- BANNIÈRE SPÉCIALE : CAS D'OTAGE / CAPTIVITÉ -->
+                <div v-if="isOtage" class="mb-6 p-4 sm:p-5 bg-gradient-to-r from-red-50 to-amber-50 border-2 border-red-500 rounded-xl shadow-xs text-red-950 flex flex-col sm:flex-row items-start gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                        <i class="pi pi-shield text-2xl animate-pulse"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex flex-wrap items-center gap-2 mb-1.5">
+                            <span class="px-2.5 py-0.5 rounded bg-red-600 text-white text-xs font-black uppercase tracking-wider">Signalement Spécial</span>
+                            <span class="text-base font-extrabold text-red-950 uppercase tracking-wide">Militaire en Captivité / Cas d'Otage</span>
+                        </div>
+                        <p class="text-xs sm:text-sm text-red-900 leading-relaxed font-medium">
+                            Ce militaire fait l'objet d'un cas de capture / prise d'otage. Conformément aux dispositions statutaires des Forces Armées et aux directives du commandement, 
+                            <strong>le militaire en otage reste impérativement comptabilisé à l'effectif en activité et maintenu au fichier jusqu'à ce qu'il soit retrouvé</strong>. Aucune radiation ni bascule en retraite d'office n'est appliquée.
+                        </p>
+                        <div v-if="militaire.observations" class="mt-2.5 p-2.5 bg-white/90 rounded-lg border border-red-200 text-xs text-red-900 font-semibold flex items-center gap-2 shadow-2xs">
+                            <i class="pi pi-info-circle text-red-600 text-sm shrink-0"></i>
+                            <span><strong>Description / Mention officielle :</strong> {{ militaire.observations }}</span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 1. HERO BANNER - CARTE D'IDENTITÉ MILITAIRE -->
                 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                     <div class="p-6 bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 text-white">
@@ -58,8 +79,9 @@
                             <div class="flex-1 text-center md:text-left">
                                 <div class="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-2">
                                     <Tag :value="militaire.statut" :style="getStatutStyle(militaire.statut)" class="uppercase font-bold tracking-wider text-xs px-3 py-1" />
+                                    <Tag v-if="isOtage" value="CAS D'OTAGE" style="background: #dc2626; color: white;" class="uppercase font-black tracking-wider text-xs px-3 py-1 shadow-sm animate-pulse" />
                                     <Tag v-if="militaire.categorie" :value="militaire.categorie" style="background: rgba(255,255,255,0.2); color: white;" class="font-medium text-xs px-2.5 py-1" />
-                                    <Tag v-if="militaire.est_eligible_retraite" value="Retraite imminente" style="background: #f97316; color: white;" class="font-medium text-xs px-2.5 py-1" />
+                                    <Tag v-if="militaire.est_eligible_retraite && !isOtage" value="Retraite imminente" style="background: #f97316; color: white;" class="font-medium text-xs px-2.5 py-1" />
                                 </div>
 
                                 <h1 class="text-2xl md:text-3xl font-extrabold text-white tracking-tight mb-1">
@@ -699,6 +721,13 @@ const parseList = (val) => {
 const decorationsList = computed(() => parseList(props.militaire.decorations));
 const diplomesList = computed(() => parseList(props.militaire.diplomes_academiques));
 
+const isOtage = computed(() => {
+    if (props.militaire?.is_otage) return true;
+    const pos = (props.militaire?.position_actuelle || '').toLowerCase();
+    const obs = (props.militaire?.observations || '').toLowerCase();
+    return pos.includes('otage') || obs.includes('otage');
+});
+
 // Trier les affectations de la plus récente à la plus ancienne (l'actuelle est toujours la plus récente)
 const sortedAffectations = computed(() => {
     if (!props.affectations || !props.affectations.length) return [];
@@ -947,15 +976,15 @@ const printCertificat = () => {
 };
 
 const getStatutStyle = (statut) => {
-    const styles = {
-        'actif': { background: '#22c55e', color: '#ffffff' },
-        'retraité': { background: '#64748b', color: '#ffffff' },
-        'déserteur': { background: '#ef4444', color: '#ffffff' },
-        'décédé': { background: '#1e293b', color: '#ffffff' },
-        'formation': { background: '#0284c7', color: '#ffffff' },
-        'stage': { background: '#f59e0b', color: '#ffffff' }
-    };
-    return styles[statut] || { background: '#64748b', color: '#ffffff' };
+    const s = (statut || '').toLowerCase();
+    if (s.includes('actif')) return { background: '#16a34a', color: '#ffffff' };
+    if (s.includes('détach') || s.includes('detach')) return { background: '#0284c7', color: '#ffffff' };
+    if (s.includes('stage') || s.includes('format')) return { background: '#d97706', color: '#ffffff' };
+    if (s.includes('miss')) return { background: '#7c3aed', color: '#ffffff' };
+    if (s.includes('retrait')) return { background: '#64748b', color: '#ffffff' };
+    if (s.includes('d_ser') || s.includes('deser')) return { background: '#dc2626', color: '#ffffff' };
+    if (s.includes('d_c_d') || s.includes('mort')) return { background: '#1e293b', color: '#ffffff' };
+    return { background: '#64748b', color: '#ffffff' };
 };
 
 const getAlerteStyle = (type) => {

@@ -25,6 +25,7 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use App\Support\Effectif;
 
 class MilitaireController extends Controller
 {
@@ -110,6 +111,16 @@ class MilitaireController extends Controller
 
         if ($statutFilter === 'all') {
             // Afficher tous les militaires (sans restriction de statut)
+        } elseif ($statutFilter === 'actif') {
+            // Actifs, détachés, en détachement, en stage, en formation, en mission : tous comptés en activité
+            $query->whereRaw(Effectif::sqlActivite('militaires.statut'));
+        } elseif ($statutFilter === 'actif_strict') {
+            $query->where('militaires.statut', 'actif');
+        } elseif ($statutFilter === 'otage') {
+            $query->where(function($q) {
+                $q->where('militaires.position_actuelle', 'ILIKE', '%otage%')
+                  ->orWhere('militaires.observations', 'ILIKE', '%otage%');
+            });
         } elseif ($statutFilter === 'retraites_n') {
             $query->whereIn('militaires.id', $this->getIdsRetraitePourAnnee($anneeN));
         } elseif ($statutFilter === 'retraites_n1') {
@@ -136,11 +147,17 @@ class MilitaireController extends Controller
         } elseif (str_starts_with(mb_strtolower($statutFilter), 'radi')) {
             $query->where('militaires.statut', 'LIKE', 'radi%');
         } elseif (str_starts_with(mb_strtolower($statutFilter), 'd_tach') || str_starts_with(mb_strtolower($statutFilter), 'detach') || str_starts_with(mb_strtolower($statutFilter), 'détach')) {
-            $query->where('militaires.statut', 'LIKE', 'd%tach%');
+            $query->where(function($q) {
+                $q->where('militaires.statut', 'LIKE', 'd%tach%')
+                  ->orWhere('militaires.statut', 'LIKE', 'detach%');
+            });
         } elseif (str_starts_with(mb_strtolower($statutFilter), 'miss')) {
             $query->where('militaires.statut', 'LIKE', 'miss%');
-        } elseif (str_starts_with(mb_strtolower($statutFilter), 'stag')) {
-            $query->where('militaires.statut', 'LIKE', 'stag%');
+        } elseif (str_starts_with(mb_strtolower($statutFilter), 'stag') || str_starts_with(mb_strtolower($statutFilter), 'format')) {
+            $query->where(function($q) {
+                $q->where('militaires.statut', 'LIKE', 'stag%')
+                  ->orWhere('militaires.statut', 'LIKE', 'format%');
+            });
         } elseif (str_starts_with(mb_strtolower($statutFilter), 'dec') || str_starts_with(mb_strtolower($statutFilter), 'déc')) {
             $query->where('militaires.statut', 'LIKE', 'd%c%d%');
         } elseif (!empty($statutFilter)) {
@@ -151,7 +168,7 @@ class MilitaireController extends Controller
         $statistiques = Cache::remember("v{$v}:militaires:stats_summary", 600, function () use ($anneeN) {
             return [
                 'total'        => Militaire::count(),
-                'actifs'       => Militaire::where('statut', 'LIKE', 'actif%')->count(),
+                'actifs'       => Militaire::whereRaw(Effectif::sqlActivite('statut'))->count(),
                 'retraites_n'  => count($this->getIdsRetraitePourAnnee($anneeN)),
                 'retraites_n1' => count($this->getIdsRetraitePourAnnee($anneeN + 1)),
             ];
@@ -191,6 +208,8 @@ class MilitaireController extends Controller
                 'personne_a_contacter' => $militaire->personne_a_contacter,
                 'telephone_personne_contacter' => $militaire->telephone_personne_contacter,
                 'statut' => $militaire->statut,
+                'observations' => $militaire->observations,
+                'is_otage' => $militaire->isOtage(),
                 'age' => $militaire->age,
                 'anciennete' => $militaire->anciennete,
                 'anciennete_grade' => $militaire->ancienneteGrade,

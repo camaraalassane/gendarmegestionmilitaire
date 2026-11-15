@@ -84,9 +84,13 @@ class Militaire extends Model
     protected static function booted(): void
     {
         static::saving(function (Militaire $militaire) {
-            // Si le militaire est actif mais que son âge limite de retraite est déjà dépassé,
-            // on le bascule automatiquement en statut 'retraité'.
-            if ($militaire->statut === 'actif' && $militaire->estRetraiteDepassee()) {
+            // Un militaire en otage reste TOUJOURS en activité / maintenu au fichier jusqu'à sa découverte.
+            // Il ne doit JAMAIS être basculé automatiquement en retraité.
+            if ($militaire->isOtage()) {
+                if ($militaire->statut === 'retraité' || empty($militaire->statut)) {
+                    $militaire->statut = 'actif';
+                }
+            } elseif ($militaire->statut === 'actif' && $militaire->estRetraiteDepassee()) {
                 $militaire->statut = 'retraité';
             }
 
@@ -325,12 +329,26 @@ class Militaire extends Model
     }
 
     /**
+     * Détermine si le militaire fait l'objet d'un cas de capture / prise d'otage.
+     */
+    public function isOtage(): bool
+    {
+        return str_contains(mb_strtolower((string) $this->position_actuelle), 'otage')
+            || str_contains(mb_strtolower((string) $this->observations), 'otage');
+    }
+
+    /**
      * Vérifie si le militaire a dépassé sa limite d'âge de départ à la retraite.
      * Pour les militaires en activité, la radiation des contrôles pour limite d'âge
      * intervient officiellement au terme de l'année civile où l'âge limite est atteint (31 décembre).
+     * Les militaires en otage sont expressément maintenus en activité dans le fichier.
      */
     public function estRetraiteDepassee(): bool
     {
+        if ($this->isOtage()) {
+            return false;
+        }
+
         $ageRetraite = Grade::getRetraiteForGrade($this->grade_actuel);
         if (!$ageRetraite || !$this->date_naissance) {
             return false;
@@ -357,6 +375,10 @@ class Militaire extends Model
      */
     public function estEligibleRetraite(): bool
     {
+        if ($this->isOtage()) {
+            return false;
+        }
+
         $dateRetraite = $this->calculerDateRetraite();
         if ($dateRetraite) {
             $now = Carbon::now();

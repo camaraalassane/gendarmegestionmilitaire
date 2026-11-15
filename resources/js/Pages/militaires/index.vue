@@ -57,6 +57,7 @@
                             <i class="pi pi-check-circle text-emerald-600 text-sm"></i>
                         </div>
                         <div class="text-xl md:text-2xl font-bold text-emerald-600">{{ statistiques.actifs }}</div>
+                        <p class="text-[11px] text-emerald-700 font-medium mt-0.5">Actifs, détachés, stages & missions</p>
                     </div>
                     <div @click="setStatutFilter('retraites_n')" 
                          :class="filters.statut === 'retraites_n' ? 'ring-2 ring-purple-500 shadow-md bg-purple-50/50' : 'bg-white shadow-sm hover:shadow-md'"
@@ -181,12 +182,18 @@
                             <Column field="nom" header="Nom & Prénom" style="min-width: 170px;">
                                 <template #body="slotProps">
                                     <div>
-                                        <div class="flex items-center gap-1.5">
+                                        <div class="flex items-center gap-1.5 flex-wrap">
                                             <Button :label="slotProps.data.nom + ' ' + slotProps.data.prenom"
                                                 class="p-button-link p-0 text-sky-900 hover:text-sky-700 font-bold text-left text-sm"
                                                 @click="viewMilitaire(slotProps.data.id)" />
+                                            <Tag v-if="isOtage(slotProps.data)" value="CAS D'OTAGE"
+                                                style="background: #dc2626; color: white;" class="text-[10px] font-black tracking-wider px-1.5 py-0.5 animate-pulse" />
                                             <Badge v-if="slotProps.data.alertes_count > 0" value="!"
                                                 style="background: #f97316; color: white;" class="ml-1" />
+                                        </div>
+                                        <div v-if="isOtage(slotProps.data)" class="text-[11px] text-red-700 font-semibold mt-0.5 flex items-center gap-1" :title="slotProps.data.observations || 'Militaire en otage - Maintenu à l\'effectif'">
+                                            <i class="pi pi-shield text-[10px] shrink-0"></i>
+                                            <span class="truncate max-w-[210px]">{{ slotProps.data.observations || "Cas d'otage - Maintenu à l'effectif" }}</span>
                                         </div>
                                         <span v-if="slotProps.data.numero_info" class="text-[11px] text-slate-400 block font-mono">
                                             Solde: {{ slotProps.data.numero_info }}
@@ -214,9 +221,12 @@
                                             <i class="pi pi-map-marker text-[10px]"></i>
                                             <span>{{ slotProps.data.region }}</span>
                                         </div>
-                                        <div v-if="slotProps.data.position_actuelle" class="text-teal-700 flex items-center gap-1 font-medium" :title="'Position actuelle : ' + slotProps.data.position_actuelle">
-                                            <i class="pi pi-compass text-[10px]"></i>
-                                            <span class="truncate max-w-[170px]">{{ slotProps.data.position_actuelle }}</span>
+                                        <div v-if="slotProps.data.position_actuelle" class="flex items-center gap-1 font-medium" :title="'Position actuelle : ' + slotProps.data.position_actuelle">
+                                            <i class="pi pi-compass text-[10px]" :class="isOtage(slotProps.data) ? 'text-red-600' : 'text-teal-700'"></i>
+                                            <span v-if="isOtage(slotProps.data)" class="px-1.5 py-0.5 rounded bg-red-100 text-red-800 font-bold text-[10px] border border-red-300">
+                                                Otage (En captivité)
+                                            </span>
+                                            <span v-else class="text-teal-700 truncate max-w-[170px]">{{ slotProps.data.position_actuelle }}</span>
                                         </div>
                                     </div>
                                 </template>
@@ -699,15 +709,26 @@ const regionOptions = ref([]);
 const positionOptions = ref([]);
 const statutOptions = [
     { label: 'Tous les statuts', value: 'all' },
-    { label: 'Actif', value: 'actif' },
-    { label: 'Retraites N', value: 'retraites_n' },
+    { label: 'En activité (Actifs, Détachés, Stages)', value: 'actif' },
+    { label: 'Actifs stricts (Unité rég.)', value: 'actif_strict' },
+    { label: 'Détachés / En détachement', value: 'détaché' },
+    { label: 'En stage / Formation', value: 'stage' },
+    { label: 'En mission', value: 'mission' },
+    { label: "Cas d'otage", value: 'otage' },
+    { label: 'Retraites N (au 31/12)', value: 'retraites_n' },
     { label: 'Retraites N+1', value: 'retraites_n1' },
     { label: 'Retraité', value: 'retraité' },
     { label: 'Déserteur', value: 'déserteur' },
-    { label: 'Décédé', value: 'décédé' },
-    { label: 'Formation', value: 'formation' },
-    { label: 'Stage', value: 'stage' }
+    { label: 'Décédé', value: 'décédé' }
 ];
+
+const isOtage = (m) => {
+    if (!m) return false;
+    if (m.is_otage) return true;
+    const pos = (m.position_actuelle || '').toLowerCase();
+    const obs = (m.observations || '').toLowerCase();
+    return pos.includes('otage') || obs.includes('otage');
+};
 
 const props = defineProps({
     militaires: { type: Object, required: true },
@@ -777,15 +798,15 @@ watch(() => filters.search, () => debouncedSearch());
 watch([() => filters.grade, () => filters.region, () => filters.position, () => filters.statut], () => loadMilitaires(1));
 
 const getStatutStyle = (statut) => {
-    const styles = {
-        'actif': { background: '#22c55e', color: '#ffffff' },
-        'retraité': { background: '#64748b', color: '#ffffff' },
-        'déserteur': { background: '#ef4444', color: '#ffffff' },
-        'décédé': { background: '#1e293b', color: '#ffffff' },
-        'formation': { background: '#0284c7', color: '#ffffff' },
-        'stage': { background: '#f59e0b', color: '#ffffff' }
-    };
-    return styles[statut] || { background: '#64748b', color: '#ffffff' };
+    const s = (statut || '').toLowerCase();
+    if (s.includes('actif')) return { background: '#16a34a', color: '#ffffff' };
+    if (s.includes('détach') || s.includes('detach')) return { background: '#0284c7', color: '#ffffff' };
+    if (s.includes('stage') || s.includes('format')) return { background: '#d97706', color: '#ffffff' };
+    if (s.includes('miss')) return { background: '#7c3aed', color: '#ffffff' };
+    if (s.includes('retrait')) return { background: '#64748b', color: '#ffffff' };
+    if (s.includes('d_ser') || s.includes('deser')) return { background: '#dc2626', color: '#ffffff' };
+    if (s.includes('d_c_d') || s.includes('mort')) return { background: '#1e293b', color: '#ffffff' };
+    return { background: '#64748b', color: '#ffffff' };
 };
 
 const loadMilitaires = (page = 1) => {

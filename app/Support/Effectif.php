@@ -21,7 +21,7 @@ namespace App\Support;
 class Effectif
 {
     /** Motifs SQL des statuts considérés « en activité » dans l'effectif (les radiés sont EXCLUS et comptabilisés à part). */
-    public const MOTIFS = ['actif', 'd_tach_%', 'mission%', 'stage%'];
+    public const MOTIFS = ['actif', 'actif%', 'd_tach_%', 'detach%', 'mission%', 'stage%', 'format%'];
 
     /** Condition SQL (PostgreSQL et SQLite) pour cibler les militaires en activité. */
     public static function sqlActivite(string $colonne = 'statut'): string
