@@ -1,12 +1,12 @@
 <template>
-    <div class="h-screen flex items-center justify-center bg-gradient-to-br from-sky-950 via-sky-900 to-slate-950 relative overflow-hidden">
+    <div class="min-h-screen py-4 sm:py-6 px-3 sm:px-4 flex flex-col items-center justify-center bg-gradient-to-br from-sky-950 via-sky-900 to-slate-950 relative overflow-y-auto">
         <!-- Formes décoratives animées -->
-        <div class="absolute inset-0 overflow-hidden">
+        <div class="absolute inset-0 overflow-hidden pointer-events-none">
             <div class="absolute -top-40 -right-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
             <div class="absolute -bottom-40 -left-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse animation-delay-2000"></div>
         </div>
         
-        <div class="relative z-10 w-full max-w-md mx-4">
+        <div class="relative z-10 w-full max-w-md mx-auto my-auto">
             <!-- Logo et titre -->
             <div class="text-center mb-4 animate-fade-in-down">
                 <div class="inline-flex items-center justify-center w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl shadow-lg mb-2 transition-all duration-300 hover:scale-105">

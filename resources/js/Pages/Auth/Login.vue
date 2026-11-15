@@ -1,19 +1,19 @@
 <template>
-    <div class="h-screen flex items-center justify-center bg-gradient-to-br from-sky-950 via-sky-900 to-slate-950 relative overflow-hidden">
+    <div class="min-h-screen py-4 sm:py-6 px-3 sm:px-4 flex flex-col items-center justify-center bg-gradient-to-br from-sky-950 via-sky-900 to-slate-950 relative overflow-y-auto">
         <!-- Formes décoratives animées -->
-        <div class="absolute inset-0 overflow-hidden">
+        <div class="absolute inset-0 overflow-hidden pointer-events-none">
             <div class="absolute -top-40 -right-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
             <div class="absolute -bottom-40 -left-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse animation-delay-2000"></div>
         </div>
         
-        <div class="relative z-10 w-full max-w-md mx-4">
+        <div class="relative z-10 w-full max-w-md mx-auto my-auto">
             <!-- Logo et titre -->
-            <div class="text-center mb-4 animate-fade-in-down">
-                <div class="inline-flex items-center justify-center w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full shadow-lg mb-2 transition-all duration-300 hover:scale-105 p-2">
+            <div class="text-center mb-3 sm:mb-4 animate-fade-in-down">
+                <div class="inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 bg-white/20 backdrop-blur-sm rounded-full shadow-lg mb-2 transition-all duration-300 hover:scale-105 p-2">
                     <img src="/images/logo-gendarmerie-officiel.png?v=2026" alt="Gendarmerie Nationale" class="w-full h-full object-contain" />
                 </div>
-                <h1 class="text-white text-xl font-bold tracking-tight">Gestion Militaire</h1>
-                <p class="text-white/80 text-xs mt-0.5 font-semibold uppercase">Gendarmerie Nationale du Mali</p>
+                <h1 class="text-white text-lg sm:text-xl font-bold tracking-tight">Gestion Militaire</h1>
+                <p class="text-white/80 text-[11px] sm:text-xs mt-0.5 font-semibold uppercase">Gendarmerie Nationale du Mali</p>
             </div>
             
             <!-- Carte de connexion -->
