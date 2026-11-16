@@ -342,6 +342,11 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
     {
         if (empty($value)) return 'actif';
 
+        $enum = \App\Enums\StatutMilitaire::depuisTexte((string) $value);
+        if ($enum !== null) {
+            return $enum->label();
+        }
+
         $value = mb_strtolower(trim((string)$value));
 
         $mapping = [

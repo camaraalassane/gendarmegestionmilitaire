@@ -2,54 +2,89 @@
 
 namespace App\Support;
 
+use App\Enums\StatutMilitaire;
+
 /**
  * Définition UNIQUE de « l'effectif en activité », partagée par la carte opérationnelle
  * et le tableau de bord pour garantir des totaux rigoureusement identiques.
  *
- * En activité (dans l'effectif) :
- *  - Actif (en service régulier)
- *  - Détaché (mis à disposition)
- *  - En mission
- *  - En stage / formation
+ * Utilise désormais la colonne numérique indexée 'statut_code' :
+ *  - 1 : Actif (en service régulier)
+ *  - 2 : Détaché (mis à disposition)
+ *  - 3 : En mission
+ *  - 4 : En stage / formation
+ *
+ * Règle d'effectif : statut_code BETWEEN 1 AND 4
  *
  * Hors effectif (comptabilisés à part, JAMAIS ajoutés à l'effectif) :
- *  - Radiés (rayés des cadres)
- *  - Déserteurs
- *  - Retraites de l'année
- *  - Décédés de l'année
+ *  - 5 : Procédure en cours
+ *  - 6 : Déserteurs
+ *  - 7 : Retraités
+ *  - 8 : Radiés (rayés des cadres)
+ *  - 9 : Décédés
  */
 class Effectif
 {
-    /** Motifs SQL des statuts considérés « en activité » dans l'effectif (les radiés sont EXCLUS et comptabilisés à part). */
+    /** Codes numériques des statuts en activité. */
+    public const CODES_ACTIVITE = [1, 2, 3, 4];
+
+    /** Motifs SQL historiques conservés pour rétrocompatibilité. */
     public const MOTIFS = ['actif', 'actif%', 'd_tach_%', 'detach%', '%mission%', '%stage%', '%format%'];
 
-    /** Condition SQL (PostgreSQL et SQLite) pour cibler les militaires en activité. */
-    public static function sqlActivite(string $colonne = 'statut'): string
+    /**
+     * Résout le nom de colonne pour toujours cibler la colonne numérique indexée statut_code.
+     */
+    protected static function resoudreColonne(string $colonne): string
     {
-        $st = "LOWER(TRIM(COALESCE({$colonne},'')))";
-        $tests = array_map(
-            fn ($m) => str_contains($m, '%') || str_contains($m, '_') ? "{$st} LIKE '{$m}'" : "{$st} = '{$m}'",
-            self::MOTIFS
-        );
+        if ($colonne === 'statut_code' || str_ends_with($colonne, '.statut_code')) {
+            return $colonne;
+        }
 
-        return '(' . implode(' OR ', $tests) . ')';
+        if ($colonne === 'statut' || empty($colonne)) {
+            return 'statut_code';
+        }
+
+        if (str_ends_with($colonne, '.statut')) {
+            return substr($colonne, 0, -strlen('statut')) . 'statut_code';
+        }
+
+        return $colonne;
     }
 
-    /** Condition SQL d'un statut précis (ex: 'actif', 'd_tach_%', 'mission%', 'stage%', 'radi%'). */
-    public static function sqlStatut(string $motif, string $colonne = 'statut'): string
+    /**
+     * Condition SQL ultra-rapide (utilisant l'index statut_code) pour cibler les militaires en activité.
+     * Exemple : "(statut_code BETWEEN 1 AND 4)" ou "(militaires.statut_code BETWEEN 1 AND 4)"
+     */
+    public static function sqlActivite(string $colonne = 'statut_code'): string
     {
-        $st = "LOWER(TRIM(COALESCE({$colonne},'')))";
+        $col = self::resoudreColonne($colonne);
+        return "({$col} BETWEEN 1 AND 4)";
+    }
 
-        if ($motif === 'mission%' || $motif === '%mission%') {
-            return "({$st} LIKE '%miss%')";
-        }
-        if ($motif === 'stage%' || $motif === '%stage%') {
-            return "({$st} LIKE '%stag%' OR {$st} LIKE '%format%')";
-        }
-        if ($motif === 'd_tach_%' || $motif === '%detach%') {
-            return "({$st} LIKE 'd_tach_%' OR {$st} LIKE 'detach%')";
+    /**
+     * Condition SQL d'un statut précis via son code numérique indexé.
+     * Accepte un entier direct (1..9), une instance de StatutMilitaire, ou un motif texte historique ('actif', 'd_tach_%', 'radi%').
+     */
+    public static function sqlStatut(string|int|StatutMilitaire $motif, string $colonne = 'statut_code'): string
+    {
+        $col = self::resoudreColonne($colonne);
+
+        if ($motif instanceof StatutMilitaire) {
+            return "({$col} = {$motif->value})";
         }
 
+        if (is_int($motif) || ctype_digit((string) $motif)) {
+            $code = (int) $motif;
+            return "({$col} = {$code})";
+        }
+
+        $codeEnum = StatutMilitaire::depuisTexte((string) $motif);
+        if ($codeEnum !== null) {
+            return "({$col} = {$codeEnum->value})";
+        }
+
+        // Repli texte si aucun code n'a pu être déduit
+        $st = "LOWER(TRIM(COALESCE(statut,'')))";
         return (str_contains($motif, '%') || str_contains($motif, '_')) ? "{$st} LIKE '{$motif}'" : "{$st} = '{$motif}'";
     }
 }

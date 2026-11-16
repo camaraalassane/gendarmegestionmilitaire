@@ -17,32 +17,38 @@ class CheckAlertes extends Command
     {
         \Log::info('Début de la commande alertes:check');
 
-        $militaires = Militaire::with('certificats')->where('statut', 'actif')->get();
-        \Log::info('Nombre de militaires actifs : ' . $militaires->count());
         $totalPromo = 0;
         $totalForm = 0;
         $totalRetraite = 0;
-
         $retraitesBasculees = 0;
-        foreach ($militaires as $militaire) {
-            // Si la date limite de retraite est dépassée, basculer automatiquement en statut 'retraité'
-            if ($militaire->estRetraiteDepassee()) {
-                $militaire->statut = 'retraité';
-                $militaire->save();
-                $retraitesBasculees++;
-                \Log::info("Militaire {$militaire->matricule} ({$militaire->nom} {$militaire->prenom}) basculé automatiquement en retraité.");
-                continue;
-            }
+        $nbMilitairesActifs = 0;
 
-            // Vérifier les promotions
-            $totalPromo += $this->checkPromotions($militaire);
-            
-            // Vérifier les formations (certificats)
-            $totalForm += $this->checkFormationsOfficiers($militaire);
-            
-            // Vérifier les retraites
-            $totalRetraite += $this->checkRetraites($militaire);
-        }
+        Militaire::with('certificats')
+            ->where('statut_code', 1)
+            ->chunkById(500, function ($militaires) use (&$totalPromo, &$totalForm, &$totalRetraite, &$retraitesBasculees, &$nbMilitairesActifs) {
+                $nbMilitairesActifs += $militaires->count();
+                foreach ($militaires as $militaire) {
+                    // Si la date limite de retraite est dépassée, basculer automatiquement en statut 'retraité'
+                    if ($militaire->estRetraiteDepassee()) {
+                        $militaire->statut = 'retraité';
+                        $militaire->save();
+                        $retraitesBasculees++;
+                        \Log::info("Militaire {$militaire->matricule} ({$militaire->nom} {$militaire->prenom}) basculé automatiquement en retraité.");
+                        continue;
+                    }
+
+                    // Vérifier les promotions
+                    $totalPromo += $this->checkPromotions($militaire);
+                    
+                    // Vérifier les formations (certificats)
+                    $totalForm += $this->checkFormationsOfficiers($militaire);
+                    
+                    // Vérifier les retraites
+                    $totalRetraite += $this->checkRetraites($militaire);
+                }
+            });
+
+        \Log::info('Nombre de militaires actifs traités : ' . $nbMilitairesActifs);
 
         if ($retraitesBasculees > 0) {
             $this->info("{$retraitesBasculees} militaire(s) ayant dépassé l'âge limite ont été basculés en statut 'retraité'.");
@@ -71,7 +77,7 @@ class CheckAlertes extends Command
     private function checkPromotions(Militaire $militaire)
     {
         $alertes = 0;
-        if ($militaire->statut !== 'actif') return $alertes;
+        if ($militaire->statut_code !== 1 && $militaire->statut !== 'actif') return $alertes;
 
         $grade = $militaire->grade_actuel;
         $anciennete = $militaire->anciennete;
@@ -161,7 +167,7 @@ class CheckAlertes extends Command
     private function checkFormationsOfficiers(Militaire $militaire)
     {
         $alertes = 0;
-        if ($militaire->statut !== 'actif') return $alertes;
+        if ($militaire->statut_code !== 1 && $militaire->statut !== 'actif') return $alertes;
 
         $grade = $militaire->grade_actuel;
         $age = $militaire->age;

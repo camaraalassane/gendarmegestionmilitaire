@@ -34,6 +34,7 @@ class Alerte extends Model
     {
         $purge = function () {
             \Illuminate\Support\Facades\Cache::forget('alertes:non_vues_count');
+            \Illuminate\Support\Facades\Cache::forget('alertes:non_vues_count_gendarme');
             \Illuminate\Support\Facades\Cache::forget('dashboard:statistiques_cards');
             \Illuminate\Support\Facades\Cache::forget('alertes:statistiques_globales');
         };

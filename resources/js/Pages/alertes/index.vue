@@ -451,13 +451,13 @@ const markAsRead = (alerteId) => {
     router.post(route('alertes.marquer-vue', alerteId), {}, {
         preserveScroll: true,
         onSuccess: () => {
-            loadingStates.value[alerteId] = false;
             toast.add({ severity: 'success', summary: 'Succès', detail: 'Alerte marquée comme vue', life: 3000 });
-            loadAlertes(props.alertes.current_page);
         },
         onError: () => {
-            loadingStates.value[alerteId] = false;
             toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de marquer l\'alerte', life: 3000 });
+        },
+        onFinish: () => {
+            loadingStates.value[alerteId] = false;
         }
     });
 };
@@ -467,7 +467,6 @@ const markAllAsRead = () => {
         preserveScroll: true,
         onSuccess: () => {
             toast.add({ severity: 'success', summary: 'Succès', detail: 'Toutes les alertes ont été marquées comme vues', life: 3000 });
-            loadAlertes(props.alertes.current_page);
         },
         onError: () => {
             toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de marquer toutes les alertes', life: 3000 });

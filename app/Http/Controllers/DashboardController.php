@@ -81,8 +81,7 @@ class DashboardController extends Controller
             $totalActifs = $this->enActivite()->count();
 
             $totalDecedesCetteAnnee = Militaire::where(function ($q) {
-                $q->whereRaw("LOWER(statut) LIKE 'd_c_d%'")
-                  ->orWhereRaw("LOWER(statut) LIKE 'mort%'")
+                $q->where('statut_code', 9)
                   ->orWhereNotNull('date_deces');
             })->where(function ($q) use ($anneeCourante) {
                 $debut = Carbon::create($anneeCourante, 1, 1)->startOfDay();
@@ -94,16 +93,15 @@ class DashboardController extends Controller
             })->count();
 
             $totalDeserteurs = Militaire::where(function ($q) {
-                $q->whereRaw("LOWER(statut) LIKE 'd_serteur%'")
-                  ->orWhereRaw("LOWER(statut) LIKE 'desert%'")
+                $q->where('statut_code', 6)
                   ->orWhereRaw("LOWER(motif_radiation) LIKE '%desert%'");
             })->count();
 
-            $actifsStricts = Militaire::whereRaw("LOWER(TRIM(COALESCE(statut,''))) = 'actif'")->count();
-            $totalDetaches = Militaire::whereRaw("LOWER(TRIM(COALESCE(statut,''))) LIKE 'd_tach_%'")->count();
-            $totalMissions = Militaire::whereRaw("LOWER(TRIM(COALESCE(statut,''))) LIKE 'mission%'")->count();
-            $totalStages = Militaire::whereRaw("LOWER(TRIM(COALESCE(statut,''))) LIKE 'stage%'")->count();
-            $totalRadies = Militaire::whereRaw("LOWER(TRIM(COALESCE(statut,''))) LIKE 'radi%'")->count();
+            $actifsStricts = Militaire::where('statut_code', 1)->count();
+            $totalDetaches = Militaire::where('statut_code', 2)->count();
+            $totalMissions = Militaire::where('statut_code', 3)->count();
+            $totalStages = Militaire::where('statut_code', 4)->count();
+            $totalRadies = Militaire::where('statut_code', 8)->count();
 
             return [
                 'annee' => $anneeCourante,
@@ -130,34 +128,28 @@ class DashboardController extends Controller
         return Cache::remember("v{$v}:dashboard:charts_data", 600, function () {
             // 1. STATISTIQUES PAR STATUT (Situation de tous les personnels)
         $statutsMeta = [
-            'actif' => ['label' => 'Actif (En service)', 'color' => '#059669', 'bg' => 'bg-emerald-50 text-emerald-800 border-emerald-200'],
-            'détaché' => ['label' => 'Détaché', 'color' => '#0284c7', 'bg' => 'bg-sky-50 text-sky-800 border-sky-200'],
-            'stage' => ['label' => 'En Stage / Formation', 'color' => '#06b6d4', 'bg' => 'bg-cyan-50 text-cyan-800 border-cyan-200'],
-            'mission' => ['label' => 'En mission', 'color' => '#6366f1', 'bg' => 'bg-indigo-50 text-indigo-800 border-indigo-200'],
-            'procédure en cours' => ['label' => 'Procédure en cours', 'color' => '#d97706', 'bg' => 'bg-amber-50 text-amber-800 border-amber-200'],
-            'déserteur' => ['label' => 'Déserteur', 'color' => '#ea580c', 'bg' => 'bg-orange-50 text-orange-800 border-orange-200'],
-            'retraité' => ['label' => 'Retraité', 'color' => '#9333ea', 'bg' => 'bg-purple-50 text-purple-800 border-purple-200'],
-            'radié' => ['label' => 'Radié', 'color' => '#64748b', 'bg' => 'bg-slate-50 text-slate-800 border-slate-200'],
-            'décédé' => ['label' => 'Décédé', 'color' => '#e11d48', 'bg' => 'bg-rose-50 text-rose-800 border-rose-200'],
+            'actif' => ['num' => 1, 'label' => 'Actif (En service)', 'color' => '#059669', 'bg' => 'bg-emerald-50 text-emerald-800 border-emerald-200'],
+            'détaché' => ['num' => 2, 'label' => 'Détaché', 'color' => '#0284c7', 'bg' => 'bg-sky-50 text-sky-800 border-sky-200'],
+            'stage' => ['num' => 4, 'label' => 'En Stage / Formation', 'color' => '#06b6d4', 'bg' => 'bg-cyan-50 text-cyan-800 border-cyan-200'],
+            'mission' => ['num' => 3, 'label' => 'En mission', 'color' => '#6366f1', 'bg' => 'bg-indigo-50 text-indigo-800 border-indigo-200'],
+            'procédure en cours' => ['num' => 5, 'label' => 'Procédure en cours', 'color' => '#d97706', 'bg' => 'bg-amber-50 text-amber-800 border-amber-200'],
+            'déserteur' => ['num' => 6, 'label' => 'Déserteur', 'color' => '#ea580c', 'bg' => 'bg-orange-50 text-orange-800 border-orange-200'],
+            'retraité' => ['num' => 7, 'label' => 'Retraité', 'color' => '#9333ea', 'bg' => 'bg-purple-50 text-purple-800 border-purple-200'],
+            'radié' => ['num' => 8, 'label' => 'Radié', 'color' => '#64748b', 'bg' => 'bg-slate-50 text-slate-800 border-slate-200'],
+            'décédé' => ['num' => 9, 'label' => 'Décédé', 'color' => '#e11d48', 'bg' => 'bg-rose-50 text-rose-800 border-rose-200'],
         ];
 
-        $statutRaw = Militaire::selectRaw('LOWER(TRIM(statut)) AS s, COUNT(*) AS c')
-            ->groupByRaw('LOWER(TRIM(statut))')
-            ->pluck('c', 's')
+        // Comptage direct et ultra-rapide par statut_code indexé
+        $statutCounts = Militaire::selectRaw('statut_code, COUNT(*) AS c')
+            ->groupBy('statut_code')
+            ->pluck('c', 'statut_code')
             ->toArray();
 
         $statutsDistribution = [];
-        $totalStatuts = array_sum(array_map('intval', $statutRaw));
+        $totalStatuts = array_sum(array_map('intval', $statutCounts));
         $totalClasse = 0;
         foreach ($statutsMeta as $code => $meta) {
-            $cnt = 0;
-            $prefixe = mb_substr(mb_strtolower($code), 0, 5);
-            foreach ($statutRaw as $dbStatut => $val) {
-                $st = (string) $dbStatut;
-                if ($st === mb_strtolower($code) || str_starts_with($st, $prefixe)) {
-                    $cnt += (int) $val;
-                }
-            }
+            $cnt = (int) ($statutCounts[$meta['num']] ?? 0);
             $totalClasse += $cnt;
             $statutsDistribution[] = [
                 'code' => $code,

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Carbon\Carbon;
+use App\Enums\StatutMilitaire;
 
 class Militaire extends Model
 {
@@ -27,6 +28,7 @@ class Militaire extends Model
         'lieu_naissance',
         'date_entree_service',
         'grade_actuel',
+        'grade_ordre',
         'categorie',
         'date_derniere_promotion',
         'specialite',
@@ -49,12 +51,14 @@ class Militaire extends Model
         'personne_a_contacter',
         'telephone_personne_contacter',
         'statut',
+        'statut_code',
         'a_permis_conduire',
         'antecedent_judiciaire',
         'antecedent_disciplinaire',
         'decorations',
         'diplomes_academiques',
         'observations',
+        'recherche',
         'date_deces',
         'circonstances_deces',
         'motif_radiation',
@@ -76,6 +80,8 @@ class Militaire extends Model
         'a_permis_conduire' => 'boolean',
         'antecedent_judiciaire' => 'boolean',
         'antecedent_disciplinaire' => 'boolean',
+        'statut_code' => 'integer',
+        'grade_ordre' => 'integer',
     ];
 
     /**
@@ -107,12 +113,15 @@ class Militaire extends Model
                 }
             }
 
-            // Déduction automatique de la catégorie statutaire si le grade est connu
-            if (empty($militaire->categorie) && !empty($militaire->grade_actuel)) {
+            // Déduction automatique de la catégorie statutaire et de l'ordre hiérarchique du grade
+            if (!empty($militaire->grade_actuel)) {
                 $grade = Grade::where('nom_grade', $militaire->grade_actuel)
                     ->orWhere('code_grade', $militaire->grade_actuel)
                     ->first();
-                $militaire->categorie = $grade ? $grade->categorie_statutaire : Grade::determinerCategorie($militaire->grade_actuel);
+                if (empty($militaire->categorie)) {
+                    $militaire->categorie = $grade ? $grade->categorie_statutaire : Grade::determinerCategorie($militaire->grade_actuel);
+                }
+                $militaire->grade_ordre = $grade?->ordre ?? 0;
             }
 
             if ($militaire->position_id && (!$militaire->position_actuelle || $militaire->isDirty('position_id'))) {
@@ -132,6 +141,16 @@ class Militaire extends Model
 
             // Région, unité et textes cohérents entre eux (voir CarteRattachement::synchroniser)
             \App\Support\CarteRattachement::synchroniser($militaire);
+
+            // Synchronisation statut (texte) <-> statut_code (numérique indexé)
+            if (!empty($militaire->statut)) {
+                $militaire->statut_code = StatutMilitaire::depuisTexte($militaire->statut)?->value;
+            } elseif (!empty($militaire->statut_code)) {
+                $militaire->statut = StatutMilitaire::tryFrom((int) $militaire->statut_code)?->label() ?? $militaire->statut;
+            }
+
+            // Construction du texte consolidé de recherche plein texte (minuscules regroupées)
+            $militaire->recherche = $militaire->construireTexteRecherche();
         });
 
         static::saved(function () {
@@ -458,5 +477,60 @@ class Militaire extends Model
     public function getContratActifAttribute(): ?Contrat
     {
         return $this->contrats()->where('statut', 'actif')->latest('date_debut')->first();
+    }
+
+    /**
+     * Instance de l'Enum StatutMilitaire correspondant au code numérique.
+     */
+    public function getStatutEnumAttribute(): ?StatutMilitaire
+    {
+        return $this->statut_code ? StatutMilitaire::tryFrom((int) $this->statut_code) : null;
+    }
+
+    /**
+     * Scope pour filtrer les militaires en activité (codes 1 à 4).
+     */
+    public function scopeEnActivite($query)
+    {
+        return $query->whereBetween('statut_code', [1, 4]);
+    }
+
+    /**
+     * Scope pour filtrer par statut militaire (accepte Enum, entier ou texte).
+     */
+    public function scopeDuStatut($query, StatutMilitaire|int|string $statut)
+    {
+        if ($statut instanceof StatutMilitaire) {
+            return $query->where('statut_code', $statut->value);
+        }
+        if (is_int($statut) || ctype_digit((string) $statut)) {
+            return $query->where('statut_code', (int) $statut);
+        }
+        $code = StatutMilitaire::depuisTexte((string) $statut)?->value;
+        return $code !== null ? $query->where('statut_code', $code) : $query->where('statut', $statut);
+    }
+
+    /**
+     * Construit la chaîne de recherche consolidée en minuscules pour l'index GIN trgm.
+     */
+    public function construireTexteRecherche(): string
+    {
+        $elements = [
+            $this->matricule,
+            $this->mle_grm,
+            $this->numero_info,
+            $this->numero_nina,
+            $this->nom,
+            $this->prenom,
+            $this->grade_actuel,
+            $this->position_actuelle,
+            $this->unite,
+            $this->region,
+            $this->specialite,
+            $this->fonction_actuelle,
+            $this->telephone,
+        ];
+
+        return mb_strtolower(trim(implode(' ', array_filter(array_map('trim', array_filter($elements, 'is_string'))))));
     }
 }

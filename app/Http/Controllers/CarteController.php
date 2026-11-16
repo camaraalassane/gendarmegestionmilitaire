@@ -53,24 +53,23 @@ class CarteController extends Controller
             ->selectRaw("region_id, unite_id, COUNT(*) AS total,
                 SUM(CASE WHEN {$absent} THEN 1 ELSE 0 END) AS absents,
                 SUM(CASE WHEN LOWER(COALESCE(sexe,'')) LIKE 'f%' THEN 1 ELSE 0 END) AS femmes,
-                {$cas('actif')} AS n_actifs,
-                {$cas('d_tach_%')} AS n_detaches,
-                {$cas('mission%')} AS n_missions,
-                {$cas('stage%')} AS n_stages")
+                SUM(CASE WHEN statut_code = 1 THEN 1 ELSE 0 END) AS n_actifs,
+                SUM(CASE WHEN statut_code = 2 THEN 1 ELSE 0 END) AS n_detaches,
+                SUM(CASE WHEN statut_code = 3 THEN 1 ELSE 0 END) AS n_missions,
+                SUM(CASE WHEN statut_code = 4 THEN 1 ELSE 0 END) AS n_stages")
             ->groupBy('region_id', 'unite_id')
             ->get();
 
-        // 2 bis) Hors effectif : Radiés, Déserteurs, Décédés et Retraités (comptabilisés séparément)
+        // 2 bis) Hors effectif : Radiés (8), Déserteurs (6), Décédés (9) et Retraités (7) (comptabilisés séparément)
         $annee = (int) now()->year;
         $debut = now()->setDate($annee, 1, 1)->startOfDay()->format('Y-m-d H:i:s');
         $fin = now()->setDate($annee, 12, 31)->endOfDay()->format('Y-m-d H:i:s');
-        $st = "LOWER(TRIM(COALESCE(statut,'')))";
 
         $horsEffectif = Militaire::query()
             ->selectRaw("region_id,
-                SUM(CASE WHEN {$st} LIKE 'radi%' THEN 1 ELSE 0 END) AS radies,
-                SUM(CASE WHEN {$st} LIKE 'd_serteur%' OR {$st} LIKE 'desert%' THEN 1 ELSE 0 END) AS deserteurs,
-                SUM(CASE WHEN ({$st} LIKE 'd_c_d%' OR {$st} LIKE 'mort%' OR date_deces IS NOT NULL)
+                SUM(CASE WHEN statut_code = 8 THEN 1 ELSE 0 END) AS radies,
+                SUM(CASE WHEN statut_code = 6 THEN 1 ELSE 0 END) AS deserteurs,
+                SUM(CASE WHEN (statut_code = 9 OR date_deces IS NOT NULL)
                           AND (date_deces BETWEEN ? AND ? OR (date_deces IS NULL AND updated_at BETWEEN ? AND ?))
                          THEN 1 ELSE 0 END) AS decedes", [$debut, $fin, $debut, $fin])
             ->groupBy('region_id')

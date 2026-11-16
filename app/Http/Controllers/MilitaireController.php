@@ -32,48 +32,17 @@ class MilitaireController extends Controller
     public function index(Request $request)
     {
         $query = Militaire::query();
-        $query->leftJoin('grades', 'militaires.grade_actuel', '=', 'grades.nom_grade');
 
         if ($request->filled('search')) {
-            $search = preg_replace('/\s+/', ' ', $request->search);
-            $searchTerms = explode(' ', trim($search));
+            $search = preg_replace('/\s+/', ' ', trim($request->search));
+            $searchTerms = explode(' ', $search);
             $query->where(function($q) use ($searchTerms) {
                 foreach ($searchTerms as $term) {
-                    if (!empty($term)) {
-                        // Tolérance aux accents pour SQLite (é, è, ê -> _ et e -> _)
-                        $wildcard = preg_replace('/[eéèêëEÉÈÊË]/u', '_', $term);
-                        $wildcard = preg_replace('/[aàâäAÀÂÄ]/u', '_', $wildcard);
-                        $wildcard = preg_replace('/[iîïIÎÏ]/u', '_', $wildcard);
-                        $wildcard = preg_replace('/[oôöOÔÖ]/u', '_', $wildcard);
-                        $wildcard = preg_replace('/[uùûüUÙÛÜ]/u', '_', $wildcard);
-                        $wildcard = preg_replace('/[cçCÇ]/u', '_', $wildcard);
-
-                        $q->where(function($subQ) use ($term, $wildcard) {
-                            $subQ->where('militaires.nom', 'LIKE', "%{$term}%")
-                                 ->orWhere('militaires.prenom', 'LIKE', "%{$term}%")
-                                 ->orWhere('militaires.matricule', 'LIKE', "%{$term}%")
-                                 ->orWhere('militaires.mle_grm', 'LIKE', "%{$term}%")
-                                 ->orWhere('militaires.numero_info', 'LIKE', "%{$term}%")
-                                 ->orWhere('militaires.numero_nina', 'LIKE', "%{$term}%")
-                                 ->orWhere('militaires.grade_actuel', 'LIKE', "%{$term}%")
-                                 ->orWhere('militaires.position_actuelle', 'LIKE', "%{$term}%")
-                                 ->orWhere('militaires.unite', 'LIKE', "%{$term}%")
-                                 ->orWhere('militaires.region', 'LIKE', "%{$term}%")
-                                 ->orWhere('militaires.specialite', 'LIKE', "%{$term}%")
-                                 ->orWhere('militaires.fonction_actuelle', 'LIKE', "%{$term}%")
-                                 ->orWhere('militaires.telephone', 'LIKE', "%{$term}%");
-
-                            if ($wildcard !== $term) {
-                                $subQ->orWhere('militaires.nom', 'LIKE', "%{$wildcard}%")
-                                     ->orWhere('militaires.prenom', 'LIKE', "%{$wildcard}%")
-                                     ->orWhere('militaires.grade_actuel', 'LIKE', "%{$wildcard}%")
-                                     ->orWhere('militaires.position_actuelle', 'LIKE', "%{$wildcard}%")
-                                     ->orWhere('militaires.unite', 'LIKE', "%{$wildcard}%")
-                                     ->orWhere('militaires.region', 'LIKE', "%{$wildcard}%")
-                                     ->orWhere('militaires.specialite', 'LIKE', "%{$wildcard}%");
-                            }
-
-                            if (mb_stripos($term, 'assign') !== false) {
+                    $t = mb_strtolower(trim($term));
+                    if (!empty($t)) {
+                        $q->where(function($subQ) use ($t) {
+                            $subQ->where('militaires.recherche', 'LIKE', "%{$t}%");
+                            if (mb_stripos($t, 'assign') !== false) {
                                 $subQ->orWhereNull('militaires.position_actuelle')
                                      ->orWhere('militaires.position_actuelle', '');
                             }
@@ -88,7 +57,17 @@ class MilitaireController extends Controller
         }
 
         if ($request->filled('region')) {
-            $query->where('militaires.region', $request->region);
+            $reg = $request->region;
+            if (is_numeric($reg)) {
+                $query->where('militaires.region_id', (int) $reg);
+            } else {
+                $query->where(function ($q) use ($reg) {
+                    $q->where('militaires.region', $reg)
+                      ->orWhere('militaires.region_id', function ($sub) use ($reg) {
+                          $sub->select('id')->from('regions')->where('nom', $reg)->orWhere('code', $reg)->limit(1);
+                      });
+                });
+            }
         }
 
         if ($request->filled('unite')) {
@@ -121,10 +100,10 @@ class MilitaireController extends Controller
                       $q->whereNull('militaires.unite_id')->orWhere('militaires.unite_id', 0);
                   });
         } elseif ($statutFilter === 'actif') {
-            // Actifs, détachés, en détachement, en stage, en formation, en mission : tous comptés en activité
-            $query->whereRaw(Effectif::sqlActivite('militaires.statut'));
+            // Actifs, détachés, en détachement, en stage, en formation, en mission : tous comptés en activité (codes 1 à 4)
+            $query->whereBetween('militaires.statut_code', [1, 4]);
         } elseif ($statutFilter === 'actif_strict') {
-            $query->where('militaires.statut', 'actif');
+            $query->where('militaires.statut_code', 1);
         } elseif ($statutFilter === 'otage') {
             $query->where(function($q) {
                 $q->whereRaw("LOWER(COALESCE(militaires.position_actuelle, '')) LIKE ?", ['%otage%'])
@@ -135,42 +114,41 @@ class MilitaireController extends Controller
         } elseif ($statutFilter === 'retraites_n1') {
             $query->whereIn('militaires.id', $this->getIdsRetraitePourAnnee($anneeN + 1));
         } elseif ($statutFilter === 'decedes_annee_n') {
-            $query->where(function($q) use ($anneeN) {
-                $q->where('militaires.statut', 'LIKE', 'd%c%d%')
-                  ->orWhere('militaires.statut', 'LIKE', 'mort%')
+            $debutAnnee = Carbon::create($anneeN, 1, 1)->startOfDay();
+            $finAnnee = Carbon::create($anneeN, 12, 31)->endOfDay();
+            $query->where(function($q) {
+                $q->where('militaires.statut_code', 9)
                   ->orWhereNotNull('militaires.date_deces');
-            })->where(function($q) use ($anneeN) {
-                $q->whereYear('militaires.date_deces', $anneeN)
-                  ->orWhere(function($sub) use ($anneeN) {
-                      $sub->whereNull('militaires.date_deces')->whereYear('militaires.updated_at', $anneeN);
+            })->where(function($q) use ($debutAnnee, $finAnnee) {
+                $q->whereBetween('militaires.date_deces', [$debutAnnee, $finAnnee])
+                  ->orWhere(function($sub) use ($debutAnnee, $finAnnee) {
+                      $sub->whereNull('militaires.date_deces')->whereBetween('militaires.updated_at', [$debutAnnee, $finAnnee]);
                   });
             });
         } elseif (str_starts_with(mb_strtolower($statutFilter), 'deser')) {
             $query->where(function($q) {
-                $q->where('militaires.statut', 'LIKE', 'd%serteur%')
-                  ->orWhere('militaires.statut', 'LIKE', 'desert%')
+                $q->where('militaires.statut_code', 6)
                   ->orWhere('militaires.motif_radiation', 'LIKE', '%desert%');
             });
         } elseif (str_starts_with(mb_strtolower($statutFilter), 'retrait')) {
-            $query->where('militaires.statut', 'LIKE', 'retrait%');
+            $query->where('militaires.statut_code', 7);
         } elseif (str_starts_with(mb_strtolower($statutFilter), 'radi')) {
-            $query->where('militaires.statut', 'LIKE', 'radi%');
+            $query->where('militaires.statut_code', 8);
         } elseif (str_starts_with(mb_strtolower($statutFilter), 'd_tach') || str_starts_with(mb_strtolower($statutFilter), 'detach') || str_starts_with(mb_strtolower($statutFilter), 'détach')) {
-            $query->where(function($q) {
-                $q->where('militaires.statut', 'LIKE', 'd%tach%')
-                  ->orWhere('militaires.statut', 'LIKE', 'detach%');
-            });
+            $query->where('militaires.statut_code', 2);
         } elseif (str_starts_with(mb_strtolower($statutFilter), 'miss')) {
-            $query->where('militaires.statut', 'LIKE', 'miss%');
+            $query->where('militaires.statut_code', 3);
         } elseif (str_starts_with(mb_strtolower($statutFilter), 'stag') || str_starts_with(mb_strtolower($statutFilter), 'format')) {
-            $query->where(function($q) {
-                $q->where('militaires.statut', 'LIKE', 'stag%')
-                  ->orWhere('militaires.statut', 'LIKE', 'format%');
-            });
+            $query->where('militaires.statut_code', 4);
         } elseif (str_starts_with(mb_strtolower($statutFilter), 'dec') || str_starts_with(mb_strtolower($statutFilter), 'déc')) {
-            $query->where('militaires.statut', 'LIKE', 'd%c%d%');
+            $query->where('militaires.statut_code', 9);
         } elseif (!empty($statutFilter)) {
-            $query->where('militaires.statut', $statutFilter);
+            $code = \App\Enums\StatutMilitaire::depuisTexte($statutFilter)?->value;
+            if ($code !== null) {
+                $query->where('militaires.statut_code', $code);
+            } else {
+                $query->where('militaires.statut', $statutFilter);
+            }
         }
 
         $v = Militaire::getCacheVersion();
@@ -188,12 +166,11 @@ class MilitaireController extends Controller
             ];
         });
 
-        $query->orderByRaw('COALESCE(grades.ordre, -1) DESC')
-              ->orderBy('militaires.nom')
-              ->orderBy('militaires.prenom');
+        $query->orderBy('militaires.grade_ordre', 'desc')
+              ->orderBy('militaires.nom', 'asc')
+              ->orderBy('militaires.prenom', 'asc');
 
-        $militaires = $query->select('militaires.*')
-            ->withCount(['alertes' => fn($q) => $q->where('est_vue', false)])
+        $militaires = $query->withCount(['alertes' => fn($q) => $q->where('est_vue', false)])
             ->paginate(20)
             ->withQueryString()
             ->through(fn ($militaire) => [
@@ -1111,11 +1088,12 @@ class MilitaireController extends Controller
             return;
         }
 
+        $debutMois = now()->startOfMonth();
+        $finMois = now()->endOfMonth();
         $alerteExiste = Alerte::where('militaire_id', $militaire->id)
             ->where('type_alerte', 'mutation')
             ->where('est_vue', false)
-            ->whereMonth('created_at', now()->month)
-            ->whereYear('created_at', now()->year)
+            ->whereBetween('created_at', [$debutMois, $finMois])
             ->exists();
 
         if (!$alerteExiste) {

@@ -18,14 +18,13 @@ class SyncRetraites extends Command
         $this->info("=== Synchronisation des statuts de retraite ===");
         
         $anneeCourante = (int) Carbon::now()->year; // 2026
-        $militaires = Militaire::all();
 
         $basculesEnRetraite = 0;
         $retablisEnActif = 0;
         $dejaRetraites = 0;
         $actifs2026 = 0;
 
-        foreach ($militaires as $militaire) {
+        foreach (Militaire::lazyById(1000) as $militaire) {
             if (!$militaire->date_naissance || !$militaire->grade_actuel) {
                 continue;
             }

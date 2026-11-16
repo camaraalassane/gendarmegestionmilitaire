@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class AlerteController extends Controller
 {
@@ -81,17 +82,19 @@ class AlerteController extends Controller
                 ] : null,
             ]);
 
-        // Statistiques globales
-        $statistiques = [
-            'total' => Alerte::count(),
-            'non_vues' => Alerte::where('est_vue', false)->count(),
-            'vues' => Alerte::where('est_vue', true)->count(),
-            'promotions' => Alerte::where('type_alerte', 'promotion')->count(),
-            'formations' => Alerte::where('type_alerte', 'formation')->count(),
-            'retraites' => Alerte::where('type_alerte', 'retraite')->count(),
-            'contrats' => Alerte::where('type_alerte', 'contrat')->count(),
-            'mutations' => Alerte::where('type_alerte', 'mutation')->count(),
-        ];
+        // Statistiques globales (mises en cache 120s pour navigations instantanées)
+        $statistiques = Cache::remember('alertes:statistiques_globales', 120, function () {
+            return [
+                'total' => Alerte::count(),
+                'non_vues' => Alerte::where('est_vue', false)->count(),
+                'vues' => Alerte::where('est_vue', true)->count(),
+                'promotions' => Alerte::where('type_alerte', 'promotion')->count(),
+                'formations' => Alerte::where('type_alerte', 'formation')->count(),
+                'retraites' => Alerte::where('type_alerte', 'retraite')->count(),
+                'contrats' => Alerte::where('type_alerte', 'contrat')->count(),
+                'mutations' => Alerte::where('type_alerte', 'mutation')->count(),
+            ];
+        });
 
         return Inertia::render('alertes/index', [
             'alertes' => $alertes,
@@ -108,6 +111,7 @@ class AlerteController extends Controller
         $alerte->delete();
 
         Cache::forget('alertes:non_vues_count');
+        Cache::forget('alertes:non_vues_count_gendarme');
         Cache::forget('dashboard:statistiques_cards');
         Cache::forget('alertes:statistiques_globales');
 
@@ -134,6 +138,7 @@ class AlerteController extends Controller
         }
 
         Cache::forget('alertes:non_vues_count');
+        Cache::forget('alertes:non_vues_count_gendarme');
         Cache::forget('dashboard:statistiques_cards');
         Cache::forget('alertes:statistiques_globales');
 
@@ -260,11 +265,12 @@ class AlerteController extends Controller
             }
 
             // Vérifier si une alerte mutation non vue existe déjà ce mois-ci
+            $debutMois = now()->startOfMonth();
+            $finMois = now()->endOfMonth();
             $alerteExistanteCeMois = Alerte::where('militaire_id', $militaire->id)
                 ->where('type_alerte', 'mutation')
                 ->where('est_vue', false)
-                ->whereMonth('created_at', now()->month)
-                ->whereYear('created_at', now()->year)
+                ->whereBetween('created_at', [$debutMois, $finMois])
                 ->exists();
 
             if ($alerteExistanteCeMois) {
