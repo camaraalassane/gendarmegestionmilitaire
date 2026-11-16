@@ -1515,13 +1515,18 @@ class MilitaireController extends Controller
         return Cache::remember("v{$v}:militaires:ids_retraite_{$anneeCible}", 1800, function () use ($anneeCible) {
             $militaires = Militaire::whereNotNull('date_naissance')
                 ->whereNotNull('grade_actuel')
-                ->select('id', 'date_naissance', 'grade_actuel', 'statut')
+                ->select('id', 'date_naissance', 'grade_actuel', 'statut', 'statut_code', 'position_actuelle', 'observations')
                 ->get();
 
             $ids = [];
             $anneeCourante = (int) Carbon::now()->year;
 
             foreach ($militaires as $m) {
+                // Exclusion formelle des militaires en otage
+                if ($m->isOtage()) {
+                    continue;
+                }
+
                 $ageRetraite = Grade::getRetraiteForGrade($m->grade_actuel);
                 if (!$ageRetraite) continue;
 

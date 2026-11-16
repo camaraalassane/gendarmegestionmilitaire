@@ -25,6 +25,17 @@ class SyncRetraites extends Command
         $actifs2026 = 0;
 
         foreach (Militaire::lazyById(1000) as $militaire) {
+            // Un militaire en otage reste TOUJOURS en activité / maintenu au fichier jusqu'à sa découverte.
+            // Il ne doit JAMAIS être basculé en retraité.
+            if ($militaire->isOtage()) {
+                if ($militaire->statut !== 'actif' || $militaire->statut_code !== 1) {
+                    $militaire->statut = 'actif';
+                    $militaire->statut_code = 1;
+                    $militaire->save();
+                }
+                continue;
+            }
+
             if (!$militaire->date_naissance || !$militaire->grade_actuel) {
                 continue;
             }

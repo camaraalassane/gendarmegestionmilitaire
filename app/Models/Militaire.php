@@ -94,11 +94,11 @@ class Militaire extends Model
             // Un militaire en otage reste TOUJOURS en activité / maintenu au fichier jusqu'à sa découverte.
             // Il ne doit JAMAIS être basculé automatiquement en retraité.
             if ($militaire->isOtage()) {
-                if ($militaire->statut === 'retraité' || empty($militaire->statut)) {
-                    $militaire->statut = 'actif';
-                }
+                $militaire->statut = 'actif';
+                $militaire->statut_code = 1;
             } elseif ($militaire->statut === 'actif' && $militaire->estRetraiteDepassee()) {
                 $militaire->statut = 'retraité';
+                $militaire->statut_code = 7;
             }
 
             // Déduction automatique de la position administrative pour les détachés si non renseignée
@@ -368,6 +368,9 @@ class Militaire extends Model
 
     public function calculerDateRetraite(): ?Carbon
     {
+        if ($this->isOtage()) {
+            return null;
+        }
         if (!$this->date_naissance || !$this->grade_actuel) return null;
         
         $ageRetraite = Grade::getRetraiteForGrade($this->grade_actuel);

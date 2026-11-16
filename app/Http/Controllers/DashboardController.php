@@ -381,13 +381,18 @@ class DashboardController extends Controller
                 })
                 ->whereNotNull('date_naissance')
                 ->whereNotNull('grade_actuel')
-                ->select('id', 'nom', 'prenom', 'matricule', 'grade_actuel', 'statut', 'date_naissance')
+                ->select('id', 'nom', 'prenom', 'matricule', 'grade_actuel', 'statut', 'statut_code', 'date_naissance', 'position_actuelle', 'observations')
                 ->get();
 
             $retN = [];
             $retN1 = [];
 
             foreach ($militaires as $militaire) {
+                // Les militaires en otage sont expressément maintenus en activité dans le fichier et exclus des prévisions de retraite
+                if ($militaire->isOtage()) {
+                    continue;
+                }
+
                 $gradeName = trim($militaire->grade_actuel);
                 $ageRetraite = $gradeMap[$gradeName] ?? Grade::getRetraiteForGrade($gradeName);
                 if (!$ageRetraite) continue;
