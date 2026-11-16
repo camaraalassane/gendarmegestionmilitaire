@@ -1,9 +1,9 @@
 <template>
-    <div class="min-h-screen bg-gray-100 overflow-x-hidden w-full max-w-full">
+    <div class="min-h-screen bg-gray-100 w-full max-w-full">
         <Sidebar v-model:is-open="sidebarOpen" :is-mobile="isMobile" @close-mobile="closeMobileMenu" />
 
         <div
-            :class="['transition-all duration-300 print:!ml-0 print:!p-0 print:!w-full min-w-0 max-w-full overflow-x-hidden', !isMobile && sidebarOpen ? 'lg:ml-64' : (!isMobile ? 'lg:ml-20' : '')]">
+            :class="['transition-all duration-300 print:!ml-0 print:!p-0 print:!w-full min-w-0 max-w-full', !isMobile && sidebarOpen ? 'lg:ml-64' : (!isMobile ? 'lg:ml-20' : '')]">
 
             <header class="bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 shadow-md z-10 border-b border-sky-600/30 print:hidden">
                 <div class="flex justify-between items-center px-3 sm:px-4 py-2.5 sm:py-3 gap-2">
