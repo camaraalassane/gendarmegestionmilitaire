@@ -774,17 +774,17 @@ const formatAnciennete = (annees) => {
 onMounted(() => {
     gradeOptions.value = [
         { label: 'Tous les grades', value: null },
-        ...props.grades.map(g => ({ label: g.nom_grade, value: g.nom_grade }))
+        ...props.grades.map(g => ({ label: g.nom_grade, value: g.id ?? g.nom_grade }))
     ];
 
     regionOptions.value = [
         { label: 'Toutes les régions', value: null },
-        ...props.regions.map(r => ({ label: r, value: r }))
+        ...props.regions.map(r => ({ label: r.nom ?? r, value: r.id ?? r }))
     ];
 
     positionOptions.value = [
         { label: 'Toutes les positions', value: null },
-        ...props.positions.map(p => ({ label: p, value: p }))
+        ...props.positions.map(p => ({ label: p.nom ?? p, value: p.id ?? p }))
     ];
 });
 

@@ -54,7 +54,16 @@ class MilitairesExport implements FromQuery, WithHeadings, WithMapping, ShouldAu
 
         if ($this->grade) {
             \Log::info('✅ Export - application du filtre grade : ' . $this->grade);
-            $query->where('grade_actuel', $this->grade);
+            if (is_numeric($this->grade)) {
+                $query->where('grade_id', (int) $this->grade);
+            } else {
+                $gradeId = Grade::where('nom_grade', $this->grade)->orWhere('code_grade', $this->grade)->value('id');
+                if ($gradeId) {
+                    $query->where('grade_id', $gradeId);
+                } else {
+                    $query->where('grade_actuel', $this->grade);
+                }
+            }
         }
 
         if ($this->statut === 'all') {
@@ -63,8 +72,15 @@ class MilitairesExport implements FromQuery, WithHeadings, WithMapping, ShouldAu
             $query->whereIn('id', $this->idsN ?: [0]);
         } elseif ($this->statut === 'retraites_n1') {
             $query->whereIn('id', $this->idsN1 ?: [0]);
+        } elseif ($this->statut === 'actif') {
+            $query->whereBetween('statut_code', [1, 4]);
         } elseif ($this->statut) {
-            $query->where('statut', $this->statut);
+            $code = \App\Enums\StatutMilitaire::depuisTexte($this->statut)?->value;
+            if ($code !== null) {
+                $query->where('statut_code', $code);
+            } else {
+                $query->where('statut', $this->statut);
+            }
         }
 
         // Tri pour l'export

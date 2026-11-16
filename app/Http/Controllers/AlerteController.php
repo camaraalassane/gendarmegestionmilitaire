@@ -45,9 +45,17 @@ class AlerteController extends Controller
             }
 
             $query->where(function($q) use ($search, $dateConverted) {
-                // 1. Recherche par Militaire (nom, prénom, matricule)
-                $q->whereHas('militaire', function($mQ) use ($search) {
-                    $mQ->where('nom', 'like', "%{$search}%")
+                // Recherche directe et instantanée par ID (entier)
+                if (ctype_digit($search)) {
+                    $searchId = (int) $search;
+                    $q->where('alertes.id', $searchId)
+                      ->orWhere('alertes.militaire_id', $searchId);
+                }
+
+                // 1. Recherche par Militaire (recherche full-text indexée, nom, prénom, matricule)
+                $q->orWhereHas('militaire', function($mQ) use ($search) {
+                    $mQ->where('recherche', 'like', "%{$search}%")
+                       ->orWhere('nom', 'like', "%{$search}%")
                        ->orWhere('prenom', 'like', "%{$search}%")
                        ->orWhere('matricule', 'like', "%{$search}%");
                 })
@@ -228,7 +236,7 @@ class AlerteController extends Controller
      */
     public function checkMutations()
     {
-        $militaires = Militaire::where('statut', 'actif')->with(['affectations' => function($q) {
+        $militaires = Militaire::enActivite()->with(['affectations' => function($q) {
             $q->orderBy('date_mutation', 'desc');
         }])->get();
         $createdCount = 0;
@@ -354,7 +362,7 @@ class AlerteController extends Controller
 
         // 2. Générer l'ensemble de toutes les alertes via le vérificateur complet (Promotions, Formations, Retraites, Contrats, Mutations)
         $militaireController = app(MilitaireController::class);
-        $militaires = Militaire::where('statut', 'actif')
+        $militaires = Militaire::enActivite()
             ->with(['certificats', 'affectations'])
             ->get();
 
@@ -378,8 +386,8 @@ class AlerteController extends Controller
      */
     private function actualiserStatutRetraites(): int
     {
-        $militaires = Militaire::where('statut', 'actif')
-            ->select('id', 'date_naissance', 'grade_actuel', 'statut')
+        $militaires = Militaire::enActivite()
+            ->select('id', 'date_naissance', 'grade_id', 'grade_actuel', 'statut', 'statut_code')
             ->get();
 
         $retraitesIds = [];
@@ -390,7 +398,10 @@ class AlerteController extends Controller
         }
 
         if (!empty($retraitesIds)) {
-            Militaire::whereIn('id', $retraitesIds)->update(['statut' => 'retraité']);
+            Militaire::whereIn('id', $retraitesIds)->update([
+                'statut' => 'retraité',
+                'statut_code' => 7,
+            ]);
         }
 
         return count($retraitesIds);
@@ -401,9 +412,9 @@ class AlerteController extends Controller
      */
     private function genererAlertesPromotion(): int
     {
-        $militaires = Militaire::where('statut', 'actif')
+        $militaires = Militaire::enActivite()
             ->whereNull('date_deces')
-            ->select('id', 'nom', 'prenom', 'grade_actuel', 'date_grade_actuel', 'date_derniere_promotion', 'date_entree_service')
+            ->select('id', 'nom', 'prenom', 'grade_id', 'grade_actuel', 'date_grade_actuel', 'date_derniere_promotion', 'date_entree_service')
             ->get();
 
         $existingAlertes = Alerte::where('type_alerte', 'promotion')
@@ -444,7 +455,7 @@ class AlerteController extends Controller
      */
     private function genererAlertesRetraite(): int
     {
-        $militaires = Militaire::where('statut', 'actif')
+        $militaires = Militaire::enActivite()
             ->whereNull('date_deces')
             ->whereNotNull('date_naissance')
             ->select('id', 'nom', 'prenom', 'grade_actuel', 'date_naissance', 'statut')

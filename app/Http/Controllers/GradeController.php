@@ -42,7 +42,7 @@ class GradeController extends Controller
 
         $grades = $query->withCount([
                 'militaires as effectif_total',
-                'militaires as effectif_actif' => fn ($q) => $q->where('statut', 'actif'),
+                'militaires as effectif_actif' => fn ($q) => $q->whereBetween('statut_code', [1, 4]),
             ])
             ->orderBy('ordre')
             ->paginate(20)
@@ -61,7 +61,7 @@ class GradeController extends Controller
         $statistiques = [
             'total_grades' => Grade::count(),
             'types_grades' => Grade::distinct('type_grade')->count('type_grade'),
-            'total_militaires' => \App\Models\Militaire::where('statut', 'actif')->count(),
+            'total_militaires' => \App\Models\Militaire::whereBetween('statut_code', [1, 4])->count(),
         ];
 
         // Options pour les filtres
@@ -83,27 +83,19 @@ class GradeController extends Controller
      */
     public function show(Request $request, Grade $grade)
     {
-        // Récupérer les militaires ayant ce grade avec recherche améliorée
-        $militairesQuery = $grade->militaires()->where('statut', 'actif');
+        // Récupérer les militaires ayant ce grade avec recherche optimisée par index
+        $militairesQuery = $grade->militaires()->whereBetween('statut_code', [1, 4]);
         
-        // RECHERCHE AMÉLIORÉE POUR LES MILITAIRES DANS LE GRADE (CORRECTION SERVEUR)
         if ($request->filled('search')) {
-            // Supprime les espaces multiples et nettoie les bords
-            $search = preg_replace('/\s+/', ' ', $request->search);
-            $searchTerms = explode(' ', trim($search));
-            
-            $militairesQuery->where(function($q) use ($searchTerms) {
-                foreach ($searchTerms as $term) {
-                    if (!empty($term)) {
-                        // Force l'application du AND entre chaque mot, mais OR entre les colonnes
-                        $q->where(function($subQ) use ($term) {
-                            $subQ->where('nom', 'like', "%{$term}%")
-                                 ->orWhere('prenom', 'like', "%{$term}%")
-                                 ->orWhere('matricule', 'like', "%{$term}%");
-                        });
-                    }
-                }
-            });
+            $search = trim(preg_replace('/\s+/', ' ', $request->search));
+            if (ctype_digit($search)) {
+                $militairesQuery->where(function($q) use ($search) {
+                    $q->where('id', (int) $search)
+                      ->orWhere('matricule', $search);
+                });
+            } else {
+                $militairesQuery->where('recherche', 'like', "%{$search}%");
+            }
         }
         
         $militaires = $militairesQuery
@@ -123,10 +115,10 @@ class GradeController extends Controller
                 'anciennete' => $militaire->anciennete,
             ]);
 
-        // Statistiques du grade
+        // Statistiques du grade (Index statut_code + grade_id instantanés)
         $effectif_total = $grade->militaires()->count();
-        $effectif_actif = $grade->militaires()->where('statut', 'actif')->count();
-        $effectif_retraite = $grade->militaires()->where('statut', 'retraité')->count();
+        $effectif_actif = $grade->militaires()->whereBetween('statut_code', [1, 4])->count();
+        $effectif_retraite = $grade->militaires()->where('statut_code', 7)->count();
 
         return Inertia::render('grades/show', [
             'grade' => [

@@ -233,6 +233,6 @@ class Grade extends Model
      */
     public function militaires(): HasMany
     {
-        return $this->hasMany(Militaire::class, 'grade_actuel', 'nom_grade');
+        return $this->hasMany(Militaire::class, 'grade_id');
     }
 }

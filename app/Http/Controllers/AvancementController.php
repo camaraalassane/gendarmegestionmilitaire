@@ -264,9 +264,9 @@ class AvancementController extends Controller
             $dataRows = array_slice($rows, $headerRowIndex + 1);
 
             // Précharger tous les militaires actifs et vivants en mémoire pour éliminer les requêtes SQL N+1
-            $allMilitaires = Militaire::where('statut', 'actif')
+            $allMilitaires = Militaire::enActivite()
                 ->whereNull('date_deces')
-                ->select('id', 'matricule', 'nom', 'prenom', 'grade_actuel', 'date_naissance')
+                ->select('id', 'grade_id', 'matricule', 'nom', 'prenom', 'grade_actuel', 'date_naissance')
                 ->get();
 
             $byMatricule = [];
@@ -452,7 +452,7 @@ class AvancementController extends Controller
 
             // Exclusion formelle des militaires déjà en retraite ou décédés
             $militaires = Militaire::whereIn('id', $allIds)
-                ->where('statut', 'actif')
+                ->enActivite()
                 ->whereNull('date_deces')
                 ->with(['certificats'])
                 ->get()
@@ -670,7 +670,7 @@ class AvancementController extends Controller
         // Nettoyer les avancements des militaires déjà retraités ou décédés
         Avancement::where('annee', $annee)
             ->whereHas('militaire', function ($q) {
-                $q->where('statut', '!=', 'actif')
+                $q->whereNotIn('statut_code', [1, 2, 3, 4])
                   ->orWhereNotNull('date_deces');
             })
             ->delete();

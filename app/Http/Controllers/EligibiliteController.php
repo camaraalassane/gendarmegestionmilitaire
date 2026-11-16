@@ -119,7 +119,7 @@ class EligibiliteController extends Controller
         $datePropStr = $refDate->format('Y-m-d');
         $now = Carbon::now();
 
-        $militaires = Militaire::where('statut', 'actif')
+        $militaires = Militaire::enActivite()
             ->with([
                 'certificats' => function ($q) {
                     $q->select('certificats.id', 'niveau_certificat');
@@ -130,9 +130,9 @@ class EligibiliteController extends Controller
                 },
             ])
             ->select([
-                'id', 'matricule', 'nom', 'prenom', 'grade_actuel',
+                'id', 'matricule', 'nom', 'prenom', 'grade_id', 'grade_actuel', 'grade_ordre',
                 'date_entree_service', 'date_derniere_promotion',
-                'statut', 'a_permis_conduire', 'antecedent_judiciaire',
+                'statut', 'statut_code', 'a_permis_conduire', 'antecedent_judiciaire',
                 'antecedent_disciplinaire', 'date_naissance',
                 'unite', 'region', 'date_mutation'
             ])

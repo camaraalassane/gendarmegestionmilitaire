@@ -36,14 +36,22 @@ class MilitaireController extends Controller
         if ($request->filled('search')) {
             $search = preg_replace('/\s+/', ' ', trim($request->search));
             $searchTerms = explode(' ', $search);
-            $query->where(function($q) use ($searchTerms) {
+            $query->where(function($q) use ($search, $searchTerms) {
+                // Recherche directe et instantanée par ID (clé primaire) ou matricule exact si purement numérique
+                if (ctype_digit($search)) {
+                    $searchInt = (int) $search;
+                    $q->where('militaires.id', $searchInt)
+                      ->orWhere('militaires.matricule', $search);
+                }
                 foreach ($searchTerms as $term) {
                     $t = mb_strtolower(trim($term));
                     if (!empty($t)) {
-                        $q->where(function($subQ) use ($t) {
+                        $q->orWhere(function($subQ) use ($t) {
                             $subQ->where('militaires.recherche', 'LIKE', "%{$t}%");
                             if (mb_stripos($t, 'assign') !== false) {
-                                $subQ->orWhereNull('militaires.position_actuelle')
+                                $subQ->orWhereNull('militaires.position_id')
+                                     ->orWhere('militaires.position_id', 0)
+                                     ->orWhereNull('militaires.position_actuelle')
                                      ->orWhere('militaires.position_actuelle', '');
                             }
                         });
@@ -52,36 +60,70 @@ class MilitaireController extends Controller
             });
         }
 
-        if ($request->filled('grade')) {
-            $query->where('militaires.grade_actuel', $request->grade);
-        }
-
-        if ($request->filled('region')) {
-            $reg = $request->region;
-            if (is_numeric($reg)) {
-                $query->where('militaires.region_id', (int) $reg);
+        // Filtre par Grade (Priorité stricte à l'ID entier indexé)
+        if ($request->filled('grade_id') || $request->filled('grade')) {
+            $gradeVal = $request->input('grade_id') ?? $request->input('grade');
+            if (is_numeric($gradeVal)) {
+                $query->where('militaires.grade_id', (int) $gradeVal);
             } else {
-                $query->where(function ($q) use ($reg) {
-                    $q->where('militaires.region', $reg)
-                      ->orWhere('militaires.region_id', function ($sub) use ($reg) {
-                          $sub->select('id')->from('regions')->where('nom', $reg)->orWhere('code', $reg)->limit(1);
-                      });
-                });
+                $gradeId = Grade::where('nom_grade', $gradeVal)->orWhere('code_grade', $gradeVal)->value('id');
+                if ($gradeId) {
+                    $query->where('militaires.grade_id', $gradeId);
+                } else {
+                    $query->where('militaires.grade_actuel', $gradeVal);
+                }
             }
         }
 
-        if ($request->filled('unite')) {
-            $query->where('militaires.unite', 'LIKE', "%{$request->unite}%");
+        // Filtre par Région (Priorité stricte à l'ID entier indexé)
+        if ($request->filled('region_id') || $request->filled('region')) {
+            $reg = $request->input('region_id') ?? $request->input('region');
+            if (is_numeric($reg)) {
+                $query->where('militaires.region_id', (int) $reg);
+            } else {
+                $regId = Region::where('nom', $reg)->orWhere('code', $reg)->value('id');
+                if ($regId) {
+                    $query->where('militaires.region_id', $regId);
+                } else {
+                    $query->where('militaires.region', $reg);
+                }
+            }
         }
 
-        if ($request->filled('position')) {
-            $pos = $request->position;
-            if ($pos === 'Non assigné / En attente' || $pos === 'non_assigne') {
-                $query->where(function ($q) {
-                    $q->whereNull('militaires.position_actuelle')->orWhere('militaires.position_actuelle', '');
-                });
+        // Filtre par Unité (Priorité stricte à l'ID entier indexé)
+        if ($request->filled('unite_id') || $request->filled('unite')) {
+            $unitVal = $request->input('unite_id') ?? $request->input('unite');
+            if (is_numeric($unitVal)) {
+                $query->where('militaires.unite_id', (int) $unitVal);
             } else {
-                $query->where('militaires.position_actuelle', 'LIKE', "%{$pos}%");
+                $unitId = Unite::where('nom', $unitVal)->orWhere('code', $unitVal)->value('id');
+                if ($unitId) {
+                    $query->where('militaires.unite_id', $unitId);
+                } else {
+                    $query->where('militaires.unite', 'LIKE', "%{$unitVal}%");
+                }
+            }
+        }
+
+        // Filtre par Position (Priorité stricte à l'ID entier indexé)
+        if ($request->filled('position_id') || $request->filled('position')) {
+            $pos = $request->input('position_id') ?? $request->input('position');
+            if ($pos === 'Non assigné / En attente' || $pos === 'non_assigne' || $pos === '0') {
+                $query->where(function ($q) {
+                    $q->whereNull('militaires.position_id')
+                      ->orWhere('militaires.position_id', 0)
+                      ->orWhereNull('militaires.position_actuelle')
+                      ->orWhere('militaires.position_actuelle', '');
+                });
+            } elseif (is_numeric($pos)) {
+                $query->where('militaires.position_id', (int) $pos);
+            } else {
+                $posId = Position::where('nom', $pos)->value('id');
+                if ($posId) {
+                    $query->where('militaires.position_id', $posId);
+                } else {
+                    $query->where('militaires.position_actuelle', 'LIKE', "%{$pos}%");
+                }
             }
         }
 
@@ -175,6 +217,11 @@ class MilitaireController extends Controller
             ->withQueryString()
             ->through(fn ($militaire) => [
                 'id' => $militaire->id,
+                'grade_id' => $militaire->grade_id,
+                'region_id' => $militaire->region_id,
+                'unite_id' => $militaire->unite_id,
+                'position_id' => $militaire->position_id,
+                'statut_code' => $militaire->statut_code,
                 'matricule' => $militaire->matricule,
                 'mle_grm' => $militaire->mle_grm,
                 'numero_info' => $militaire->numero_info,
@@ -210,12 +257,12 @@ class MilitaireController extends Controller
                 'date_retraite' => $militaire->calculerDateRetraite()?->format('d/m/Y'),
             ]);
 
-        $grades = Grade::orderBy('ordre', 'desc')->get();
+        $grades = Grade::orderBy('ordre', 'desc')->select('id', 'nom_grade', 'code_grade', 'ordre')->get();
         $regions = Region::orderByRaw('CASE WHEN ordre IS NULL OR ordre = 0 THEN 999 ELSE ordre END ASC')
             ->orderBy('nom')
-            ->pluck('nom')
-            ->values();
-        $positions = Position::orderBy('nom')->pluck('nom')->values();
+            ->select('id', 'nom', 'code')
+            ->get();
+        $positions = Position::orderBy('nom')->select('id', 'nom')->get();
 
         return Inertia::render('militaires/index', [
             'militaires'   => $militaires,
@@ -557,6 +604,11 @@ class MilitaireController extends Controller
         return Inertia::render('militaires/edit', [
             'militaire' => [
                 'id' => $militaire->id,
+                'grade_id' => $militaire->grade_id,
+                'region_id' => $militaire->region_id,
+                'unite_id' => $militaire->unite_id,
+                'position_id' => $militaire->position_id,
+                'statut_code' => $militaire->statut_code,
                 'matricule' => $militaire->matricule,
                 'mle_grm' => $militaire->mle_grm,
                 'numero_info' => $militaire->numero_info,
@@ -749,7 +801,9 @@ class MilitaireController extends Controller
         ]);
 
         if ($grade) {
-            $count = Militaire::where('grade_actuel', $grade)->count();
+            $count = is_numeric($grade) 
+                ? Militaire::where('grade_id', (int) $grade)->count()
+                : Militaire::where('grade_id', Grade::where('nom_grade', $grade)->orWhere('code_grade', $grade)->value('id'))->count();
             \Log::info('📊 Nombre de militaires avec grade "' . $grade . '" : ' . $count);
         }
 

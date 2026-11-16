@@ -28,6 +28,7 @@ class Militaire extends Model
         'lieu_naissance',
         'date_entree_service',
         'grade_actuel',
+        'grade_id',
         'grade_ordre',
         'categorie',
         'date_derniere_promotion',
@@ -113,15 +114,31 @@ class Militaire extends Model
                 }
             }
 
-            // Déduction automatique de la catégorie statutaire et de l'ordre hiérarchique du grade
-            if (!empty($militaire->grade_actuel)) {
+            // Synchronisation grade_id <-> grade_actuel <-> grade_ordre <-> catégorie
+            if ($militaire->grade_id && (!$militaire->grade_actuel || $militaire->isDirty('grade_id'))) {
+                $grade = Grade::find($militaire->grade_id);
+                if ($grade) {
+                    $militaire->grade_actuel = $grade->nom_grade;
+                    $militaire->grade_ordre = $grade->ordre ?? 0;
+                    if (empty($militaire->categorie)) {
+                        $militaire->categorie = $grade->categorie_statutaire;
+                    }
+                }
+            } elseif (!empty($militaire->grade_actuel)) {
                 $grade = Grade::where('nom_grade', $militaire->grade_actuel)
                     ->orWhere('code_grade', $militaire->grade_actuel)
                     ->first();
-                if (empty($militaire->categorie)) {
-                    $militaire->categorie = $grade ? $grade->categorie_statutaire : Grade::determinerCategorie($militaire->grade_actuel);
+                if ($grade) {
+                    $militaire->grade_id = $grade->id;
+                    $militaire->grade_ordre = $grade->ordre ?? 0;
+                    if (empty($militaire->categorie)) {
+                        $militaire->categorie = $grade->categorie_statutaire;
+                    }
+                } else {
+                    if (empty($militaire->categorie)) {
+                        $militaire->categorie = Grade::determinerCategorie($militaire->grade_actuel);
+                    }
                 }
-                $militaire->grade_ordre = $grade?->ordre ?? 0;
             }
 
             if ($militaire->position_id && (!$militaire->position_actuelle || $militaire->isDirty('position_id'))) {
@@ -252,7 +269,7 @@ class Militaire extends Model
 
     public function grade(): BelongsTo
     {
-        return $this->belongsTo(Grade::class, 'grade_actuel', 'nom_grade');
+        return $this->belongsTo(Grade::class, 'grade_id');
     }
 
     public function avancements(): HasMany
