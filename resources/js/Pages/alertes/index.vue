@@ -148,14 +148,11 @@
                                     size="small" severity="success" outlined
                                     class="text-xs font-semibold"
                                     @click="markAllAsRead" />
-                                <Button label="Générer alertes contrats" icon="pi pi-refresh"
-                                    size="small" severity="info" outlined
-                                    class="text-xs font-semibold"
-                                    @click="generateContractAlerts" />
-                                <Button label="Générer alertes mutations" icon="pi pi-arrows-alt"
-                                    size="small" severity="secondary" outlined
-                                    class="text-xs font-semibold"
-                                    @click="generateMutationAlerts" />
+                                <Button label="Générer toutes les alertes" icon="pi pi-sync"
+                                    size="small" severity="primary"
+                                    :loading="generatingAll"
+                                    class="text-xs font-semibold shadow-sm"
+                                    @click="generateAllAlerts" />
                             </div>
                         </div>
 
@@ -340,6 +337,7 @@ const toast = useToast();
 const page = usePage();
 const loading = ref(false);
 const loadingStates = ref({});
+const generatingAll = ref(false);
 const activeTab = ref(props.filters?.type || 'all');
 
 const showRenewModal = ref(false);
@@ -450,9 +448,6 @@ const markAsRead = (alerteId) => {
     loadingStates.value[alerteId] = true;
     router.post(route('alertes.marquer-vue', alerteId), {}, {
         preserveScroll: true,
-        onSuccess: () => {
-            toast.add({ severity: 'success', summary: 'Succès', detail: 'Alerte marquée comme vue', life: 3000 });
-        },
         onError: () => {
             toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de marquer l\'alerte', life: 3000 });
         },
@@ -465,51 +460,21 @@ const markAsRead = (alerteId) => {
 const markAllAsRead = () => {
     router.post(route('alertes.marquer-tout-vue'), {}, {
         preserveScroll: true,
-        onSuccess: () => {
-            toast.add({ severity: 'success', summary: 'Succès', detail: 'Toutes les alertes ont été marquées comme vues', life: 3000 });
-        },
         onError: () => {
             toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de marquer toutes les alertes', life: 3000 });
         }
     });
 };
 
-const generateContractAlerts = () => {
-    toast.add({ severity: 'info', summary: 'Chargement', detail: 'Génération des alertes en cours...', life: 2000 });
-    router.post(route('alertes.check-renouvellements'), {}, {
+const generateAllAlerts = () => {
+    generatingAll.value = true;
+    router.post(route('alertes.generer'), {}, {
         preserveScroll: true,
-        onSuccess: (response) => {
-            const flash = response.props?.flash;
-            toast.add({
-                severity: 'success',
-                summary: 'Succès',
-                detail: flash?.success || 'Alertes de contrat générées avec succès',
-                life: 5000
-            });
-            loadAlertes(props.alertes.current_page);
-        },
         onError: () => {
-            toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de générer les alertes de contrat', life: 3000 });
-        }
-    });
-};
-
-const generateMutationAlerts = () => {
-    toast.add({ severity: 'info', summary: 'Chargement', detail: 'Vérification des alertes de mutation en cours...', life: 2000 });
-    router.post(route('alertes.check-mutations'), {}, {
-        preserveScroll: true,
-        onSuccess: (response) => {
-            const flash = response.props?.flash;
-            toast.add({
-                severity: 'success',
-                summary: 'Succès',
-                detail: flash?.success || 'Alertes de mutation générées avec succès',
-                life: 5000
-            });
-            loadAlertes(props.alertes.current_page);
+            toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de générer les alertes', life: 3000 });
         },
-        onError: () => {
-            toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de vérifier les alertes de mutation', life: 3000 });
+        onFinish: () => {
+            generatingAll.value = false;
         }
     });
 };

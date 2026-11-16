@@ -345,16 +345,32 @@ class AlerteController extends Controller
     }
 
     /**
-     * Générer toutes les alertes automatiquement
+     * Générer toutes les alertes automatiquement (Promotions, Formations, Mutations, Contrats, Retraites)
      */
     public function genererAlertes()
     {
+        // 1. Basculer automatiquement en 'retraité' les militaires ayant dépassé la limite d'âge de leur grade
         $this->actualiserStatutRetraites();
-        $this->genererAlertesPromotion();
-        $this->genererAlertesRetraite();
-        $this->checkRenouvellements();
 
-        return redirect()->back()->with('success', 'Toutes les alertes ont été générées et les statuts des militaires retraités actualisés.');
+        // 2. Générer l'ensemble de toutes les alertes via le vérificateur complet (Promotions, Formations, Retraites, Contrats, Mutations)
+        $militaireController = app(MilitaireController::class);
+        $militaires = Militaire::where('statut', 'actif')
+            ->with(['certificats', 'affectations'])
+            ->get();
+
+        foreach ($militaires as $militaire) {
+            $militaireController->verifierAlertes($militaire);
+        }
+
+        // 3. Purger les caches statistiques et compteurs
+        Cache::forget('alertes:non_vues_count');
+        Cache::forget('alertes:non_vues_count_gendarme');
+        Cache::forget('dashboard:statistiques_cards');
+        Cache::forget('alertes:statistiques_globales');
+
+        $totalNonVues = Alerte::where('est_vue', false)->count();
+
+        return redirect()->back()->with('success', "Toutes les alertes (Promotions, Formations, Mutations, Contrats, Retraites) ont été générées et synchronisées avec succès ! ({$totalNonVues} alertes actives)");
     }
 
     /**
