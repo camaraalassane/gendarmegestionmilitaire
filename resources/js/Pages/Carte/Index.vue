@@ -335,21 +335,21 @@
                                 <div class="inline-flex rounded shadow-md bg-[#090e17]/95 p-0.5 border border-slate-700/80 text-[11px]">
                                     <button
                                         type="button"
+                                        @click="parcelFilterType = 'with_eff'"
+                                        class="px-2 py-0.5 rounded transition flex items-center gap-1 cursor-pointer"
+                                        :class="parcelFilterType === 'with_eff' ? 'bg-red-600 text-white font-bold' : 'text-slate-400 hover:text-white'"
+                                        title="Unités avec effectif > 0 (Style Carte de France)"
+                                    >
+                                        <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
+                                        <span>Avec effectif ({{ countWithEff }})</span>
+                                    </button>
+                                    <button
+                                        type="button"
                                         @click="parcelFilterType = 'all'"
                                         class="px-2 py-0.5 rounded transition cursor-pointer"
                                         :class="parcelFilterType === 'all' ? 'bg-sky-600 text-white font-bold' : 'text-slate-400 hover:text-white'"
                                     >
                                         Toutes ({{ selRegion.unites.length }})
-                                    </button>
-                                    <button
-                                        type="button"
-                                        @click="parcelFilterType = 'with_eff'"
-                                        class="px-2 py-0.5 rounded transition flex items-center gap-1 cursor-pointer"
-                                        :class="parcelFilterType === 'with_eff' ? 'bg-red-600 text-white font-bold' : 'text-slate-400 hover:text-white'"
-                                        title="Unités avec effectif > 0"
-                                    >
-                                        <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
-                                        <span>Avec effectif ({{ countWithEff }})</span>
                                     </button>
                                     <button
                                         type="button"
@@ -633,7 +633,7 @@
                                     class="pointer-events-none"
                                 />
 
-                                <!-- 5. Disques proportionnels Jacques Bertin (halo & cercles) -->
+                                <!-- 5. Disques proportionnels Jacques Bertin (halo & cercles style Carte de France) -->
                                 <g
                                     v-for="p in regionalParcels"
                                     :key="'marker-' + p.unit.id"
@@ -644,24 +644,36 @@
                                 >
                                     <!-- Halo cyan si unité sélectionnée -->
                                     <circle
-                                        v-if="selUnit === p.unit.id"
+                                        v-if="selUnit === p.unit.id && parcelCircleR(p.unit) > 0"
                                         :cx="p.cx"
                                         :cy="p.cy"
-                                        :r="parcelCircleR(p.unit) + 0.8 * rUnit"
+                                        :r="parcelCircleR(p.unit) + 1.2 * rUnit"
                                         fill="none"
                                         stroke="#0284c7"
-                                        :stroke-width="0.45 * rUnit"
+                                        :stroke-width="0.5 * rUnit"
                                         class="animate-pulse"
+                                    />
+
+                                    <!-- Double contour noir épais pour les unités majeures (Style France 578 / 492) -->
+                                    <circle
+                                        v-if="p.unit.effectif >= 7 && parcelCircleR(p.unit) > 0"
+                                        :cx="p.cx"
+                                        :cy="p.cy"
+                                        :r="parcelCircleR(p.unit) + 0.65 * rUnit"
+                                        fill="none"
+                                        stroke="#000000"
+                                        :stroke-width="0.4 * rUnit"
                                     />
 
                                     <!-- Cercle proportionnel rouge Jacques Bertin avec contour noir prononcé -->
                                     <circle
+                                        v-if="parcelCircleR(p.unit) > 0"
                                         :cx="p.cx"
                                         :cy="p.cy"
                                         :r="parcelCircleR(p.unit)"
-                                        :fill="p.unit.effectif > 0 ? '#ef4444' : '#cbd5e1'"
-                                        :stroke="selUnit === p.unit.id ? '#0284c7' : '#0f172a'"
-                                        :stroke-width="(selUnit === p.unit.id ? 0.45 : 0.28) * rUnit"
+                                        fill="#ef4444"
+                                        :stroke="selUnit === p.unit.id ? '#0284c7' : '#000000'"
+                                        :stroke-width="(selUnit === p.unit.id ? 0.55 : 0.35) * rUnit"
                                         filter="url(#pin-shadow)"
                                     />
                                 </g>
@@ -672,34 +684,35 @@
                                     :key="'text-' + p.unit.id"
                                     class="pointer-events-none select-none"
                                 >
-                                    <!-- Chiffre de l'effectif au centre du cercle proportionnel -->
+                                    <!-- Chiffre de l'effectif au centre du cercle proportionnel (grand, noir, gras 900) -->
                                     <text
+                                        v-if="p.unit.effectif > 0 && parcelCircleFontSize(p.unit) > 0"
                                         :x="p.cx"
                                         :y="p.cy"
                                         text-anchor="middle"
                                         dominant-baseline="central"
                                         :font-size="parcelCircleFontSize(p.unit) + 'px'"
                                         font-weight="900"
-                                        :fill="p.unit.effectif > 0 ? '#000000' : '#0f172a'"
+                                        fill="#000000"
                                         style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"
                                     >
                                         {{ p.unit.effectif }}
                                     </text>
 
-                                    <!-- Libellé de l'unité avec halo blanc net -->
+                                    <!-- Libellé de l'unité : UNIQUEMENT pour les régions aérées (<= 6 unités) ou au survol/clic -->
                                     <text
                                         v-if="shouldShowParcelLabel(p)"
                                         class="font-bold"
                                         text-anchor="middle"
                                         :x="p.cx"
-                                        :y="p.cy + parcelCircleR(p.unit) + 1.8 * rUnit"
+                                        :y="p.cy + parcelCircleR(p.unit) + 2.2 * rUnit"
                                         :style="{
-                                            fontSize: (selUnit === p.unit.id ? 1.8 : 1.35) * rUnit + 'px',
+                                            fontSize: (selUnit === p.unit.id ? 2.0 : 1.6) * rUnit + 'px',
                                             fill: '#0f172a',
                                             stroke: '#ffffff',
-                                            strokeWidth: 0.5 * rUnit + 'px',
+                                            strokeWidth: 0.6 * rUnit + 'px',
                                             paintOrder: 'stroke fill',
-                                            fontWeight: selUnit === p.unit.id ? 900 : 700
+                                            fontWeight: 800
                                         }"
                                     >
                                         {{ shortUnitName(p.unit.nom) }}
@@ -1306,7 +1319,9 @@ const choisir = (code) => {
     selUnit.value = null;
     searchQuery.value = '';
     parcelSearchQuery.value = '';
-    parcelFilterType.value = 'all';
+    const reg = regions.value.find(r => r.code === code);
+    const withEffCount = (reg?.unites || []).filter(u => (Number(u.effectif) || 0) > 0).length;
+    parcelFilterType.value = withEffCount > 0 ? 'with_eff' : 'all';
     userZoom.value = 1;
     panOffset.value = { x: 0, y: 0 };
     sidebarTab.value = 'liste';
@@ -1501,19 +1516,15 @@ const baseRegionBox = computed(() => {
     if (sel.value === 'R1') {
         const [a, b, c, d] = [135.7, 462.3, 190.1, 531.1];
         const pw = c - a, ph = d - b;
-        const pad = Math.max(pw, ph) * 0.025; // Cadrage serré 2.5% : la vue régionale s'agrandit pour remplir l'écran
-        const w = pw + 2 * pad;
-        const h = ph + 2 * pad;
-        return [(a + c) / 2 - w / 2, (b + d) / 2 - h / 2, w, h];
+        const pad = Math.max(pw, ph) * 0.02; // Cadrage serré 2% : la vue régionale s'agrandit pour remplir l'écran
+        return [a - pad, b - pad, pw + 2 * pad, ph + 2 * pad];
     }
 
     const [a, b, c, d] = shape.bb;
     const minSpan = 28;
     const pw = Math.max(c - a, minSpan), ph = Math.max(d - b, minSpan);
-    const pad = Math.max(pw, ph) * 0.035; // Cadrage dynamique à 3.5%
-    const w = pw + 2 * pad;
-    const h = ph + 2 * pad;
-    return [(a + c) / 2 - w / 2, (b + d) / 2 - h / 2, w, h];
+    const pad = Math.max(pw, ph) * 0.025; // Cadrage dynamique serré à 2.5%
+    return [a - pad, b - pad, pw + 2 * pad, ph + 2 * pad];
 });
 
 // Tracé SVG adapté (Bamako agrandi lorsqu'il est isolé pour que tout son maillage soit à l'intérieur)
@@ -1545,8 +1556,8 @@ const rUnit = computed(() => {
     return span / 70;
 });
 
-// --- Mode Régional : Découpage thématique en parcelles avec cercles proportionnels (Option 1) ---
-const parcelFilterType = ref('all'); // 'all' | 'with_eff' | 'zero_eff'
+// --- Mode Régional : Découpage thématique en parcelles avec cercles proportionnels (Style Carte de France) ---
+const parcelFilterType = ref('with_eff'); // Par défaut : 'with_eff' pour afficher immédiatement les unités déployées comme sur la carte de France
 const parcelSearchQuery = ref('');
 
 const countWithEff = computed(() => (selRegion.value?.unites || []).filter(u => (Number(u.effectif) || 0) > 0).length);
@@ -1576,7 +1587,7 @@ const unitesClassees = computed(() => {
     return list;
 });
 
-// 2. Découpage cartographique automatique par diagramme de Voronoi (Option 1)
+// 2. Découpage cartographique automatique par diagramme de Voronoi (Style Carte de France)
 const regionalParcels = computed(() => {
     if (!sel.value || !selRegion.value) return [];
     const units = unitesClassees.value;
@@ -1587,24 +1598,23 @@ const regionalParcels = computed(() => {
     const [minX, minY, maxX, maxY] = bbox;
     const cx = sel.value === 'R1' ? (minX + maxX) / 2 : (SHAPES[sel.value]?.cx ?? (minX + maxX) / 2);
     const cy = sel.value === 'R1' ? (minY + maxY) / 2 : (SHAPES[sel.value]?.cy ?? (minY + maxY) / 2);
-    const rx = (maxX - minX) * 0.42;
-    const ry = (maxY - minY) * 0.42;
+    const pw = maxX - minX;
+    const ph = maxY - minY;
 
     if (n === 1) {
         return [{
             unit: units[0],
             path: `M ${minX - 10} ${minY - 10} H ${maxX + 10} V ${maxY + 10} H ${minX - 10} Z`,
-            cx,
-            cy
+            cx, cy
         }];
     }
 
     if (n === 2) {
-        // Deux unités : division nette par l'axe médian sans dépendre d'une triangulation Delaunay (qui requiert >= 3 points)
-        const p0 = [cx - rx * 0.45, cy];
-        const p1 = [cx + rx * 0.45, cy];
-        const padX = (maxX - minX) * 0.2;
-        const padY = (maxY - minY) * 0.2;
+        // Deux unités : division nette par l'axe médian
+        const p0 = [cx - pw * 0.22, cy];
+        const p1 = [cx + pw * 0.22, cy];
+        const padX = pw * 0.2;
+        const padY = ph * 0.2;
         const path0 = `M ${minX - padX} ${minY - padY} H ${cx} V ${maxY + padY} H ${minX - padX} Z`;
         const path1 = `M ${cx} ${minY - padY} H ${maxX + padX} V ${maxY + padY} H ${cx} Z`;
         return [
@@ -1631,57 +1641,90 @@ const regionalParcels = computed(() => {
         return inside;
     };
 
-    // Distribution des graines selon la spirale d'or de Vogel avec rappel systématique à l'intérieur du contour
-    const points = [];
+    // Distribution des graines équilibrée sur toute la géométrie (évite l'agglutinement au centre)
+    let points = [];
+    const rx = pw * 0.44;
+    const ry = ph * 0.44;
     const goldenAngle = Math.PI * (3 - Math.sqrt(5)); // ~137.5077°
     for (let i = 0; i < n; i++) {
-        const r = Math.pow((i + 1) / n, 0.52) * (n > 35 ? 0.78 : 0.85);
+        const r = Math.sqrt((i + 0.5) / n);
         const theta = i * goldenAngle;
         let x = cx + r * rx * Math.cos(theta);
         let y = cy + r * ry * Math.sin(theta);
         let steps = 0;
         while (!isInside(x, y) && steps < 25) {
-            x = x * 0.88 + cx * 0.12;
-            y = y * 0.88 + cy * 0.12;
+            x = x * 0.9 + cx * 0.1;
+            y = y * 0.9 + cy * 0.1;
             steps++;
-        }
-        if (steps > 0) {
-            x = x * 0.94 + cx * 0.06;
-            y = y * 0.94 + cy * 0.06;
         }
         points.push([x, y]);
     }
 
-    // Légère relaxation mutuelle pour aérer les graines denses et éviter les chevauchements
-    if (n > 35) {
-        const targetDist = 2.4;
+    const pad = Math.max(pw, ph) * 0.25;
+    const bounds = [minX - pad, minY - pad, maxX + pad, maxY + pad];
+
+    // Relaxation de Lloyd (2 passes) pour que chaque unité ait une vraie parcelle territoriale équilibrée
+    for (let pass = 0; pass < 2; pass++) {
+        try {
+            const v = Delaunay.from(points).voronoi(bounds);
+            const newPoints = [];
+            for (let i = 0; i < n; i++) {
+                const poly = v.cellPolygon(i);
+                if (poly && poly.length > 2) {
+                    let sx = 0, sy = 0;
+                    const len = poly.length - 1;
+                    for (let k = 0; k < len; k++) {
+                        sx += poly[k][0];
+                        sy += poly[k][1];
+                    }
+                    let px = sx / len;
+                    let py = sy / len;
+                    if (isInside(px, py)) {
+                        newPoints.push([px, py]);
+                    } else {
+                        newPoints.push(points[i]);
+                    }
+                } else {
+                    newPoints.push(points[i]);
+                }
+            }
+            points = newPoints;
+        } catch (e) {
+            break;
+        }
+    }
+
+    // Séparation anti-collision pour garantir qu'aucun cercle ne chevauche son voisin
+    if (n > 10) {
         for (let pass = 0; pass < 3; pass++) {
             for (let i = 0; i < n; i++) {
                 for (let j = i + 1; j < n; j++) {
+                    const effI = units[i].effectif || 0;
+                    const effJ = units[j].effectif || 0;
+                    const rI = effI >= 8 ? 5.1 : (effI >= 7 ? 4.6 : (effI >= 5 ? 4.0 : (effI >= 3 ? 3.1 : 2.2)));
+                    const rJ = effJ >= 8 ? 5.1 : (effJ >= 7 ? 4.6 : (effJ >= 5 ? 4.0 : (effJ >= 3 ? 3.1 : 2.2)));
+                    const targetDist = rI + rJ + 0.5;
                     const dx = points[j][0] - points[i][0];
                     const dy = points[j][1] - points[i][1];
                     const dist = Math.hypot(dx, dy);
                     if (dist > 0 && dist < targetDist) {
-                        const overlap = (targetDist - dist) * 0.25;
+                        const overlap = (targetDist - dist) * 0.55;
                         const nx = (dx / dist) * overlap;
                         const ny = (dy / dist) * overlap;
-                        if (i > 0) {
-                            const nx0 = points[i][0] - nx, ny0 = points[i][1] - ny;
-                            if (isInside(nx0, ny0)) { points[i][0] = nx0; points[i][1] = ny0; }
-                        }
-                        const nx1 = points[j][0] + nx, ny1 = points[j][1] + ny;
-                        if (isInside(nx1, ny1)) { points[j][0] = nx1; points[j][1] = ny1; }
+                        const nxI = points[i][0] - nx, nyI = points[i][1] - ny;
+                        const nxJ = points[j][0] + nx, nyJ = points[j][1] + ny;
+                        if (isInside(nxI, nyI)) { points[i][0] = nxI; points[i][1] = nyI; }
+                        if (isInside(nxJ, nyJ)) { points[j][0] = nxJ; points[j][1] = nyJ; }
                     }
                 }
             }
         }
     }
 
-    const pad = Math.max(maxX - minX, maxY - minY) * 0.2;
     try {
-        const voronoi = Delaunay.from(points).voronoi([minX - pad, minY - pad, maxX + pad, maxY + pad]);
+        const finalV = Delaunay.from(points).voronoi(bounds);
         return units.map((u, i) => {
-            const cellPath = voronoi.renderCell(i);
+            const cellPath = finalV.renderCell(i);
             const path = (cellPath && cellPath.length > 5)
                 ? cellPath
                 : `M ${minX - 10} ${minY - 10} H ${maxX + 10} V ${maxY + 10} H ${minX - 10} Z`;
@@ -1708,48 +1751,52 @@ const selParcel = computed(() => {
     return regionalParcels.value.find(p => p.unit.id === selUnit.value);
 });
 
-// 3. Nuancier thématique identique à la carte de France (Gris neutre pour 0, jaune doux, jaune doré, orange, rouge)
+// 3. Nuancier thématique identique à la carte de France (Jaune doux -> Orange -> Rouge vif)
 const parcelFill = (unit) => {
     const eff = Number(unit?.effectif) || 0;
-    if (eff === 0) return '#f1f5f9'; // Style Mayotte 0 (Gris clair neutre)
-    if (eff === 1) return '#fef08a'; // Jaune doux (Style Centre 20)
-    if (eff === 2) return '#fde047'; // Jaune doré (Style Pays de la Loire 34)
-    if (eff === 3 || eff === 4) return '#fed7aa'; // Pêche / orange clair (Style Normandie 54)
-    if (eff === 5 || eff === 6) return '#fb923c'; // Orange chaud (Style PACA 111)
-    if (eff === 7 || eff === 8) return '#f87171'; // Rouge corail (Style Auvergne 264)
-    return '#ef4444'; // Rouge vif saturé (Style Île-de-France 492 / Grand-Est 578)
+    if (eff === 0) return '#f8fafc'; // Gris neutre clair (Style Mayotte 0)
+    if (eff >= 7) return '#dc2626'; // Rouge vif soutenu (Style Île-de-France 492 / Grand-Est 578)
+    if (eff >= 5) return '#ea580c'; // Orange profond
+    if (eff >= 3) return '#f97316'; // Orange vif
+    if (eff === 2) return '#f59e0b'; // Ambre / Jaune d'or (Style Normandie 54 / Pays de Loire 34)
+    return '#fef08a'; // Jaune doux lumineux (Style Centre 20)
 };
 
-// 4. Rayon du cercle proportionnel rouge (Jacques Bertin)
+// 4. Rayon du cercle proportionnel rouge (Jacques Bertin, Style Carte de France)
 const parcelCircleR = (unit) => {
     const eff = Math.max(0, Number(unit?.effectif) || 0);
-    const isDense = unitesClassees.value.length > 35;
-    let rBase = 1.05;
+    if (eff === 0) return 0; // Strict Jacques Bertin : 0 effectif = AUCUN cercle !
+
+    const isDense = regionalParcels.value.length > 15;
     if (isDense) {
-        if (eff >= 8) rBase = 3.1;
-        else if (eff >= 7) rBase = 2.8;
-        else if (eff >= 5) rBase = 2.5;
-        else if (eff >= 3) rBase = 2.1;
-        else if (eff >= 1) rBase = 1.65;
-        else rBase = 1.05;
+        // Bamako (26 unités actives) : Grands disques bien calibrés sans aucun chevauchement
+        if (eff >= 8) return 5.1 * rUnit.value;
+        if (eff >= 7) return 4.6 * rUnit.value;
+        if (eff >= 5) return 4.0 * rUnit.value;
+        if (eff >= 4) return 3.5 * rUnit.value;
+        if (eff >= 3) return 3.1 * rUnit.value;
+        if (eff >= 2) return 2.6 * rUnit.value;
+        return 2.1 * rUnit.value;
     } else {
-        if (eff >= 8) rBase = 4.4;
-        else if (eff >= 7) rBase = 3.9;
-        else if (eff >= 5) rBase = 3.3;
-        else if (eff >= 3) rBase = 2.8;
-        else if (eff >= 1) rBase = 2.2;
-        else rBase = 1.5;
+        // Régions aérées (Ségou, Sikasso, Kayes... avec 1 à 6 unités actives) :
+        // Disques majestueux et imposants comme sur la carte de France
+        if (eff >= 8) return 8.5 * rUnit.value;
+        if (eff >= 7) return 7.8 * rUnit.value;
+        if (eff >= 5) return 6.8 * rUnit.value;
+        if (eff >= 3) return 5.8 * rUnit.value;
+        if (eff >= 2) return 5.0 * rUnit.value;
+        return 4.2 * rUnit.value;
     }
-    return rBase * rUnit.value;
 };
 
-// 5. Chiffre centré dans le cercle proportionnel (grand, gras et net)
+// 5. Chiffre centré dans le cercle proportionnel (grand, gras 900, noir, lisible de loin)
 const parcelCircleFontSize = (unit) => {
     const r = parcelCircleR(unit);
+    if (r === 0) return 0;
     const eff = Math.max(0, Number(unit?.effectif) || 0);
     const len = String(eff).length;
-    const factor = len >= 3 ? 0.75 : (len === 2 ? 0.88 : 0.98);
-    return r * factor * 0.95;
+    const factor = len >= 3 ? 0.82 : (len === 2 ? 0.95 : 1.05);
+    return r * factor;
 };
 
 // 6. Raccourcissement intelligent des noms pour les libellés de la carte
@@ -1793,11 +1840,13 @@ const shortUnitName = (nom) => {
 };
 
 const shouldShowParcelLabel = (p) => {
+    if (p.unit.effectif === 0) return false;
     if (selUnit.value === p.unit.id) return true;
     if (hoveredItem.value?.isUnit && hoveredItem.value?.uId === p.unit.id) return true;
-    if (regionalParcels.value.length <= 8) return true;
-    if (parcelFilterType.value === 'with_eff') return p.unit.effectif >= 3;
-    return false; // Vue dense complète (78 unités) : laisser respirer les grands cercles et chiffres
+    // Si la région est aérée (<= 6 unités actives, ex: Ségou, Sikasso, Kayes), afficher le libellé sous le grand cercle
+    if (regionalParcels.value.length <= 6) return true;
+    // Vue dense (Bamako 26 unités) : aucun libellé pour garder la carte épurée et lisible (exactement comme la carte de France !)
+    return false;
 };
 
 const onHoverUnitParcel = (u) => {
