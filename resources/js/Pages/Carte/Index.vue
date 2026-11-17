@@ -572,9 +572,9 @@
                                 <path
                                     v-if="selRegion"
                                     :d="pathD(selRegion)"
-                                    fill="#f1f5f9"
-                                    stroke="#000000"
-                                    :stroke-width="2.5 * zoom"
+                                    fill="#f8fafc"
+                                    stroke="#0f172a"
+                                    :stroke-width="0.35 * rUnit"
                                 />
 
                                 <!-- 2. Découpage en parcelles Voronoi clipsé à la forme exacte de la région -->
@@ -584,8 +584,8 @@
                                         :key="'parcel-' + p.unit.id"
                                         :d="p.path"
                                         :fill="parcelFill(p.unit)"
-                                        stroke="#000000"
-                                        :stroke-width="1.8 * zoom"
+                                        stroke="#0f172a"
+                                        :stroke-width="0.22 * rUnit"
                                         stroke-linejoin="round"
                                         class="cursor-pointer transition-colors duration-150 hover:brightness-110"
                                         @click="handleUnitClick(p.unit.id)"
@@ -601,7 +601,7 @@
                                         clip-path="url(#region-clip-shape)"
                                         fill="none"
                                         stroke="#0284c7"
-                                        :stroke-width="3.5 * zoom"
+                                        :stroke-width="0.5 * rUnit"
                                         class="pointer-events-none"
                                     />
                                 </template>
@@ -611,12 +611,12 @@
                                     v-if="selRegion"
                                     :d="pathD(selRegion)"
                                     fill="none"
-                                    stroke="#000000"
-                                    :stroke-width="2.6 * zoom"
+                                    stroke="#0f172a"
+                                    :stroke-width="0.35 * rUnit"
                                     class="pointer-events-none"
                                 />
 
-                                <!-- 5. Marqueurs : Cercles proportionnels rouges Jacques Bertin, chiffres et libellés -->
+                                <!-- 5. Disques proportionnels Jacques Bertin (halo & cercles) -->
                                 <g
                                     v-for="p in regionalParcels"
                                     :key="'marker-' + p.unit.id"
@@ -630,24 +630,31 @@
                                         v-if="selUnit === p.unit.id"
                                         :cx="p.cx"
                                         :cy="p.cy"
-                                        :r="parcelCircleR(p.unit) + 4.5 * zoom"
+                                        :r="parcelCircleR(p.unit) + 0.8 * rUnit"
                                         fill="none"
-                                        stroke="#38bdf8"
-                                        :stroke-width="2.5 * zoom"
+                                        stroke="#0284c7"
+                                        :stroke-width="0.45 * rUnit"
                                         class="animate-pulse"
                                     />
 
-                                    <!-- Cercle proportionnel rouge Jacques Bertin -->
+                                    <!-- Cercle proportionnel rouge Jacques Bertin avec contour noir prononcé -->
                                     <circle
                                         :cx="p.cx"
                                         :cy="p.cy"
                                         :r="parcelCircleR(p.unit)"
-                                        :fill="p.unit.effectif > 0 ? '#ef4444' : '#94a3b8'"
-                                        :stroke="selUnit === p.unit.id ? '#0284c7' : '#000000'"
-                                        :stroke-width="(selUnit === p.unit.id ? 2.6 : 1.8) * zoom"
+                                        :fill="p.unit.effectif > 0 ? '#ef4444' : '#cbd5e1'"
+                                        :stroke="selUnit === p.unit.id ? '#0284c7' : '#0f172a'"
+                                        :stroke-width="(selUnit === p.unit.id ? 0.45 : 0.28) * rUnit"
                                         filter="url(#pin-shadow)"
                                     />
+                                </g>
 
+                                <!-- 6. Chiffres des effectifs au premier plan (toujours au-dessus des cercles, ultra-lisibles) -->
+                                <g
+                                    v-for="p in regionalParcels"
+                                    :key="'text-' + p.unit.id"
+                                    class="pointer-events-none select-none"
+                                >
                                     <!-- Chiffre de l'effectif au centre du cercle proportionnel -->
                                     <text
                                         :x="p.cx"
@@ -656,8 +663,7 @@
                                         dominant-baseline="central"
                                         :font-size="parcelCircleFontSize(p.unit) + 'px'"
                                         font-weight="900"
-                                        :fill="p.unit.effectif > 0 ? '#000000' : '#ffffff'"
-                                        class="select-none pointer-events-none"
+                                        :fill="p.unit.effectif > 0 ? '#000000' : '#0f172a'"
                                         style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"
                                     >
                                         {{ p.unit.effectif }}
@@ -666,15 +672,15 @@
                                     <!-- Libellé de l'unité avec halo blanc net -->
                                     <text
                                         v-if="shouldShowParcelLabel(p)"
-                                        class="select-none pointer-events-none font-bold"
+                                        class="font-bold"
                                         text-anchor="middle"
                                         :x="p.cx"
-                                        :y="p.cy + parcelCircleR(p.unit) + 7 * zoom"
+                                        :y="p.cy + parcelCircleR(p.unit) + 1.8 * rUnit"
                                         :style="{
-                                            fontSize: (selUnit === p.unit.id ? 11 : 9) * zoom + 'px',
+                                            fontSize: (selUnit === p.unit.id ? 1.8 : 1.35) * rUnit + 'px',
                                             fill: '#0f172a',
                                             stroke: '#ffffff',
-                                            strokeWidth: 3 * zoom + 'px',
+                                            strokeWidth: 0.5 * rUnit + 'px',
                                             paintOrder: 'stroke fill',
                                             fontWeight: selUnit === p.unit.id ? 900 : 700
                                         }"
@@ -1474,24 +1480,22 @@ const baseRegionBox = computed(() => {
     const shape = sel.value && SHAPES[sel.value];
     if (!shape) return full;
 
-    // Si District de Bamako : cadrage adapté à la forme agrandie pour contenir toutes ses 78 unités concentriques
+    // Si District de Bamako : cadrage agrandi au maximum pour occuper tout le canevas sans marges vides inutiles
     if (sel.value === 'R1') {
         const [a, b, c, d] = [135.7, 462.3, 190.1, 531.1];
         const pw = c - a, ph = d - b;
-        const pad = Math.max(pw, ph) * 0.14;
-        let w = pw + 2 * pad, h = ph + 2 * pad;
-        const ar = MALI_VIEW.w / MALI_VIEW.h;
-        if (w / h < ar) w = h * ar; else h = w / ar;
+        const pad = Math.max(pw, ph) * 0.025; // Cadrage serré 2.5% : la vue régionale s'agrandit pour remplir l'écran
+        const w = pw + 2 * pad;
+        const h = ph + 2 * pad;
         return [(a + c) / 2 - w / 2, (b + d) / 2 - h / 2, w, h];
     }
 
     const [a, b, c, d] = shape.bb;
     const minSpan = 28;
     const pw = Math.max(c - a, minSpan), ph = Math.max(d - b, minSpan);
-    const pad = Math.max(pw, ph) * 0.16;
-    let w = pw + 2 * pad, h = ph + 2 * pad;
-    const ar = MALI_VIEW.w / MALI_VIEW.h;
-    if (w / h < ar) w = h * ar; else h = w / ar;
+    const pad = Math.max(pw, ph) * 0.035; // Cadrage dynamique à 3.5%
+    const w = pw + 2 * pad;
+    const h = ph + 2 * pad;
     return [(a + c) / 2 - w / 2, (b + d) / 2 - h / 2, w, h];
 });
 
@@ -1515,6 +1519,14 @@ const viewBox = computed(() => {
 });
 
 const zoom = computed(() => viewBox.value[2] / MALI_VIEW.w); // échelle pour pins et traits au zoom
+
+// Échelle régionale normalisée pour que les cercles et chiffres aient la même taille parfaite sur toutes les régions
+const rUnit = computed(() => {
+    if (!sel.value) return 1;
+    const [,, w, h] = baseRegionBox.value;
+    const span = Math.max(w, h) || 70;
+    return span / 70;
+});
 
 // --- Mode Régional : Découpage thématique en parcelles avec cercles proportionnels (Option 1) ---
 const parcelFilterType = ref('all'); // 'all' | 'with_eff' | 'zero_eff'
@@ -1592,17 +1604,46 @@ const regionalParcels = computed(() => {
     const points = [];
     const goldenAngle = Math.PI * (3 - Math.sqrt(5)); // ~137.5077°
     for (let i = 0; i < n; i++) {
-        const r = Math.sqrt((i + 0.5) / n) * 0.88;
+        const r = Math.pow((i + 1) / n, 0.52) * (n > 35 ? 0.78 : 0.85);
         const theta = i * goldenAngle;
         let x = cx + r * rx * Math.cos(theta);
         let y = cy + r * ry * Math.sin(theta);
         let steps = 0;
-        while (!isInside(x, y) && steps < 15) {
+        while (!isInside(x, y) && steps < 25) {
             x = x * 0.88 + cx * 0.12;
             y = y * 0.88 + cy * 0.12;
             steps++;
         }
+        if (steps > 0) {
+            x = x * 0.94 + cx * 0.06;
+            y = y * 0.94 + cy * 0.06;
+        }
         points.push([x, y]);
+    }
+
+    // Légère relaxation mutuelle pour aérer les graines denses et éviter les chevauchements
+    if (n > 35) {
+        const targetDist = 2.4;
+        for (let pass = 0; pass < 3; pass++) {
+            for (let i = 0; i < n; i++) {
+                for (let j = i + 1; j < n; j++) {
+                    const dx = points[j][0] - points[i][0];
+                    const dy = points[j][1] - points[i][1];
+                    const dist = Math.hypot(dx, dy);
+                    if (dist > 0 && dist < targetDist) {
+                        const overlap = (targetDist - dist) * 0.25;
+                        const nx = (dx / dist) * overlap;
+                        const ny = (dy / dist) * overlap;
+                        if (i > 0) {
+                            const nx0 = points[i][0] - nx, ny0 = points[i][1] - ny;
+                            if (isInside(nx0, ny0)) { points[i][0] = nx0; points[i][1] = ny0; }
+                        }
+                        const nx1 = points[j][0] + nx, ny1 = points[j][1] + ny;
+                        if (isInside(nx1, ny1)) { points[j][0] = nx1; points[j][1] = ny1; }
+                    }
+                }
+            }
+        }
     }
 
     const pad = Math.max(maxX - minX, maxY - minY) * 0.2;
@@ -1639,17 +1680,33 @@ const parcelFill = (unit) => {
 // 4. Rayon du cercle proportionnel rouge (Jacques Bertin)
 const parcelCircleR = (unit) => {
     const eff = Math.max(0, Number(unit?.effectif) || 0);
-    const rBase = eff === 0 ? 5.5 : (eff <= 2 ? 7.5 : (eff <= 5 ? 10 : 13.5));
-    return rBase * zoom.value;
+    const isDense = unitesClassees.value.length > 35;
+    let rBase = 1.05;
+    if (isDense) {
+        if (eff >= 8) rBase = 3.1;
+        else if (eff >= 7) rBase = 2.8;
+        else if (eff >= 5) rBase = 2.5;
+        else if (eff >= 3) rBase = 2.1;
+        else if (eff >= 1) rBase = 1.65;
+        else rBase = 1.05;
+    } else {
+        if (eff >= 8) rBase = 4.4;
+        else if (eff >= 7) rBase = 3.9;
+        else if (eff >= 5) rBase = 3.3;
+        else if (eff >= 3) rBase = 2.8;
+        else if (eff >= 1) rBase = 2.2;
+        else rBase = 1.5;
+    }
+    return rBase * rUnit.value;
 };
 
-// 5. Chiffre centré dans le cercle proportionnel
+// 5. Chiffre centré dans le cercle proportionnel (grand, gras et net)
 const parcelCircleFontSize = (unit) => {
     const r = parcelCircleR(unit);
     const eff = Math.max(0, Number(unit?.effectif) || 0);
     const len = String(eff).length;
-    const factor = len >= 3 ? 0.75 : (len === 2 ? 0.95 : 1.15);
-    return Math.max(6 * zoom.value, r * factor * 0.72);
+    const factor = len >= 3 ? 0.75 : (len === 2 ? 0.88 : 0.98);
+    return r * factor * 0.95;
 };
 
 // 6. Raccourcissement intelligent des noms pour les libellés de la carte
@@ -1697,7 +1754,7 @@ const shouldShowParcelLabel = (p) => {
     if (hoveredItem.value?.isUnit && hoveredItem.value?.uId === p.unit.id) return true;
     if (regionalParcels.value.length <= 8) return true;
     if (parcelFilterType.value === 'with_eff') return p.unit.effectif >= 3;
-    return p.unit.effectif >= 4;
+    return false; // Vue dense complète (78 unités) : laisser respirer les grands cercles et chiffres
 };
 
 const onHoverUnitParcel = (u) => {
