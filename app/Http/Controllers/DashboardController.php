@@ -25,7 +25,7 @@ class DashboardController extends Controller
      * Militaires en service actif. LOWER(TRIM()) rend la comparaison identique sur SQLite et PostgreSQL
      * (PostgreSQL distingue « Actif » de « actif », pas SQLite).
      */
-    /** Effectif en activité (actif, détaché, mission, stage, radié) : même définition que la carte. */
+    /** Effectif en activité (actif, détaché, mission, stage) : même définition que la carte, utilise l'index statut_code. */
     private function enActivite()
     {
         return Militaire::query()->whereRaw(Effectif::sqlActivite());
@@ -33,7 +33,12 @@ class DashboardController extends Controller
 
     private function actifs()
     {
-        return Militaire::query()->whereRaw("LOWER(TRIM(statut)) = 'actif'");
+        return Militaire::query()->where(function ($q) {
+            $q->where('statut_code', 1)
+              ->orWhere(function ($sub) {
+                  $sub->whereNull('statut_code')->whereRaw("LOWER(TRIM(statut)) = 'actif'");
+              });
+        });
     }
 
     /**
@@ -365,23 +370,31 @@ class DashboardController extends Controller
             $anneeCourante = (int) $aujourdhui->year;
             $anneeN1 = $anneeCourante + 1;
 
-            $gradesRetraites = Grade::all(['nom_grade', 'code_grade', 'type_grade', 'retraite_obligatoire']);
+            $gradesRetraites = Grade::all(['id', 'nom_grade', 'code_grade', 'type_grade', 'retraite_obligatoire']);
             $gradeMap = [];
+            $gradeMapById = [];
             foreach ($gradesRetraites as $g) {
                 if ($g->retraite_obligatoire !== null) {
                     $age = (int) $g->retraite_obligatoire;
+                    $gradeMapById[$g->id] = $age;
                     if ($g->nom_grade) $gradeMap[trim($g->nom_grade)] = $age;
                     if ($g->code_grade) $gradeMap[trim($g->code_grade)] = $age;
                 }
             }
 
+            // Récupération indexée par statut_code (chiffres 1 à 4 pour actif, 7 pour retraité)
             $militaires = Militaire::where(function($q) {
-                    $q->whereRaw("LOWER(statut) LIKE 'actif%'")
-                      ->orWhereRaw("LOWER(statut) LIKE 'retrait%'");
+                    $q->whereIn('statut_code', [1, 2, 3, 4, 7])
+                      ->orWhere(function ($sub) {
+                          $sub->whereNull('statut_code')
+                              ->whereRaw("(LOWER(statut) LIKE 'actif%' OR LOWER(statut) LIKE 'retrait%')");
+                      });
                 })
                 ->whereNotNull('date_naissance')
-                ->whereNotNull('grade_actuel')
-                ->select('id', 'nom', 'prenom', 'matricule', 'grade_actuel', 'statut', 'statut_code', 'date_naissance', 'position_actuelle', 'observations')
+                ->where(function ($q) {
+                    $q->whereNotNull('grade_id')->orWhereNotNull('grade_actuel');
+                })
+                ->select('id', 'nom', 'prenom', 'matricule', 'grade_id', 'grade_actuel', 'statut', 'statut_code', 'date_naissance', 'position_actuelle', 'observations')
                 ->get();
 
             $retN = [];
@@ -393,8 +406,9 @@ class DashboardController extends Controller
                     continue;
                 }
 
-                $gradeName = trim($militaire->grade_actuel);
-                $ageRetraite = $gradeMap[$gradeName] ?? Grade::getRetraiteForGrade($gradeName);
+                $ageRetraite = ($militaire->grade_id && isset($gradeMapById[$militaire->grade_id]))
+                    ? $gradeMapById[$militaire->grade_id]
+                    : ($gradeMap[trim($militaire->grade_actuel ?? '')] ?? Grade::getRetraiteForGrade($militaire->grade_actuel));
                 if (!$ageRetraite) continue;
 
                 $birthYear = (int) substr($militaire->date_naissance, 0, 4);
@@ -404,7 +418,8 @@ class DashboardController extends Controller
                 $dateRetraite = $militaire->calculerDateRetraite();
                 if (!$dateRetraite) continue;
 
-                $estActif = str_starts_with(mb_strtolower($militaire->statut ?? ''), 'actif');
+                $estActif = in_array((int) $militaire->statut_code, [1, 2, 3, 4], true)
+                    || str_starts_with(mb_strtolower($militaire->statut ?? ''), 'actif');
 
                 if ($anneeRetraite === $anneeCourante || ($estActif && $anneeRetraite < $anneeCourante)) {
                     $retN[] = [
