@@ -1017,6 +1017,15 @@ const localRegions = ref([...(props.regions || [])]);
 const localUnites = ref([...(props.unites || [])]);
 const localPositions = ref([...(props.positions || [])]);
 
+// Si le militaire possède une position actuelle qui n'est pas encore dans la liste des options, on l'ajoute automatiquement
+if (props.militaire?.position_actuelle && !localPositions.value.some(p => p.nom?.toLowerCase() === props.militaire.position_actuelle.toLowerCase())) {
+    localPositions.value.unshift({
+        id: props.militaire.position_id || props.militaire.position_actuelle,
+        nom: props.militaire.position_actuelle,
+        type: 'operationnelle'
+    });
+}
+
 const toast = useToast();
 const saving = ref(false);
 const errors = ref({});
@@ -1289,7 +1298,7 @@ const form = reactive({
     date_derniere_promotion: parsePropDate(props.militaire.date_derniere_promotion),
     specialite: props.militaire.specialite || '',
     origine_formation: props.militaire.origine_formation || '',
-    position_id: props.militaire.position_id ?? (props.positions.find(p => p.nom === props.militaire.position_actuelle)?.id ?? null),
+    position_id: props.militaire.position_id ?? (props.positions.find(p => p.nom?.toLowerCase() === (props.militaire.position_actuelle || '').toLowerCase())?.id ?? (props.militaire.position_actuelle || null)),
     position_actuelle: props.militaire.position_actuelle || '',
     unite_id: props.militaire.unite_id ?? (props.unites.find(u => u.nom === props.militaire.unite)?.id ?? null),
     unite: props.militaire.unite || '',
