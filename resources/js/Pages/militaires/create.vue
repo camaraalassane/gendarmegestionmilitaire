@@ -430,9 +430,14 @@
                                             <!-- Unité / Brigade / Escadron -->
                                             <div class="field">
                                                 <div class="flex items-center justify-between mb-1">
-                                                    <label :for="'unite_' + idx" class="block text-xs font-semibold text-gray-700">
-                                                        Unité / Brigade / Escadron
-                                                    </label>
+                                                    <div class="flex items-center gap-2">
+                                                        <label :for="'unite_' + idx" class="block text-xs font-semibold text-gray-700">
+                                                            Unité / Brigade / Escadron
+                                                        </label>
+                                                        <span v-if="aff.region_id && !aff.unite_id" class="text-[10px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                                            ⚠️ Unité de cette région requise
+                                                        </span>
+                                                    </div>
                                                     <button type="button" @click="openQuickAddUnite(idx)"
                                                             class="text-sky-700 hover:text-sky-900 text-[11px] font-semibold flex items-center gap-1 cursor-pointer bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 hover:bg-sky-100 transition-colors"
                                                             title="Ajouter une nouvelle unité">
@@ -1090,6 +1095,22 @@ const validateStep = (stepIndex) => {
                 life: 4000
             });
         }
+        // Vérifier que chaque affectation ayant une région possède obligatoirement son unité
+        if (form.affectations && form.affectations.length > 0) {
+            for (let i = 0; i < form.affectations.length; i++) {
+                const aff = form.affectations[i];
+                if (aff.region_id && !aff.unite_id) {
+                    isValid = false;
+                    toast.add({
+                        severity: 'warn',
+                        summary: 'Unité requise pour la région',
+                        detail: `Veuillez sélectionner une unité d'affectation pour la région choisie (affectation n°${i + 1}).`,
+                        life: 5000
+                    });
+                    break;
+                }
+            }
+        }
     } else if (stepIndex === 2) {
         // Validation des certificats cochés sans date
         dateErrors.value = {};
@@ -1420,8 +1441,7 @@ const getUnitesForRow = (idx) => {
     if (!selectedRegionId) {
         return localUnites.value;
     }
-    const filtered = localUnites.value.filter(u => u.region_id === selectedRegionId);
-    return filtered.length > 0 ? filtered : localUnites.value;
+    return localUnites.value.filter(u => u.region_id === selectedRegionId);
 };
 
 const onRegionSelect = (idx) => {
@@ -1670,8 +1690,8 @@ const formatDateForServer = (date) => {
 };
 
 const submitForm = () => {
-    // Valider la dernière étape (étape 2) avant de soumettre
-    if (!validateStep(2)) return;
+    // Valider toutes les étapes avant de soumettre
+    if (!validateStep(0) || !validateStep(1) || !validateStep(2)) return;
 
     saving.value = true;
     errors.value = {};
