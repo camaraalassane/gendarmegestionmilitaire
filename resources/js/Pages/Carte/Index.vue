@@ -347,14 +347,14 @@
                             <div class="flex items-center justify-between gap-3 pb-2.5 mb-2 border-b border-[#223348] flex-none">
                                 <div class="min-w-0">
                                     <div class="flex items-center gap-2">
-                                        <span class="px-2 py-0.5 rounded text-[11px] font-black bg-sky-500/20 text-sky-300 border border-sky-400/40">
+                                        <span class="px-2 py-0.5 rounded text-[11px] font-black bg-sky-500/20 text-sky-300 border border-sky-400/40 flex-none">
                                             {{ selRegion.code }}
                                         </span>
-                                        <h3 class="text-sm sm:text-base font-extrabold text-white tracking-wide truncate">
-                                            RÉGION DE {{ selRegion.nom.toUpperCase() }}
+                                        <h3 class="text-xs sm:text-sm md:text-base font-extrabold text-white tracking-wide truncate">
+                                            {{ selRegion.code === 'R1' ? 'BAMAKO (HQ)' : selRegion.nom.toUpperCase() }}
                                         </h3>
-                                        <span class="text-xs text-sky-400 font-bold hidden sm:inline">• {{ fmt(selRegion.effectif) }} militaires</span>
-                                        <span class="text-xs text-slate-400 hidden sm:inline">({{ selRegion.unites.length }} unités)</span>
+                                        <span class="text-xs text-sky-400 font-bold whitespace-nowrap hidden lg:inline">• {{ fmt(selRegion.effectif) }} militaires</span>
+                                        <span class="text-xs text-slate-400 whitespace-nowrap hidden lg:inline">({{ selRegion.unites.length }} unités)</span>
                                     </div>
                                 </div>
 
