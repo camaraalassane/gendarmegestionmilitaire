@@ -207,17 +207,42 @@
 
                     <!-- UNIQUEMENT CET ENDROIT : LE CANEVAS DE LA CARTE EN BLEU ARDOISE ADOUCI (#16212E) -->
                     <div
-                        class="flex-1 min-h-[480px] lg:min-h-[540px] w-full h-full relative flex items-center justify-center overflow-hidden bg-[#16212e] rounded-lg border border-[#263446] p-1 cursor-grab select-none"
-                        :class="{ '!cursor-grabbing': isDragging }"
-                        @mousedown="onMouseDown"
-                        @wheel.prevent="onWheel"
-                        @touchstart="onTouchStart"
-                        @touchmove="onTouchMove"
-                        @touchend="onTouchEnd"
-                        @dblclick="onDblClick"
+                        class="flex-1 min-h-[480px] lg:min-h-[540px] w-full h-full relative flex items-center justify-center overflow-hidden bg-[#16212e] rounded-lg border border-[#263446] p-1 select-none"
+                        :class="{ '!cursor-grabbing': isDragging, 'cursor-grab': !sel || regionViewMode === 'vecteur' }"
+                        @mousedown="(!sel || regionViewMode === 'vecteur') && onMouseDown($event)"
+                        @wheel="(!sel || regionViewMode === 'vecteur') ? onWheel($event) : null"
+                        @touchstart="(!sel || regionViewMode === 'vecteur') && onTouchStart($event)"
+                        @touchmove="(!sel || regionViewMode === 'vecteur') && onTouchMove($event)"
+                        @touchend="(!sel || regionViewMode === 'vecteur') && onTouchEnd($event)"
+                        @dblclick="(!sel || regionViewMode === 'vecteur') && onDblClick($event)"
                     >
-                        <!-- Boutons d'action rapide en haut à droite sur le canevas tactique -->
-                        <div class="absolute top-2 right-2 z-20 flex items-center gap-1.5 pointer-events-auto">
+                        <!-- Boutons d'action rapide en haut à droite sur le canevas tactique (vue vecteur / Mali entier) -->
+                        <div
+                            v-show="!sel || regionViewMode === 'vecteur'"
+                            class="absolute top-2 right-2 z-20 flex items-center gap-1.5 pointer-events-auto"
+                        >
+                            <!-- Bascule Cartes tracées vs Tracé carte quand une région est sélectionnée en vue vecteur -->
+                            <div v-if="sel" class="inline-flex rounded-md shadow-xs bg-[#090e17]/95 p-0.5 border border-slate-700/80">
+                                <button
+                                    type="button"
+                                    @click="regionViewMode = 'cartes'"
+                                    class="px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer text-slate-400 hover:text-white"
+                                    title="Basculer vers les cartes tracées classées par effectif"
+                                >
+                                    <i class="pi pi-th-large text-[10px]"></i>
+                                    <span class="hidden sm:inline">Cartes tracées</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    @click="regionViewMode = 'vecteur'"
+                                    class="px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer bg-sky-600 text-white shadow-xs"
+                                    title="Vue tracé géographique"
+                                >
+                                    <i class="pi pi-map text-[10px]"></i>
+                                    <span class="hidden sm:inline">Tracé carte</span>
+                                </button>
+                            </div>
+
                             <button
                                 v-if="sel"
                                 type="button"
@@ -233,7 +258,7 @@
                                 type="button"
                                 @click="showSidePanelInFullscreen = !showSidePanelInFullscreen"
                                 class="bg-[#0e1621]/90 hover:bg-[#1a2636] text-white border border-slate-700/80 px-2.5 py-1 rounded-md shadow-md text-xs flex items-center gap-1.5 transition pointer-events-auto font-medium cursor-pointer"
-                                :title="showSidePanelInFullscreen ? 'Masquer le volet latéral pour afficher la carte en 100% de largeur' : 'Afficher le volet latéral avec les unités'"
+                                :title="showSidePanelInFullscreen ? 'Masquer le volet latéral' : 'Afficher le volet latéral'"
                             >
                                 <i :class="showSidePanelInFullscreen ? 'pi pi-eye-slash text-slate-300' : 'pi pi-list text-sky-300'" class="text-xs"></i>
                                 <span class="hidden sm:inline">{{ showSidePanelInFullscreen ? 'Masquer volet' : 'Volet détails' }}</span>
@@ -250,7 +275,10 @@
                         </div>
 
                         <!-- Contrôles interactifs de Zoom (+ / % / - / Recentrer) en bas à droite -->
-                        <div class="absolute bottom-3 right-3 z-20 flex flex-col items-center bg-[#0e1621]/90 backdrop-blur border border-slate-700/80 rounded-lg shadow-xl overflow-hidden select-none pointer-events-auto">
+                        <div
+                            v-show="!sel || regionViewMode === 'vecteur'"
+                            class="absolute bottom-3 right-3 z-20 flex flex-col items-center bg-[#0e1621]/90 backdrop-blur border border-slate-700/80 rounded-lg shadow-xl overflow-hidden select-none pointer-events-auto"
+                        >
                             <button
                                 type="button"
                                 @click.stop="zoomIn"
@@ -294,7 +322,7 @@
                         <!-- Entête au survol interactif (HUD élégant) -->
                         <transition name="fade">
                             <div
-                                v-if="hoveredInfo"
+                                v-if="(!sel || regionViewMode === 'vecteur') && hoveredInfo"
                                 class="absolute top-2 left-2 z-20 bg-[#0e1621]/95 backdrop-blur text-white px-2.5 py-1 rounded-md shadow-lg text-xs pointer-events-none flex items-center gap-2 border border-slate-700"
                             >
                                 <span
@@ -310,7 +338,235 @@
                             </div>
                         </transition>
 
+                        <!-- VUE DES CARTES TRACÉES DES UNITÉS CLASSÉES STRICTEMENT PAR EFFECTIF DÉCROISSANT -->
+                        <div
+                            v-if="sel && regionViewMode === 'cartes' && selRegion"
+                            class="absolute inset-0 z-10 flex flex-col p-3 sm:p-4 bg-[#0f1724] text-white overflow-hidden pointer-events-auto"
+                        >
+                            <!-- Ligne 1 du header : Titre de la région & Boutons d'action -->
+                            <div class="flex items-center justify-between gap-3 pb-2.5 mb-2 border-b border-[#223348] flex-none">
+                                <div class="min-w-0">
+                                    <div class="flex items-center gap-2">
+                                        <span class="px-2 py-0.5 rounded text-[11px] font-black bg-sky-500/20 text-sky-300 border border-sky-400/40">
+                                            {{ selRegion.code }}
+                                        </span>
+                                        <h3 class="text-sm sm:text-base font-extrabold text-white tracking-wide truncate">
+                                            RÉGION DE {{ selRegion.nom.toUpperCase() }}
+                                        </h3>
+                                        <span class="text-xs text-sky-400 font-bold hidden sm:inline">• {{ fmt(selRegion.effectif) }} militaires</span>
+                                        <span class="text-xs text-slate-400 hidden sm:inline">({{ selRegion.unites.length }} unités)</span>
+                                    </div>
+                                </div>
+
+                                <!-- Actions du header : Bascule Cartes/Tracé, Tout le Mali, Plein écran -->
+                                <div class="flex items-center gap-1.5 flex-none">
+                                    <div class="inline-flex rounded-md shadow-xs bg-[#090e17]/95 p-0.5 border border-slate-700/80">
+                                        <button
+                                            type="button"
+                                            @click="regionViewMode = 'cartes'"
+                                            class="px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer bg-sky-600 text-white shadow-xs"
+                                            title="Afficher les unités sous forme de cartes tracées classées par effectif"
+                                        >
+                                            <i class="pi pi-th-large text-[10px]"></i>
+                                            <span class="hidden md:inline">Cartes tracées</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            @click="regionViewMode = 'vecteur'"
+                                            class="px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer text-slate-400 hover:text-white"
+                                            title="Afficher le tracé géographique de la région"
+                                        >
+                                            <i class="pi pi-map text-[10px]"></i>
+                                            <span class="hidden md:inline">Tracé carte</span>
+                                        </button>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        @click="retour"
+                                        class="bg-[#0e1621]/90 hover:bg-[#1a2636] text-white border border-slate-700/80 px-2.5 py-1 rounded-md shadow-md text-xs flex items-center gap-1.5 transition font-medium cursor-pointer"
+                                        title="Retour à la vue complète du Mali"
+                                    >
+                                        <i class="pi pi-arrow-left text-[10px] text-sky-300"></i>
+                                        <span class="hidden sm:inline">Tout le Mali</span>
+                                    </button>
+
+                                    <button
+                                        v-if="isFullscreen"
+                                        type="button"
+                                        @click="showSidePanelInFullscreen = !showSidePanelInFullscreen"
+                                        class="bg-[#0e1621]/90 hover:bg-[#1a2636] text-white border border-slate-700/80 px-2 py-1 rounded-md shadow-md text-xs flex items-center gap-1.5 transition font-medium cursor-pointer"
+                                        :title="showSidePanelInFullscreen ? 'Masquer le volet latéral' : 'Afficher le volet latéral'"
+                                    >
+                                        <i :class="showSidePanelInFullscreen ? 'pi pi-eye-slash text-slate-300' : 'pi pi-list text-sky-300'" class="text-xs"></i>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        @click="toggleFullscreen"
+                                        class="bg-[#0e1621]/90 hover:bg-[#1a2636] text-white border border-slate-700/80 px-2 py-1 rounded-md shadow-md text-xs flex items-center gap-1.5 transition font-semibold cursor-pointer"
+                                        :title="isFullscreen ? 'Quitter le mode plein écran (Échap)' : 'Afficher la carte en plein écran'"
+                                    >
+                                        <i :class="isFullscreen ? 'pi pi-window-minimize text-amber-300' : 'pi pi-window-maximize text-sky-300'" class="text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Ligne 2 : Filtres rapides & Recherche instantanée -->
+                            <div class="flex flex-wrap items-center justify-between gap-2 pb-2 mb-2 border-b border-[#1b2b3f] flex-none">
+                                <!-- Sélecteur filtre effectif -->
+                                <div class="inline-flex rounded-md shadow-xs bg-[#0b121b] p-0.5 border border-[#223348] text-xs">
+                                    <button
+                                        type="button"
+                                        @click="unitFilterType = 'all'"
+                                        class="px-2 py-1 rounded transition cursor-pointer"
+                                        :class="unitFilterType === 'all' ? 'bg-sky-700 text-white font-bold' : 'text-slate-400 hover:text-white'"
+                                    >
+                                        Toutes ({{ selRegion.unites.length }})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="unitFilterType = 'with_eff'"
+                                        class="px-2 py-1 rounded transition flex items-center gap-1 cursor-pointer"
+                                        :class="unitFilterType === 'with_eff' ? 'bg-red-600 text-white font-bold' : 'text-slate-400 hover:text-white'"
+                                        title="Unités avec effectif > 0"
+                                    >
+                                        <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
+                                        <span>Avec effectif ({{ countWithEff }})</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="unitFilterType = 'zero_eff'"
+                                        class="px-2 py-1 rounded transition flex items-center gap-1 cursor-pointer"
+                                        :class="unitFilterType === 'zero_eff' ? 'bg-slate-700 text-white font-bold' : 'text-slate-400 hover:text-white'"
+                                        title="Unités sans effectif (0)"
+                                    >
+                                        <span>Sans effectif ({{ countZeroEff }})</span>
+                                    </button>
+                                </div>
+
+                                <!-- Recherche texte rapide -->
+                                <div class="relative w-44 sm:w-60">
+                                    <input
+                                        v-model="unitSearchQuery"
+                                        type="text"
+                                        placeholder="Filtrer brigade, camp..."
+                                        class="w-full text-xs py-1.5 pl-7 pr-6 rounded-md border border-[#2c3f58] bg-[#0c1420] text-white placeholder-slate-400 focus:outline-none focus:border-sky-400"
+                                    />
+                                    <i class="pi pi-search absolute left-2.5 top-2 text-xs text-slate-400"></i>
+                                    <button
+                                        v-if="unitSearchQuery"
+                                        @click="unitSearchQuery = ''"
+                                        class="absolute right-2 top-2 text-slate-400 hover:text-white text-xs cursor-pointer"
+                                    >
+                                        <i class="pi pi-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Légende Bertin compacte -->
+                            <div class="flex items-center justify-between text-[11px] text-slate-400 px-2 py-1 mb-2 bg-[#0c1420]/70 rounded border border-[#1b2b3f] flex-none">
+                                <div class="flex items-center gap-3">
+                                    <span class="text-sky-300 font-semibold flex items-center gap-1">
+                                        <i class="pi pi-sort-amount-down text-sky-400"></i>
+                                        Classement par effectif décroissant
+                                    </span>
+                                    <span class="text-slate-600">•</span>
+                                    <span class="flex items-center gap-1.5">
+                                        <span class="w-3.5 h-3.5 rounded-full bg-red-500 border border-black inline-block"></span>
+                                        <span class="text-slate-300">Cercle proportionnel (Jacques Bertin)</span>
+                                    </span>
+                                    <span class="text-slate-600 hidden md:inline">•</span>
+                                    <span class="hidden md:flex items-center gap-1.5 text-slate-300">
+                                        <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Opérationnelle
+                                        <span class="w-2 h-2 rounded-full bg-amber-400 ml-1"></span> En réserve
+                                    </span>
+                                </div>
+                                <div class="text-slate-400 text-[10px]">
+                                    {{ unitesClassees.length }} unité(s) affichée(s)
+                                </div>
+                            </div>
+
+                            <!-- Grille des cartes tracées classées -->
+                            <div class="flex-1 overflow-y-auto pr-1 custom-scrollbar">
+                                <div
+                                    v-if="unitesClassees.length > 0"
+                                    class="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-2.5 pb-2"
+                                >
+                                    <div
+                                        v-for="(u, idx) in unitesClassees"
+                                        :key="u.id"
+                                        @click="handleCardUnitClick(u.id)"
+                                        class="group relative flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer select-none"
+                                        :class="selUnit === u.id
+                                            ? 'bg-sky-950/80 border-sky-400 ring-2 ring-sky-400/60 shadow-lg shadow-sky-950/70'
+                                            : 'bg-[#152233] hover:bg-[#1c2e44] border-[#25384e] hover:border-sky-500/50 shadow-xs'"
+                                    >
+                                        <!-- Rang / Classement ordinal (#1, #2, ...) -->
+                                        <span class="absolute top-1.5 right-2 text-[10px] font-mono text-slate-500 font-bold group-hover:text-slate-400">
+                                            #{{ idx + 1 }}
+                                        </span>
+
+                                        <!-- Cercle proportionnel rouge Bertin -->
+                                        <div class="flex-none flex items-center justify-center" style="width: 52px; height: 52px;">
+                                            <div
+                                                class="rounded-full flex items-center justify-center font-black transition-transform group-hover:scale-105"
+                                                :style="{
+                                                    width: circleSize(u) + 'px',
+                                                    height: circleSize(u) + 'px',
+                                                    backgroundColor: u.effectif > 0 ? '#ef4444' : '#334155',
+                                                    border: (u.effectif > 0 ? '2.5px solid #000000' : '1.5px solid #64748b'),
+                                                    color: (u.effectif > 0 ? '#000000' : '#94a3b8'),
+                                                    fontSize: circleFontSize(u) + 'px',
+                                                    boxShadow: u.effectif > 0 ? '0 2px 6px rgba(0,0,0,0.5)' : 'none'
+                                                }"
+                                            >
+                                                {{ u.effectif }}
+                                            </div>
+                                        </div>
+
+                                        <!-- Informations unité -->
+                                        <div class="min-w-0 flex-1 pr-2">
+                                            <div class="flex items-center gap-1.5">
+                                                <span
+                                                    class="w-2 h-2 rounded-full flex-none"
+                                                    :class="u.operationnelle ? 'bg-emerald-400 shadow-xs shadow-emerald-500/50' : 'bg-amber-400'"
+                                                    :title="u.operationnelle ? 'Opérationnelle' : 'En réserve / non opérationnelle'"
+                                                ></span>
+                                                <h4 class="text-xs sm:text-[13px] font-bold text-white group-hover:text-sky-300 leading-snug line-clamp-2">
+                                                    {{ u.nom }}
+                                                </h4>
+                                            </div>
+
+                                            <div class="flex items-center gap-1.5 mt-1 text-[11px] text-slate-400 truncate">
+                                                <span v-if="u.type" class="px-1.5 py-0.2 rounded bg-slate-900/80 text-sky-300 border border-slate-700 font-medium text-[10px]">
+                                                    {{ u.type }}
+                                                </span>
+                                                <span v-if="u.ville" class="truncate text-slate-300">
+                                                    📍 {{ u.ville }}
+                                                </span>
+                                            </div>
+
+                                            <div class="mt-1 flex items-center justify-between text-[10px] text-slate-400">
+                                                <span>
+                                                    {{ u.effectif > 0 ? (u.effectif === 1 ? '1 gendarme' : u.effectif + ' gendarmes') : '0 effectif' }}
+                                                </span>
+                                                <span v-if="selUnit === u.id" class="text-sky-300 font-bold flex items-center gap-0.5">
+                                                    <i class="pi pi-check text-[9px]"></i> Active
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div v-else class="py-12 text-center text-slate-400 text-xs">
+                                    Aucune unité trouvée pour ce filtre.
+                                </div>
+                            </div>
+                        </div>
+
                         <svg
+                            v-show="!sel || regionViewMode === 'vecteur'"
                             ref="svgRef"
                             :viewBox="viewBox.join(' ')"
                             class="w-full h-full max-h-full block select-none pointer-events-auto"
@@ -1127,6 +1383,9 @@ const choisir = (code) => {
     sel.value = code;
     selUnit.value = null;
     searchQuery.value = '';
+    unitSearchQuery.value = '';
+    unitFilterType.value = 'all';
+    regionViewMode.value = 'cartes'; // Vue des cartes tracées par défaut
     userZoom.value = 1;
     panOffset.value = { x: 0, y: 0 };
     sidebarTab.value = 'liste';
@@ -1136,6 +1395,8 @@ const retour = () => {
     sel.value = null;
     selUnit.value = null;
     searchQuery.value = '';
+    unitSearchQuery.value = '';
+    unitFilterType.value = 'all';
     userZoom.value = 1;
     panOffset.value = { x: 0, y: 0 };
     sidebarTab.value = 'liste';
@@ -1151,6 +1412,11 @@ const onSelectRegionDropdown = (code) => {
 
 const toggleUnit = (id) => {
     selUnit.value = selUnit.value === id ? null : id;
+};
+
+const handleCardUnitClick = (id) => {
+    toggleUnit(id);
+    sidebarTab.value = 'liste';
 };
 
 const handleRegionClick = (code) => {
@@ -1355,6 +1621,50 @@ const viewBox = computed(() => {
 });
 
 const zoom = computed(() => viewBox.value[2] / MALI_VIEW.w); // échelle pour pins et traits au zoom
+
+// Mode d'affichage de la région sélectionnée : 'cartes' (défaut : petites cartes tracées classées par effectif) ou 'vecteur'
+const regionViewMode = ref('cartes');
+const unitSearchQuery = ref('');
+const unitFilterType = ref('all'); // 'all' | 'with_eff' | 'zero_eff'
+
+const countWithEff = computed(() => (selRegion.value?.unites || []).filter(u => (Number(u.effectif) || 0) > 0).length);
+const countZeroEff = computed(() => (selRegion.value?.unites || []).filter(u => (Number(u.effectif) || 0) === 0).length);
+
+// Unités classées strictement par effectif décroissant (du plus grand au plus petit)
+const unitesClassees = computed(() => {
+    if (!selRegion.value?.unites) return [];
+    let list = [...selRegion.value.unites];
+    // Règle d'or : classement strict en fonction de leur nombre (effectif décroissant)
+    list.sort((a, b) => (Number(b.effectif) || 0) - (Number(a.effectif) || 0) || a.nom.localeCompare(b.nom));
+
+    if (unitFilterType.value === 'with_eff') {
+        list = list.filter(u => (Number(u.effectif) || 0) > 0);
+    } else if (unitFilterType.value === 'zero_eff') {
+        list = list.filter(u => (Number(u.effectif) || 0) === 0);
+    }
+
+    if (unitSearchQuery.value.trim()) {
+        const q = unitSearchQuery.value.toLowerCase().trim();
+        list = list.filter(u => 
+            u.nom.toLowerCase().includes(q) || 
+            (u.type && u.type.toLowerCase().includes(q)) || 
+            (u.ville && u.ville.toLowerCase().includes(q))
+        );
+    }
+    return list;
+});
+
+// Taille du cercle proportionnel dans les cartouches tracés (sémiologie Jacques Bertin)
+const circleSize = (u) => {
+    const eff = Math.max(0, Number(u?.effectif) || 0);
+    if (eff === 0) return 30;
+    return Math.min(52, Math.round(30 + Math.sqrt(eff) * 7.2));
+};
+
+const circleFontSize = (u) => {
+    const s = circleSize(u);
+    return s >= 44 ? 15 : (s >= 36 ? 13 : 11);
+};
 
 // ---------- Unités de la région choisie avec dispersion intelligente en grappes tactiques ----------
 const unitesAvecPoint = computed(() => {

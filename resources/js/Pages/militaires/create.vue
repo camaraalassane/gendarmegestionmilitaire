@@ -20,9 +20,9 @@
             <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
 
                 <!-- ========================================================================================= -->
-                <!-- BANDEAU DE PROGRESSION / STEPPER MULTI-ÉTAPES                                             -->
+                <!-- BANDEAU DE PROGRESSION / STEPPER MULTI-ÉTAPES (COMPACT & FIXE AU SCROLL)                   -->
                 <!-- ========================================================================================= -->
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 px-3 sm:px-4 py-2.5 mb-4 transition-all">
+                <div class="sticky top-2 z-30 bg-white/95 backdrop-blur-md rounded-xl shadow-md border border-slate-200 px-3 sm:px-4 py-2 sm:py-2.5 mb-3 transition-all">
                     <!-- Barre de progression continue -->
                     <div class="flex items-center justify-between text-xs font-bold text-slate-600 mb-1">
                         <span class="text-sky-900 font-extrabold uppercase tracking-wider flex items-center gap-1.5 text-[11px] sm:text-xs">
@@ -872,9 +872,9 @@
                         </div>
 
                         <!-- ================================================================================= -->
-                        <!-- BARRE DE NAVIGATION DU FORMULAIRE                                                 -->
+                        <!-- BARRE DE NAVIGATION INFÉRIEURE DU STEPPER (COMPACTE & FIXE AU BAS DE L'ÉCRAN)      -->
                         <!-- ================================================================================= -->
-                        <div class="mt-6 pt-4 border-t border-slate-200 bg-slate-50/70 p-3 sm:p-4 rounded-xl flex flex-wrap items-center justify-between gap-2">
+                        <div class="sticky bottom-2 z-30 mt-6 bg-white/95 backdrop-blur-md px-3 sm:px-4 py-2.5 rounded-xl border border-slate-200 shadow-lg flex flex-wrap items-center justify-between gap-2">
                             <!-- Bouton Précédent -->
                             <Button v-if="currentStep > 0"
                                     type="button"
