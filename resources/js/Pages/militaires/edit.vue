@@ -22,9 +22,9 @@
             <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
 
                 <!-- ========================================================================================= -->
-                <!-- BANDEAU DE PROGRESSION / STEPPER MULTI-ÉTAPES (COMPACT & FIXE AU SCROLL)                   -->
+                <!-- BANDEAU DE PROGRESSION / STEPPER MULTI-ÉTAPES                                             -->
                 <!-- ========================================================================================= -->
-                <div class="sticky top-2 z-30 bg-white/95 backdrop-blur-md rounded-xl shadow-md border border-slate-200 px-3 sm:px-4 py-2 sm:py-2.5 mb-3 transition-all">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 px-3 sm:px-4 py-2.5 mb-4 transition-all">
                     <!-- Barre de progression continue -->
                     <div class="flex items-center justify-between text-xs font-bold text-slate-600 mb-1">
                         <span class="text-sky-900 font-extrabold uppercase tracking-wider flex items-center gap-1.5 text-[11px] sm:text-xs">
@@ -42,13 +42,13 @@
                     </div>
 
                     <!-- Onglets interactifs des étapes (3 étapes au total) -->
-                    <div class="grid grid-cols-3 gap-2">
+                    <div class="grid grid-cols-3 gap-1.5 sm:gap-2">
                         <button v-for="(s, idx) in steps" :key="idx"
                                 type="button"
                                 @click="goToStep(idx)"
                                 :disabled="idx > maxStepVisited"
                                 :class="[
-                                    'group flex items-center gap-2 p-1.5 sm:p-2 rounded-lg border transition-all text-left',
+                                    'group flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-lg border transition-all text-left min-w-0 overflow-hidden',
                                     idx === currentStep
                                         ? 'bg-sky-50 border-sky-500 shadow-xs ring-1 ring-sky-300 cursor-default'
                                         : idx < currentStep
@@ -70,12 +70,12 @@
                                 <i v-else :class="s.icon" class="text-xs"></i>
                             </div>
 
-                            <div class="min-w-0 flex-1">
-                                <span class="block text-[9px] font-semibold uppercase tracking-wider text-slate-400 leading-none">
+                            <div class="min-w-0 flex-1 overflow-hidden">
+                                <span class="block text-[8px] sm:text-[9px] font-semibold uppercase tracking-wider text-slate-400 leading-none truncate">
                                     Étape {{ idx + 1 }}
                                 </span>
                                 <span :class="[
-                                    'block text-[11px] sm:text-xs font-bold truncate leading-tight mt-0.5',
+                                    'block text-[10px] sm:text-xs font-bold truncate leading-tight mt-0.5',
                                     idx === currentStep ? 'text-sky-950' : idx < currentStep ? 'text-emerald-900' : 'text-slate-700'
                                 ]">
                                     {{ s.label }}
@@ -224,13 +224,13 @@
                                         </div>
 
                                                                                 <!-- Statut administratif - Mis en valeur bien visible -->
-                                        <div class="field sm:col-span-2 lg:col-span-3 bg-gradient-to-r from-sky-50 via-slate-50 to-blue-50/60 p-4 rounded-xl border-2 border-sky-200 shadow-2xs">
-                                            <div class="flex items-center justify-between mb-2">
-                                                <label for="statut" class="block text-sm font-bold text-sky-950 flex items-center gap-2">
-                                                    <i class="pi pi-id-card text-sky-700 text-base"></i>
-                                                    Statut Administratif (Situation de l'agent) <span class="text-red-500">*</span>
+                                        <div class="field sm:col-span-2 lg:col-span-3 min-w-0 bg-gradient-to-r from-sky-50 via-slate-50 to-blue-50/60 p-3 sm:p-4 rounded-xl border-2 border-sky-200 shadow-2xs">
+                                            <div class="flex flex-wrap items-center justify-between mb-2 gap-2">
+                                                <label for="statut" class="block text-sm font-bold text-sky-950 flex items-center gap-2 min-w-0">
+                                                    <i class="pi pi-id-card text-sky-700 text-base shrink-0"></i>
+                                                    <span class="truncate">Statut Administratif</span> <span class="text-red-500">*</span>
                                                 </label>
-                                                <span v-if="form.statut" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider"
+                                                <span v-if="form.statut" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider shrink-0"
                                                       :class="form.statut === 'actif' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-800 border border-amber-300'">
                                                     <span class="w-2 h-2 rounded-full" :class="form.statut === 'actif' ? 'bg-emerald-500' : 'bg-amber-500'"></span>
                                                     {{ form.statut }}
@@ -537,13 +537,13 @@
                                     </div>
 
                                     <!-- Position actuelle (Endroit où il se trouve) -->
-                                    <div class="field sm:col-span-1 lg:col-span-1">
-                                        <div class="flex items-center justify-between mb-1">
-                                            <label for="position_actuelle" class="block text-sm font-semibold text-gray-700">
+                                    <div class="field sm:col-span-1 lg:col-span-1 min-w-0">
+                                        <div class="flex items-center justify-between mb-1 gap-1">
+                                            <label for="position_actuelle" class="block text-sm font-semibold text-gray-700 truncate">
                                                 Position actuelle
                                             </label>
                                             <button type="button" @click="openQuickAddPosition"
-                                                    class="text-sky-700 hover:text-sky-900 text-[11px] font-semibold flex items-center gap-1 cursor-pointer bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 hover:bg-sky-100 transition-colors"
+                                                    class="text-sky-700 hover:text-sky-900 text-[11px] font-semibold flex items-center gap-1 cursor-pointer bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 hover:bg-sky-100 transition-colors shrink-0"
                                                     title="Ajouter un nouvel endroit de déploiement">
                                                 <i class="pi pi-plus text-[10px]"></i>
                                                 <span>Ajouter</span>
@@ -556,7 +556,7 @@
                                                 optionValue="id"
                                                 filter
                                                 placeholder="Sélectionner la position..."
-                                                class="w-full"
+                                                class="w-full min-w-0"
                                                 @change="onPositionSelect">
                                             <template #option="slotProps">
                                                 <div class="flex items-center justify-between w-full py-0.5">
@@ -570,15 +570,15 @@
                                     </div>
 
                                     <!-- Observations particulières / Mention officielle (à côté de la position) -->
-                                    <div class="field sm:col-span-1 lg:col-span-2">
-                                        <label for="observations" class="block text-sm font-semibold text-gray-700 mb-1 flex items-center justify-between">
-                                            <span>Observations particulières / Mention officielle</span>
+                                    <div class="field sm:col-span-1 lg:col-span-2 min-w-0">
+                                        <label for="observations" class="block text-sm font-semibold text-gray-700 mb-1 flex flex-wrap items-center justify-between gap-1">
+                                            <span class="truncate">Observations particulières / Mention officielle</span>
                                             <span class="text-[11px] text-slate-400 font-normal italic">Remarques, otage, situation...</span>
                                         </label>
                                         <InputText id="observations"
                                                    v-model="form.observations"
-                                                   class="w-full"
-                                                   placeholder="Ex: Otage devant partir à la Retraité depuis 2020 à maintenir dans le Fichier..." />
+                                                   class="w-full min-w-0"
+                                                   placeholder="Ex: Otage devant partir à la Retraité depuis 2020..." />
                                     </div>
                                 </div>
                             </div>
@@ -885,9 +885,9 @@
                         </div>
 
                         <!-- ================================================================================= -->
-                        <!-- BARRE DE NAVIGATION INFÉRIEURE DU STEPPER (COMPACTE & FIXE AU BAS DE L'ÉCRAN)      -->
+                        <!-- BARRE DE NAVIGATION DU FORMULAIRE                                                 -->
                         <!-- ================================================================================= -->
-                        <div class="sticky bottom-2 z-30 mt-6 bg-white/95 backdrop-blur-md px-3 sm:px-4 py-2.5 rounded-xl border border-slate-200 shadow-lg flex flex-wrap items-center justify-between gap-2">
+                        <div class="mt-6 pt-4 border-t border-slate-200 bg-slate-50/70 p-3 sm:p-4 rounded-xl flex flex-wrap items-center justify-between gap-2">
                             <!-- Bouton Précédent -->
                             <Button v-if="currentStep > 0"
                                     type="button"
