@@ -23,13 +23,45 @@ return new class extends Migration
             ]);
         }
 
-        // 2. Lier tous les militaires identifiés comme otages à cet ID officiel
+        // 2. Lier les militaires explicitement en position Otage (ou cas formel comme DIAWARA Mamadou)
         if ($otageId) {
+            // A. Militaires ayant déjà "Otage" dans leur position actuelle
             DB::table('militaires')
+                ->whereRaw("LOWER(position_actuelle) LIKE '%otage%'")
+                ->update([
+                    'position_id' => $otageId,
+                    'position_actuelle' => 'Otage',
+                ]);
+
+            // B. Cas officiel documenté (ex: DIAWARA Mamadou, matricule 6402)
+            DB::table('militaires')
+                ->where('matricule', '6402')
+                ->update([
+                    'position_id' => $otageId,
+                    'position_actuelle' => 'Otage',
+                ]);
+
+            // C. Militaires vivants et non radiés dont l'observation mentionne formellement la captivité
+            // sans mention de libération (avec ou sans accent) ni d'évasion
+            DB::table('militaires')
+                ->whereNull('position_id')
                 ->where(function ($q) {
-                    $q->whereRaw("LOWER(position_actuelle) LIKE '%otage%'")
-                      ->orWhereRaw("LOWER(observations) LIKE '%otage%' AND LOWER(observations) NOT LIKE '%libéré%'");
+                    $q->whereNull('statut_code')
+                      ->orWhereNotIn('statut_code', [6, 8, 9]); // Exclut déserteurs, radiés, décédés
                 })
+                ->whereNull('date_deces')
+                ->whereRaw("LOWER(COALESCE(statut, '')) NOT LIKE '%décéd%'")
+                ->whereRaw("LOWER(COALESCE(statut, '')) NOT LIKE '%deced%'")
+                ->whereRaw("LOWER(COALESCE(statut, '')) NOT LIKE '%radi%'")
+                ->whereRaw("LOWER(COALESCE(observations, '')) LIKE '%otage%'")
+                ->whereRaw("LOWER(COALESCE(observations, '')) NOT LIKE '%libéré%'")
+                ->whereRaw("LOWER(COALESCE(observations, '')) NOT LIKE '%libere%'")
+                ->whereRaw("LOWER(COALESCE(observations, '')) NOT LIKE '%libérat%'")
+                ->whereRaw("LOWER(COALESCE(observations, '')) NOT LIKE '%liberat%'")
+                ->whereRaw("LOWER(COALESCE(observations, '')) NOT LIKE '%relâch%'")
+                ->whereRaw("LOWER(COALESCE(observations, '')) NOT LIKE '%relach%'")
+                ->whereRaw("LOWER(COALESCE(observations, '')) NOT LIKE '%évad%'")
+                ->whereRaw("LOWER(COALESCE(observations, '')) NOT LIKE '%evad%'")
                 ->update([
                     'position_id' => $otageId,
                     'position_actuelle' => 'Otage',

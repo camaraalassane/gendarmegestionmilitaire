@@ -107,6 +107,7 @@ class DashboardController extends Controller
             $totalMissions = Militaire::where('statut_code', 3)->count();
             $totalStages = Militaire::where('statut_code', 4)->count();
             $totalRadies = Militaire::where('statut_code', 8)->count();
+            $totalNonClasses = Militaire::whereNull('statut_code')->count();
 
             return [
                 'annee' => $anneeCourante,
@@ -117,6 +118,7 @@ class DashboardController extends Controller
                 'missions' => $totalMissions,
                 'stages' => $totalStages,
                 'radies' => $totalRadies,
+                'non_classes' => $totalNonClasses,
                 'proposables_n' => $totalProposablesN,
                 'retraites_n' => $totalRetraitesN,
                 'decedes_cette_annee' => $totalDecedesCetteAnnee,
@@ -382,8 +384,14 @@ class DashboardController extends Controller
                 }
             }
 
-            // Récupération indexée par statut_code (chiffres 1 à 4 pour actif, 7 pour retraité)
-            $militaires = Militaire::where(function($q) {
+            // Calcul des bornes d'âge pour ne charger que les militaires d'âge éligible (élimine ~75% des recrues/jeunes)
+            $minAge = !empty($gradeMapById) ? min($gradeMapById) : 45;
+            $maxAge = !empty($gradeMapById) ? max($gradeMapById) : 66;
+            $anneeNaissanceMax = $anneeN1 - $minAge + 1;
+            $dateNaissanceMax = Carbon::create($anneeNaissanceMax, 12, 31)->toDateString();
+
+            // Récupération par lazyById(500) pour préserver la mémoire vive (RAM constante)
+            $militairesQuery = Militaire::where(function($q) {
                     $q->whereIn('statut_code', [1, 2, 3, 4, 7])
                       ->orWhere(function ($sub) {
                           $sub->whereNull('statut_code')
@@ -391,16 +399,16 @@ class DashboardController extends Controller
                       });
                 })
                 ->whereNotNull('date_naissance')
+                ->where('date_naissance', '<=', $dateNaissanceMax)
                 ->where(function ($q) {
                     $q->whereNotNull('grade_id')->orWhereNotNull('grade_actuel');
                 })
-                ->select('id', 'nom', 'prenom', 'matricule', 'grade_id', 'grade_actuel', 'statut', 'statut_code', 'date_naissance', 'position_actuelle', 'observations')
-                ->get();
+                ->select('id', 'nom', 'prenom', 'matricule', 'grade_id', 'grade_actuel', 'statut', 'statut_code', 'date_naissance', 'position_actuelle', 'observations');
 
             $retN = [];
             $retN1 = [];
 
-            foreach ($militaires as $militaire) {
+            foreach ($militairesQuery->lazyById(500) as $militaire) {
                 // Les militaires en otage sont expressément maintenus en activité dans le fichier et exclus des prévisions de retraite
                 if ($militaire->isOtage()) {
                     continue;
@@ -492,64 +500,60 @@ class DashboardController extends Controller
             $datePropN = Carbon::create($anneeCourante, 12, 31, 23, 59, 59);
             $datePropN1 = Carbon::create($anneeN1, 12, 31, 23, 59, 59);
 
-            $militairesActifs = $this->actifs()
+            $militairesQuery = $this->actifs()
                 ->select('id', 'nom', 'prenom', 'matricule', 'grade_actuel', 'date_naissance', 'date_entree_service', 'date_derniere_promotion', 'antecedent_judiciaire', 'antecedent_disciplinaire')
-                ->with(['certificats' => fn($q) => $q->select('certificats.id', 'certificats.nom_certificat', 'certificats.niveau_certificat')])
-                ->get();
+                ->with(['certificats' => fn($q) => $q->select('certificats.id', 'certificats.nom_certificat', 'certificats.niveau_certificat')]);
 
             $propN = [];
             $propN1 = [];
-            $exclusIds = [];
 
-            // Année N
-            foreach ($militairesActifs as $m) {
-                $gradeCible = $this->getGradeCible($m, $anneeCourante);
-                if (!$gradeCible) continue;
+            // Évaluation conjointe Année N et Année N+1 en une seule passe par paquets de 500 (mémoire RAM constante)
+            foreach ($militairesQuery->lazyById(500) as $m) {
+                // 1. Éligible pour l'année N ?
+                $gradeCibleN = $this->getGradeCible($m, $anneeCourante);
+                if ($gradeCibleN) {
+                    $dateAncienneteN = $this->getDateAncienneteReelle($m, $gradeCibleN);
+                    if ($dateAncienneteN && $dateAncienneteN <= $datePropN) {
+                        $propN[] = [
+                            'id' => $m->id,
+                            'matricule' => $m->matricule,
+                            'nom' => $m->nom,
+                            'prenom' => $m->prenom,
+                            'nom_complet' => $m->nom . ' ' . $m->prenom,
+                            'grade_actuel' => $m->grade_actuel,
+                            'grade_cible' => $gradeCibleN,
+                            'date_proposition' => $datePropN->format('Y-m-d'),
+                            'date_proposition_formatted' => $datePropN->format('d/m/Y'),
+                            'date_anciennete' => $dateAncienneteN->format('Y-m-d'),
+                            'date_anciennete_formatted' => $dateAncienneteN->format('d/m/Y'),
+                            'anciennete_grade_formatted' => $this->getAncienneteGradeFormatted($m, $datePropN),
+                        ];
+                        // Un militaire éligible en N ne peut pas être listé en N+1
+                        continue;
+                    }
+                }
 
-                $dateAnciennete = $this->getDateAncienneteReelle($m, $gradeCible);
-                if (!$dateAnciennete || $dateAnciennete > $datePropN) continue;
-
-                $propN[] = [
-                    'id' => $m->id,
-                    'matricule' => $m->matricule,
-                    'nom' => $m->nom,
-                    'prenom' => $m->prenom,
-                    'nom_complet' => $m->nom . ' ' . $m->prenom,
-                    'grade_actuel' => $m->grade_actuel,
-                    'grade_cible' => $gradeCible,
-                    'date_proposition' => $datePropN->format('Y-m-d'),
-                    'date_proposition_formatted' => $datePropN->format('d/m/Y'),
-                    'date_anciennete' => $dateAnciennete->format('Y-m-d'),
-                    'date_anciennete_formatted' => $dateAnciennete->format('d/m/Y'),
-                    'anciennete_grade_formatted' => $this->getAncienneteGradeFormatted($m, $datePropN),
-                ];
-                $exclusIds[$m->id] = true;
-            }
-
-            // Année N+1 (exclut les militaires déjà éligibles en N)
-            foreach ($militairesActifs as $m) {
-                if (isset($exclusIds[$m->id])) continue;
-
-                $gradeCible = $this->getGradeCible($m, $anneeN1);
-                if (!$gradeCible) continue;
-
-                $dateAnciennete = $this->getDateAncienneteReelle($m, $gradeCible);
-                if (!$dateAnciennete || $dateAnciennete > $datePropN1) continue;
-
-                $propN1[] = [
-                    'id' => $m->id,
-                    'matricule' => $m->matricule,
-                    'nom' => $m->nom,
-                    'prenom' => $m->prenom,
-                    'nom_complet' => $m->nom . ' ' . $m->prenom,
-                    'grade_actuel' => $m->grade_actuel,
-                    'grade_cible' => $gradeCible,
-                    'date_proposition' => $datePropN1->format('Y-m-d'),
-                    'date_proposition_formatted' => $datePropN1->format('d/m/Y'),
-                    'date_anciennete' => $dateAnciennete->format('Y-m-d'),
-                    'date_anciennete_formatted' => $dateAnciennete->format('d/m/Y'),
-                    'anciennete_grade_formatted' => $this->getAncienneteGradeFormatted($m, $datePropN1),
-                ];
+                // 2. Sinon, éligible pour l'année N+1 ?
+                $gradeCibleN1 = $this->getGradeCible($m, $anneeN1);
+                if ($gradeCibleN1) {
+                    $dateAncienneteN1 = $this->getDateAncienneteReelle($m, $gradeCibleN1);
+                    if ($dateAncienneteN1 && $dateAncienneteN1 <= $datePropN1) {
+                        $propN1[] = [
+                            'id' => $m->id,
+                            'matricule' => $m->matricule,
+                            'nom' => $m->nom,
+                            'prenom' => $m->prenom,
+                            'nom_complet' => $m->nom . ' ' . $m->prenom,
+                            'grade_actuel' => $m->grade_actuel,
+                            'grade_cible' => $gradeCibleN1,
+                            'date_proposition' => $datePropN1->format('Y-m-d'),
+                            'date_proposition_formatted' => $datePropN1->format('d/m/Y'),
+                            'date_anciennete' => $dateAncienneteN1->format('Y-m-d'),
+                            'date_anciennete_formatted' => $dateAncienneteN1->format('d/m/Y'),
+                            'anciennete_grade_formatted' => $this->getAncienneteGradeFormatted($m, $datePropN1),
+                        ];
+                    }
+                }
             }
 
             usort($propN, fn($a, $b) => strcmp($a['grade_actuel'], $b['grade_actuel']) ?: strcmp($a['date_anciennete'], $b['date_anciennete']));

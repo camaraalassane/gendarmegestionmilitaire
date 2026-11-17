@@ -594,6 +594,23 @@
                                     />
                                 </g>
 
+                                <!-- Message si 0 unité géolocalisée dans la région -->
+                                <g v-if="selRegion && regionalParcels.length === 0" class="pointer-events-none select-none">
+                                    <text
+                                        :x="selRegion.code === 'R1' ? 163 : (SHAPES[selRegion.code]?.cx || 300)"
+                                        :y="selRegion.code === 'R1' ? 495 : (SHAPES[selRegion.code]?.cy || 300)"
+                                        text-anchor="middle"
+                                        dominant-baseline="central"
+                                        :style="{
+                                            fontSize: 2.2 * rUnit + 'px',
+                                            fill: '#64748b',
+                                            fontWeight: 700
+                                        }"
+                                    >
+                                        Aucune unité géolocalisée
+                                    </text>
+                                </g>
+
                                 <!-- 3. Contour de la parcelle sélectionnée -->
                                 <template v-if="selParcel">
                                     <path
@@ -1582,6 +1599,20 @@ const regionalParcels = computed(() => {
         }];
     }
 
+    if (n === 2) {
+        // Deux unités : division nette par l'axe médian sans dépendre d'une triangulation Delaunay (qui requiert >= 3 points)
+        const p0 = [cx - rx * 0.45, cy];
+        const p1 = [cx + rx * 0.45, cy];
+        const padX = (maxX - minX) * 0.2;
+        const padY = (maxY - minY) * 0.2;
+        const path0 = `M ${minX - padX} ${minY - padY} H ${cx} V ${maxY + padY} H ${minX - padX} Z`;
+        const path1 = `M ${cx} ${minY - padY} H ${maxX + padX} V ${maxY + padY} H ${cx} Z`;
+        return [
+            { unit: units[0], path: path0, cx: p0[0], cy: p0[1] },
+            { unit: units[1], path: path1, cx: p1[0], cy: p1[1] }
+        ];
+    }
+
     // Polygone extérieur de la région pour garantir que 100% des graines sont strictement à l'intérieur
     const rawPath = pathD(selRegion.value) || '';
     const polyCoords = rawPath.startsWith('M') && rawPath.endsWith('Z')
@@ -1647,17 +1678,29 @@ const regionalParcels = computed(() => {
     }
 
     const pad = Math.max(maxX - minX, maxY - minY) * 0.2;
-    const voronoi = Delaunay.from(points).voronoi([minX - pad, minY - pad, maxX + pad, maxY + pad]);
-
-    return units.map((u, i) => {
-        const path = voronoi.renderCell(i);
-        return {
+    try {
+        const voronoi = Delaunay.from(points).voronoi([minX - pad, minY - pad, maxX + pad, maxY + pad]);
+        return units.map((u, i) => {
+            const cellPath = voronoi.renderCell(i);
+            const path = (cellPath && cellPath.length > 5)
+                ? cellPath
+                : `M ${minX - 10} ${minY - 10} H ${maxX + 10} V ${maxY + 10} H ${minX - 10} Z`;
+            return {
+                unit: u,
+                path,
+                cx: points[i][0],
+                cy: points[i][1]
+            };
+        });
+    } catch (e) {
+        console.warn('Voronoi calculation fallback:', e);
+        return units.map((u, i) => ({
             unit: u,
-            path,
-            cx: points[i][0],
-            cy: points[i][1]
-        };
-    });
+            path: `M ${minX - 10} ${minY - 10} H ${maxX + 10} V ${maxY + 10} H ${minX - 10} Z`,
+            cx: points[i] ? points[i][0] : cx,
+            cy: points[i] ? points[i][1] : cy
+        }));
+    }
 });
 
 const selParcel = computed(() => {
