@@ -94,8 +94,11 @@ class Militaire extends Model
             // Un militaire en otage reste TOUJOURS en activité / maintenu au fichier jusqu'à sa découverte.
             // Il ne doit JAMAIS être basculé automatiquement en retraité.
             if ($militaire->isOtage()) {
-                $militaire->statut = 'actif';
-                $militaire->statut_code = 1;
+                // On ne ressuscite jamais un décédé, radié ou déserteur : seulement vide ou retraité → actif
+                if (empty($militaire->statut_code) || $militaire->statut_code === 7) {
+                    $militaire->statut = 'actif';
+                    $militaire->statut_code = 1;
+                }
             } elseif ($militaire->statut === 'actif' && $militaire->estRetraiteDepassee()) {
                 $militaire->statut = 'retraité';
                 $militaire->statut_code = 7;
@@ -387,8 +390,8 @@ class Militaire extends Model
      */
     public function isOtage(): bool
     {
-        return str_contains(mb_strtolower((string) $this->position_actuelle), 'otage')
-            || str_contains(mb_strtolower((string) $this->observations), 'otage');
+        // Seule la position administrative fait foi (une note « ancien otage libéré » ne doit pas déclencher la règle)
+        return str_contains(mb_strtolower((string) $this->position_actuelle), 'otage');
     }
 
     /**

@@ -43,10 +43,12 @@ class MilitaireController extends Controller
                     $q->where('militaires.id', $searchInt)
                       ->orWhere('militaires.matricule', $search);
                 }
-                foreach ($searchTerms as $term) {
-                    $t = mb_strtolower(trim($term));
-                    if (!empty($t)) {
-                        $q->orWhere(function($subQ) use ($t) {
+                // Tous les mots doivent être présents (ET), comme avant
+                $q->orWhere(function($tous) use ($searchTerms) {
+                    foreach ($searchTerms as $term) {
+                        $t = mb_strtolower(trim($term));
+                        if ($t === '') continue;
+                        $tous->where(function($subQ) use ($t) {
                             $subQ->where('militaires.recherche', 'LIKE', "%{$t}%");
                             if (mb_stripos($t, 'assign') !== false) {
                                 $subQ->orWhereNull('militaires.position_id')
@@ -56,7 +58,7 @@ class MilitaireController extends Controller
                             }
                         });
                     }
-                }
+                });
             });
         }
 

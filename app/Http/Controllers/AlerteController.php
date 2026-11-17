@@ -362,13 +362,13 @@ class AlerteController extends Controller
 
         // 2. Générer l'ensemble de toutes les alertes via le vérificateur complet (Promotions, Formations, Retraites, Contrats, Mutations)
         $militaireController = app(MilitaireController::class);
-        $militaires = Militaire::enActivite()
+        Militaire::enActivite()
             ->with(['certificats', 'affectations'])
-            ->get();
-
-        foreach ($militaires as $militaire) {
-            $militaireController->verifierAlertes($militaire);
-        }
+            ->chunkById(500, function ($militaires) use ($militaireController) {
+                foreach ($militaires as $militaire) {
+                    $militaireController->verifierAlertes($militaire);
+                }
+            });
 
         // 3. Purger les caches statistiques et compteurs
         Cache::forget('alertes:non_vues_count');
@@ -387,21 +387,22 @@ class AlerteController extends Controller
     private function actualiserStatutRetraites(): int
     {
         $militaires = Militaire::enActivite()
-            ->select('id', 'date_naissance', 'grade_id', 'grade_actuel', 'statut', 'statut_code')
-            ->get();
+            ->select('id', 'date_naissance', 'grade_id', 'grade_actuel', 'statut', 'statut_code', 'position_actuelle', 'observations')
+            ->lazyById(1000);
 
         $retraitesIds = [];
         foreach ($militaires as $m) {
-            if ($m->estRetraiteDepassee()) {
+            if ($m->estRetraiteDepassee()) { // false pour les otages (position_actuelle / observations chargées)
                 $retraitesIds[] = $m->id;
             }
         }
 
-        if (!empty($retraitesIds)) {
-            Militaire::whereIn('id', $retraitesIds)->update([
-                'statut' => 'retraité',
-                'statut_code' => 7,
-            ]);
+        foreach (array_chunk($retraitesIds, 1000) as $lot) {
+            Militaire::whereIn('id', $lot)->update(['statut' => 'retraité', 'statut_code' => 7]);
+        }
+        if ($retraitesIds) {
+            \App\Http\Controllers\CarteController::flush();
+            Cache::forget('dashboard:statistiques_cards');
         }
 
         return count($retraitesIds);
