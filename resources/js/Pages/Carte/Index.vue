@@ -208,41 +208,16 @@
                     <!-- UNIQUEMENT CET ENDROIT : LE CANEVAS DE LA CARTE EN BLEU ARDOISE ADOUCI (#16212E) -->
                     <div
                         class="flex-1 min-h-[480px] lg:min-h-[540px] w-full h-full relative flex items-center justify-center overflow-hidden bg-[#16212e] rounded-lg border border-[#263446] p-1 select-none"
-                        :class="{ '!cursor-grabbing': isDragging, 'cursor-grab': !sel || regionViewMode === 'vecteur' }"
-                        @mousedown="(!sel || regionViewMode === 'vecteur') && onMouseDown($event)"
-                        @wheel="(!sel || regionViewMode === 'vecteur') ? onWheel($event) : null"
-                        @touchstart="(!sel || regionViewMode === 'vecteur') && onTouchStart($event)"
-                        @touchmove="(!sel || regionViewMode === 'vecteur') && onTouchMove($event)"
-                        @touchend="(!sel || regionViewMode === 'vecteur') && onTouchEnd($event)"
-                        @dblclick="(!sel || regionViewMode === 'vecteur') && onDblClick($event)"
+                        :class="{ '!cursor-grabbing': isDragging, 'cursor-grab': true }"
+                        @mousedown="onMouseDown($event)"
+                        @wheel="onWheel($event)"
+                        @touchstart="onTouchStart($event)"
+                        @touchmove="onTouchMove($event)"
+                        @touchend="onTouchEnd($event)"
+                        @dblclick="onDblClick($event)"
                     >
-                        <!-- Boutons d'action rapide en haut à droite sur le canevas tactique (vue vecteur / Mali entier) -->
-                        <div
-                            v-show="!sel || regionViewMode === 'vecteur'"
-                            class="absolute top-2 right-2 z-20 flex items-center gap-1.5 pointer-events-auto"
-                        >
-                            <!-- Bascule Cartes tracées vs Tracé carte quand une région est sélectionnée en vue vecteur -->
-                            <div v-if="sel" class="inline-flex rounded-md shadow-xs bg-[#090e17]/95 p-0.5 border border-slate-700/80">
-                                <button
-                                    type="button"
-                                    @click="regionViewMode = 'cartes'"
-                                    class="px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer text-slate-400 hover:text-white"
-                                    title="Basculer vers les cartes tracées classées par effectif"
-                                >
-                                    <i class="pi pi-th-large text-[10px]"></i>
-                                    <span class="hidden sm:inline">Cartes tracées</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    @click="regionViewMode = 'vecteur'"
-                                    class="px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer bg-sky-600 text-white shadow-xs"
-                                    title="Vue tracé géographique"
-                                >
-                                    <i class="pi pi-map text-[10px]"></i>
-                                    <span class="hidden sm:inline">Tracé carte</span>
-                                </button>
-                            </div>
-
+                        <!-- Boutons d'action rapide en haut à droite sur le canevas tactique -->
+                        <div class="absolute top-2 right-2 z-20 flex items-center gap-1.5 pointer-events-auto">
                             <button
                                 v-if="sel"
                                 type="button"
@@ -275,10 +250,7 @@
                         </div>
 
                         <!-- Contrôles interactifs de Zoom (+ / % / - / Recentrer) en bas à droite -->
-                        <div
-                            v-show="!sel || regionViewMode === 'vecteur'"
-                            class="absolute bottom-3 right-3 z-20 flex flex-col items-center bg-[#0e1621]/90 backdrop-blur border border-slate-700/80 rounded-lg shadow-xl overflow-hidden select-none pointer-events-auto"
-                        >
+                        <div class="absolute bottom-3 right-3 z-20 flex flex-col items-center bg-[#0e1621]/90 backdrop-blur border border-slate-700/80 rounded-lg shadow-xl overflow-hidden select-none pointer-events-auto">
                             <button
                                 type="button"
                                 @click.stop="zoomIn"
@@ -319,16 +291,13 @@
                             </button>
                         </div>
 
-                        <!-- Entête au survol interactif (HUD élégant) -->
+                        <!-- En vue nationale : HUD de survol d'une région -->
                         <transition name="fade">
                             <div
-                                v-if="(!sel || regionViewMode === 'vecteur') && hoveredInfo"
+                                v-if="!sel && hoveredInfo"
                                 class="absolute top-2 left-2 z-20 bg-[#0e1621]/95 backdrop-blur text-white px-2.5 py-1 rounded-md shadow-lg text-xs pointer-events-none flex items-center gap-2 border border-slate-700"
                             >
-                                <span
-                                    class="w-2 h-2 rounded-full flex-none"
-                                    :style="{ background: hoveredInfo.isUnit ? (hoveredInfo.op ? '#10b981' : '#f59e0b') : '#5f9bea' }"
-                                ></span>
+                                <span class="w-2 h-2 rounded-full flex-none bg-sky-400"></span>
                                 <div class="flex items-center gap-1.5">
                                     <span class="font-bold text-white">{{ hoveredInfo.title }}</span>
                                     <span class="text-slate-400">•</span>
@@ -338,97 +307,45 @@
                             </div>
                         </transition>
 
-                        <!-- VUE DES CARTES TRACÉES DES UNITÉS CLASSÉES STRICTEMENT PAR EFFECTIF DÉCROISSANT -->
+                        <!-- En vue régionale : En-tête de région, Filtres et Recherche sur la carte -->
                         <div
-                            v-if="sel && regionViewMode === 'cartes' && selRegion"
-                            class="absolute inset-0 z-10 flex flex-col p-3 sm:p-4 bg-[#0f1724] text-white overflow-hidden pointer-events-auto"
+                            v-if="sel && selRegion"
+                            class="absolute top-2 left-2 z-20 flex flex-col gap-1.5 pointer-events-auto max-w-[85%] sm:max-w-md"
                         >
-                            <!-- Ligne 1 du header : Titre de la région & Boutons d'action -->
-                            <div class="flex items-center justify-between gap-3 pb-2.5 mb-2 border-b border-[#223348] flex-none">
-                                <div class="min-w-0">
-                                    <div class="flex items-center gap-2">
-                                        <span class="px-2 py-0.5 rounded text-[11px] font-black bg-sky-500/20 text-sky-300 border border-sky-400/40 flex-none">
-                                            {{ selRegion.code }}
-                                        </span>
-                                        <h3 class="text-xs sm:text-sm md:text-base font-extrabold text-white tracking-wide truncate">
-                                            {{ selRegion.code === 'R1' ? 'BAMAKO (HQ)' : selRegion.nom.toUpperCase() }}
-                                        </h3>
-                                        <span class="text-xs text-sky-400 font-bold whitespace-nowrap hidden lg:inline">• {{ fmt(selRegion.effectif) }} militaires</span>
-                                        <span class="text-xs text-slate-400 whitespace-nowrap hidden lg:inline">({{ selRegion.unites.length }} unités)</span>
-                                    </div>
-                                </div>
-
-                                <!-- Actions du header : Bascule Cartes/Tracé, Tout le Mali, Plein écran -->
-                                <div class="flex items-center gap-1.5 flex-none">
-                                    <div class="inline-flex rounded-md shadow-xs bg-[#090e17]/95 p-0.5 border border-slate-700/80">
-                                        <button
-                                            type="button"
-                                            @click="regionViewMode = 'cartes'"
-                                            class="px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer bg-sky-600 text-white shadow-xs"
-                                            title="Afficher les unités sous forme de cartes tracées classées par effectif"
-                                        >
-                                            <i class="pi pi-th-large text-[10px]"></i>
-                                            <span class="hidden md:inline">Cartes tracées</span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            @click="regionViewMode = 'vecteur'"
-                                            class="px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer text-slate-400 hover:text-white"
-                                            title="Afficher le tracé géographique de la région"
-                                        >
-                                            <i class="pi pi-map text-[10px]"></i>
-                                            <span class="hidden md:inline">Tracé carte</span>
-                                        </button>
-                                    </div>
-
-                                    <button
-                                        type="button"
-                                        @click="retour"
-                                        class="bg-[#0e1621]/90 hover:bg-[#1a2636] text-white border border-slate-700/80 px-2.5 py-1 rounded-md shadow-md text-xs flex items-center gap-1.5 transition font-medium cursor-pointer"
-                                        title="Retour à la vue complète du Mali"
-                                    >
-                                        <i class="pi pi-arrow-left text-[10px] text-sky-300"></i>
-                                        <span class="hidden sm:inline">Tout le Mali</span>
-                                    </button>
-
-                                    <button
-                                        v-if="isFullscreen"
-                                        type="button"
-                                        @click="showSidePanelInFullscreen = !showSidePanelInFullscreen"
-                                        class="bg-[#0e1621]/90 hover:bg-[#1a2636] text-white border border-slate-700/80 px-2 py-1 rounded-md shadow-md text-xs flex items-center gap-1.5 transition font-medium cursor-pointer"
-                                        :title="showSidePanelInFullscreen ? 'Masquer le volet latéral' : 'Afficher le volet latéral'"
-                                    >
-                                        <i :class="showSidePanelInFullscreen ? 'pi pi-eye-slash text-slate-300' : 'pi pi-list text-sky-300'" class="text-xs"></i>
-                                    </button>
-
-                                    <button
-                                        type="button"
-                                        @click="toggleFullscreen"
-                                        class="bg-[#0e1621]/90 hover:bg-[#1a2636] text-white border border-slate-700/80 px-2 py-1 rounded-md shadow-md text-xs flex items-center gap-1.5 transition font-semibold cursor-pointer"
-                                        :title="isFullscreen ? 'Quitter le mode plein écran (Échap)' : 'Afficher la carte en plein écran'"
-                                    >
-                                        <i :class="isFullscreen ? 'pi pi-window-minimize text-amber-300' : 'pi pi-window-maximize text-sky-300'" class="text-xs"></i>
-                                    </button>
-                                </div>
+                            <!-- Ligne 1 : Titre et effectif de la région -->
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <button
+                                    type="button"
+                                    @click="retour"
+                                    class="px-2 py-0.5 rounded text-xs font-bold bg-[#090e17]/95 hover:bg-[#1a2636] text-white border border-slate-700/80 shadow-md flex items-center gap-1 transition cursor-pointer"
+                                    title="Revenir à la vue complète du Mali"
+                                >
+                                    <i class="pi pi-arrow-left text-[10px] text-sky-400"></i>
+                                    <span>Tout le Mali</span>
+                                </button>
+                                <span class="px-2 py-0.5 rounded text-xs font-black bg-[#090e17]/95 border border-sky-500/50 text-white shadow-md flex items-center gap-1.5">
+                                    <span class="px-1.5 py-0.2 rounded text-[10px] bg-sky-500/30 text-sky-300 font-mono">{{ selRegion.code }}</span>
+                                    <span>{{ selRegion.code === 'R1' ? 'BAMAKO (HQ)' : selRegion.nom.toUpperCase() }}</span>
+                                    <span class="text-sky-400 font-bold">• {{ fmt(selRegion.effectif) }} militaires</span>
+                                </span>
                             </div>
 
-                            <!-- Ligne 2 : Filtres rapides & Recherche instantanée -->
-                            <div class="flex flex-wrap items-center justify-between gap-2 pb-2 mb-2 border-b border-[#1b2b3f] flex-none">
-                                <!-- Sélecteur filtre effectif -->
-                                <div class="inline-flex rounded-md shadow-xs bg-[#0b121b] p-0.5 border border-[#223348] text-xs">
+                            <!-- Ligne 2 : Filtres d'affichage & recherche -->
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <div class="inline-flex rounded shadow-md bg-[#090e17]/95 p-0.5 border border-slate-700/80 text-[11px]">
                                     <button
                                         type="button"
-                                        @click="unitFilterType = 'all'"
-                                        class="px-2 py-1 rounded transition cursor-pointer"
-                                        :class="unitFilterType === 'all' ? 'bg-sky-700 text-white font-bold' : 'text-slate-400 hover:text-white'"
+                                        @click="parcelFilterType = 'all'"
+                                        class="px-2 py-0.5 rounded transition cursor-pointer"
+                                        :class="parcelFilterType === 'all' ? 'bg-sky-600 text-white font-bold' : 'text-slate-400 hover:text-white'"
                                     >
                                         Toutes ({{ selRegion.unites.length }})
                                     </button>
                                     <button
                                         type="button"
-                                        @click="unitFilterType = 'with_eff'"
-                                        class="px-2 py-1 rounded transition flex items-center gap-1 cursor-pointer"
-                                        :class="unitFilterType === 'with_eff' ? 'bg-red-600 text-white font-bold' : 'text-slate-400 hover:text-white'"
+                                        @click="parcelFilterType = 'with_eff'"
+                                        class="px-2 py-0.5 rounded transition flex items-center gap-1 cursor-pointer"
+                                        :class="parcelFilterType === 'with_eff' ? 'bg-red-600 text-white font-bold' : 'text-slate-400 hover:text-white'"
                                         title="Unités avec effectif > 0"
                                     >
                                         <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
@@ -436,137 +353,60 @@
                                     </button>
                                     <button
                                         type="button"
-                                        @click="unitFilterType = 'zero_eff'"
-                                        class="px-2 py-1 rounded transition flex items-center gap-1 cursor-pointer"
-                                        :class="unitFilterType === 'zero_eff' ? 'bg-slate-700 text-white font-bold' : 'text-slate-400 hover:text-white'"
+                                        @click="parcelFilterType = 'zero_eff'"
+                                        class="px-2 py-0.5 rounded transition flex items-center gap-1 cursor-pointer"
+                                        :class="parcelFilterType === 'zero_eff' ? 'bg-slate-700 text-white font-bold' : 'text-slate-400 hover:text-white'"
                                         title="Unités sans effectif (0)"
                                     >
                                         <span>Sans effectif ({{ countZeroEff }})</span>
                                     </button>
                                 </div>
 
-                                <!-- Recherche texte rapide -->
-                                <div class="relative w-44 sm:w-60">
+                                <div class="relative w-36 sm:w-44">
                                     <input
-                                        v-model="unitSearchQuery"
+                                        v-model="parcelSearchQuery"
                                         type="text"
-                                        placeholder="Filtrer brigade, camp..."
-                                        class="w-full text-xs py-1.5 pl-7 pr-6 rounded-md border border-[#2c3f58] bg-[#0c1420] text-white placeholder-slate-400 focus:outline-none focus:border-sky-400"
+                                        placeholder="Filtrer brigade..."
+                                        class="w-full text-[11px] py-0.5 pl-5 pr-5 rounded border border-slate-700/80 bg-[#090e17]/95 text-white placeholder-slate-400 focus:outline-none focus:border-sky-400 shadow-md"
                                     />
-                                    <i class="pi pi-search absolute left-2.5 top-2 text-xs text-slate-400"></i>
+                                    <i class="pi pi-search absolute left-1.5 top-1.5 text-[10px] text-slate-400"></i>
                                     <button
-                                        v-if="unitSearchQuery"
-                                        @click="unitSearchQuery = ''"
-                                        class="absolute right-2 top-2 text-slate-400 hover:text-white text-xs cursor-pointer"
+                                        v-if="parcelSearchQuery"
+                                        @click="parcelSearchQuery = ''"
+                                        class="absolute right-1.5 top-1 text-slate-400 hover:text-white text-[10px] cursor-pointer"
                                     >
                                         <i class="pi pi-times"></i>
                                     </button>
                                 </div>
                             </div>
-
-                            <!-- Légende Bertin compacte -->
-                            <div class="flex items-center justify-between text-[11px] text-slate-400 px-2 py-1 mb-2 bg-[#0c1420]/70 rounded border border-[#1b2b3f] flex-none">
-                                <div class="flex items-center gap-3">
-                                    <span class="text-sky-300 font-semibold flex items-center gap-1">
-                                        <i class="pi pi-sort-amount-down text-sky-400"></i>
-                                        Classement par effectif décroissant
-                                    </span>
-                                    <span class="text-slate-600">•</span>
-                                    <span class="flex items-center gap-1.5">
-                                        <span class="w-3.5 h-3.5 rounded-full bg-red-500 border border-black inline-block"></span>
-                                        <span class="text-slate-300">Cercle proportionnel (Jacques Bertin)</span>
-                                    </span>
-                                    <span class="text-slate-600 hidden md:inline">•</span>
-                                    <span class="hidden md:flex items-center gap-1.5 text-slate-300">
-                                        <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Opérationnelle
-                                        <span class="w-2 h-2 rounded-full bg-amber-400 ml-1"></span> En réserve
-                                    </span>
-                                </div>
-                                <div class="text-slate-400 text-[10px]">
-                                    {{ unitesClassees.length }} unité(s) affichée(s)
-                                </div>
-                            </div>
-
-                            <!-- Grille des cartes tracées classées -->
-                            <div class="flex-1 overflow-y-auto pr-1 custom-scrollbar">
-                                <div
-                                    v-if="unitesClassees.length > 0"
-                                    class="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-2.5 pb-2"
-                                >
-                                    <div
-                                        v-for="(u, idx) in unitesClassees"
-                                        :key="u.id"
-                                        @click="handleCardUnitClick(u.id)"
-                                        class="group relative flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer select-none"
-                                        :class="selUnit === u.id
-                                            ? 'bg-sky-950/80 border-sky-400 ring-2 ring-sky-400/60 shadow-lg shadow-sky-950/70'
-                                            : 'bg-[#152233] hover:bg-[#1c2e44] border-[#25384e] hover:border-sky-500/50 shadow-xs'"
-                                    >
-                                        <!-- Rang / Classement ordinal (#1, #2, ...) -->
-                                        <span class="absolute top-1.5 right-2 text-[10px] font-mono text-slate-500 font-bold group-hover:text-slate-400">
-                                            #{{ idx + 1 }}
-                                        </span>
-
-                                        <!-- Cercle proportionnel rouge Bertin -->
-                                        <div class="flex-none flex items-center justify-center" style="width: 52px; height: 52px;">
-                                            <div
-                                                class="rounded-full flex items-center justify-center font-black transition-transform group-hover:scale-105"
-                                                :style="{
-                                                    width: circleSize(u) + 'px',
-                                                    height: circleSize(u) + 'px',
-                                                    backgroundColor: u.effectif > 0 ? '#ef4444' : '#334155',
-                                                    border: (u.effectif > 0 ? '2.5px solid #000000' : '1.5px solid #64748b'),
-                                                    color: (u.effectif > 0 ? '#000000' : '#94a3b8'),
-                                                    fontSize: circleFontSize(u) + 'px',
-                                                    boxShadow: u.effectif > 0 ? '0 2px 6px rgba(0,0,0,0.5)' : 'none'
-                                                }"
-                                            >
-                                                {{ u.effectif }}
-                                            </div>
-                                        </div>
-
-                                        <!-- Informations unité -->
-                                        <div class="min-w-0 flex-1 pr-2">
-                                            <div class="flex items-center gap-1.5">
-                                                <span
-                                                    class="w-2 h-2 rounded-full flex-none"
-                                                    :class="u.operationnelle ? 'bg-emerald-400 shadow-xs shadow-emerald-500/50' : 'bg-amber-400'"
-                                                    :title="u.operationnelle ? 'Opérationnelle' : 'En réserve / non opérationnelle'"
-                                                ></span>
-                                                <h4 class="text-xs sm:text-[13px] font-bold text-white group-hover:text-sky-300 leading-snug line-clamp-2">
-                                                    {{ u.nom }}
-                                                </h4>
-                                            </div>
-
-                                            <div class="flex items-center gap-1.5 mt-1 text-[11px] text-slate-400 truncate">
-                                                <span v-if="u.type" class="px-1.5 py-0.2 rounded bg-slate-900/80 text-sky-300 border border-slate-700 font-medium text-[10px]">
-                                                    {{ u.type }}
-                                                </span>
-                                                <span v-if="u.ville" class="truncate text-slate-300">
-                                                    📍 {{ u.ville }}
-                                                </span>
-                                            </div>
-
-                                            <div class="mt-1 flex items-center justify-between text-[10px] text-slate-400">
-                                                <span>
-                                                    {{ u.effectif > 0 ? (u.effectif === 1 ? '1 gendarme' : u.effectif + ' gendarmes') : '0 effectif' }}
-                                                </span>
-                                                <span v-if="selUnit === u.id" class="text-sky-300 font-bold flex items-center gap-0.5">
-                                                    <i class="pi pi-check text-[9px]"></i> Active
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div v-else class="py-12 text-center text-slate-400 text-xs">
-                                    Aucune unité trouvée pour ce filtre.
-                                </div>
-                            </div>
                         </div>
 
+                        <!-- En vue régionale : HUD flottant d'infobulle au survol d'une unité -->
+                        <transition name="fade">
+                            <div
+                                v-if="sel && hoveredUnitObj"
+                                class="absolute bottom-12 left-2 z-20 bg-[#0e1621]/95 backdrop-blur text-white px-3 py-1.5 rounded-md shadow-xl text-xs pointer-events-none flex items-center gap-2 border border-slate-700"
+                            >
+                                <span
+                                    class="w-2.5 h-2.5 rounded-full flex-none"
+                                    :style="{ background: hoveredUnitObj.effectif > 0 ? '#ef4444' : '#64748b' }"
+                                ></span>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-extrabold text-white text-xs sm:text-[13px]">{{ hoveredUnitObj.nom }}</span>
+                                    <span class="text-slate-400">•</span>
+                                    <span class="text-amber-300 font-bold">{{ hoveredUnitObj.effectif }} gendarme(s)</span>
+                                    <span v-if="hoveredUnitObj.ville" class="text-slate-400 text-[11px]">📍 {{ hoveredUnitObj.ville }}</span>
+                                    <span
+                                        class="px-1.5 py-0.2 rounded text-[10px] font-bold"
+                                        :class="hoveredUnitObj.operationnelle ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-500/40' : 'bg-amber-900/60 text-amber-300 border border-amber-500/40'"
+                                    >
+                                        {{ hoveredUnitObj.operationnelle ? 'Opérationnelle' : 'En réserve' }}
+                                    </span>
+                                </div>
+                            </div>
+                        </transition>
+
                         <svg
-                            v-show="!sel || regionViewMode === 'vecteur'"
                             ref="svgRef"
                             :viewBox="viewBox.join(' ')"
                             class="w-full h-full max-h-full block select-none pointer-events-auto"
@@ -581,31 +421,33 @@
                                 <filter id="badge-glow" x="-20%" y="-20%" width="140%" height="140%">
                                     <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-opacity="0.75" flood-color="#000000" />
                                 </filter>
+                                <clipPath id="region-clip-shape">
+                                    <path v-if="sel && selRegion" :d="pathD(selRegion)" />
+                                </clipPath>
                             </defs>
 
-                            <!-- Tracés des régions SVG (Nuances tactiques de bleu marine comme sur la photo ; sans infobulle native redondante) -->
-                            <template v-for="r in regions" :key="r.code">
-                                <path
-                                    v-if="SHAPES[r.code] && (!sel ? (r.code !== 'R1') : (r.code === sel))"
-                                    :d="pathD(r)"
-                                    class="reg"
-                                    :class="{
-                                        sel: r.code === sel,
-                                        hovered: hoveredCode === r.code
-                                    }"
-                                    :style="{
-                                        fill: fillFor(r),
-                                        stroke: sel === r.code ? '#38bdf8' : '#16212e',
-                                        strokeWidth: (sel === r.code ? 2.2 : 1.2) * zoom
-                                    }"
-                                    @click="handleRegionClick(r.code)"
-                                    @mouseenter="onHoverRegion(r)"
-                                    @mouseleave="onLeaveHover"
-                                />
-                            </template>
-
-                            <!-- Vue nationale : BADGES TACTIQUES HAUTE VISIBILITÉ DES RÉGIONS & CHIFFRES CLAIRS -->
+                            <!-- Vue nationale : Tracés des régions SVG quand !sel (Mali entier) -->
                             <template v-if="!sel">
+                                <template v-for="r in regions" :key="r.code">
+                                    <path
+                                        v-if="SHAPES[r.code] && r.code !== 'R1'"
+                                        :d="pathD(r)"
+                                        class="reg"
+                                        :class="{
+                                            hovered: hoveredCode === r.code
+                                        }"
+                                        :style="{
+                                            fill: fillFor(r),
+                                            stroke: '#16212e',
+                                            strokeWidth: 1.2 * zoom
+                                        }"
+                                        @click="handleRegionClick(r.code)"
+                                        @mouseenter="onHoverRegion(r)"
+                                        @mouseleave="onLeaveHover"
+                                    />
+                                </template>
+
+                                <!-- Vue nationale : BADGES TACTIQUES HAUTE VISIBILITÉ DES RÉGIONS & CHIFFRES CLAIRS -->
                                 <!-- 1. Régions avec effectif > 0 (hors Bamako) : Badges tactiques contrastés avec chiffre agrandi -->
                                 <template v-for="r in regions" :key="'badge-' + r.code">
                                     <g
@@ -724,69 +566,122 @@
                                 </template>
                             </template>
 
-                            <!-- Région sélectionnée : CERCLES PROPORTIONNELS TACTIQUES DES UNITÉS -->
+                            <!-- Vue régionale : OPTION 1 - RÉGION DÉCOUPÉE EN PARCELLES GÉOGRAPHIQUES TRACÉES (STYLE CARTE DE FRANCE) -->
                             <template v-else>
+                                <!-- 1. Fond neutre de la région -->
+                                <path
+                                    v-if="selRegion"
+                                    :d="pathD(selRegion)"
+                                    fill="#f1f5f9"
+                                    stroke="#000000"
+                                    :stroke-width="2.5 * zoom"
+                                />
+
+                                <!-- 2. Découpage en parcelles Voronoi clipsé à la forme exacte de la région -->
+                                <g clip-path="url(#region-clip-shape)">
+                                    <path
+                                        v-for="p in regionalParcels"
+                                        :key="'parcel-' + p.unit.id"
+                                        :d="p.path"
+                                        :fill="parcelFill(p.unit)"
+                                        stroke="#000000"
+                                        :stroke-width="1.8 * zoom"
+                                        stroke-linejoin="round"
+                                        class="cursor-pointer transition-colors duration-150 hover:brightness-110"
+                                        @click="handleUnitClick(p.unit.id)"
+                                        @mouseenter="onHoverUnitParcel(p.unit)"
+                                        @mouseleave="onLeaveHover"
+                                    />
+                                </g>
+
+                                <!-- 3. Contour de la parcelle sélectionnée -->
+                                <template v-if="selParcel">
+                                    <path
+                                        :d="selParcel.path"
+                                        clip-path="url(#region-clip-shape)"
+                                        fill="none"
+                                        stroke="#0284c7"
+                                        :stroke-width="3.5 * zoom"
+                                        class="pointer-events-none"
+                                    />
+                                </template>
+
+                                <!-- 4. Bordure extérieure nette de la région en noir épais -->
+                                <path
+                                    v-if="selRegion"
+                                    :d="pathD(selRegion)"
+                                    fill="none"
+                                    stroke="#000000"
+                                    :stroke-width="2.6 * zoom"
+                                    class="pointer-events-none"
+                                />
+
+                                <!-- 5. Marqueurs : Cercles proportionnels rouges Jacques Bertin, chiffres et libellés -->
                                 <g
-                                    v-for="u in unitesAvecPoint"
-                                    :key="u.id"
-                                    class="unit-marker cursor-pointer"
-                                    @click="handleUnitClick(u.id)"
-                                    @mouseenter="onHoverUnit(u)"
+                                    v-for="p in regionalParcels"
+                                    :key="'marker-' + p.unit.id"
+                                    class="cursor-pointer"
+                                    @click="handleUnitClick(p.unit.id)"
+                                    @mouseenter="onHoverUnitParcel(p.unit)"
                                     @mouseleave="onLeaveHover"
                                 >
-                                    <!-- Halo de sélection / pulsation cyan si actif -->
+                                    <!-- Halo cyan si unité sélectionnée -->
                                     <circle
-                                        v-if="selUnit === u.id"
-                                        :cx="u.x"
-                                        :cy="u.y"
-                                        :r="rayon(u) + 4.5 * zoom"
+                                        v-if="selUnit === p.unit.id"
+                                        :cx="p.cx"
+                                        :cy="p.cy"
+                                        :r="parcelCircleR(p.unit) + 4.5 * zoom"
                                         fill="none"
                                         stroke="#38bdf8"
                                         :stroke-width="2.5 * zoom"
-                                        opacity="0.95"
                                         class="animate-pulse"
                                     />
 
-                                    <!-- Cercle Proportionnel (Rouge vif tactique avec bordure noire épaisse comme sur l'exemple) -->
+                                    <!-- Cercle proportionnel rouge Jacques Bertin -->
                                     <circle
-                                        :cx="u.x"
-                                        :cy="u.y"
-                                        :r="rayon(u)"
-                                        :fill="u.effectif > 0 ? '#ef4444' : '#cbd5e1'"
-                                        fill-opacity="0.92"
-                                        :stroke="selUnit === u.id ? '#0284c7' : (!u.operationnelle && u.effectif > 0 ? '#b45309' : '#000000')"
-                                        :stroke-width="(selUnit === u.id ? 2.8 : 2.2) * zoom"
-                                        :stroke-dasharray="!u.operationnelle && u.effectif > 0 ? (3.5 * zoom) + ' ' + (2 * zoom) : 'none'"
+                                        :cx="p.cx"
+                                        :cy="p.cy"
+                                        :r="parcelCircleR(p.unit)"
+                                        :fill="p.unit.effectif > 0 ? '#ef4444' : '#94a3b8'"
+                                        :stroke="selUnit === p.unit.id ? '#0284c7' : '#000000'"
+                                        :stroke-width="(selUnit === p.unit.id ? 2.6 : 1.8) * zoom"
                                         filter="url(#pin-shadow)"
                                     />
 
                                     <!-- Chiffre de l'effectif au centre du cercle proportionnel -->
                                     <text
-                                        :x="u.x"
-                                        :y="u.y"
+                                        :x="p.cx"
+                                        :y="p.cy"
                                         text-anchor="middle"
                                         dominant-baseline="central"
-                                        :font-size="fontSize(u) + 'px'"
+                                        :font-size="parcelCircleFontSize(p.unit) + 'px'"
                                         font-weight="900"
-                                        fill="#000000"
+                                        :fill="p.unit.effectif > 0 ? '#000000' : '#ffffff'"
                                         class="select-none pointer-events-none"
                                         style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"
                                     >
-                                        {{ u.effectif }}
+                                        {{ p.unit.effectif }}
+                                    </text>
+
+                                    <!-- Libellé de l'unité avec halo blanc net -->
+                                    <text
+                                        v-if="shouldShowParcelLabel(p)"
+                                        class="select-none pointer-events-none font-bold"
+                                        text-anchor="middle"
+                                        :x="p.cx"
+                                        :y="p.cy + parcelCircleR(p.unit) + 7 * zoom"
+                                        :style="{
+                                            fontSize: (selUnit === p.unit.id ? 11 : 9) * zoom + 'px',
+                                            fill: '#0f172a',
+                                            stroke: '#ffffff',
+                                            strokeWidth: 3 * zoom + 'px',
+                                            paintOrder: 'stroke fill',
+                                            fontWeight: selUnit === p.unit.id ? 900 : 700
+                                        }"
+                                    >
+                                        {{ shortUnitName(p.unit.nom) }}
                                     </text>
                                 </g>
-
-                                <!-- Libellé de l'unité sélectionnée ou survolée -->
-                                <template v-if="uniteActivePourLabel">
-                                    <text
-                                        class="lbl text-highlight"
-                                        :style="{ fontSize: 13 * zoom + 'px', strokeWidth: 3.5 * zoom + 'px' }"
-                                        :x="uniteActivePourLabel.x"
-                                        :y="uniteActivePourLabel.y - rayon(uniteActivePourLabel) - 4 * zoom"
-                                    >
-                                        {{ uniteActivePourLabel.nom }} ({{ fmt(uniteActivePourLabel.effectif) }})
-                                    </text>
-                                </template>
                             </template>
                         </svg>
                     </div>
@@ -825,19 +720,22 @@
                             <div class="flex items-center gap-3">
                                 <span class="flex items-center gap-1.5 font-medium text-slate-700">
                                     <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-500 border border-black text-[9px] font-black text-black">N</span>
-                                    Cercles proportionnels (Taille = Effectif de l'unité)
+                                    Cercles proportionnels rouges (Jacques Bertin)
+                                </span>
+                                <span class="text-slate-300">•</span>
+                                <span class="flex items-center gap-1 font-medium text-slate-600">
+                                    <span class="inline-block w-2.5 h-2.5 rounded-sm bg-slate-200 border border-black"></span> 0
+                                    <span class="inline-block w-2.5 h-2.5 rounded-sm bg-yellow-200 border border-black ml-1"></span> 1-2
+                                    <span class="inline-block w-2.5 h-2.5 rounded-sm bg-orange-400 border border-black ml-1"></span> 3-6
+                                    <span class="inline-block w-2.5 h-2.5 rounded-sm bg-red-500 border border-black ml-1"></span> 7+
                                 </span>
                                 <span class="text-slate-300">•</span>
                                 <span class="flex items-center font-medium text-slate-600">
-                                    Bord continu = Opérationnelle
-                                </span>
-                                <span class="text-slate-300">•</span>
-                                <span class="flex items-center font-medium text-amber-700">
-                                    Bord tireté = Non opérationnelle
+                                    Parcelles délimitées (découpage automatique)
                                 </span>
                             </div>
-                            <span v-if="unitesSansPoint > 0" class="text-amber-700 font-semibold">
-                                • {{ unitesSansPoint }} unité(s) sans GPS
+                            <span class="text-slate-500 font-semibold">
+                                {{ unitesClassees.length }} unité(s) cartographiée(s)
                             </span>
                         </template>
                         <template v-else>
@@ -1177,6 +1075,7 @@ import { Head, Link } from '@inertiajs/vue3';
 import Dialog from 'primevue/dialog';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { MALI_VIEW, REGION_SHAPES as SHAPES, project } from './maliRegions.js';
+import { Delaunay } from 'd3-delaunay';
 
 const props = defineProps({
     regions: { type: Array, default: () => [] },
@@ -1383,9 +1282,8 @@ const choisir = (code) => {
     sel.value = code;
     selUnit.value = null;
     searchQuery.value = '';
-    unitSearchQuery.value = '';
-    unitFilterType.value = 'all';
-    regionViewMode.value = 'cartes'; // Vue des cartes tracées par défaut
+    parcelSearchQuery.value = '';
+    parcelFilterType.value = 'all';
     userZoom.value = 1;
     panOffset.value = { x: 0, y: 0 };
     sidebarTab.value = 'liste';
@@ -1395,8 +1293,8 @@ const retour = () => {
     sel.value = null;
     selUnit.value = null;
     searchQuery.value = '';
-    unitSearchQuery.value = '';
-    unitFilterType.value = 'all';
+    parcelSearchQuery.value = '';
+    parcelFilterType.value = 'all';
     userZoom.value = 1;
     panOffset.value = { x: 0, y: 0 };
     sidebarTab.value = 'liste';
@@ -1414,11 +1312,6 @@ const toggleUnit = (id) => {
     selUnit.value = selUnit.value === id ? null : id;
 };
 
-const handleCardUnitClick = (id) => {
-    toggleUnit(id);
-    sidebarTab.value = 'liste';
-};
-
 const handleRegionClick = (code) => {
     if (hasDragged.value) return;
     choisir(code);
@@ -1427,6 +1320,7 @@ const handleRegionClick = (code) => {
 const handleUnitClick = (id) => {
     if (hasDragged.value) return;
     toggleUnit(id);
+    sidebarTab.value = 'liste';
 };
 
 // Contrôles de zoom (+ / - / recentrer)
@@ -1622,29 +1516,28 @@ const viewBox = computed(() => {
 
 const zoom = computed(() => viewBox.value[2] / MALI_VIEW.w); // échelle pour pins et traits au zoom
 
-// Mode d'affichage de la région sélectionnée : 'cartes' (défaut : petites cartes tracées classées par effectif) ou 'vecteur'
-const regionViewMode = ref('cartes');
-const unitSearchQuery = ref('');
-const unitFilterType = ref('all'); // 'all' | 'with_eff' | 'zero_eff'
+// --- Mode Régional : Découpage thématique en parcelles avec cercles proportionnels (Option 1) ---
+const parcelFilterType = ref('all'); // 'all' | 'with_eff' | 'zero_eff'
+const parcelSearchQuery = ref('');
 
 const countWithEff = computed(() => (selRegion.value?.unites || []).filter(u => (Number(u.effectif) || 0) > 0).length);
 const countZeroEff = computed(() => (selRegion.value?.unites || []).filter(u => (Number(u.effectif) || 0) === 0).length);
 
-// Unités classées strictement par effectif décroissant (du plus grand au plus petit)
+// 1. Unités de la région classées strictement par effectif décroissant (Règle d'or demandée par l'utilisateur)
 const unitesClassees = computed(() => {
     if (!selRegion.value?.unites) return [];
     let list = [...selRegion.value.unites];
-    // Règle d'or : classement strict en fonction de leur nombre (effectif décroissant)
+    // Classement strict en fonction de leur nombre (effectif décroissant)
     list.sort((a, b) => (Number(b.effectif) || 0) - (Number(a.effectif) || 0) || a.nom.localeCompare(b.nom));
 
-    if (unitFilterType.value === 'with_eff') {
+    if (parcelFilterType.value === 'with_eff') {
         list = list.filter(u => (Number(u.effectif) || 0) > 0);
-    } else if (unitFilterType.value === 'zero_eff') {
+    } else if (parcelFilterType.value === 'zero_eff') {
         list = list.filter(u => (Number(u.effectif) || 0) === 0);
     }
 
-    if (unitSearchQuery.value.trim()) {
-        const q = unitSearchQuery.value.toLowerCase().trim();
+    if (parcelSearchQuery.value.trim()) {
+        const q = parcelSearchQuery.value.toLowerCase().trim();
         list = list.filter(u => 
             u.nom.toLowerCase().includes(q) || 
             (u.type && u.type.toLowerCase().includes(q)) || 
@@ -1654,125 +1547,176 @@ const unitesClassees = computed(() => {
     return list;
 });
 
-// Taille du cercle proportionnel dans les cartouches tracés (sémiologie Jacques Bertin)
-const circleSize = (u) => {
-    const eff = Math.max(0, Number(u?.effectif) || 0);
-    if (eff === 0) return 30;
-    return Math.min(52, Math.round(30 + Math.sqrt(eff) * 7.2));
-};
+// 2. Découpage cartographique automatique par diagramme de Voronoi (Option 1)
+const regionalParcels = computed(() => {
+    if (!sel.value || !selRegion.value) return [];
+    const units = unitesClassees.value;
+    const n = units.length;
+    if (n === 0) return [];
 
-const circleFontSize = (u) => {
-    const s = circleSize(u);
-    return s >= 44 ? 15 : (s >= 36 ? 13 : 11);
-};
+    let bbox = sel.value === 'R1' ? [135.7, 462.3, 190.1, 531.1] : (SHAPES[sel.value]?.bb || [0, 0, 632, 594]);
+    const [minX, minY, maxX, maxY] = bbox;
+    const cx = sel.value === 'R1' ? (minX + maxX) / 2 : (SHAPES[sel.value]?.cx ?? (minX + maxX) / 2);
+    const cy = sel.value === 'R1' ? (minY + maxY) / 2 : (SHAPES[sel.value]?.cy ?? (minY + maxY) / 2);
+    const rx = (maxX - minX) * 0.42;
+    const ry = (maxY - minY) * 0.42;
 
-// ---------- Unités de la région choisie avec dispersion intelligente en grappes tactiques ----------
-const unitesAvecPoint = computed(() => {
-    if (!selRegion.value) return [];
-    const units = selRegion.value.unites.filter((u) => u.lat !== null && u.lon !== null);
-    if (!units.length) return [];
+    if (n === 1) {
+        return [{
+            unit: units[0],
+            path: `M ${minX - 10} ${minY - 10} H ${maxX + 10} V ${maxY + 10} H ${minX - 10} Z`,
+            cx,
+            cy
+        }];
+    }
 
-    const pts = units.map((u) => {
-        const p = project(Number(u.lat), Number(u.lon));
-        return { ...u, origX: p.x, origY: p.y };
-    });
+    // Polygone extérieur de la région pour garantir que 100% des graines sont strictement à l'intérieur
+    const rawPath = pathD(selRegion.value) || '';
+    const polyCoords = rawPath.startsWith('M') && rawPath.endsWith('Z')
+        ? rawPath.slice(1, -1).split('L').map(s => s.split(' ').map(Number)).filter(pt => pt.length === 2 && !isNaN(pt[0]))
+        : [];
 
-    const baseR = 10 * zoom.value;
-    const proximityThreshold = baseR * 2.8;
-
-    const clusters = [];
-    pts.forEach((pt) => {
-        let targetCluster = null;
-        for (const cl of clusters) {
-            const dx = pt.origX - cl.cx;
-            const dy = pt.origY - cl.cy;
-            if (Math.hypot(dx, dy) < proximityThreshold) {
-                targetCluster = cl;
-                break;
-            }
+    const isInside = (x, y) => {
+        if (polyCoords.length < 3) return true;
+        let inside = false;
+        for (let i = 0, j = polyCoords.length - 1; i < polyCoords.length; j = i++) {
+            const xi = polyCoords[i][0], yi = polyCoords[i][1];
+            const xj = polyCoords[j][0], yj = polyCoords[j][1];
+            const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
         }
-        if (targetCluster) {
-            targetCluster.items.push(pt);
-            targetCluster.cx = targetCluster.items.reduce((s, it) => s + it.origX, 0) / targetCluster.items.length;
-            targetCluster.cy = targetCluster.items.reduce((s, it) => s + it.origY, 0) / targetCluster.items.length;
-        } else {
-            clusters.push({
-                cx: pt.origX,
-                cy: pt.origY,
-                items: [pt]
-            });
+        return inside;
+    };
+
+    // Distribution des graines selon la spirale d'or de Vogel avec rappel systématique à l'intérieur du contour
+    const points = [];
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5)); // ~137.5077°
+    for (let i = 0; i < n; i++) {
+        const r = Math.sqrt((i + 0.5) / n) * 0.88;
+        const theta = i * goldenAngle;
+        let x = cx + r * rx * Math.cos(theta);
+        let y = cy + r * ry * Math.sin(theta);
+        let steps = 0;
+        while (!isInside(x, y) && steps < 15) {
+            x = x * 0.88 + cx * 0.12;
+            y = y * 0.88 + cy * 0.12;
+            steps++;
         }
+        points.push([x, y]);
+    }
+
+    const pad = Math.max(maxX - minX, maxY - minY) * 0.2;
+    const voronoi = Delaunay.from(points).voronoi([minX - pad, minY - pad, maxX + pad, maxY + pad]);
+
+    return units.map((u, i) => {
+        const path = voronoi.renderCell(i);
+        return {
+            unit: u,
+            path,
+            cx: points[i][0],
+            cy: points[i][1]
+        };
     });
-
-    const result = [];
-    clusters.forEach((cl) => {
-        const count = cl.items.length;
-        if (count === 1) {
-            result.push({
-                ...cl.items[0],
-                x: cl.items[0].origX,
-                y: cl.items[0].origY,
-            });
-        } else {
-            let itemIdx = 0;
-            let ring = 1;
-            const ringSpacing = (sel.value === 'R1' ? baseR * 2.05 : baseR * 2.4);
-
-            while (itemIdx < count) {
-                const ringCap = ring === 1 ? Math.min(6, count) : ring * 6;
-                const countInRing = Math.min(ringCap, count - itemIdx);
-                const dist = ring * ringSpacing;
-                const offset = (ring % 2 === 0) ? Math.PI / countInRing : 0;
-
-                for (let k = 0; k < countInRing; k++) {
-                    const u = cl.items[itemIdx++];
-                    const angle = (k * 2 * Math.PI / countInRing) + offset;
-                    result.push({
-                        ...u,
-                        x: cl.cx + Math.cos(angle) * dist,
-                        y: cl.cy + Math.sin(angle) * dist,
-                    });
-                }
-                ring++;
-            }
-        }
-    });
-
-    // Règle sémiologique cartographique : trier par effectif décroissant
-    // Les grands cercles sont dessinés au fond et les plus petits par-dessus pour rester toujours visibles
-    result.sort((a, b) => (Number(b.effectif) || 0) - (Number(a.effectif) || 0));
-
-    return result;
 });
 
-const unitesSansPoint = computed(() => (selRegion.value ? selRegion.value.unites.length - unitesAvecPoint.value.length : 0));
-const maxEff = computed(() => Math.max(1, ...(selRegion.value?.unites ?? []).map((u) => u.effectif)));
+const selParcel = computed(() => {
+    if (!selUnit.value) return null;
+    return regionalParcels.value.find(p => p.unit.id === selUnit.value);
+});
 
-// Cercles proportionnels (Sémiologie graphique de Bertin : Surface proportionnelle à l'effectif)
-const rayon = (u) => {
-    const eff = Math.max(0, Number(u?.effectif) || 0);
-    const rMin = eff === 0 ? 8 : 10.5;
-    const rAdd = Math.min(26, Math.sqrt(eff) * 3.4);
-    return (rMin + rAdd) * zoom.value;
+// 3. Nuancier thématique identique à la carte de France (Gris neutre pour 0, jaune doux, jaune doré, orange, rouge)
+const parcelFill = (unit) => {
+    const eff = Number(unit?.effectif) || 0;
+    if (eff === 0) return '#f1f5f9'; // Style Mayotte 0 (Gris clair neutre)
+    if (eff === 1) return '#fef08a'; // Jaune doux (Style Centre 20)
+    if (eff === 2) return '#fde047'; // Jaune doré (Style Pays de la Loire 34)
+    if (eff === 3 || eff === 4) return '#fed7aa'; // Pêche / orange clair (Style Normandie 54)
+    if (eff === 5 || eff === 6) return '#fb923c'; // Orange chaud (Style PACA 111)
+    if (eff === 7 || eff === 8) return '#f87171'; // Rouge corail (Style Auvergne 264)
+    return '#ef4444'; // Rouge vif saturé (Style Île-de-France 492 / Grand-Est 578)
 };
 
-// Taille du texte au centre du cercle adaptée au nombre de chiffres
-const fontSize = (u) => {
-    const r = rayon(u);
-    const eff = Math.max(0, Number(u?.effectif) || 0);
+// 4. Rayon du cercle proportionnel rouge (Jacques Bertin)
+const parcelCircleR = (unit) => {
+    const eff = Math.max(0, Number(unit?.effectif) || 0);
+    const rBase = eff === 0 ? 5.5 : (eff <= 2 ? 7.5 : (eff <= 5 ? 10 : 13.5));
+    return rBase * zoom.value;
+};
+
+// 5. Chiffre centré dans le cercle proportionnel
+const parcelCircleFontSize = (unit) => {
+    const r = parcelCircleR(unit);
+    const eff = Math.max(0, Number(unit?.effectif) || 0);
     const len = String(eff).length;
-    const factor = len >= 3 ? 0.72 : (len === 2 ? 0.88 : 1.02);
-    return Math.max(7 * zoom.value, r * factor * 0.75);
+    const factor = len >= 3 ? 0.75 : (len === 2 ? 0.95 : 1.15);
+    return Math.max(6 * zoom.value, r * factor * 0.72);
 };
 
-const unitePointee = computed(() => unitesAvecPoint.value.find((u) => u.id === selUnit.value));
+// 6. Raccourcissement intelligent des noms pour les libellés de la carte
+const shortUnitName = (nom) => {
+    if (!nom) return '';
+    let s = nom
+        .replace(/^Groupement de Gendarmerie (du|de la|des|de)?\s*/i, 'Gpt ')
+        .replace(/^Groupement (du|de la|des|de)?\s*/i, 'Gpt ')
+        .replace(/^Compagnie Territoriale (du|de la|des|de)?\s*/i, 'Cie ')
+        .replace(/^Compagnie (du|de la|des|de)?\s*/i, 'Cie ')
+        .replace(/^Brigade Territoriale (du|de la|des|de)?\s*/i, 'B.T. ')
+        .replace(/^Brigade de Recherches (du|de la|des|de)?\s*/i, 'B.R. ')
+        .replace(/^Brigade d'Investigation Spécialisée.*$/i, 'B.I.S. Terrorisme')
+        .replace(/^Brigade (du|de la|des|de)?\s*/i, 'Brigade ')
+        .replace(/^Escadron (du|de la|des|de)?\s*/i, 'Esc. ')
+        .replace(/^Poste de Sécurité (du|de la|des|de)?\s*/i, 'P.S. ')
+        .replace(/^Peloton d'Intervention (du|de la|des|de)?\s*/i, 'P.I. ')
+        .replace(/^Section de Recherches\s*/i, 'S.R. ')
+        .replace(/^Ministère de la Défense.*$/i, 'Min. Défense')
+        .replace(/^Ministère de l'Administration.*$/i, 'Min. Admin.')
+        .replace(/^Ministère de la Sécurité.*$/i, 'Min. Sécurité')
+        .replace(/^Direction Générale de la Protection Civile.*$/i, 'Prot. Civile')
+        .replace(/^Direction de la Sécurité Militaire.*$/i, 'D.S.M.')
+        .replace(/^Etat-Major Particulier de la Présidence.*$/i, 'E.M. Présidence')
+        .replace(/^Etat-Major Général des Armées.*$/i, 'E.M.G.A.')
+        .replace(/^Etat-Major Compagnie.*$/i, 'E.M. Cie')
+        .replace(/^Sous-Direction des Finances.*$/i, 'S.D. Finances')
+        .replace(/^Sous-Direction des Ressources Humaines.*$/i, 'S.D. R.H.')
+        .replace(/^Direction de la Justice Militaire.*$/i, 'Justice Militaire')
+        .replace(/^Direction de l'Office Central des Stupéfiants.*$/i, 'O.C.S.')
+        .replace(/^Inspection de la Gendarmerie Nationale.*$/i, 'Inspection G.N.')
+        .replace(/^Agence Nationale de la Sécurité d'Etat.*$/i, 'A.N.S.E.')
+        .replace(/^Service d'Investigations Judiciaires.*$/i, 'S.I.J.')
+        .replace(/Gendarmerie\s*/i, '')
+        .replace(/Bamako\s*/i, '')
+        .trim();
+    if (s.length > 20) {
+        s = s.slice(0, 18) + '…';
+    }
+    return s;
+};
+
+const shouldShowParcelLabel = (p) => {
+    if (selUnit.value === p.unit.id) return true;
+    if (hoveredItem.value?.isUnit && hoveredItem.value?.uId === p.unit.id) return true;
+    if (regionalParcels.value.length <= 8) return true;
+    if (parcelFilterType.value === 'with_eff') return p.unit.effectif >= 3;
+    return p.unit.effectif >= 4;
+};
+
+const onHoverUnitParcel = (u) => {
+    hoveredItem.value = {
+        isUnit: true,
+        uId: u.id,
+        op: u.operationnelle,
+        title: u.nom,
+        subtitle: `${fmt(u.effectif)} militaires`,
+        extra: u.operationnelle ? 'Opérationnelle' : 'Non opérationnelle'
+    };
+};
+
 const hoveredUnitObj = computed(() => {
     if (hoveredItem.value?.isUnit && hoveredItem.value?.uId) {
-        return unitesAvecPoint.value.find((u) => u.id === hoveredItem.value.uId);
+        return (selRegion.value?.unites || []).find((u) => u.id === hoveredItem.value.uId);
     }
     return null;
 });
-const uniteActivePourLabel = computed(() => unitePointee.value || hoveredUnitObj.value);
 
 // ---------- Panneaux statistiques ----------
 const tot = (f) => props.regions.reduce((s, r) => s + (Number(f(r)) || 0), 0);
