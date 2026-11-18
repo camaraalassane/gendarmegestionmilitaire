@@ -1217,13 +1217,13 @@ class MilitaireController extends Controller
             }
         }
 
-        if (!$militaire->date_entree_service) {
-            return;
-        }
+        // Calcul des années de service si date d'entrée présente
+        $serviceYears = $militaire->date_entree_service 
+            ? (int) floor($militaire->date_entree_service->diffInYears(now()))
+            : null;
 
-        $serviceYears = floor($militaire->date_entree_service->diffInYears(now()));
-
-        if ($serviceYears < 5 && !$contratActif) {
+        // Si la date d'entrée est renseignée mais le militaire a moins de 5 ans de service et pas de contrat actif à renouveler
+        if ($serviceYears !== null && $serviceYears < 5 && !$contratActif) {
             Alerte::where('militaire_id', $militaire->id)
                 ->where('type_alerte', 'contrat')
                 ->delete();
@@ -1234,7 +1234,9 @@ class MilitaireController extends Controller
             ->where('type_alerte', 'contrat')
             ->delete();
 
-        $message = "Renouvellement de contrat requis pour {$militaire->prenom} {$militaire->nom} ({$serviceYears} ans de service) - Grade: {$militaire->grade_actuel}";
+        $message = ($serviceYears !== null && $serviceYears > 0)
+            ? "Renouvellement de contrat requis pour {$militaire->prenom} {$militaire->nom} ({$serviceYears} ans de service) - Grade: {$militaire->grade_actuel}"
+            : "Régularisation / Renouvellement de contrat requis pour {$militaire->prenom} {$militaire->nom} (sans contrat actif) - Grade: {$militaire->grade_actuel}";
 
         Alerte::create([
             'militaire_id' => $militaire->id,

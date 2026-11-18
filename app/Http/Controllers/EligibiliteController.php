@@ -556,18 +556,20 @@ class EligibiliteController extends Controller
             $hasContratAlerte = isset($alertesContrat[$m->id]);
             $isEligibleContrat = $hasContratAlerte;
 
-            if (!$isEligibleContrat && $dEntree && $conditionsBase && $m->statut === 'actif') {
-                $anneesServiceContrat = (int) floor($dEntree->diffInYears($now));
+            if (!$isEligibleContrat && $conditionsBase && $m->statut === 'actif') {
                 $gradesContrats = [
                     'Soldat 2', 'Soldat 1', 'Caporal', 'Caporal-chef',
                     'Sergent', 'Sergent-Chef', 'Adjudant', 'Adjudant-Chef', 'Major',
                     'Sapeur 1ère classe'
                 ];
-                if ($anneesServiceContrat >= 5 && in_array($grade, $gradesContrats)) {
+                if (in_array($grade, $gradesContrats)) {
                     $cActif = $m->contratActif;
                     // Éligible au renouvellement si sans contrat actif ou contrat finissant dans <= 6 mois (ou expiré)
                     if (!$cActif || !$cActif->date_fin || !$cActif->date_fin->isFuture() || $cActif->date_fin->diffInDays($now) <= 180) {
-                        $isEligibleContrat = true;
+                        $anneesServiceContrat = $dEntree ? (int) floor($dEntree->diffInYears($now)) : 0;
+                        if (!$dEntree || $anneesServiceContrat >= 5) {
+                            $isEligibleContrat = true;
+                        }
                     }
                 }
             }
@@ -575,7 +577,9 @@ class EligibiliteController extends Controller
             if ($isEligibleContrat) {
                 $contratActif = $m->contratActif;
                 $anneesService = $dEntree ? (int) floor($dEntree->diffInYears($now)) : 0;
-                $msgContrat = $alertesContrat[$m->id] ?? "Renouvellement de contrat requis pour {$m->prenom} {$m->nom} ({$anneesService} ans de service) - Grade: {$grade}";
+                $msgContrat = $alertesContrat[$m->id] ?? ($anneesService > 0 
+                    ? "Renouvellement de contrat requis pour {$m->prenom} {$m->nom} ({$anneesService} ans de service) - Grade: {$grade}"
+                    : "Régularisation / Renouvellement de contrat requis pour {$m->prenom} {$m->nom} (sans contrat actif) - Grade: {$grade}");
                 $allContrats[] = [
                     'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
                     'annees_service' => $anneesService,
