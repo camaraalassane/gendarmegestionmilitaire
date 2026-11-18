@@ -6,7 +6,9 @@ use App\Models\Position;
 use App\Models\Region;
 use App\Models\Unite;
 use App\Http\Controllers\CarteController;
+use App\Services\RegionGeo;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class ConfigurationController extends Controller
@@ -160,6 +162,24 @@ class ConfigurationController extends Controller
             'nom.required' => 'Le nom de l\'unité est obligatoire.',
         ]);
 
+        // Contrôle géographique : si les coordonnées sont saisies, vérifier qu'elles tombent dans la région
+        if (!empty($validated['latitude']) && !empty($validated['longitude'])) {
+            $region = Region::find($validated['region_id']);
+            if ($region && !RegionGeo::contient($region->code, (float) $validated['latitude'], (float) $validated['longitude'])) {
+                $autreRegionCode = RegionGeo::trouverRegion((float) $validated['latitude'], (float) $validated['longitude']);
+                $precision = '';
+                if ($autreRegionCode) {
+                    $autreNom = Region::where('code', $autreRegionCode)->value('nom') ?? $autreRegionCode;
+                    $precision = " (ces coordonnées se situent en réalité dans la région de {$autreNom})";
+                } else {
+                    $precision = " (ces coordonnées semblent être situées en dehors du territoire national)";
+                }
+                throw ValidationException::withMessages([
+                    'latitude' => "Les coordonnées géographiques ({$validated['latitude']}, {$validated['longitude']}) ne se trouvent pas dans la région {$region->nom}{$precision}.",
+                ]);
+            }
+        }
+
         $unite = Unite::create([
             'region_id' => $validated['region_id'],
             'nom' => trim($validated['nom']),
@@ -205,6 +225,24 @@ class ConfigurationController extends Controller
             'region_id.required' => 'Veuillez sélectionner la région de rattachement.',
             'nom.required' => 'Le nom de l\'unité est obligatoire.',
         ]);
+
+        // Contrôle géographique : si les coordonnées sont saisies, vérifier qu'elles tombent dans la région
+        if (!empty($validated['latitude']) && !empty($validated['longitude'])) {
+            $region = Region::find($validated['region_id']);
+            if ($region && !RegionGeo::contient($region->code, (float) $validated['latitude'], (float) $validated['longitude'])) {
+                $autreRegionCode = RegionGeo::trouverRegion((float) $validated['latitude'], (float) $validated['longitude']);
+                $precision = '';
+                if ($autreRegionCode) {
+                    $autreNom = Region::where('code', $autreRegionCode)->value('nom') ?? $autreRegionCode;
+                    $precision = " (ces coordonnées se situent en réalité dans la région de {$autreNom})";
+                } else {
+                    $precision = " (ces coordonnées semblent être situées en dehors du territoire national)";
+                }
+                throw ValidationException::withMessages([
+                    'latitude' => "Les coordonnées géographiques ({$validated['latitude']}, {$validated['longitude']}) ne se trouvent pas dans la région {$region->nom}{$precision}.",
+                ]);
+            }
+        }
 
         $unite->update([
             'region_id' => $validated['region_id'],

@@ -397,6 +397,12 @@
                                     <span class="text-amber-300 font-bold">{{ hoveredUnitObj.effectif }} gendarme(s)</span>
                                     <span v-if="hoveredUnitObj.ville" class="text-slate-400 text-[11px]">📍 {{ hoveredUnitObj.ville }}</span>
                                     <span
+                                        v-if="!hoveredUnitObj.lat || !hoveredUnitObj.lon"
+                                        class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-600/50"
+                                    >
+                                        Position approximative (sans GPS)
+                                    </span>
+                                    <span
                                         class="px-1.5 py-0.2 rounded text-[10px] font-bold"
                                         :class="hoveredUnitObj.operationnelle ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-500/40' : 'bg-amber-900/60 text-amber-300 border border-amber-500/40'"
                                     >
@@ -665,7 +671,7 @@
                                         :stroke-width="0.4 * rUnit"
                                     />
 
-                                    <!-- Cercle proportionnel rouge Jacques Bertin avec contour noir prononcé -->
+                                    <!-- Cercle proportionnel rouge Jacques Bertin avec contour noir prononcé (pointillé si position approx.) -->
                                     <circle
                                         v-if="parcelCircleR(p.unit) > 0"
                                         :cx="p.cx"
@@ -674,6 +680,7 @@
                                         fill="#ef4444"
                                         :stroke="selUnit === p.unit.id ? '#0284c7' : '#000000'"
                                         :stroke-width="(selUnit === p.unit.id ? 0.55 : 0.35) * rUnit"
+                                        :stroke-dasharray="(!p.unit.lat || !p.unit.lon) ? `${1.2 * rUnit} ${0.9 * rUnit}` : undefined"
                                         filter="url(#pin-shadow)"
                                     />
                                 </g>
@@ -769,6 +776,11 @@
                                 <span class="text-slate-300">•</span>
                                 <span class="flex items-center font-medium text-slate-600">
                                     Parcelles délimitées (découpage automatique)
+                                </span>
+                                <span class="text-slate-300">•</span>
+                                <span class="flex items-center gap-1 font-medium text-slate-500" title="Unité sans coordonnées GPS : position estimée par défaut dans sa région">
+                                    <svg width="12" height="12" class="inline-block shrink-0"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#64748b" stroke-width="1.2" stroke-dasharray="2 1.5"/></svg>
+                                    <span>Pointillé : position approx.</span>
                                 </span>
                             </div>
                             <span class="text-slate-500 font-semibold">
@@ -1603,7 +1615,7 @@ const onHoverUnit = (u) => {
         op: u.operationnelle,
         title: u.nom,
         subtitle: `${fmt(u.effectif)} militaires`,
-        extra: u.operationnelle ? 'Opérationnelle' : 'Non opérationnelle'
+        extra: (!u.lat || !u.lon) ? 'Position approx. (sans GPS)' : (u.operationnelle ? 'Opérationnelle' : 'Non opérationnelle')
     };
 };
 
@@ -2017,20 +2029,20 @@ const regionalParcels = computed(() => {
                 x = baseCx + (x - baseCx) * 4.0;
                 y = baseCy + (y - baseCy) * 4.0;
             }
-            rawPoints.push({ hasGps: true, x, y, index: i });
+            rawPoints.push({ hasGps: true, x, y, index: i, unit: u });
             const key = `${x.toFixed(2)},${y.toFixed(2)}`;
             coLocMap.set(key, (coLocMap.get(key) || 0) + 1);
         } else {
-            rawPoints.push({ hasGps: false, x: cx, y: cy, index: i });
+            rawPoints.push({ hasGps: false, x: cx, y: cy, index: i, unit: u });
         }
     }
 
     // 2) Micro-dispersion des unités co-localisées au même casernement/camp
-    //    et placement en spirale douce pour les éventuelles unités sans GPS
+    //    et positionnement de repli stable et déterministe pour les unités sans GPS
     const coLocSeen = new Map();
-    let noGpsIdx = 0;
-    const numNoGps = rawPoints.filter(p => !p.hasGps).length;
     const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+    const allRegionUnits = selRegion.value?.unites || [];
+    const totalInRegion = Math.max(1, allRegionUnits.length);
 
     let points = [];
     for (let i = 0; i < n; i++) {
@@ -2051,11 +2063,15 @@ const regionalParcels = computed(() => {
                 y += rDisp * Math.sin(theta);
             }
         } else {
-            const r = Math.sqrt((noGpsIdx + 0.5) / (numNoGps || 1)) * (pw * 0.3);
-            const theta = noGpsIdx * goldenAngle;
+            // Position de repli stable et déterministe basée sur le rang fixe de l'unité dans sa région
+            // L'unité reste strictement au même endroit même lors d'un filtrage ou d'une recherche
+            const fixedRank = allRegionUnits.findIndex(u => u.id === p.unit.id);
+            const stableSeed = fixedRank >= 0 ? fixedRank : (p.unit.id % 50);
+
+            const r = Math.sqrt((stableSeed + 0.5) / totalInRegion) * (pw * 0.28);
+            const theta = stableSeed * goldenAngle;
             x = cx + r * Math.cos(theta);
             y = cy + r * Math.sin(theta);
-            noGpsIdx++;
         }
 
         // Vérification d'inclusion dans le contour multi-polygones de la région
@@ -2300,7 +2316,7 @@ const onHoverUnitParcel = (u) => {
         op: u.operationnelle,
         title: u.nom,
         subtitle: `${fmt(u.effectif)} militaires`,
-        extra: u.operationnelle ? 'Opérationnelle' : 'Non opérationnelle'
+        extra: (!u.lat || !u.lon) ? 'Position approx. (sans GPS)' : (u.operationnelle ? 'Opérationnelle' : 'Non opérationnelle')
     };
 };
 
