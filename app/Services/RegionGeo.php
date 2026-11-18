@@ -51,9 +51,10 @@ class RegionGeo
 
     /**
      * Vérifie si les coordonnées GPS (lat, lon) se trouvent dans la région indiquée.
-     * Inclut une marge de tolérance de sécurité pour les postes et brigades frontaliers (~4 km).
+     * $tolerancePx : tolérance frontalière en pixels SVG (1 px ≈ 2.8 km sur l'échelle 40 px/degré).
+     * Par défaut 1.0 px (~2.8 km) pour absorber les imprécisions des tracés administratifs simplifiés.
      */
-    public static function contient(string $regionCode, float $lat, float $lon, float $tolerancePx = 3.5): bool
+    public static function contient(string $regionCode, float $lat, float $lon, float $tolerancePx = 1.0): bool
     {
         $geo = self::loadData();
         if (!isset($geo[$regionCode])) {
@@ -72,10 +73,12 @@ class RegionGeo
         $x = $pt['x'];
         $y = $pt['y'];
 
+        $tol = max(0.0, $tolerancePx);
+
         // 1. Pré-filtre rapide par boîte englobante (Bounding Box) avec marge
         if ($bb && count($bb) === 4) {
-            if ($x < ($bb[0] - $tolerancePx) || $y < ($bb[1] - $tolerancePx) ||
-                $x > ($bb[2] + $tolerancePx) || $y > ($bb[3] + $tolerancePx)) {
+            if ($x < ($bb[0] - $tol) || $y < ($bb[1] - $tol) ||
+                $x > ($bb[2] + $tol) || $y > ($bb[3] + $tol)) {
                 return false;
             }
         }
@@ -85,32 +88,37 @@ class RegionGeo
             return true;
         }
 
-        // 3. Si tout juste sur le bord extérieur (marge frontalière)
-        return self::pointNearRings($x, $y, $rings, $tolerancePx);
+        // 3. Marge frontalière (si tolérance demandée)
+        if ($tol > 0.0) {
+            return self::pointNearRings($x, $y, $rings, $tol);
+        }
+
+        return false;
     }
 
     /**
      * Identifie dans quelle région du Mali tombent des coordonnées GPS (lat, lon).
      * Renvoie le code de la région (ex: 'R1', 'R12') ou null si hors du territoire national.
      */
-    public static function trouverRegion(float $lat, float $lon, float $tolerancePx = 3.5): ?string
+    public static function trouverRegion(float $lat, float $lon, float $tolerancePx = 1.0): ?string
     {
         $geo = self::loadData();
         $pt = self::projeter($lat, $lon);
         $x = $pt['x'];
         $y = $pt['y'];
+        $tol = max(0.0, $tolerancePx);
 
         foreach ($geo as $code => $data) {
             $bb = $data['bb'] ?? null;
             if ($bb && count($bb) === 4) {
-                if ($x < ($bb[0] - $tolerancePx) || $y < ($bb[1] - $tolerancePx) ||
-                    $x > ($bb[2] + $tolerancePx) || $y > ($bb[3] + $tolerancePx)) {
+                if ($x < ($bb[0] - $tol) || $y < ($bb[1] - $tol) ||
+                    $x > ($bb[2] + $tol) || $y > ($bb[3] + $tol)) {
                     continue;
                 }
             }
 
-            if (self::pointInRings($x, $y, $data['rings'] ?? []) ||
-                self::pointNearRings($x, $y, $data['rings'] ?? [], $tolerancePx)) {
+            $rings = $data['rings'] ?? [];
+            if (self::pointInRings($x, $y, $rings) || ($tol > 0.0 && self::pointNearRings($x, $y, $rings, $tol))) {
                 return $code;
             }
         }

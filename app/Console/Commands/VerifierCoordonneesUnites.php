@@ -14,7 +14,9 @@ class VerifierCoordonneesUnites extends Command
      *
      * @var string
      */
-    protected $signature = 'unites:verifier-coordonnees {--sans-gps : Afficher uniquement la liste des unités sans coordonnées GPS}';
+    protected $signature = 'unites:verifier-coordonnees 
+                            {--tolerance=0 : Tolérance frontalière en pixels SVG (défaut 0 = strict sans marge, 1 px ≈ 2.8 km)}
+                            {--sans-gps : Afficher uniquement la liste des unités sans coordonnées GPS}';
 
     /**
      * The console command description.
@@ -28,7 +30,9 @@ class VerifierCoordonneesUnites extends Command
      */
     public function handle(): int
     {
+        $tolerance = (float) $this->option('tolerance');
         $this->info("=== VÉRIFICATION GÉOGRAPHIQUE DES UNITÉS DE GENDARMERIE ===");
+        $this->line("• Mode d'audit : " . ($tolerance <= 0 ? "<fg=yellow>Strict (Tolérance 0 km - aucun dépassement de frontière permis)</>" : "<fg=cyan>Tolérance {$tolerance} px (~" . round($tolerance * 2.78, 1) . " km)</>"));
         $this->newLine();
 
         $unites = Unite::with('region')->orderBy('region_id')->orderBy('nom')->get();
@@ -57,10 +61,10 @@ class VerifierCoordonneesUnites extends Command
             $lat = (float) $u->latitude;
             $lon = (float) $u->longitude;
 
-            if (RegionGeo::contient($r->code, $lat, $lon)) {
+            if (RegionGeo::contient($r->code, $lat, $lon, $tolerance)) {
                 $valides++;
             } else {
-                $reelCode = RegionGeo::trouverRegion($lat, $lon);
+                $reelCode = RegionGeo::trouverRegion($lat, $lon, $tolerance);
                 $reelNom = $reelCode ? (Region::where('code', $reelCode)->value('nom') ?? $reelCode) : 'HORS DU MALI';
 
                 $anomalies[] = [

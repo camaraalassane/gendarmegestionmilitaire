@@ -588,6 +588,7 @@
                                     <path
                                         v-for="p in regionalParcels"
                                         :key="'parcel-' + p.unit.id"
+                                        v-if="p.path && isUnitVisible(p.unit)"
                                         :d="p.path"
                                         :fill="parcelFill(p.unit)"
                                         stroke="#0f172a"
@@ -600,8 +601,8 @@
                                     />
                                 </g>
 
-                                <!-- Message si 0 unité géolocalisée dans la région -->
-                                <g v-if="selRegion && regionalParcels.length === 0" class="pointer-events-none select-none">
+                                <!-- Message si 0 unité visible dans la région -->
+                                <g v-if="selRegion && countUnitesVisibles === 0" class="pointer-events-none select-none">
                                     <text
                                         :x="selRegion.code === 'R1' ? 163 : (SHAPES[selRegion.code]?.cx || 300)"
                                         :y="selRegion.code === 'R1' ? 495 : (SHAPES[selRegion.code]?.cy || 300)"
@@ -613,12 +614,12 @@
                                             fontWeight: 700
                                         }"
                                     >
-                                        Aucune unité géolocalisée
+                                        {{ parcelSearchQuery ? 'Aucune unité correspondante' : 'Aucune unité géolocalisée' }}
                                     </text>
                                 </g>
 
                                 <!-- 3. Contour de la parcelle sélectionnée -->
-                                <template v-if="selParcel">
+                                <template v-if="selParcel && isUnitVisible(selParcel.unit) && selParcel.path">
                                     <path
                                         :d="selParcel.path"
                                         clip-path="url(#region-clip-shape)"
@@ -643,6 +644,7 @@
                                 <g
                                     v-for="p in regionalParcels"
                                     :key="'marker-' + p.unit.id"
+                                    v-if="isUnitVisible(p.unit)"
                                     class="cursor-pointer"
                                     @click="handleUnitClick(p.unit.id)"
                                     @mouseenter="onHoverUnitParcel(p.unit)"
@@ -689,6 +691,7 @@
                                 <g
                                     v-for="p in regionalParcels"
                                     :key="'text-' + p.unit.id"
+                                    v-if="isUnitVisible(p.unit)"
                                     class="pointer-events-none select-none"
                                 >
                                     <!-- Chiffre de l'effectif au centre du cercle proportionnel (grand, noir, gras 900) -->
@@ -784,7 +787,7 @@
                                 </span>
                             </div>
                             <span class="text-slate-500 font-semibold">
-                                {{ unitesClassees.length }} unité(s) cartographiée(s)
+                                {{ countUnitesVisibles }} unité(s) cartographiée(s)
                             </span>
                         </template>
                         <template v-else>
@@ -1906,28 +1909,30 @@ watch(parcelSearchInput, (val) => {
 const countWithEff = computed(() => (selRegion.value?.unites || []).filter(u => (Number(u.effectif) || 0) > 0).length);
 const countZeroEff = computed(() => (selRegion.value?.unites || []).filter(u => (Number(u.effectif) || 0) === 0).length);
 
-// 1. Unités de la région classées strictement par effectif décroissant
+// Prédicat de visibilité unitaire d'après les filtres actifs et la recherche (affichage seulement)
+const isUnitVisible = (unit) => {
+    if (!unit) return false;
+    const eff = Number(unit.effectif) || 0;
+    if (parcelFilterType.value === 'with_eff' && eff === 0) return false;
+    if (parcelFilterType.value === 'zero_eff' && eff > 0) return false;
+    if (parcelSearchQuery.value && parcelSearchQuery.value.trim()) {
+        const q = parcelSearchQuery.value.toLowerCase().trim();
+        const matchNom = unit.nom && unit.nom.toLowerCase().includes(q);
+        const matchType = unit.type && unit.type.toLowerCase().includes(q);
+        const matchVille = unit.ville && unit.ville.toLowerCase().includes(q);
+        if (!matchNom && !matchType && !matchVille) return false;
+    }
+    return true;
+};
+
+const countUnitesVisibles = computed(() => {
+    return (selRegion.value?.unites || []).filter(u => isUnitVisible(u)).length;
+});
+
+// 1. Unités de la région classées par effectif décroissant
 const unitesClassees = computed(() => {
     if (!selRegion.value?.unites) return [];
-    let list = [...selRegion.value.unites];
-    // Classement strict en fonction de leur nombre (effectif décroissant)
-    list.sort((a, b) => (Number(b.effectif) || 0) - (Number(a.effectif) || 0) || a.nom.localeCompare(b.nom));
-
-    if (parcelFilterType.value === 'with_eff') {
-        list = list.filter(u => (Number(u.effectif) || 0) > 0);
-    } else if (parcelFilterType.value === 'zero_eff') {
-        list = list.filter(u => (Number(u.effectif) || 0) === 0);
-    }
-
-    if (parcelSearchQuery.value.trim()) {
-        const q = parcelSearchQuery.value.toLowerCase().trim();
-        list = list.filter(u => 
-            u.nom.toLowerCase().includes(q) || 
-            (u.type && u.type.toLowerCase().includes(q)) || 
-            (u.ville && u.ville.toLowerCase().includes(q))
-        );
-    }
-    return list;
+    return selRegion.value.unites.filter(u => isUnitVisible(u));
 });
 
 // Découpage robuste de tout tracé SVG en un ou plusieurs polygones (anneaux / îlots / enclaves)
@@ -1973,10 +1978,10 @@ const isPointInRings = (x, y, rings) => {
 };
 
 // 2. Découpage cartographique automatique par diagramme de Voronoi (Style Carte de France)
-// Utilise les vraies coordonnées GPS project(lat, lon) comme point de départ
+// Calculé sur l'intégralité des unités de la région (selRegion.unites) pour un maillage géographique stable
 const regionalParcels = computed(() => {
     if (!sel.value || !selRegion.value) return [];
-    const units = unitesClassees.value;
+    const units = selRegion.value.unites || [];
     const n = units.length;
     if (n === 0) return [];
 
@@ -2152,9 +2157,7 @@ const regionalParcels = computed(() => {
         const finalV = Delaunay.from(points).voronoi(bounds);
         return units.map((u, i) => {
             const cellPath = finalV.renderCell(i);
-            const path = (cellPath && cellPath.length > 5)
-                ? cellPath
-                : `M ${minX - 10} ${minY - 10} H ${maxX + 10} V ${maxY + 10} H ${minX - 10} Z`;
+            const path = (cellPath && cellPath.length > 5) ? cellPath : '';
             return {
                 unit: u,
                 path,
@@ -2166,7 +2169,7 @@ const regionalParcels = computed(() => {
         console.warn('Voronoi calculation fallback:', e);
         return units.map((u, i) => ({
             unit: u,
-            path: `M ${minX - 10} ${minY - 10} H ${maxX + 10} V ${maxY + 10} H ${minX - 10} Z`,
+            path: '',
             cx: points[i] ? points[i][0] : cx,
             cy: points[i] ? points[i][1] : cy
         }));
@@ -2178,9 +2181,9 @@ const selParcel = computed(() => {
     return (regionalParcels.value || []).find(p => p.unit.id === selUnit.value);
 });
 
-// Effectif maximum parmi les unités affichées dans la région
+// Effectif maximum parmi TOUTES les unités de la région (échelle stable indépendante des filtres de recherche)
 const maxRegionalEff = computed(() => {
-    const list = unitesClassees.value;
+    const list = selRegion.value?.unites || [];
     if (list.length === 0) return 1;
     let m = 1;
     for (const u of list) {
@@ -2190,9 +2193,9 @@ const maxRegionalEff = computed(() => {
     return m;
 });
 
-// Seuils dynamiques par quantiles pour 5 classes de couleurs (20%, 40%, 60%, 80%) sur les effectifs non nuls
+// Seuils dynamiques par quantiles pour 5 classes de couleurs (20%, 40%, 60%, 80%) sur les effectifs non nuls de la région complète
 const quantileThresholds = computed(() => {
-    const nonZero = unitesClassees.value
+    const nonZero = (selRegion.value?.unites || [])
         .map(u => Number(u.effectif) || 0)
         .filter(e => e > 0)
         .sort((a, b) => a - b);
@@ -2239,7 +2242,7 @@ const parcelCircleR = (unit) => {
     if (eff === 0) return 0; // Strict Jacques Bertin : 0 effectif = AUCUN cercle
 
     const maxEff = maxRegionalEff.value;
-    const isDense = (unitesClassees.value?.length || 0) > 15;
+    const isDense = (selRegion.value?.unites?.length || 0) > 15;
     const rMax = (isDense ? 5.2 : 8.5) * rUnit.value;
     const rMin = (isDense ? 1.6 : 3.2) * rUnit.value;
 
@@ -2303,8 +2306,8 @@ const shouldShowParcelLabel = (p) => {
     if (p.unit.effectif === 0) return false;
     if (selUnit.value === p.unit.id) return true;
     if (hoveredItem.value?.isUnit && hoveredItem.value?.uId === p.unit.id) return true;
-    // Si la région est aérée (<= 6 unités actives, ex: Ségou, Sikasso, Kayes), afficher le libellé sous le grand cercle
-    if ((unitesClassees.value?.length || 0) <= 6) return true;
+    // Si la région est aérée (<= 6 unités dans la région, ex: Ségou, Sikasso, Kayes), afficher le libellé sous le grand cercle
+    if ((selRegion.value?.unites?.length || 0) <= 6) return true;
     // Vue dense (Bamako 26 unités) : aucun libellé pour garder la carte épurée et lisible (exactement comme la carte de France !)
     return false;
 };
