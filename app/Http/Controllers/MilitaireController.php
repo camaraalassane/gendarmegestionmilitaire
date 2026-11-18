@@ -63,19 +63,36 @@ class MilitaireController extends Controller
             });
         }
 
-        // Filtre par Grade (Priorité stricte à l'ID entier indexé)
+        // Filtre par Grade (Priorité stricte à l'ID entier indexé avec fallback sur le nom et code de grade)
         if ($request->filled('grade_id') || $request->filled('grade')) {
             $gradeVal = $request->input('grade_id') ?? $request->input('grade');
-            if (is_numeric($gradeVal)) {
-                $query->where('militaires.grade_id', (int) $gradeVal);
-            } else {
-                $gradeId = Grade::where('nom_grade', $gradeVal)->orWhere('code_grade', $gradeVal)->value('id');
+
+            $gradeObj = is_numeric($gradeVal)
+                ? Grade::find((int) $gradeVal)
+                : Grade::whereRaw('TRIM(LOWER(nom_grade)) = ?', [mb_strtolower(trim($gradeVal))])
+                    ->orWhereRaw('TRIM(LOWER(code_grade)) = ?', [mb_strtolower(trim($gradeVal))])
+                    ->first();
+
+            $nomGrade = $gradeObj ? trim($gradeObj->nom_grade) : (is_numeric($gradeVal) ? null : trim($gradeVal));
+            $codeGrade = $gradeObj?->code_grade ? trim($gradeObj->code_grade) : null;
+            $gradeId = $gradeObj ? $gradeObj->id : (is_numeric($gradeVal) ? (int) $gradeVal : null);
+
+            $query->where(function($q) use ($gradeId, $nomGrade, $codeGrade) {
+                $hasCondition = false;
                 if ($gradeId) {
-                    $query->where('militaires.grade_id', $gradeId);
-                } else {
-                    $query->where('militaires.grade_actuel', $gradeVal);
+                    $q->where('militaires.grade_id', $gradeId);
+                    $hasCondition = true;
                 }
-            }
+                if ($nomGrade) {
+                    $method = $hasCondition ? 'orWhereRaw' : 'whereRaw';
+                    $q->$method('TRIM(LOWER(militaires.grade_actuel)) = ?', [mb_strtolower($nomGrade)]);
+                    $q->orWhereRaw("REPLACE(REPLACE(TRIM(LOWER(militaires.grade_actuel)), '\r', ''), '\n', '') = ?", [mb_strtolower($nomGrade)]);
+                    $hasCondition = true;
+                }
+                if ($codeGrade) {
+                    $q->orWhereRaw('TRIM(LOWER(militaires.grade_actuel)) = ?', [mb_strtolower($codeGrade)]);
+                }
+            });
         }
 
         // Filtre par Région (Priorité stricte à l'ID entier indexé)
