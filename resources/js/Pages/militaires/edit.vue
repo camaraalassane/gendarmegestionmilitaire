@@ -164,7 +164,7 @@
                                     <div class="md:col-span-9 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                         <!-- Matricule Armée -->
                                         <div class="field">
-                                            <label for="matricule" class="block text-sm font-bold text-gray-700 mb-1">
+                                            <label for="matricule" class="block text-sm font-bold text-gray-700 mb-1 truncate whitespace-nowrap">
                                                 Matricule Armée <span class="text-red-500">*</span>
                                             </label>
                                             <InputText id="matricule" v-model="form.matricule" class="w-full" placeholder="Ex: 16276"
@@ -176,15 +176,15 @@
 
                                         <!-- MLE GRM -->
                                         <div class="field">
-                                            <label for="mle_grm" class="block text-sm font-semibold text-gray-700 mb-1">
-                                                Matricule Gendarmerie (GRM MLE)
+                                            <label for="mle_grm" class="block text-sm font-semibold text-gray-700 mb-1 truncate whitespace-nowrap">
+                                                Matricule Gendarmerie
                                             </label>
                                             <InputText id="mle_grm" v-model="form.mle_grm" class="w-full" placeholder="Ex: GRM9272M006871" />
                                         </div>
 
                                         <!-- N° Info -->
                                         <div class="field">
-                                            <label for="numero_info" class="block text-sm font-semibold text-gray-700 mb-1">
+                                            <label for="numero_info" class="block text-sm font-semibold text-gray-700 mb-1 truncate whitespace-nowrap">
                                                 N° Informatique / Solde
                                             </label>
                                             <InputText id="numero_info" v-model="form.numero_info" class="w-full" placeholder="Ex: 1668" />
@@ -192,7 +192,7 @@
 
                                         <!-- N° Nina -->
                                         <div class="field">
-                                            <label for="numero_nina" class="block text-sm font-semibold text-gray-700 mb-1">
+                                            <label for="numero_nina" class="block text-sm font-semibold text-gray-700 mb-1 truncate whitespace-nowrap">
                                                 N° NINA / Identification
                                             </label>
                                             <InputText id="numero_nina" v-model="form.numero_nina" class="w-full" placeholder="Numéro national d'identification" />
@@ -200,7 +200,7 @@
 
                                         <!-- Grade actuel -->
                                         <div class="field">
-                                            <label for="grade_actuel" class="block text-sm font-bold text-gray-700 mb-1">
+                                            <label for="grade_actuel" class="block text-sm font-bold text-gray-700 mb-1 truncate whitespace-nowrap">
                                                 Grade actuel <span class="text-red-500">*</span>
                                             </label>
                                             <Select v-model="form.grade_actuel" :options="grades" optionLabel="nom_grade" optionValue="nom_grade"
@@ -213,7 +213,7 @@
 
                                         <!-- Catégorie statutaire -->
                                         <div class="field">
-                                            <label for="categorie" class="block text-sm font-semibold text-gray-700 mb-1">
+                                            <label for="categorie" class="block text-sm font-semibold text-gray-700 mb-1 truncate whitespace-nowrap">
                                                 Catégorie statutaire
                                             </label>
                                             <Select v-model="form.categorie" :options="categorieOptions" optionLabel="label" optionValue="value"
