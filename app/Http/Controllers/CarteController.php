@@ -71,8 +71,8 @@ class CarteController extends Controller
                 SUM(CASE WHEN statut_code = 8 THEN 1 ELSE 0 END) AS radies,
                 SUM(CASE WHEN statut_code = 6 THEN 1 ELSE 0 END) AS deserteurs,
                 SUM(CASE WHEN (statut_code = 9 OR date_deces IS NOT NULL)
-                          AND (date_deces BETWEEN ? AND ? OR (date_deces IS NULL AND updated_at BETWEEN ? AND ?))
-                         THEN 1 ELSE 0 END) AS decedes", [$debut, $fin, $debut, $fin])
+                          AND date_deces BETWEEN ? AND ?
+                         THEN 1 ELSE 0 END) AS decedes", [$debut, $fin])
             ->groupBy('region_id')
             ->get()
             ->keyBy(fn ($l) => $l->region_id ?? 0);
@@ -287,12 +287,7 @@ class CarteController extends Controller
                     $q->where(function ($sub) {
                         $sub->where('statut_code', 9)
                             ->orWhereNotNull('date_deces');
-                    })->where(function ($sub) use ($debut, $fin) {
-                        $sub->whereBetween('date_deces', [$debut, $fin])
-                            ->orWhere(function ($s) use ($debut, $fin) {
-                                $s->whereNull('date_deces')->whereBetween('updated_at', [$debut, $fin]);
-                            });
-                    });
+                    })->whereBetween('date_deces', [$debut, $fin]);
                 });
             })(),
             default => null,

@@ -1352,55 +1352,58 @@ class MilitaireController extends Controller
             $this->creerAlertePromotion($militaire, 'Sergent', $dateProposition, $dateAnciennete);
         }
 
+        $calcDateAnciennete = function ($annees) use ($militaire) {
+            $ref = $militaire->date_derniere_promotion ?? $militaire->date_grade_actuel ?? $militaire->date_entree_service;
+            return $ref ? Carbon::parse($ref)->addYears($annees) : null;
+        };
+
         if ($grade == 'Caporal' && in_array('CAT1', $certificatsObtenus) && !in_array('CAT2', $certificatsObtenus) && $age >= 47 && $ancienneteGrade >= 3 && $conditionsBase) {
-            $dateAnciennete = $militaire->date_derniere_promotion
-                ? Carbon::parse($militaire->date_derniere_promotion)->addYears(3)
-                : null;
+            $dateAnciennete = $calcDateAnciennete(3);
             $this->creerAlertePromotion($militaire, 'Caporal-chef', $dateProposition, $dateAnciennete);
         }
 
         if ($grade == 'Sergent' && $conditionsBase && $ancienneteGrade >= 2 && $militaire->anciennete >= 5) {
-            $dateAnciennete = Carbon::parse($militaire->date_derniere_promotion)->addYears(2);
+            $dateAnciennete = $calcDateAnciennete(2);
             $this->creerAlertePromotion($militaire, 'Sergent-Chef', $dateProposition, $dateAnciennete);
         }
 
         if ($grade == 'Sergent-Chef' && $conditionsBase && $ancienneteGrade >= 3) {
-            $dateAnciennete = Carbon::parse($militaire->date_derniere_promotion)->addYears(3);
+            $dateAnciennete = $calcDateAnciennete(3);
             $this->creerAlertePromotion($militaire, 'Adjudant', $dateProposition, $dateAnciennete);
         }
 
         if ($grade == 'Adjudant' && $conditionsBase && $ancienneteGrade >= 2) {
-            $dateAnciennete = Carbon::parse($militaire->date_derniere_promotion)->addYears(2);
+            $dateAnciennete = $calcDateAnciennete(2);
             $this->creerAlertePromotion($militaire, 'Adjudant-Chef', $dateProposition, $dateAnciennete);
         }
 
         if ($grade == 'Sous-lieutenant' && $ancienneteGrade >= 2) {
-            $dateAnciennete = Carbon::parse($militaire->date_derniere_promotion)->addYears(2);
+            $dateAnciennete = $calcDateAnciennete(2);
             $this->creerAlertePromotion($militaire, 'Lieutenant', $dateProposition, $dateAnciennete);
         }
 
         if ($grade == 'Lieutenant' && $ancienneteGrade >= 3) {
-            $dateAnciennete = Carbon::parse($militaire->date_derniere_promotion)->addYears(3);
+            $dateAnciennete = $calcDateAnciennete(3);
             $this->creerAlertePromotion($militaire, 'Capitaine', $dateProposition, $dateAnciennete);
         }
 
         if ($grade == 'Capitaine' && $ancienneteGrade >= 3) {
-            $dateAnciennete = Carbon::parse($militaire->date_derniere_promotion)->addYears(3);
+            $dateAnciennete = $calcDateAnciennete(3);
             $this->creerAlertePromotion($militaire, 'Commandant', $dateProposition, $dateAnciennete);
         }
 
         if ($grade == 'Commandant' && $ancienneteGrade >= 3) {
-            $dateAnciennete = Carbon::parse($militaire->date_derniere_promotion)->addYears(3);
+            $dateAnciennete = $calcDateAnciennete(3);
             $this->creerAlertePromotion($militaire, 'Lieutenant-colonel', $dateProposition, $dateAnciennete);
         }
 
         if ($grade == 'Lieutenant-colonel' && $ancienneteGrade >= 3) {
-            $dateAnciennete = Carbon::parse($militaire->date_derniere_promotion)->addYears(3);
+            $dateAnciennete = $calcDateAnciennete(3);
             $this->creerAlertePromotion($militaire, 'Colonel', $dateProposition, $dateAnciennete);
         }
 
         if ($grade == 'Colonel' && $ancienneteGrade >= 6) {
-            $dateAnciennete = Carbon::parse($militaire->date_derniere_promotion)->addYears(6);
+            $dateAnciennete = $calcDateAnciennete(6);
             $this->creerAlertePromotion($militaire, 'Colonel-Major', $dateProposition, $dateAnciennete);
         }
     }
@@ -1541,19 +1544,23 @@ class MilitaireController extends Controller
 
     private function creerAlerte(Militaire $militaire, string $type, string $message, $dateEcheance = null): void
     {
-        // Vérifie l'existence sans filtrer sur est_vue pour éviter de dupliquer une alerte déjà lue
-        $existe = Alerte::where('militaire_id', $militaire->id)
+        $alerte = Alerte::where('militaire_id', $militaire->id)
             ->where('type_alerte', $type)
             ->where('message', $message)
-            ->exists();
+            ->first();
 
-        if (!$existe) {
+        if ($alerte) {
+            if ($alerte->est_vue) {
+                $alerte->update(['est_vue' => false]);
+            }
+        } else {
             $echeance = $dateEcheance ?? Carbon::now()->addDays(2);
             Alerte::create([
-                'militaire_id' => $militaire->id,
-                'type_alerte'  => $type,
-                'message'      => $message,
+                'militaire_id'  => $militaire->id,
+                'type_alerte'   => $type,
+                'message'       => $message,
                 'date_echeance' => $echeance,
+                'est_vue'       => false,
             ]);
         }
     }

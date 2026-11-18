@@ -359,7 +359,15 @@ class AlerteController extends Controller
         // 1. Basculer automatiquement en 'retraité' les militaires ayant dépassé la limite d'âge de leur grade
         $this->actualiserStatutRetraites();
 
-        // 2. Générer l'ensemble de toutes les alertes via le vérificateur complet (Promotions, Formations, Retraites, Contrats, Mutations)
+        // 2. Nettoyer les alertes obsolètes des militaires qui ne sont plus en activité
+        Alerte::whereDoesntHave('militaire', function ($q) {
+            $q->enActivite();
+        })->delete();
+
+        // 3. Remettre les alertes existantes en statut non-vue afin d'aviser l'utilisateur
+        Alerte::where('est_vue', true)->update(['est_vue' => false]);
+
+        // 4. Générer l'ensemble de toutes les alertes via le vérificateur complet (Promotions, Formations, Retraites, Contrats, Mutations)
         $militaireController = app(MilitaireController::class);
         Militaire::enActivite()
             ->with(['certificats', 'affectations'])

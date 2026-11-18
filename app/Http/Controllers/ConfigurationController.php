@@ -134,6 +134,13 @@ class ConfigurationController extends Controller
 
     public function destroyRegion(Region $region)
     {
+        $unitesCount = $region->unites()->count();
+        $militairesCount = Militaire::where('region_id', $region->id)->count();
+
+        if ($unitesCount > 0 || $militairesCount > 0) {
+            return redirect()->back()->with('error', "Impossible de supprimer la région '{$region->nom}' car elle contient {$unitesCount} unité(s) et {$militairesCount} militaire(s). Veuillez d'abord réaffecter ces éléments.");
+        }
+
         $region->delete();
         CarteController::flush();
         return redirect()->back()->with('success', 'Région supprimée avec succès.');

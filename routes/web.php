@@ -32,7 +32,7 @@ Route::get('/dashboard', function () {
         return redirect()->route('login')->with('error', 'Votre compte est en attente d\'activation par un administrateur.');
     }
     return app(DashboardController::class)->index();
-})->middleware(['auth', 'verified'])->name('dashboard');
+})->middleware(['auth'])->name('dashboard');
 
 // Routes réservées à l'Admin (Gestionnaire)
 Route::middleware(['auth', 'admin'])->group(function () {

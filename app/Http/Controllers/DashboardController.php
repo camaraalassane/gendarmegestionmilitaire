@@ -91,10 +91,7 @@ class DashboardController extends Controller
             })->where(function ($q) use ($anneeCourante) {
                 $debut = Carbon::create($anneeCourante, 1, 1)->startOfDay();
                 $fin = Carbon::create($anneeCourante, 12, 31)->endOfDay();
-                $q->whereBetween('date_deces', [$debut, $fin])
-                  ->orWhere(function ($sub) use ($debut, $fin) {
-                      $sub->whereNull('date_deces')->whereBetween('updated_at', [$debut, $fin]);
-                  });
+                $q->whereBetween('date_deces', [$debut, $fin]);
             })->count();
 
             $totalDeserteurs = Militaire::where(function ($q) {
