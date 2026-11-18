@@ -585,20 +585,20 @@
 
                                 <!-- 2. Découpage en parcelles Voronoi clipsé à la forme exacte de la région -->
                                 <g clip-path="url(#region-clip-shape)">
-                                    <path
-                                        v-for="p in regionalParcels"
-                                        :key="'parcel-' + p.unit.id"
-                                        v-if="p.path && isUnitVisible(p.unit)"
-                                        :d="p.path"
-                                        :fill="parcelFill(p.unit)"
-                                        stroke="#0f172a"
-                                        :stroke-width="0.22 * rUnit"
-                                        stroke-linejoin="round"
-                                        class="cursor-pointer transition-colors duration-150 hover:brightness-110"
-                                        @click="handleUnitClick(p.unit.id)"
-                                        @mouseenter="onHoverUnitParcel(p.unit)"
-                                        @mouseleave="onLeaveHover"
-                                    />
+                                    <template v-for="p in regionalParcels" :key="'parcel-' + p.unit.id">
+                                        <path
+                                            v-if="p.path && isUnitVisible(p.unit)"
+                                            :d="p.path"
+                                            :fill="parcelFill(p.unit)"
+                                            stroke="#0f172a"
+                                            :stroke-width="0.22 * rUnit"
+                                            stroke-linejoin="round"
+                                            class="cursor-pointer transition-colors duration-150 hover:brightness-110"
+                                            @click="handleUnitClick(p.unit.id)"
+                                            @mouseenter="onHoverUnitParcel(p.unit)"
+                                            @mouseleave="onLeaveHover"
+                                        />
+                                    </template>
                                 </g>
 
                                 <!-- Message si 0 unité visible dans la région -->
@@ -641,93 +641,93 @@
                                 />
 
                                 <!-- 5. Disques proportionnels Jacques Bertin (halo & cercles style Carte de France) -->
-                                <g
-                                    v-for="p in regionalParcels"
-                                    :key="'marker-' + p.unit.id"
-                                    v-if="isUnitVisible(p.unit)"
-                                    class="cursor-pointer"
-                                    @click="handleUnitClick(p.unit.id)"
-                                    @mouseenter="onHoverUnitParcel(p.unit)"
-                                    @mouseleave="onLeaveHover"
-                                >
-                                    <!-- Halo cyan si unité sélectionnée -->
-                                    <circle
-                                        v-if="selUnit === p.unit.id && parcelCircleR(p.unit) > 0"
-                                        :cx="p.cx"
-                                        :cy="p.cy"
-                                        :r="parcelCircleR(p.unit) + 1.2 * rUnit"
-                                        fill="none"
-                                        stroke="#0284c7"
-                                        :stroke-width="0.5 * rUnit"
-                                        class="animate-pulse"
-                                    />
+                                <template v-for="p in regionalParcels" :key="'marker-' + p.unit.id">
+                                    <g
+                                        v-if="isUnitVisible(p.unit)"
+                                        class="cursor-pointer"
+                                        @click="handleUnitClick(p.unit.id)"
+                                        @mouseenter="onHoverUnitParcel(p.unit)"
+                                        @mouseleave="onLeaveHover"
+                                    >
+                                        <!-- Halo cyan si unité sélectionnée -->
+                                        <circle
+                                            v-if="selUnit === p.unit.id && parcelCircleR(p.unit) > 0"
+                                            :cx="p.cx"
+                                            :cy="p.cy"
+                                            :r="parcelCircleR(p.unit) + 1.2 * rUnit"
+                                            fill="none"
+                                            stroke="#0284c7"
+                                            :stroke-width="0.5 * rUnit"
+                                            class="animate-pulse"
+                                        />
 
-                                    <!-- Double contour noir épais pour les unités majeures (Top quantile 5) -->
-                                    <circle
-                                        v-if="p.unit.effectif > 0 && p.unit.effectif >= quantileThresholds[3] && parcelCircleR(p.unit) > 0"
-                                        :cx="p.cx"
-                                        :cy="p.cy"
-                                        :r="parcelCircleR(p.unit) + 0.65 * rUnit"
-                                        fill="none"
-                                        stroke="#000000"
-                                        :stroke-width="0.4 * rUnit"
-                                    />
+                                        <!-- Double contour noir épais pour les unités majeures (Top quantile 5) -->
+                                        <circle
+                                            v-if="p.unit.effectif > 0 && p.unit.effectif >= quantileThresholds[3] && parcelCircleR(p.unit) > 0"
+                                            :cx="p.cx"
+                                            :cy="p.cy"
+                                            :r="parcelCircleR(p.unit) + 0.65 * rUnit"
+                                            fill="none"
+                                            stroke="#000000"
+                                            :stroke-width="0.4 * rUnit"
+                                        />
 
-                                    <!-- Cercle proportionnel rouge Jacques Bertin avec contour noir prononcé (pointillé si position approx.) -->
-                                    <circle
-                                        v-if="parcelCircleR(p.unit) > 0"
-                                        :cx="p.cx"
-                                        :cy="p.cy"
-                                        :r="parcelCircleR(p.unit)"
-                                        fill="#ef4444"
-                                        :stroke="selUnit === p.unit.id ? '#0284c7' : '#000000'"
-                                        :stroke-width="(selUnit === p.unit.id ? 0.55 : 0.35) * rUnit"
-                                        :stroke-dasharray="(!p.unit.lat || !p.unit.lon) ? `${1.2 * rUnit} ${0.9 * rUnit}` : undefined"
-                                        filter="url(#pin-shadow)"
-                                    />
-                                </g>
+                                        <!-- Cercle proportionnel rouge Jacques Bertin avec contour noir prononcé (pointillé si position approx.) -->
+                                        <circle
+                                            v-if="parcelCircleR(p.unit) > 0"
+                                            :cx="p.cx"
+                                            :cy="p.cy"
+                                            :r="parcelCircleR(p.unit)"
+                                            fill="#ef4444"
+                                            :stroke="selUnit === p.unit.id ? '#0284c7' : '#000000'"
+                                            :stroke-width="(selUnit === p.unit.id ? 0.55 : 0.35) * rUnit"
+                                            :stroke-dasharray="(!p.unit.lat || !p.unit.lon) ? `${1.2 * rUnit} ${0.9 * rUnit}` : undefined"
+                                            filter="url(#pin-shadow)"
+                                        />
+                                    </g>
+                                </template>
 
                                 <!-- 6. Chiffres des effectifs au premier plan (toujours au-dessus des cercles, ultra-lisibles) -->
-                                <g
-                                    v-for="p in regionalParcels"
-                                    :key="'text-' + p.unit.id"
-                                    v-if="isUnitVisible(p.unit)"
-                                    class="pointer-events-none select-none"
-                                >
-                                    <!-- Chiffre de l'effectif au centre du cercle proportionnel (grand, noir, gras 900) -->
-                                    <text
-                                        v-if="p.unit.effectif > 0 && parcelCircleFontSize(p.unit) > 0"
-                                        :x="p.cx"
-                                        :y="p.cy"
-                                        text-anchor="middle"
-                                        dominant-baseline="central"
-                                        :font-size="parcelCircleFontSize(p.unit) + 'px'"
-                                        font-weight="900"
-                                        fill="#000000"
-                                        style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"
+                                <template v-for="p in regionalParcels" :key="'text-' + p.unit.id">
+                                    <g
+                                        v-if="isUnitVisible(p.unit)"
+                                        class="pointer-events-none select-none"
                                     >
-                                        {{ p.unit.effectif }}
-                                    </text>
+                                        <!-- Chiffre de l'effectif au centre du cercle proportionnel (grand, noir, gras 900) -->
+                                        <text
+                                            v-if="p.unit.effectif > 0 && parcelCircleFontSize(p.unit) > 0"
+                                            :x="p.cx"
+                                            :y="p.cy"
+                                            text-anchor="middle"
+                                            dominant-baseline="central"
+                                            :font-size="parcelCircleFontSize(p.unit) + 'px'"
+                                            font-weight="900"
+                                            fill="#000000"
+                                            style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"
+                                        >
+                                            {{ p.unit.effectif }}
+                                        </text>
 
-                                    <!-- Libellé de l'unité : UNIQUEMENT pour les régions aérées (<= 6 unités) ou au survol/clic -->
-                                    <text
-                                        v-if="shouldShowParcelLabel(p)"
-                                        class="font-bold"
-                                        text-anchor="middle"
-                                        :x="p.cx"
-                                        :y="p.cy + parcelCircleR(p.unit) + 2.2 * rUnit"
-                                        :style="{
-                                            fontSize: (selUnit === p.unit.id ? 2.0 : 1.6) * rUnit + 'px',
-                                            fill: '#0f172a',
-                                            stroke: '#ffffff',
-                                            strokeWidth: 0.6 * rUnit + 'px',
-                                            paintOrder: 'stroke fill',
-                                            fontWeight: 800
-                                        }"
-                                    >
-                                        {{ shortUnitName(p.unit.nom) }}
-                                    </text>
-                                </g>
+                                        <!-- Libellé de l'unité : UNIQUEMENT pour les régions aérées (<= 6 unités) ou au survol/clic -->
+                                        <text
+                                            v-if="shouldShowParcelLabel(p)"
+                                            class="font-bold"
+                                            text-anchor="middle"
+                                            :x="p.cx"
+                                            :y="p.cy + parcelCircleR(p.unit) + 2.2 * rUnit"
+                                            :style="{
+                                                fontSize: (selUnit === p.unit.id ? 2.0 : 1.6) * rUnit + 'px',
+                                                fill: '#0f172a',
+                                                stroke: '#ffffff',
+                                                strokeWidth: 0.6 * rUnit + 'px',
+                                                paintOrder: 'stroke fill',
+                                                fontWeight: 800
+                                            }"
+                                        >
+                                            {{ shortUnitName(p.unit.nom) }}
+                                        </text>
+                                    </g>
+                                </template>
                             </template>
                         </svg>
                     </div>
@@ -2070,13 +2070,27 @@ const regionalParcels = computed(() => {
         } else {
             // Position de repli stable et déterministe basée sur le rang fixe de l'unité dans sa région
             // L'unité reste strictement au même endroit même lors d'un filtrage ou d'une recherche
-            const fixedRank = allRegionUnits.findIndex(u => u.id === p.unit.id);
-            const stableSeed = fixedRank >= 0 ? fixedRank : (p.unit.id % 50);
+            // Regroupées autour du chef-lieu de la région (sinon centre du tracé), sur un petit cercle
+            const sansGps = allRegionUnits.filter(u => !(u.lat !== null && u.lon !== null && !isNaN(Number(u.lat)) && !isNaN(Number(u.lon))));
+            const rg = sansGps.findIndex(u => u.id === p.unit.id);
+            const stableSeed = rg >= 0 ? rg : (p.unit.id % 50);
+            const k = sel.value === 'R1' ? 4.0 : 1.0;   // Bamako est tracée agrandie 4 fois
 
-            const r = Math.sqrt((stableSeed + 0.5) / totalInRegion) * (pw * 0.28);
+            let ox = cx, oy = cy;
+            const rgn = selRegion.value;
+            if (rgn?.chef_lat != null && rgn?.chef_lon != null) {
+                const cp = project(Number(rgn.chef_lat), Number(rgn.chef_lon));
+                ox = cp.x; oy = cp.y;
+                if (sel.value === 'R1') {
+                    const baseCx = 164.6, baseCy = 495.4;
+                    ox = baseCx + (ox - baseCx) * k;
+                    oy = baseCy + (oy - baseCy) * k;
+                }
+            }
+            const r = (4 + 2.5 * Math.sqrt(stableSeed)) * k;
             const theta = stableSeed * goldenAngle;
-            x = cx + r * Math.cos(theta);
-            y = cy + r * Math.sin(theta);
+            x = ox + r * Math.cos(theta);
+            y = oy + r * Math.sin(theta);
         }
 
         // Vérification d'inclusion dans le contour multi-polygones de la région

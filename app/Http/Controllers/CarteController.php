@@ -39,7 +39,7 @@ class CarteController extends Controller
             ->select('id', 'region_id', 'nom', 'type', 'ville', 'latitude', 'longitude', 'est_operationnelle')
             ->orderBy('nom')])
             ->orderByRaw('COALESCE(ordre, 999)')->orderBy('nom')
-            ->get(['id', 'code', 'nom', 'chef_lieu']);
+            ->get(['id', 'code', 'nom', 'chef_lieu', 'latitude', 'longitude']);
 
         // 2) Effectif en activité (actifs, détachés, missions, stages) : définition centralisée dans Effectif.php
         //    Les radiés, retraités, déserteurs et décédés sont comptabilisés à part (hors effectif).
@@ -124,6 +124,8 @@ class CarteController extends Controller
                 'code' => $r->code,
                 'nom' => $r->nom,
                 'chef_lieu' => $r->chef_lieu,
+                'chef_lat' => $r->latitude !== null ? (float) $r->latitude : null,
+                'chef_lon' => $r->longitude !== null ? (float) $r->longitude : null,
                 'effectif' => $total,
                 'absents' => (int) $l->sum('absents'),
                 'femmes' => (int) $l->sum('femmes'),
