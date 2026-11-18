@@ -111,11 +111,11 @@ class AlerteController extends Controller
     }
 
     /**
-     * Marquer une alerte comme vue (supprimée)
+     * Marquer une alerte comme vue (archivée)
      */
     public function marquerVue(Alerte $alerte)
     {
-        $alerte->delete();
+        $alerte->update(['est_vue' => true]);
 
         Cache::forget('alertes:non_vues_count');
         Cache::forget('alertes:non_vues_count_gendarme');
@@ -126,11 +126,11 @@ class AlerteController extends Controller
             return response()->json(['success' => true]);
         }
 
-        return redirect()->back()->with('success', 'Alerte supprimée avec succès.');
+        return redirect()->back()->with('success', 'Alerte marquée comme vue avec succès.');
     }
 
     /**
-     * Supprimer toutes les alertes non vues
+     * Marquer toutes les alertes non vues comme vues
      */
     public function marquerToutVue()
     {
@@ -138,10 +138,10 @@ class AlerteController extends Controller
         $count = $alertes->count();
 
         if ($count > 0) {
-            $alertes->delete();
-            $message = "{$count} alerte(s) ont été supprimées avec succès.";
+            $alertes->update(['est_vue' => true]);
+            $message = "{$count} alerte(s) ont été marquées comme vues avec succès.";
         } else {
-            $message = "Aucune alerte à supprimer.";
+            $message = "Aucune alerte à marquer comme vue.";
         }
 
         Cache::forget('alertes:non_vues_count');

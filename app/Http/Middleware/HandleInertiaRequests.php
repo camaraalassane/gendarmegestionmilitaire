@@ -41,6 +41,8 @@ class HandleInertiaRequests extends Middleware
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
             ],
+            'duplicates' => fn () => $request->session()->get('duplicates'),
+            'import_summary' => fn () => $request->session()->get('import_summary'),
         ];
 
         // Ajouter le compteur d'alertes si l'utilisateur est connecté (mis en cache 120s pour la rapidité)

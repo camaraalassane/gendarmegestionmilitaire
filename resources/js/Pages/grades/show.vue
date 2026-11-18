@@ -109,6 +109,7 @@
                             
                             <template #content>
                                 <DataTable :value="militaires.data" 
+                                           :lazy="true"
                                            stripedRows 
                                            responsiveLayout="scroll"
                                            :loading="loading"

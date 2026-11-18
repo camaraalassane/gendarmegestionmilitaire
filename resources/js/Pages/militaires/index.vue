@@ -104,26 +104,22 @@
                             <div>
                                 <label class="block text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide">Grade</label>
                                 <Select v-model="filters.grade" :options="gradeOptions" optionLabel="label"
-                                    optionValue="value" placeholder="Tous les grades" class="w-full text-sm" showClear
-                                    @change="onFilterChange" />
+                                    optionValue="value" placeholder="Tous les grades" class="w-full text-sm" showClear />
                             </div>
                             <div>
                                 <label class="block text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide">Région</label>
                                 <Select v-model="filters.region" :options="regionOptions" optionLabel="label"
-                                    optionValue="value" placeholder="Toutes les régions" class="w-full text-sm" showClear
-                                    @change="onFilterChange" />
+                                    optionValue="value" placeholder="Toutes les régions" class="w-full text-sm" showClear />
                             </div>
                             <div>
                                 <label class="block text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide">Position / Théâtre</label>
                                 <Select v-model="filters.position" :options="positionOptions" optionLabel="label"
-                                    optionValue="value" placeholder="Toutes les positions" class="w-full text-sm" showClear
-                                    @change="onFilterChange" />
+                                    optionValue="value" placeholder="Toutes les positions" class="w-full text-sm" showClear />
                             </div>
                             <div>
                                 <label class="block text-xs font-semibold text-gray-700 mb-1 uppercase tracking-wide">Statut</label>
                                 <Select v-model="filters.statut" :options="statutOptions" optionLabel="label"
-                                    optionValue="value" placeholder="Tous les statuts" class="w-full text-sm" showClear
-                                    @change="onFilterChange" />
+                                    optionValue="value" placeholder="Tous les statuts" class="w-full text-sm" showClear />
                             </div>
                             <div>
                                 <Button label="Réinitialiser" icon="pi pi-times"
@@ -797,8 +793,11 @@ const filters = reactive({
 });
 
 const setStatutFilter = (statut) => {
-    filters.statut = statut;
-    loadMilitaires(1);
+    if (filters.statut === statut) {
+        loadMilitaires(1);
+    } else {
+        filters.statut = statut;
+    }
 };
 
 const exportFilters = reactive({

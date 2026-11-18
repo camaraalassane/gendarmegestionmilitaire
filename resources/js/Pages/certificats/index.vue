@@ -50,8 +50,7 @@
                                                 optionValue="value"
                                                 placeholder="Filtrer par niveau"
                                                 class="w-full text-xs"
-                                                showClear
-                                                @change="onFilterChange" />
+                                                showClear />
                                     </div>
                                     <div v-if="filters.search || filters.niveau" class="sm:col-span-2">
                                         <Button label="Réinitialiser" 

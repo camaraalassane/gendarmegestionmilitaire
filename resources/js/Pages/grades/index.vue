@@ -67,8 +67,7 @@
                                         optionValue="value"
                                         placeholder="Tous les types"
                                         class="w-full"
-                                        showClear
-                                        @change="onFilterChange" />
+                                        showClear />
                             </div>
                             <!-- Boutons : Réinitialiser + Nouveau grade, alignés à droite -->
                             <div class="md:col-span-2">
