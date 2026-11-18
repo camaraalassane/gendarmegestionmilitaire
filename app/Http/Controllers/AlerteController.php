@@ -395,7 +395,9 @@ class AlerteController extends Controller
         Cache::forget('dashboard:statistiques_cards');
         Cache::forget('alertes:statistiques_globales');
         Militaire::incrementCacheVersion();
-        \App\Http\Controllers\CarteController::flush();
+        if (class_exists(\App\Http\Controllers\CarteController::class)) {
+            \App\Http\Controllers\CarteController::flush();
+        }
 
         $totalNonVues = Alerte::where('est_vue', false)->count();
 
@@ -423,7 +425,9 @@ class AlerteController extends Controller
         }
         if ($retraitesIds) {
             Militaire::incrementCacheVersion();
-            \App\Http\Controllers\CarteController::flush();
+            if (class_exists(\App\Http\Controllers\CarteController::class)) {
+                \App\Http\Controllers\CarteController::flush();
+            }
             Cache::forget('dashboard:statistiques_cards');
         }
 
