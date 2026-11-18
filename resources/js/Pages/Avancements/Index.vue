@@ -73,68 +73,7 @@
                 </div>
             </div>
 
-            <!-- Bandeau de synthèse KPI : Adapté à l'onglet actif -->
-            <!-- CAS 1 : OFFICIERS -->
-            <div v-if="activeTab === 'officiers'" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 print:hidden">
-                <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <div class="w-9 h-9 rounded-lg bg-sky-100 text-sky-800 flex items-center justify-center shrink-0">
-                            <i class="pi pi-users text-base"></i>
-                        </div>
-                        <div>
-                            <p class="text-xs text-slate-500 font-medium">Officiers éligibles</p>
-                            <h3 class="text-lg font-extrabold text-slate-800">{{ stats.total_officiers }}</h3>
-                        </div>
-                    </div>
-                    <span class="text-xs px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-200 font-bold">
-                        Session {{ currentAnnee }}
-                    </span>
-                </div>
 
-                <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <div class="w-9 h-9 rounded-lg bg-sky-100 text-sky-800 flex items-center justify-center shrink-0">
-                            <i class="pi pi-star text-base"></i>
-                        </div>
-                        <div>
-                            <p class="text-xs text-slate-500 font-medium">Grades Officiers</p>
-                            <h3 class="text-lg font-extrabold text-slate-800">{{ activeAvailableGrades.length }}</h3>
-                        </div>
-                    </div>
-                    <span class="text-xs text-sky-800 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded font-bold">Du + élevé au - élevé</span>
-                </div>
-            </div>
-
-            <!-- CAS 2 : SOUS-OFFICIERS & RANG (AUCUN VERT - SLATE/NAVY PROJET) -->
-            <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 print:hidden">
-                <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <div class="w-9 h-9 rounded-lg bg-sky-100 text-sky-800 flex items-center justify-center shrink-0">
-                            <i class="pi pi-users text-base"></i>
-                        </div>
-                        <div>
-                            <p class="text-xs text-slate-500 font-medium">Sous-Officiers & Rang éligibles</p>
-                            <h3 class="text-lg font-extrabold text-slate-800">{{ stats.total_sous_officiers }}</h3>
-                        </div>
-                    </div>
-                    <span class="text-xs px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-200 font-bold">
-                        Session {{ currentAnnee }}
-                    </span>
-                </div>
-
-                <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <div class="w-9 h-9 rounded-lg bg-sky-100 text-sky-800 flex items-center justify-center shrink-0">
-                            <i class="pi pi-star text-base"></i>
-                        </div>
-                        <div>
-                            <p class="text-xs text-slate-500 font-medium">Grades représentés</p>
-                            <h3 class="text-lg font-extrabold text-slate-800">{{ activeAvailableGrades.length }}</h3>
-                        </div>
-                    </div>
-                    <span class="text-xs text-sky-800 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded font-bold">Du + élevé au - élevé</span>
-                </div>
-            </div>
 
             <!-- DEUX CARTES ALIGNÉES : 1) Filtres & Affichage  2) Actions -->
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 mb-4 print:hidden">
