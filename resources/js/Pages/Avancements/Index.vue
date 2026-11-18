@@ -75,7 +75,7 @@
 
             <!-- Bandeau de synthèse KPI : Adapté à l'onglet actif -->
             <!-- CAS 1 : OFFICIERS -->
-            <div v-if="activeTab === 'officiers'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4 print:hidden">
+            <div v-if="activeTab === 'officiers'" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 print:hidden">
                 <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between">
                     <div class="flex items-center gap-3">
                         <div class="w-9 h-9 rounded-lg bg-sky-100 text-sky-800 flex items-center justify-center shrink-0">
@@ -103,32 +103,10 @@
                     </div>
                     <span class="text-xs text-sky-800 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded font-bold">Du + élevé au - élevé</span>
                 </div>
-
-                <!-- Règle Limite d'âge -->
-                <div class="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-3 border border-amber-200 shadow-xs flex items-center gap-2.5">
-                    <div class="w-9 h-9 rounded-lg bg-amber-200 text-amber-900 flex items-center justify-center shrink-0">
-                        <i class="pi pi-clock text-base"></i>
-                    </div>
-                    <div class="text-[11px] leading-tight text-amber-900">
-                        <strong class="uppercase font-bold block text-amber-950">Règle Limite d'Âge</strong>
-                        <span>Reste 2 ans = <b class="text-red-700">-1 pt</b> | Reste 1 an = <b class="text-red-700">-2 pts</b></span>
-                    </div>
-                </div>
-
-                <!-- Règle Punitions -->
-                <div class="bg-gradient-to-r from-red-50 to-rose-50 rounded-xl p-3 border border-red-200 shadow-xs flex items-center gap-2.5">
-                    <div class="w-9 h-9 rounded-lg bg-red-200 text-red-900 flex items-center justify-center shrink-0">
-                        <i class="pi pi-exclamation-triangle text-base"></i>
-                    </div>
-                    <div class="text-[11px] leading-tight text-red-900">
-                        <strong class="uppercase font-bold block text-red-950">Règle des Punitions</strong>
-                        <span>Chaque jour de punition = <b class="text-red-700">-0,1 point</b> du total</span>
-                    </div>
-                </div>
             </div>
 
             <!-- CAS 2 : SOUS-OFFICIERS & RANG (AUCUN VERT - SLATE/NAVY PROJET) -->
-            <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4 print:hidden">
+            <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 print:hidden">
                 <div class="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between">
                     <div class="flex items-center gap-3">
                         <div class="w-9 h-9 rounded-lg bg-sky-100 text-sky-800 flex items-center justify-center shrink-0">
@@ -155,17 +133,6 @@
                         </div>
                     </div>
                     <span class="text-xs text-sky-800 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded font-bold">Du + élevé au - élevé</span>
-                </div>
-
-                <!-- Explication Ancienneté (Projet Slate/Sky) -->
-                <div class="bg-gradient-to-r from-slate-50 to-sky-50 rounded-xl p-3 border border-slate-200 shadow-xs flex items-center gap-2.5">
-                    <div class="w-9 h-9 rounded-lg bg-sky-100 text-sky-800 flex items-center justify-center shrink-0">
-                        <i class="pi pi-history text-base"></i>
-                    </div>
-                    <div class="text-[11px] leading-tight text-slate-800">
-                        <strong class="uppercase font-bold block text-slate-900">Règle Statutaire d'Ancienneté</strong>
-                        <span>1. Date nomination au grade ➔ 2. Date entrée service ➔ 3. Âge</span>
-                    </div>
                 </div>
             </div>
 

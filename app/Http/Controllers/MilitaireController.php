@@ -1122,7 +1122,7 @@ class MilitaireController extends Controller
      */
     private function verifierAlerteMutation(Militaire $militaire): void
     {
-        if ($militaire->statut !== 'actif') {
+        if (!$militaire->estEnActivite()) {
             Alerte::where('militaire_id', $militaire->id)->where('type_alerte', 'mutation')->delete();
             return;
         }
@@ -1187,7 +1187,8 @@ class MilitaireController extends Controller
      */
     private function verifierAlerteContrat(Militaire $militaire): void
     {
-        if ($militaire->statut !== 'actif') {
+        if (!$militaire->estEnActivite()) {
+            Alerte::where('militaire_id', $militaire->id)->where('type_alerte', 'contrat')->delete();
             return;
         }
 
@@ -1201,13 +1202,28 @@ class MilitaireController extends Controller
             return;
         }
 
+        // Si le militaire a un contrat actif dont la fin est dans plus de 6 mois, pas d'alerte de renouvellement
+        $contratActif = $militaire->contrats()
+            ->where('statut', 'actif')
+            ->latest('date_debut')
+            ->first();
+
+        if ($contratActif && $contratActif->date_fin) {
+            if ($contratActif->date_fin->isFuture() && $contratActif->date_fin->diffInDays(now()) > 180) {
+                Alerte::where('militaire_id', $militaire->id)
+                    ->where('type_alerte', 'contrat')
+                    ->delete();
+                return;
+            }
+        }
+
         if (!$militaire->date_entree_service) {
             return;
         }
 
         $serviceYears = floor($militaire->date_entree_service->diffInYears(now()));
 
-        if ($serviceYears < 5) {
+        if ($serviceYears < 5 && !$contratActif) {
             Alerte::where('militaire_id', $militaire->id)
                 ->where('type_alerte', 'contrat')
                 ->delete();
@@ -1224,7 +1240,7 @@ class MilitaireController extends Controller
             'militaire_id' => $militaire->id,
             'type_alerte' => 'contrat',
             'message' => $message,
-            'date_echeance' => now()->addMonths(6),
+            'date_echeance' => $contratActif?->date_fin ?? now()->addMonths(6),
             'est_vue' => false,
         ]);
     }
@@ -1279,7 +1295,7 @@ class MilitaireController extends Controller
      */
     private function verifierPromotions(Militaire $militaire): void
     {
-        if ($militaire->statut !== 'actif') return;
+        if (!$militaire->estEnActivite()) return;
 
         $grade = $militaire->grade_actuel;
         // Normalisation pour équivalences de grades
@@ -1375,7 +1391,7 @@ class MilitaireController extends Controller
      */
     private function verifierFormations(Militaire $militaire): void
     {
-        if ($militaire->statut !== 'actif') return;
+        if (!$militaire->estEnActivite()) return;
 
         $grade = $militaire->grade_actuel;
         $age = $militaire->age;

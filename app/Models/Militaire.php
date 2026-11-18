@@ -519,6 +519,18 @@ class Militaire extends Model
     }
 
     /**
+     * Vérifie si le militaire est en activité (statut_code 1 à 4, ou statuts textuels équivalents).
+     */
+    public function estEnActivite(): bool
+    {
+        if ($this->statut_code !== null) {
+            $code = (int) $this->statut_code;
+            return $code >= 1 && $code <= 4;
+        }
+        return in_array(strtolower((string) $this->statut), ['actif', 'détaché', 'detache', 'en stage', 'en mission']);
+    }
+
+    /**
      * Scope pour filtrer par statut militaire (accepte Enum, entier ou texte).
      */
     public function scopeDuStatut($query, StatutMilitaire|int|string $statut)

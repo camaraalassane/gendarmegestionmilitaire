@@ -90,19 +90,18 @@ class AlerteController extends Controller
                 ] : null,
             ]);
 
-        // Statistiques globales (mises en cache 120s pour navigations instantanées)
-        $statistiques = Cache::remember('alertes:statistiques_globales', 120, function () {
-            return [
-                'total' => Alerte::count(),
-                'non_vues' => Alerte::where('est_vue', false)->count(),
-                'vues' => Alerte::where('est_vue', true)->count(),
-                'promotions' => Alerte::where('type_alerte', 'promotion')->count(),
-                'formations' => Alerte::where('type_alerte', 'formation')->count(),
-                'retraites' => Alerte::where('type_alerte', 'retraite')->count(),
-                'contrats' => Alerte::where('type_alerte', 'contrat')->count(),
-                'mutations' => Alerte::where('type_alerte', 'mutation')->count(),
-            ];
-        });
+        // Statistiques globales calculées en direct pour garantir des chiffres 100% dynamiques et synchronisés
+        $countsByType = Alerte::selectRaw('type_alerte, count(*) as count')->groupBy('type_alerte')->pluck('count', 'type_alerte');
+        $statistiques = [
+            'total' => Alerte::count(),
+            'non_vues' => Alerte::where('est_vue', false)->count(),
+            'vues' => Alerte::where('est_vue', true)->count(),
+            'promotions' => (int) ($countsByType['promotion'] ?? 0),
+            'formations' => (int) ($countsByType['formation'] ?? 0),
+            'retraites' => (int) ($countsByType['retraite'] ?? 0),
+            'contrats' => (int) ($countsByType['contrat'] ?? 0),
+            'mutations' => (int) ($countsByType['mutation'] ?? 0),
+        ];
 
         return Inertia::render('alertes/index', [
             'alertes' => $alertes,

@@ -8,6 +8,7 @@ use App\Models\Alerte;
 use App\Models\ActivityLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Carbon\Carbon;
 
@@ -32,12 +33,11 @@ class ContratController extends Controller
             $contratActif = $militaire->contrats->where('statut', 'actif')->first();
             $contratRenouvele = $militaire->contrats->where('statut', 'renouvele')->first();
 
-            // Calcul des années de service
+            // Calcul des années de service réelles
+            $dateRef = $militaire->date_entree_service ?? $contratRenouvele?->date_debut ?? $contratActif?->date_debut;
             $anneesService = 0;
-            if ($contratActif && $contratActif->date_debut) {
-                $dateDebut = Carbon::parse($contratActif->date_debut);
-                $anneesService = $dateDebut->diffInYears(now());
-                $anneesService = max(0, $anneesService);
+            if ($dateRef) {
+                $anneesService = max(0, (int) floor(Carbon::parse($dateRef)->diffInYears(now())));
             }
 
             return [
@@ -84,11 +84,10 @@ class ContratController extends Controller
             if ($militaireCible) {
                 $contratActif = $militaireCible->contrats->where('statut', 'actif')->first();
                 $contratRenouvele = $militaireCible->contrats->where('statut', 'renouvele')->first();
+                $dateRef = $militaireCible->date_entree_service ?? $contratRenouvele?->date_debut ?? $contratActif?->date_debut;
                 $anneesService = 0;
-                if ($contratActif && $contratActif->date_debut) {
-                    $dateDebut = Carbon::parse($contratActif->date_debut);
-                    $anneesService = $dateDebut->diffInYears(now());
-                    $anneesService = max(0, $anneesService);
+                if ($dateRef) {
+                    $anneesService = max(0, (int) floor(Carbon::parse($dateRef)->diffInYears(now())));
                 }
 
                 $militaireCible = [
@@ -153,6 +152,8 @@ class ContratController extends Controller
         }
 
         DB::transaction(function () use ($request, $dateDebut) {
+            $militaire = Militaire::findOrFail($request->militaire_id);
+
             // Récupérer l'ancien contrat actif
             $ancienContrat = Contrat::where('militaire_id', $request->militaire_id)
                 ->where('statut', 'actif')
@@ -164,6 +165,23 @@ class ContratController extends Controller
                 $ancienContrat->update([
                     'statut' => 'renouvele',
                     'date_fin' => $dateDebut->copy()->subDay(),
+                    'date_renouvellement' => now(),
+                ]);
+            } else {
+                // Si le militaire n'avait aucun contrat formalisé dans la table contrats,
+                // on matérialise son contrat initial basé sur sa date d'entrée en service
+                $dateDebutInitial = $militaire->date_entree_service 
+                    ? Carbon::parse($militaire->date_entree_service) 
+                    : $dateDebut->copy()->subYears(5);
+                $dureeInitiale = max(1, (int) round($dateDebutInitial->diffInYears($dateDebut)));
+
+                Contrat::create([
+                    'militaire_id' => $militaire->id,
+                    'date_debut' => $dateDebutInitial,
+                    'date_fin' => $dateDebut->copy()->subDay(),
+                    'duree_annees' => $dureeInitiale,
+                    'statut' => 'renouvele',
+                    'observations' => 'Contrat initial statutaire',
                     'date_renouvellement' => now(),
                 ]);
             }
@@ -196,6 +214,14 @@ class ContratController extends Controller
                 ]);
             }
         });
+
+        // Invalidation atomique de tous les caches pour actualisation dynamique immédiate
+        Militaire::incrementCacheVersion();
+        Cache::forget('alertes:statistiques_globales');
+        Cache::forget('alertes:non_vues_count');
+        Cache::forget('alertes:non_vues_count_gendarme');
+        Cache::forget('dashboard:statistiques_cards');
+        Cache::forget('carte:stats');
 
         return redirect()->back()->with('success', 'Contrat renouvelé avec succès.');
     }
@@ -393,6 +419,14 @@ class ContratController extends Controller
                 ]);
             }
         });
+
+        // Invalidation atomique de tous les caches pour actualisation dynamique immédiate
+        Militaire::incrementCacheVersion();
+        Cache::forget('alertes:statistiques_globales');
+        Cache::forget('alertes:non_vues_count');
+        Cache::forget('alertes:non_vues_count_gendarme');
+        Cache::forget('dashboard:statistiques_cards');
+        Cache::forget('carte:stats');
 
         return redirect()->back()->with('success', 'Renouvellement annulé avec succès.');
     }
