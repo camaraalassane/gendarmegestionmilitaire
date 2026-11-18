@@ -911,9 +911,9 @@
                                 <div class="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
                                     <span class="flex items-center gap-1.5">
                                         <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                                        <span>En activité ({{ fmt(sel ? selRegion.effectif : tot(r => r.effectif)) }})</span>
+                                        <span>En activité ({{ fmt(sel ? selRegion.effectif : (tot(r => r.effectif) + (stats.non_rattaches || 0))) }})</span>
                                     </span>
-                                    <span class="text-[9px] text-slate-400 font-normal">Somme = Effectif</span>
+                                    <span class="text-[9px] text-slate-400 font-normal">{{ sel ? 'Somme = Effectif' : `${fmt(tot(r => r.effectif))} en région • ${fmt(stats.non_rattaches || 0)} en attente` }}</span>
                                 </div>
                                 <div class="grid grid-cols-2 gap-1.5 text-xs">
                                     <div class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80">
@@ -1881,7 +1881,7 @@ const valStat = (k) => {
 
 const kpis = computed(() => {
     const r = selRegion.value;
-    const eff = r ? r.effectif : tot((x) => x.effectif);
+    const eff = r ? r.effectif : (tot((x) => x.effectif) + (Number(props.stats?.non_rattaches) || 0));
     const abs = r ? r.absents : tot((x) => x.absents);
     const nU = r ? r.unites.length : tot((x) => x.unites.length);
     const nOp = r ? opCount(r) : tot(opCount);
@@ -1889,7 +1889,7 @@ const kpis = computed(() => {
         {
             label: r ? 'Effectif région' : 'Effectif total',
             value: fmt(eff),
-            hint: r ? r.nom : 'en activité (hors retraités & radiés)'
+            hint: r ? r.nom : `${fmt(tot((x) => x.effectif))} en région • ${fmt(props.stats?.non_rattaches || 0)} en attente`
         },
         {
             label: 'Présents',
@@ -1933,7 +1933,7 @@ const detail = computed(() => {
         return [
             { label: 'Régions', value: props.regions.length },
             { label: 'Total Unités', value: tot((r) => r.unites.length) },
-            { label: 'Effectif Global', value: fmt(tot((r) => r.effectif)) },
+            { label: 'Effectif Global', value: fmt(tot((r) => r.effectif) + (Number(props.stats?.non_rattaches) || 0)) },
         ];
     }
     const r = selRegion.value;
