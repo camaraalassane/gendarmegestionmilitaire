@@ -45,7 +45,9 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
     // Carte opérationnelle & Déploiement
     Route::get('/carte', [CarteController::class, 'index'])->name('carte.index');
+    Route::get('/carte/militaires-statut', [CarteController::class, 'militairesStatut'])->name('carte.militaires-statut');
     Route::get('/carte/export', [\App\Http\Controllers\StatistiquesExportController::class, 'carte'])->name('carte.export');
+    Route::get('/carte/export-statut', [\App\Http\Controllers\StatistiquesExportController::class, 'exportStatut'])->name('carte.export-statut');
     Route::get('/dashboard/export-statistiques', [\App\Http\Controllers\StatistiquesExportController::class, 'dashboard'])->name('dashboard.export-statistiques');
 
     // Alertes

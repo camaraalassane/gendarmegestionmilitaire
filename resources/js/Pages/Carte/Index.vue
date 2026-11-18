@@ -916,22 +916,54 @@
                                     <span class="text-[9px] text-slate-400 font-normal">{{ sel ? 'Somme = Effectif' : `${fmt(tot(r => r.effectif))} en région • ${fmt(stats.non_rattaches || 0)} en attente` }}</span>
                                 </div>
                                 <div class="grid grid-cols-2 gap-1.5 text-xs">
-                                    <div class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80">
-                                        <span class="text-slate-600">Actifs au poste</span>
-                                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(valStat('actifs')) }}</strong>
-                                    </div>
-                                    <div class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80">
-                                        <span class="text-slate-600">Détachés</span>
-                                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(valStat('detaches')) }}</strong>
-                                    </div>
-                                    <div class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80">
-                                        <span class="text-slate-600">En mission</span>
-                                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(valStat('missions')) }}</strong>
-                                    </div>
-                                    <div class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80">
-                                        <span class="text-slate-600">En stage</span>
-                                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(valStat('stages')) }}</strong>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        @click="ouvrirModalStatut('actifs')"
+                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-sky-500 hover:bg-sky-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
+                                        title="Voir la liste nominative des militaires actifs au poste et exporter en Excel"
+                                    >
+                                        <span class="text-slate-600 group-hover:text-sky-900 flex items-center gap-1">
+                                            <span>Actifs au poste</span>
+                                            <i class="pi pi-arrow-up-right text-[9px] text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                        </span>
+                                        <strong class="text-slate-900 group-hover:text-sky-900 tabular-nums font-bold">{{ fmt(valStat('actifs')) }}</strong>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="ouvrirModalStatut('detaches')"
+                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-sky-500 hover:bg-sky-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
+                                        title="Voir la liste nominative des militaires détachés et exporter en Excel"
+                                    >
+                                        <span class="text-slate-600 group-hover:text-sky-900 flex items-center gap-1">
+                                            <span>Détachés</span>
+                                            <i class="pi pi-arrow-up-right text-[9px] text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                        </span>
+                                        <strong class="text-slate-900 group-hover:text-sky-900 tabular-nums font-bold">{{ fmt(valStat('detaches')) }}</strong>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="ouvrirModalStatut('missions')"
+                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-sky-500 hover:bg-sky-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
+                                        title="Voir la liste nominative des militaires en mission et exporter en Excel"
+                                    >
+                                        <span class="text-slate-600 group-hover:text-sky-900 flex items-center gap-1">
+                                            <span>En mission</span>
+                                            <i class="pi pi-arrow-up-right text-[9px] text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                        </span>
+                                        <strong class="text-slate-900 group-hover:text-sky-900 tabular-nums font-bold">{{ fmt(valStat('missions')) }}</strong>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="ouvrirModalStatut('stages')"
+                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-sky-500 hover:bg-sky-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
+                                        title="Voir la liste nominative des militaires en stage et exporter en Excel"
+                                    >
+                                        <span class="text-slate-600 group-hover:text-sky-900 flex items-center gap-1">
+                                            <span>En stage</span>
+                                            <i class="pi pi-arrow-up-right text-[9px] text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                        </span>
+                                        <strong class="text-slate-900 group-hover:text-sky-900 tabular-nums font-bold">{{ fmt(valStat('stages')) }}</strong>
+                                    </button>
                                 </div>
                             </div>
 
@@ -945,23 +977,61 @@
                                     <span class="text-[9px] text-rose-500 font-normal">Non comptés dans total</span>
                                 </div>
                                 <div class="grid grid-cols-2 gap-1.5 text-xs">
-                                    <div class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80">
-                                        <span class="text-slate-600">Radiés</span>
-                                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(valStat('radies')) }}</strong>
-                                    </div>
-                                    <div class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80">
-                                        <span class="text-slate-600">Retraites {{ props.stats.annee ?? new Date().getFullYear() }}</span>
-                                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(valStat('retraites')) }}</strong>
-                                    </div>
-                                    <div class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80">
-                                        <span class="text-slate-600">Déserteurs</span>
-                                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(valStat('deserteurs')) }}</strong>
-                                    </div>
-                                    <div class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80">
-                                        <span class="text-slate-600">Décédés {{ props.stats.annee ?? new Date().getFullYear() }}</span>
-                                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(valStat('decedes')) }}</strong>
-                                    </div>
+                                    <button
+                                        type="button"
+                                        @click="ouvrirModalStatut('radies')"
+                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-rose-400 hover:bg-rose-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
+                                        title="Voir la liste nominative des radiés et exporter en Excel"
+                                    >
+                                        <span class="text-slate-600 group-hover:text-rose-900 flex items-center gap-1">
+                                            <span>Radiés</span>
+                                            <i class="pi pi-arrow-up-right text-[9px] text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                        </span>
+                                        <strong class="text-slate-900 group-hover:text-rose-900 tabular-nums font-bold">{{ fmt(valStat('radies')) }}</strong>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="ouvrirModalStatut('retraites')"
+                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-purple-400 hover:bg-purple-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
+                                        title="Voir la liste nominative des départs à la retraite et exporter en Excel"
+                                    >
+                                        <span class="text-slate-600 group-hover:text-purple-900 flex items-center gap-1">
+                                            <span>Retraites {{ props.stats.annee ?? new Date().getFullYear() }}</span>
+                                            <i class="pi pi-arrow-up-right text-[9px] text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                        </span>
+                                        <strong class="text-slate-900 group-hover:text-purple-900 tabular-nums font-bold">{{ fmt(valStat('retraites')) }}</strong>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="ouvrirModalStatut('deserteurs')"
+                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-amber-400 hover:bg-amber-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
+                                        title="Voir la liste nominative des déserteurs et exporter en Excel"
+                                    >
+                                        <span class="text-slate-600 group-hover:text-amber-900 flex items-center gap-1">
+                                            <span>Déserteurs</span>
+                                            <i class="pi pi-arrow-up-right text-[9px] text-amber-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                        </span>
+                                        <strong class="text-slate-900 group-hover:text-amber-900 tabular-nums font-bold">{{ fmt(valStat('deserteurs')) }}</strong>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="ouvrirModalStatut('decedes')"
+                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-rose-400 hover:bg-rose-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
+                                        title="Voir la liste nominative des décédés et exporter en Excel"
+                                    >
+                                        <span class="text-slate-600 group-hover:text-rose-900 flex items-center gap-1">
+                                            <span>Décédés {{ props.stats.annee ?? new Date().getFullYear() }}</span>
+                                            <i class="pi pi-arrow-up-right text-[9px] text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                        </span>
+                                        <strong class="text-slate-900 group-hover:text-rose-900 tabular-nums font-bold">{{ fmt(valStat('decedes')) }}</strong>
+                                    </button>
                                 </div>
+                            </div>
+
+                            <!-- Astuce visuelle d'interactivité -->
+                            <div class="px-2.5 py-1.5 rounded-lg bg-sky-50/80 border border-sky-200/70 text-[10.5px] text-sky-900 flex items-center gap-2">
+                                <i class="pi pi-info-circle text-sky-600 text-xs shrink-0"></i>
+                                <span>Cliquez sur un statut pour afficher la liste nominative et l'exporter en Excel.</span>
                             </div>
                         </div>
                     </template>
@@ -1102,6 +1172,167 @@
                 </div>
             </template>
         </Dialog>
+
+        <!-- Modal: Détail des Militaires par Statut & Export Excel -->
+        <Dialog
+            v-model:visible="showStatutModal"
+            modal
+            :header="`${statutModalTitre} (${statutModalMilitaires.length})`"
+            :style="{ width: '1050px', maxWidth: '96vw' }"
+            class="p-fluid"
+        >
+            <div class="space-y-3">
+                <!-- En-tête info avec badge périmètre & bouton Export Excel -->
+                <div class="bg-sky-50 border border-sky-200 rounded-lg p-3 text-xs text-sky-950 flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-full bg-sky-600 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+                            <i class="pi pi-users text-sm"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-sky-900 text-sm flex items-center gap-2">
+                                <span>{{ statutModalTitre }}</span>
+                                <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-sky-200/80 text-sky-800">
+                                    {{ statutModalPerimetre }}
+                                </span>
+                            </div>
+                            <p class="text-sky-700 text-[11px] mt-0.5">
+                                Liste nominative détaillée des personnels enregistrés sous cette catégorie.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Bouton Exporter en Excel -->
+                    <button
+                        type="button"
+                        @click="exporterStatutExcel"
+                        :disabled="loadingStatutModal || statutModalMilitaires.length === 0"
+                        class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                        title="Télécharger cette liste au format Excel (.xlsx)"
+                    >
+                        <i class="pi pi-file-excel text-sm"></i>
+                        <span>Exporter en Excel (.xlsx)</span>
+                    </button>
+                </div>
+
+                <!-- Barre de recherche rapide -->
+                <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    <div class="relative flex-1 min-w-[240px]">
+                        <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                        <input
+                            v-model="searchStatutModal"
+                            type="text"
+                            placeholder="Filtrer par nom, prénom, matricule, grade, unité, région..."
+                            class="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-800"
+                        />
+                    </div>
+                    <div class="text-xs font-semibold text-slate-500">
+                        Affichage : <strong class="text-slate-800">{{ statutMilitairesFiltres.length }}</strong> sur {{ statutModalMilitaires.length }}
+                    </div>
+                </div>
+
+                <!-- Indicateur de chargement -->
+                <div v-if="loadingStatutModal" class="py-16 text-center text-slate-500 space-y-2">
+                    <i class="pi pi-spin pi-spinner text-3xl text-sky-600"></i>
+                    <p class="text-xs font-medium">Chargement des données en cours...</p>
+                </div>
+
+                <!-- Tableau nominatif responsive -->
+                <div v-else class="max-h-[58vh] overflow-y-auto border border-slate-200 rounded-lg custom-scrollbar">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead class="bg-slate-100 text-slate-700 sticky top-0 z-10 border-b border-slate-200">
+                            <tr>
+                                <th class="p-2.5 font-bold">N°</th>
+                                <th class="p-2.5 font-bold">Matricule / MLE</th>
+                                <th class="p-2.5 font-bold">Nom & Prénom</th>
+                                <th class="p-2.5 font-bold">Grade</th>
+                                <th class="p-2.5 font-bold">Région & Unité</th>
+                                <th class="p-2.5 font-bold">Statut / Position</th>
+                                <th v-if="statutModalType === 'retraites'" class="p-2.5 font-bold">Date retraite</th>
+                                <th class="p-2.5 font-bold text-right">Fiche</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <tr
+                                v-for="(m, idx) in statutMilitairesFiltres"
+                                :key="m.id"
+                                class="hover:bg-sky-50/50 transition-colors"
+                            >
+                                <td class="p-2.5 font-mono text-slate-400 text-[11px]">
+                                    {{ idx + 1 }}
+                                </td>
+                                <td class="p-2.5 font-mono text-[11px] font-semibold text-slate-800 whitespace-nowrap">
+                                    <div>FAMA: {{ m.matricule || 'N/A' }}</div>
+                                    <div class="text-[10px] text-slate-500">GRM: {{ m.mle_grm || 'N/A' }}</div>
+                                </td>
+                                <td class="p-2.5 font-bold text-slate-900 whitespace-nowrap">
+                                    {{ m.nom }} {{ m.prenom }}
+                                </td>
+                                <td class="p-2.5">
+                                    <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-semibold text-[11px] border border-slate-200 whitespace-nowrap">
+                                        {{ m.grade || 'Soldat 2' }}
+                                    </span>
+                                </td>
+                                <td class="p-2.5 text-slate-700">
+                                    <div class="font-medium text-slate-800">{{ m.unite_nom || 'Sans unité' }}</div>
+                                    <div class="text-[10px] text-slate-500">{{ m.region_nom || 'Non rattaché' }}</div>
+                                </td>
+                                <td class="p-2.5">
+                                    <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px] border border-slate-200 whitespace-nowrap">
+                                        {{ m.position || m.statut || 'En attente' }}
+                                    </span>
+                                </td>
+                                <td v-if="statutModalType === 'retraites'" class="p-2.5 font-mono font-semibold text-rose-700 whitespace-nowrap">
+                                    {{ m.date_retraite || '-' }}
+                                </td>
+                                <td class="p-2.5 text-right whitespace-nowrap">
+                                    <Link
+                                        :href="route('militaires.show', m.id)"
+                                        target="_blank"
+                                        class="px-2 py-1 bg-slate-100 hover:bg-sky-100 hover:text-sky-800 text-slate-700 border border-slate-300 rounded font-semibold text-[11px] inline-flex items-center gap-1 transition-colors"
+                                        title="Voir la fiche détaillée du militaire"
+                                    >
+                                        <i class="pi pi-eye text-[10px]"></i>
+                                        <span>Fiche</span>
+                                    </Link>
+                                </td>
+                            </tr>
+                            <tr v-if="statutMilitairesFiltres.length === 0">
+                                <td :colspan="statutModalType === 'retraites' ? 8 : 7" class="p-8 text-center text-slate-400 text-xs">
+                                    <i class="pi pi-inbox text-2xl text-slate-300 mb-1 block"></i>
+                                    Aucun militaire trouvé pour ce critère.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <template #footer>
+                <div class="flex items-center justify-between w-full pt-2 border-t border-slate-200">
+                    <span class="text-xs text-slate-500">
+                        Total : <strong>{{ statutModalMilitaires.length }}</strong> militaire(s)
+                    </span>
+                    <div class="flex items-center gap-2">
+                        <button
+                            type="button"
+                            @click="exporterStatutExcel"
+                            :disabled="statutModalMilitaires.length === 0"
+                            class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                            <i class="pi pi-file-excel"></i>
+                            <span>Télécharger Excel</span>
+                        </button>
+                        <button
+                            type="button"
+                            @click="showStatutModal = false"
+                            class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg text-xs font-semibold cursor-pointer"
+                        >
+                            Fermer
+                        </button>
+                    </div>
+                </div>
+            </template>
+        </Dialog>
     </AuthenticatedLayout>
 </template>
 
@@ -1142,6 +1373,65 @@ const nonRattachesFiltres = computed(() => {
         (m.grade_actuel && m.grade_actuel.toLowerCase().includes(q))
     );
 });
+
+// Modal interactif de détail par statut (Actifs, Détachés, Retraites, etc.) avec export Excel
+const showStatutModal = ref(false);
+const loadingStatutModal = ref(false);
+const statutModalType = ref('');
+const statutModalTitre = ref('');
+const statutModalPerimetre = ref('');
+const statutModalMilitaires = ref([]);
+const searchStatutModal = ref('');
+
+const statutMilitairesFiltres = computed(() => {
+    const list = statutModalMilitaires.value || [];
+    if (!searchStatutModal.value || !searchStatutModal.value.trim()) return list;
+    const q = searchStatutModal.value.toLowerCase().trim();
+    return list.filter(m =>
+        (m.nom && m.nom.toLowerCase().includes(q)) ||
+        (m.prenom && m.prenom.toLowerCase().includes(q)) ||
+        (m.matricule && String(m.matricule).toLowerCase().includes(q)) ||
+        (m.mle_grm && String(m.mle_grm).toLowerCase().includes(q)) ||
+        (m.grade && m.grade.toLowerCase().includes(q)) ||
+        (m.region_nom && m.region_nom.toLowerCase().includes(q)) ||
+        (m.unite_nom && m.unite_nom.toLowerCase().includes(q)) ||
+        (m.statut && m.statut.toLowerCase().includes(q)) ||
+        (m.position && m.position.toLowerCase().includes(q))
+    );
+});
+
+const ouvrirModalStatut = async (type) => {
+    statutModalType.value = type;
+    searchStatutModal.value = '';
+    statutModalMilitaires.value = [];
+    loadingStatutModal.value = true;
+    showStatutModal.value = true;
+
+    try {
+        const params = new URLSearchParams({ type });
+        if (sel.value) {
+            params.append('region', sel.value);
+        }
+        const res = await fetch(`/carte/militaires-statut?${params.toString()}`);
+        if (!res.ok) throw new Error('Erreur de chargement');
+        const data = await res.json();
+        statutModalTitre.value = data.titre || 'Détail de l\'effectif';
+        statutModalPerimetre.value = data.perimetre || (selRegion.value ? selRegion.value.nom : 'Mali entier');
+        statutModalMilitaires.value = data.militaires || [];
+    } catch (err) {
+        console.error('Erreur lors du chargement des militaires par statut:', err);
+    } finally {
+        loadingStatutModal.value = false;
+    }
+};
+
+const exporterStatutExcel = () => {
+    const params = new URLSearchParams({ type: statutModalType.value });
+    if (sel.value) {
+        params.append('region', sel.value);
+    }
+    window.location.href = `/carte/export-statut?${params.toString()}`;
+};
 
 const toggleFullscreen = async () => {
     if (!isFullscreen.value) {
@@ -1319,7 +1609,7 @@ const choisir = (code) => {
     selUnit.value = null;
     searchQuery.value = '';
     parcelSearchQuery.value = '';
-    const reg = regions.value.find(r => r.code === code);
+    const reg = props.regions.find(r => r.code === code);
     const withEffCount = (reg?.unites || []).filter(u => (Number(u.effectif) || 0) > 0).length;
     parcelFilterType.value = withEffCount > 0 ? 'with_eff' : 'all';
     userZoom.value = 1;

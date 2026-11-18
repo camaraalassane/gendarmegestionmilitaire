@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Militaire;
 use App\Models\Region;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use App\Support\Effectif;
 use Inertia\Inertia;
@@ -159,6 +160,142 @@ class CarteController extends Controller
                 ],
                 'generated_at' => now()->format('d/m/Y H:i'),
             ],
+        ];
+    }
+
+    /**
+     * Endpoint API JSON : renvoie la liste détaillée des militaires pour le modal
+     * GET /carte/militaires-statut
+     */
+    public function militairesStatut(Request $request)
+    {
+        $type = $request->query('type', 'actifs');
+        $region = $request->query('region');
+
+        $result = self::getMilitairesParStatut($type, $region);
+
+        return response()->json($result);
+    }
+
+    /**
+     * Récupère la liste détaillée des militaires selon un statut et un périmètre géographique
+     */
+    public static function getMilitairesParStatut(string $type, ?string $regionCode = null): array
+    {
+        $region = null;
+        if ($regionCode && $regionCode !== 'national' && $regionCode !== 'all') {
+            $region = is_numeric($regionCode)
+                ? Region::find((int) $regionCode)
+                : Region::where('code', $regionCode)->first();
+        }
+
+        $perimetre = $region 
+            ? (str_starts_with($region->nom, 'Région') ? "{$region->nom} ({$region->code})" : "Région de {$region->nom} ({$region->code})")
+            : "Mali entier (Toutes régions)";
+
+        if ($type === 'retraites') {
+            $dash = app(DashboardController::class);
+            $retraitesData = $dash->getRetraitesBoth()['retraitesN']['data'] ?? [];
+            $ids = array_column($retraitesData, 'id');
+
+            $retraitesMap = [];
+            foreach ($retraitesData as $rd) {
+                $retraitesMap[$rd['id']] = $rd;
+            }
+
+            $query = Militaire::with(['region', 'unite', 'grade'])->whereIn('id', $ids);
+            if ($region) {
+                $query->where('region_id', $region->id);
+            }
+            $militaires = $query->orderBy('nom')->orderBy('prenom')->get()->map(function ($m) use ($retraitesMap) {
+                $rInfo = $retraitesMap[$m->id] ?? [];
+                return [
+                    'id' => $m->id,
+                    'matricule' => $m->matricule,
+                    'mle_grm' => $m->mle_grm,
+                    'nom' => $m->nom,
+                    'prenom' => $m->prenom,
+                    'grade' => $m->grade?->nom_grade ?? $m->grade_actuel ?? '-',
+                    'region_nom' => $m->region?->nom ?? '-',
+                    'unite_nom' => $m->unite?->nom ?? $m->unite ?? '-',
+                    'statut' => $m->statut ?? 'Actif',
+                    'position' => $m->position_actuelle ?? '-',
+                    'date_naissance' => $m->date_naissance ? $m->date_naissance->format('d/m/Y') : '-',
+                    'date_retraite' => $rInfo['date_retraite_formatted'] ?? ($m->date_retraite_prevue ? \Carbon\Carbon::parse($m->date_retraite_prevue)->format('d/m/Y') : '-'),
+                ];
+            })->all();
+
+            return [
+                'type' => $type,
+                'titre' => 'Départs à la retraite ' . now()->year,
+                'perimetre' => $perimetre,
+                'region_code' => $region?->code,
+                'count' => count($militaires),
+                'militaires' => $militaires,
+            ];
+        }
+
+        $query = Militaire::with(['region', 'unite', 'grade']);
+        if ($region) {
+            $query->where('region_id', $region->id);
+        }
+
+        $titre = match ($type) {
+            'actifs' => 'Militaires actifs au poste',
+            'detaches' => 'Militaires en détachement',
+            'missions' => 'Militaires en mission',
+            'stages' => 'Militaires en stage / formation',
+            'radies' => 'Personnels radiés des cadres',
+            'deserteurs' => 'Militaires déserteurs',
+            'decedes' => 'Militaires décédés en ' . now()->year,
+            default => 'Militaires'
+        };
+
+        match ($type) {
+            'actifs' => $query->where('statut_code', 1),
+            'detaches' => $query->where('statut_code', 2),
+            'missions' => $query->where('statut_code', 3),
+            'stages' => $query->where('statut_code', 4),
+            'radies' => $query->where('statut_code', 8),
+            'deserteurs' => $query->where('statut_code', 6),
+            'decedes' => (function () use ($query) {
+                $annee = (int) now()->year;
+                $debut = now()->setDate($annee, 1, 1)->startOfDay()->format('Y-m-d H:i:s');
+                $fin = now()->setDate($annee, 12, 31)->endOfDay()->format('Y-m-d H:i:s');
+                $query->where(function ($q) use ($debut, $fin) {
+                    $q->where('statut_code', 9)
+                      ->orWhere(function ($sub) use ($debut, $fin) {
+                          $sub->whereNotNull('date_deces')->whereBetween('date_deces', [$debut, $fin]);
+                      });
+                });
+            })(),
+            default => null,
+        };
+
+        $militaires = $query->orderBy('nom')->orderBy('prenom')->get()->map(function ($m) {
+            return [
+                'id' => $m->id,
+                'matricule' => $m->matricule,
+                'mle_grm' => $m->mle_grm,
+                'nom' => $m->nom,
+                'prenom' => $m->prenom,
+                'grade' => $m->grade?->nom_grade ?? $m->grade_actuel ?? '-',
+                'region_nom' => $m->region?->nom ?? '-',
+                'unite_nom' => $m->unite?->nom ?? $m->unite ?? '-',
+                'statut' => $m->statut ?? '-',
+                'position' => $m->position_actuelle ?? '-',
+                'date_naissance' => $m->date_naissance ? $m->date_naissance->format('d/m/Y') : '-',
+                'date_retraite' => $m->date_retraite_prevue ? \Carbon\Carbon::parse($m->date_retraite_prevue)->format('d/m/Y') : '-',
+            ];
+        })->all();
+
+        return [
+            'type' => $type,
+            'titre' => $titre,
+            'perimetre' => $perimetre,
+            'region_code' => $region?->code,
+            'count' => count($militaires),
+            'militaires' => $militaires,
         ];
     }
 }

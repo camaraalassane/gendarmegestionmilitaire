@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exports\StatistiquesExport;
+use App\Exports\CarteStatutDetailExport;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -158,5 +159,25 @@ class StatistiquesExportController extends Controller
         ];
 
         return Excel::download(new StatistiquesExport($feuilles), 'statistiques_dashboard_' . now()->format('Y-m-d') . '.xlsx');
+    }
+
+    /**
+     * Export Excel détaillé des militaires selon le statut cliqué et la région active
+     * GET /carte/export-statut
+     */
+    public function exportStatut(Request $request)
+    {
+        $type = $request->query('type', 'actifs');
+        $region = $request->query('region');
+
+        $result = CarteController::getMilitairesParStatut($type, $region);
+
+        $suffixeRegion = $result['region_code'] ? strtolower($result['region_code']) : 'mali_entier';
+        $filename = "effectif_{$type}_{$suffixeRegion}_" . date('Ymd_His') . ".xlsx";
+
+        return Excel::download(
+            new CarteStatutDetailExport($result['titre'], $result['perimetre'], $result['militaires']),
+            $filename
+        );
     }
 }
