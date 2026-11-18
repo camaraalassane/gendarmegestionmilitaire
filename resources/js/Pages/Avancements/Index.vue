@@ -79,11 +79,32 @@
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 mb-4 print:hidden">
                 <!-- Carte 1 : Filtres & Recherche -->
                 <div class="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-xs p-3 flex flex-col justify-between">
-                    <div class="flex items-center gap-2 mb-2 pb-1.5 border-b border-slate-100">
-                        <i class="pi pi-filter text-sky-800 text-xs font-bold"></i>
-                        <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                            Filtres ({{ activeTab === 'officiers' ? 'Officiers' : 'Sous-Officiers' }})
-                        </span>
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-2 pb-1.5 border-b border-slate-100">
+                        <div class="flex items-center gap-2">
+                            <i class="pi pi-filter text-sky-800 text-xs font-bold"></i>
+                            <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                                Filtres ({{ activeTab === 'officiers' ? 'Officiers' : 'Sous-Officiers' }})
+                            </span>
+                        </div>
+
+                        <!-- 2 Informations clés intégrées et alignées au-dessus du champ Grade -->
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-bold bg-sky-50 text-sky-800 border border-sky-200">
+                                <i class="pi pi-users text-sky-700 text-xs"></i>
+                                <span>{{ activeTab === 'officiers' ? stats.total_officiers : stats.total_sous_officiers }} éligible(s)</span>
+                                <span class="text-[10px] px-1.5 py-0.2 rounded bg-white text-sky-800 border border-sky-200 font-extrabold">
+                                    Session {{ currentAnnee }}
+                                </span>
+                            </span>
+
+                            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-xs font-bold bg-slate-50 text-slate-700 border border-slate-200">
+                                <i class="pi pi-star text-sky-700 text-xs"></i>
+                                <span>{{ activeAvailableGrades.length }} Grades</span>
+                                <span class="text-[10px] px-1.5 py-0.2 rounded bg-white text-slate-600 border border-slate-200 font-medium">
+                                    Du + élevé au - élevé
+                                </span>
+                            </span>
+                        </div>
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2.5">
