@@ -359,25 +359,37 @@ class AlerteController extends Controller
         // 1. Basculer automatiquement en 'retraité' les militaires ayant dépassé la limite d'âge de leur grade
         $this->actualiserStatutRetraites();
 
-        // 2. Nettoyer les alertes obsolètes des militaires qui ne sont plus en activité
-        Alerte::whereDoesntHave('militaire', function ($q) {
-            $q->enActivite();
-        })->delete();
+        // 2. Vider et réinitialiser la table des alertes pour générer à neuf et ultra-rapidement
+        Alerte::query()->delete();
 
-        // 3. Remettre les alertes existantes en statut non-vue afin d'aviser l'utilisateur
-        Alerte::where('est_vue', true)->update(['est_vue' => false]);
-
-        // 4. Générer l'ensemble de toutes les alertes via le vérificateur complet (Promotions, Formations, Retraites, Contrats, Mutations)
+        // 3. Générer l'ensemble de toutes les alertes via le vérificateur complet (Promotions, Formations, Retraites, Contrats, Mutations)
+        // en préchargeant certificats, contrats et affectations pour éliminer les requêtes N+1 et insérer par paquets ultra-rapides
         $militaireController = app(MilitaireController::class);
+        $buffer = [];
+        $now = now();
+
         Militaire::enActivite()
-            ->with(['certificats', 'affectations'])
-            ->chunkById(500, function ($militaires) use ($militaireController) {
+            ->with(['certificats', 'affectations', 'contrats'])
+            ->chunkById(500, function ($militaires) use ($militaireController, &$buffer, $now) {
                 foreach ($militaires as $militaire) {
-                    $militaireController->verifierAlertes($militaire);
+                    $militaireController->verifierAlertes($militaire, true, $buffer, $now);
+                }
+                if (!empty($buffer)) {
+                    foreach (array_chunk($buffer, 500) as $chunk) {
+                        Alerte::insert($chunk);
+                    }
+                    $buffer = [];
                 }
             });
 
-        // 3. Purger les caches statistiques et compteurs
+        if (!empty($buffer)) {
+            foreach (array_chunk($buffer, 500) as $chunk) {
+                Alerte::insert($chunk);
+            }
+            $buffer = [];
+        }
+
+        // 4. Purger les caches statistiques et compteurs
         Cache::forget('alertes:non_vues_count');
         Cache::forget('alertes:non_vues_count_gendarme');
         Cache::forget('dashboard:statistiques_cards');

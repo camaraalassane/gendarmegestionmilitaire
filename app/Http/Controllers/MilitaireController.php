@@ -1122,30 +1122,31 @@ class MilitaireController extends Controller
     /**
      * Nettoie les documents orphelins
      */
-    public function verifierAlertes(Militaire $militaire)
+    public function verifierAlertes(Militaire $militaire, bool $enLot = false, ?array &$buffer = null, $now = null)
     {
-        $this->verifierPromotions($militaire);
-        $this->verifierFormations($militaire);
-        $this->verifierRetraite($militaire);
-        $this->verifierAlerteContrat($militaire);
-        $this->verifierAlerteMutation($militaire);
+        $this->verifierPromotions($militaire, $enLot, $buffer, $now);
+        $this->verifierFormations($militaire, $enLot, $buffer, $now);
+        $this->verifierRetraite($militaire, $enLot, $buffer, $now);
+        $this->verifierAlerteContrat($militaire, $enLot, $buffer, $now);
+        $this->verifierAlerteMutation($militaire, $enLot, $buffer, $now);
     }
 
     /**
      * Vérifier et créer l'alerte mutation (durée d'affectation >= 3 ans)
      */
-    private function verifierAlerteMutation(Militaire $militaire): void
+    private function verifierAlerteMutation(Militaire $militaire, bool $enLot = false, ?array &$buffer = null, $now = null): void
     {
         if (!$militaire->estEnActivite()) {
-            Alerte::where('militaire_id', $militaire->id)->where('type_alerte', 'mutation')->delete();
+            if (!$enLot) {
+                Alerte::where('militaire_id', $militaire->id)->where('type_alerte', 'mutation')->delete();
+            }
             return;
         }
 
         // Récupérer l'affectation ayant la date de mutation la plus récente
-        $plusRecenteAff = $militaire->affectations()
-            ->whereNotNull('date_mutation')
-            ->orderBy('date_mutation', 'desc')
-            ->first();
+        $plusRecenteAff = $militaire->relationLoaded('affectations')
+            ? $militaire->affectations->whereNotNull('date_mutation')->sortByDesc('date_mutation')->first()
+            : $militaire->affectations()->whereNotNull('date_mutation')->orderBy('date_mutation', 'desc')->first();
 
         $dateMutation = $plusRecenteAff?->date_mutation 
             ?? $militaire->date_mutation 
@@ -1155,8 +1156,8 @@ class MilitaireController extends Controller
             return;
         }
 
-        // Synchroniser le militaire si nécessaire avec sa plus récente affectation
-        if ($plusRecenteAff && ($militaire->date_mutation != $plusRecenteAff->date_mutation || $militaire->unite != $plusRecenteAff->unite)) {
+        // Synchroniser le militaire si nécessaire avec sa plus récente affectation (hors mode lot pour éviter tempêtes d'événements)
+        if (!$enLot && $plusRecenteAff && ($militaire->date_mutation != $plusRecenteAff->date_mutation || $militaire->unite != $plusRecenteAff->unite)) {
             $militaire->update([
                 'unite' => $plusRecenteAff->unite,
                 'region' => $plusRecenteAff->region,
@@ -1167,42 +1168,31 @@ class MilitaireController extends Controller
         $anneesMutation = floor(Carbon::parse($dateMutation)->diffInYears(now()));
 
         if ($anneesMutation < 3) {
-            Alerte::where('militaire_id', $militaire->id)
-                ->where('type_alerte', 'mutation')
-                ->delete();
+            if (!$enLot) {
+                Alerte::where('militaire_id', $militaire->id)
+                    ->where('type_alerte', 'mutation')
+                    ->delete();
+            }
             return;
         }
 
-        $debutMois = now()->startOfMonth();
-        $finMois = now()->endOfMonth();
-        $alerteExiste = Alerte::where('militaire_id', $militaire->id)
-            ->where('type_alerte', 'mutation')
-            ->where('est_vue', false)
-            ->whereBetween('created_at', [$debutMois, $finMois])
-            ->exists();
+        $unite = $plusRecenteAff?->unite ?? $militaire->unite ?? 'Unité non précisée';
+        $region = $plusRecenteAff?->region ?? $militaire->region ?? '-';
+        $dateMutFormatted = Carbon::parse($dateMutation)->format('d/m/Y');
+        $message = "Alerte Mutation : {$militaire->grade_actuel} {$militaire->prenom} {$militaire->nom} en poste depuis {$anneesMutation} ans à {$unite} ({$region}) (dernière mutation le {$dateMutFormatted})";
 
-        if (!$alerteExiste) {
-            $unite = $plusRecenteAff?->unite ?? $militaire->unite ?? 'Unité non précisée';
-            $region = $plusRecenteAff?->region ?? $militaire->region ?? '-';
-            $dateMutFormatted = Carbon::parse($dateMutation)->format('d/m/Y');
-
-            Alerte::create([
-                'militaire_id' => $militaire->id,
-                'type_alerte' => 'mutation',
-                'message' => "Alerte Mutation : {$militaire->grade_actuel} {$militaire->prenom} {$militaire->nom} en poste depuis {$anneesMutation} ans à {$unite} ({$region}) (dernière mutation le {$dateMutFormatted})",
-                'date_echeance' => now()->endOfMonth(),
-                'est_vue' => false,
-            ]);
-        }
+        $this->creerAlerte($militaire, 'mutation', $message, now()->endOfMonth(), $enLot, $buffer, $now);
     }
 
     /**
      * Vérifier et créer l'alerte contrat pour un militaire
      */
-    private function verifierAlerteContrat(Militaire $militaire): void
+    private function verifierAlerteContrat(Militaire $militaire, bool $enLot = false, ?array &$buffer = null, $now = null): void
     {
         if (!$militaire->estEnActivite()) {
-            Alerte::where('militaire_id', $militaire->id)->where('type_alerte', 'contrat')->delete();
+            if (!$enLot) {
+                Alerte::where('militaire_id', $militaire->id)->where('type_alerte', 'contrat')->delete();
+            }
             return;
         }
 
@@ -1217,16 +1207,17 @@ class MilitaireController extends Controller
         }
 
         // Si le militaire a un contrat actif dont la fin est dans plus de 6 mois, pas d'alerte de renouvellement
-        $contratActif = $militaire->contrats()
-            ->where('statut', 'actif')
-            ->latest('date_debut')
-            ->first();
+        $contratActif = $militaire->relationLoaded('contrats')
+            ? $militaire->contrats->where('statut', 'actif')->sortByDesc('date_debut')->first()
+            : $militaire->contrats()->where('statut', 'actif')->latest('date_debut')->first();
 
         if ($contratActif && $contratActif->date_fin) {
             if ($contratActif->date_fin->isFuture() && $contratActif->date_fin->diffInDays(now()) > 180) {
-                Alerte::where('militaire_id', $militaire->id)
-                    ->where('type_alerte', 'contrat')
-                    ->delete();
+                if (!$enLot) {
+                    Alerte::where('militaire_id', $militaire->id)
+                        ->where('type_alerte', 'contrat')
+                        ->delete();
+                }
                 return;
             }
         }
@@ -1238,27 +1229,25 @@ class MilitaireController extends Controller
 
         // Si la date d'entrée est renseignée mais le militaire a moins de 5 ans de service et pas de contrat actif à renouveler
         if ($serviceYears !== null && $serviceYears < 5 && !$contratActif) {
-            Alerte::where('militaire_id', $militaire->id)
-                ->where('type_alerte', 'contrat')
-                ->delete();
+            if (!$enLot) {
+                Alerte::where('militaire_id', $militaire->id)
+                    ->where('type_alerte', 'contrat')
+                    ->delete();
+            }
             return;
         }
 
-        Alerte::where('militaire_id', $militaire->id)
-            ->where('type_alerte', 'contrat')
-            ->delete();
+        if (!$enLot) {
+            Alerte::where('militaire_id', $militaire->id)
+                ->where('type_alerte', 'contrat')
+                ->delete();
+        }
 
         $message = ($serviceYears !== null && $serviceYears > 0)
             ? "Renouvellement de contrat requis pour {$militaire->prenom} {$militaire->nom} ({$serviceYears} ans de service) - Grade: {$militaire->grade_actuel}"
             : "Régularisation / Renouvellement de contrat requis pour {$militaire->prenom} {$militaire->nom} (sans contrat actif) - Grade: {$militaire->grade_actuel}";
 
-        Alerte::create([
-            'militaire_id' => $militaire->id,
-            'type_alerte' => 'contrat',
-            'message' => $message,
-            'date_echeance' => $contratActif?->date_fin ?? now()->addMonths(6),
-            'est_vue' => false,
-        ]);
+        $this->creerAlerte($militaire, 'contrat', $message, $contratActif?->date_fin ?? now()->addMonths(6), $enLot, $buffer, $now);
     }
 
     private function getDateProposition()
@@ -1309,7 +1298,7 @@ class MilitaireController extends Controller
     /**
      * Vérifie les promotions et supprime les alertes si la promotion est obtenue
      */
-    private function verifierPromotions(Militaire $militaire): void
+    private function verifierPromotions(Militaire $militaire, bool $enLot = false, ?array &$buffer = null, $now = null): void
     {
         if (!$militaire->estEnActivite()) return;
 
@@ -1324,29 +1313,35 @@ class MilitaireController extends Controller
         $age = $militaire->age;
         $ancienneteGrade = $militaire->ancienneteGrade;
         $conditionsBase = !$militaire->antecedent_judiciaire && !$militaire->antecedent_disciplinaire;
-        $certificatsObtenus = $militaire->certificats->pluck('niveau_certificat')->toArray();
+        $certificatsObtenus = $militaire->relationLoaded('certificats')
+            ? $militaire->certificats->pluck('niveau_certificat')->toArray()
+            : $militaire->certificats()->pluck('niveau_certificat')->toArray();
 
         // Suppression en lot uniquement des alertes de promotion non lues pour préserver celles déjà consultées
-        Alerte::where('militaire_id', $militaire->id)
-            ->where('type_alerte', 'promotion')
-            ->where('est_vue', false)
-            ->delete();
+        if (!$enLot) {
+            Alerte::where('militaire_id', $militaire->id)
+                ->where('type_alerte', 'promotion')
+                ->where('est_vue', false)
+                ->delete();
+        }
 
         $dateProposition = $this->getDateProposition();
 
         // Créer les alertes de promotion
         if ($grade == 'Soldat 1' && in_array('CAT1', $certificatsObtenus) && $conditionsBase && $militaire->anciennete >= 5) {
             $dateAnciennete = Carbon::parse($militaire->date_entree_service)->addYears(5);
-            $this->creerAlertePromotion($militaire, 'Caporal', $dateProposition, $dateAnciennete);
+            $this->creerAlertePromotion($militaire, 'Caporal', $dateProposition, $dateAnciennete, $enLot, $buffer, $now);
         }
 
         if ($grade == 'Caporal' && in_array('CAT1', $certificatsObtenus) && in_array('CAT2', $certificatsObtenus) && $conditionsBase) {
-            $certifCAT1 = $militaire->certificats->where('niveau_certificat', 'CAT1')->first();
+            $certifCAT1 = $militaire->relationLoaded('certificats')
+                ? $militaire->certificats->where('niveau_certificat', 'CAT1')->first()
+                : $militaire->certificats()->where('niveau_certificat', 'CAT1')->first();
             $dateAnciennete = null;
             if ($certifCAT1 && $certifCAT1->pivot->date_obtention) {
                 $dateAnciennete = Carbon::parse($certifCAT1->pivot->date_obtention)->addYears(3);
             }
-            $this->creerAlertePromotion($militaire, 'Sergent', $dateProposition, $dateAnciennete);
+            $this->creerAlertePromotion($militaire, 'Sergent', $dateProposition, $dateAnciennete, $enLot, $buffer, $now);
         }
 
         $calcDateAnciennete = function ($annees) use ($militaire) {
@@ -1356,59 +1351,59 @@ class MilitaireController extends Controller
 
         if ($grade == 'Caporal' && in_array('CAT1', $certificatsObtenus) && !in_array('CAT2', $certificatsObtenus) && $age >= 47 && $ancienneteGrade >= 3 && $conditionsBase) {
             $dateAnciennete = $calcDateAnciennete(3);
-            $this->creerAlertePromotion($militaire, 'Caporal-chef', $dateProposition, $dateAnciennete);
+            $this->creerAlertePromotion($militaire, 'Caporal-chef', $dateProposition, $dateAnciennete, $enLot, $buffer, $now);
         }
 
         if ($grade == 'Sergent' && $conditionsBase && $ancienneteGrade >= 2 && $militaire->anciennete >= 5) {
             $dateAnciennete = $calcDateAnciennete(2);
-            $this->creerAlertePromotion($militaire, 'Sergent-Chef', $dateProposition, $dateAnciennete);
+            $this->creerAlertePromotion($militaire, 'Sergent-Chef', $dateProposition, $dateAnciennete, $enLot, $buffer, $now);
         }
 
         if ($grade == 'Sergent-Chef' && $conditionsBase && $ancienneteGrade >= 3) {
             $dateAnciennete = $calcDateAnciennete(3);
-            $this->creerAlertePromotion($militaire, 'Adjudant', $dateProposition, $dateAnciennete);
+            $this->creerAlertePromotion($militaire, 'Adjudant', $dateProposition, $dateAnciennete, $enLot, $buffer, $now);
         }
 
         if ($grade == 'Adjudant' && $conditionsBase && $ancienneteGrade >= 2) {
             $dateAnciennete = $calcDateAnciennete(2);
-            $this->creerAlertePromotion($militaire, 'Adjudant-Chef', $dateProposition, $dateAnciennete);
+            $this->creerAlertePromotion($militaire, 'Adjudant-Chef', $dateProposition, $dateAnciennete, $enLot, $buffer, $now);
         }
 
         if ($grade == 'Sous-lieutenant' && $ancienneteGrade >= 2) {
             $dateAnciennete = $calcDateAnciennete(2);
-            $this->creerAlertePromotion($militaire, 'Lieutenant', $dateProposition, $dateAnciennete);
+            $this->creerAlertePromotion($militaire, 'Lieutenant', $dateProposition, $dateAnciennete, $enLot, $buffer, $now);
         }
 
         if ($grade == 'Lieutenant' && $ancienneteGrade >= 3) {
             $dateAnciennete = $calcDateAnciennete(3);
-            $this->creerAlertePromotion($militaire, 'Capitaine', $dateProposition, $dateAnciennete);
+            $this->creerAlertePromotion($militaire, 'Capitaine', $dateProposition, $dateAnciennete, $enLot, $buffer, $now);
         }
 
         if ($grade == 'Capitaine' && $ancienneteGrade >= 3) {
             $dateAnciennete = $calcDateAnciennete(3);
-            $this->creerAlertePromotion($militaire, 'Commandant', $dateProposition, $dateAnciennete);
+            $this->creerAlertePromotion($militaire, 'Commandant', $dateProposition, $dateAnciennete, $enLot, $buffer, $now);
         }
 
         if ($grade == 'Commandant' && $ancienneteGrade >= 3) {
             $dateAnciennete = $calcDateAnciennete(3);
-            $this->creerAlertePromotion($militaire, 'Lieutenant-colonel', $dateProposition, $dateAnciennete);
+            $this->creerAlertePromotion($militaire, 'Lieutenant-colonel', $dateProposition, $dateAnciennete, $enLot, $buffer, $now);
         }
 
         if ($grade == 'Lieutenant-colonel' && $ancienneteGrade >= 3) {
             $dateAnciennete = $calcDateAnciennete(3);
-            $this->creerAlertePromotion($militaire, 'Colonel', $dateProposition, $dateAnciennete);
+            $this->creerAlertePromotion($militaire, 'Colonel', $dateProposition, $dateAnciennete, $enLot, $buffer, $now);
         }
 
         if ($grade == 'Colonel' && $ancienneteGrade >= 6) {
             $dateAnciennete = $calcDateAnciennete(6);
-            $this->creerAlertePromotion($militaire, 'Colonel-Major', $dateProposition, $dateAnciennete);
+            $this->creerAlertePromotion($militaire, 'Colonel-Major', $dateProposition, $dateAnciennete, $enLot, $buffer, $now);
         }
     }
 
     /**
      * Vérifie les formations et crée les alertes nécessaires (préserve les alertes déjà vues)
      */
-    private function verifierFormations(Militaire $militaire): void
+    private function verifierFormations(Militaire $militaire, bool $enLot = false, ?array &$buffer = null, $now = null): void
     {
         if (!$militaire->estEnActivite()) return;
 
@@ -1416,20 +1411,24 @@ class MilitaireController extends Controller
         $age = $militaire->age;
         $anciennete = $militaire->anciennete;
         $ancienneteGrade = $militaire->ancienneteGrade;
-        $certificatsObtenus = $militaire->certificats->pluck('niveau_certificat')->toArray();
+        $certificatsObtenus = $militaire->relationLoaded('certificats')
+            ? $militaire->certificats->pluck('niveau_certificat')->toArray()
+            : $militaire->certificats()->pluck('niveau_certificat')->toArray();
         $conditionsBase = !$militaire->antecedent_judiciaire && !$militaire->antecedent_disciplinaire;
         $dateProposition = $this->getDateProposition();
 
         // Suppression en lot uniquement des alertes de formation non lues
-        Alerte::where('militaire_id', $militaire->id)
-            ->where('type_alerte', 'formation')
-            ->where('est_vue', false)
-            ->delete();
+        if (!$enLot) {
+            Alerte::where('militaire_id', $militaire->id)
+                ->where('type_alerte', 'formation')
+                ->where('est_vue', false)
+                ->delete();
+        }
 
         // 1. APLI
         if (!in_array('APLI', $certificatsObtenus)) {
             if (in_array($grade, ['Sous-lieutenant', 'Lieutenant', 'Capitaine']) && !in_array('CFCU', $certificatsObtenus) && $age <= 50) {
-                $this->creerAlerteFormation($militaire, 'APLI', "Cour d'Application", $dateProposition, null);
+                $this->creerAlerteFormation($militaire, 'APLI', "Cour d'Application", $dateProposition, null, $enLot, $buffer, $now);
             }
         }
 
@@ -1437,7 +1436,7 @@ class MilitaireController extends Controller
         if (!in_array('CFCU', $certificatsObtenus)) {
             if (in_array($grade, ['Lieutenant', 'Capitaine'])) {
                 if ($grade == 'Capitaine' || in_array('APLI', $certificatsObtenus)) {
-                    $this->creerAlerteFormation($militaire, 'CFCU', "Cour des Futurs Commandants d'Unité", $dateProposition, null);
+                    $this->creerAlerteFormation($militaire, 'CFCU', "Cour des Futurs Commandants d'Unité", $dateProposition, null, $enLot, $buffer, $now);
                 }
             }
         }
@@ -1446,85 +1445,91 @@ class MilitaireController extends Controller
         if (!in_array('CAT1', $certificatsObtenus)) {
             if (in_array($grade, ['Soldat 2', 'Soldat 1']) && $ancienneteGrade >= 5 && $conditionsBase) {
                 $dateConditions = Carbon::parse($militaire->date_entree_service)->addYears(5);
-                $this->creerAlerteFormation($militaire, 'CAT1', "Certificat d'Aptitude Technique Niveau 1", $dateProposition, $dateConditions);
+                $this->creerAlerteFormation($militaire, 'CAT1', "Certificat d'Aptitude Technique Niveau 1", $dateProposition, $dateConditions, $enLot, $buffer, $now);
             }
         }
 
         // 4. CAT2
         if (!in_array('CAT2', $certificatsObtenus)) {
             if ($grade == 'Caporal' && $age < 47 && $ancienneteGrade >= 3 && $conditionsBase && in_array('CAT1', $certificatsObtenus)) {
-                $certifCAT1 = $militaire->certificats->where('niveau_certificat', 'CAT1')->first();
+                $certifCAT1 = $militaire->relationLoaded('certificats')
+                    ? $militaire->certificats->where('niveau_certificat', 'CAT1')->first()
+                    : $militaire->certificats()->where('niveau_certificat', 'CAT1')->first();
                 $dateConditions = null;
                 if ($certifCAT1 && $certifCAT1->pivot->date_obtention) {
                     $dateConditions = Carbon::parse($certifCAT1->pivot->date_obtention)->addYears(3);
                 }
-                $this->creerAlerteFormation($militaire, 'CAT2', "Certificat d'Aptitude Technique Niveau 2", $dateProposition, $dateConditions);
+                $this->creerAlerteFormation($militaire, 'CAT2', "Certificat d'Aptitude Technique Niveau 2", $dateProposition, $dateConditions, $enLot, $buffer, $now);
             }
         }
 
         // 5. CIA
         if (!in_array('CIA', $certificatsObtenus)) {
             if (in_array($grade, ['Sergent', 'Sergent-Chef', 'Adjudant', 'Adjudant-Chef']) && $conditionsBase && $militaire->a_permis_conduire) {
-                $this->creerAlerteFormation($militaire, 'CIA', "Certificat Interarmes (CIA)", $dateProposition, null);
+                $this->creerAlerteFormation($militaire, 'CIA', "Certificat Interarmes (CIA)", $dateProposition, null, $enLot, $buffer, $now);
             }
         }
 
         // 6. BA1
         if (!in_array('BA1', $certificatsObtenus)) {
             if (in_array($grade, ['Sergent-Chef', 'Adjudant', 'Adjudant-Chef']) && in_array('CIA', $certificatsObtenus) && $conditionsBase && $anciennete >= 8) {
-                $certifCIA = $militaire->certificats->where('niveau_certificat', 'CIA')->first();
+                $certifCIA = $militaire->relationLoaded('certificats')
+                    ? $militaire->certificats->where('niveau_certificat', 'CIA')->first()
+                    : $militaire->certificats()->where('niveau_certificat', 'CIA')->first();
                 $dateConditions = null;
                 if ($certifCIA && $certifCIA->pivot->date_obtention) {
                     $dateConditions = Carbon::parse($certifCIA->pivot->date_obtention)->addYears(3);
                 }
-                $this->creerAlerteFormation($militaire, 'BA1', "Brevet d'Arme N1", $dateProposition, $dateConditions);
+                $this->creerAlerteFormation($militaire, 'BA1', "Brevet d'Arme N1", $dateProposition, $dateConditions, $enLot, $buffer, $now);
             }
         }
 
         // 7. BA2
         if (!in_array('BA2', $certificatsObtenus)) {
             if (in_array($grade, ['Adjudant', 'Adjudant-Chef']) && in_array('BA1', $certificatsObtenus) && $conditionsBase) {
-                $certifBA1 = $militaire->certificats->where('niveau_certificat', 'BA1')->first();
+                $certifBA1 = $militaire->relationLoaded('certificats')
+                    ? $militaire->certificats->where('niveau_certificat', 'BA1')->first()
+                    : $militaire->certificats()->where('niveau_certificat', 'BA1')->first();
                 $dateConditions = null;
                 if ($certifBA1 && $certifBA1->pivot->date_obtention) {
                     $dateConditions = Carbon::parse($certifBA1->pivot->date_obtention)->addYears(3);
                 }
-                $this->creerAlerteFormation($militaire, 'BA2', "Brevet d'Arme N2", $dateProposition, $dateConditions);
+                $this->creerAlerteFormation($militaire, 'BA2', "Brevet d'Arme N2", $dateProposition, $dateConditions, $enLot, $buffer, $now);
             }
         }
 
         // 9. CERT_EM
         if (!in_array('CERT_EM', $certificatsObtenus)) {
             if ($grade == 'Commandant' && $age > 45) {
-                $this->creerAlerteFormation($militaire, 'CERT_EM', "Certificat d'État-Major", $dateProposition, null);
+                $this->creerAlerteFormation($militaire, 'CERT_EM', "Certificat d'État-Major", $dateProposition, null, $enLot, $buffer, $now);
             }
         }
 
         // 10. ECOLE_GUERRE
         if (!in_array('ECOLE_GUERRE', $certificatsObtenus)) {
             if (in_array($grade, ['Lieutenant-colonel', 'Colonel', 'Colonel-Major']) && $ancienneteGrade >= 2 && $age <= 53) {
-                $this->creerAlerteFormation($militaire, 'ECOLE_GUERRE', "École de Guerre", $dateProposition, null);
+                $this->creerAlerteFormation($militaire, 'ECOLE_GUERRE', "École de Guerre", $dateProposition, null, $enLot, $buffer, $now);
             }
         }
     }
 
-    private function creerAlertePromotion(Militaire $militaire, string $gradeCible, $dateProposition, $dateAnciennete): void
+    private function creerAlertePromotion(Militaire $militaire, string $gradeCible, $dateProposition, $dateAnciennete, bool $enLot = false, ?array &$buffer = null, $now = null): void
     {
         $anneeProposition = $dateProposition->format('Y');
         $dateAncienneteTexte = $dateAnciennete ? $dateAnciennete->format('d/m/Y') : 'conditions remplies';
         $message = "Proposable pour {$anneeProposition} (ancienneté atteinte le {$dateAncienneteTexte}) - Promotion à {$gradeCible}";
-        $this->creerAlerte($militaire, 'promotion', $message, $dateProposition);
+        $this->creerAlerte($militaire, 'promotion', $message, $dateProposition, $enLot, $buffer, $now);
     }
 
-    private function creerAlerteFormation(Militaire $militaire, string $formation, string $nomFormation, $dateProposition, $dateConditions): void
+    private function creerAlerteFormation(Militaire $militaire, string $formation, string $nomFormation, $dateProposition, $dateConditions, bool $enLot = false, ?array &$buffer = null, $now = null): void
     {
         $anneeProposition = $dateProposition->format('Y');
         $dateConditionsTexte = $dateConditions ? $dateConditions->format('d/m/Y') : 'conditions remplies';
         $message = "Proposable pour {$anneeProposition} (conditions remplies le {$dateConditionsTexte}) - Formation {$nomFormation}";
-        $this->creerAlerte($militaire, 'formation', $message, $dateProposition);
+        $this->creerAlerte($militaire, 'formation', $message, $dateProposition, $enLot, $buffer, $now);
     }
 
-    private function verifierRetraite(Militaire $militaire): void
+    private function verifierRetraite(Militaire $militaire, bool $enLot = false, ?array &$buffer = null, $now = null): void
     {
         $dateRetraite = $militaire->calculerDateRetraite();
 
@@ -1534,13 +1539,39 @@ class MilitaireController extends Controller
 
             if ($moisRestants <= 12 && $diffJours >= 0) {
                 $message = "Retraite dans {$moisRestants} mois (le " . $dateRetraite->format('d/m/Y') . ")";
-                $this->creerAlerte($militaire, 'retraite', $message, $dateRetraite);
+                $this->creerAlerte($militaire, 'retraite', $message, $dateRetraite, $enLot, $buffer, $now);
             }
         }
     }
 
-    private function creerAlerte(Militaire $militaire, string $type, string $message, $dateEcheance = null): void
+    private function creerAlerte(Militaire $militaire, string $type, string $message, $dateEcheance = null, bool $enLot = false, ?array &$buffer = null, $now = null): void
     {
+        $echeance = $dateEcheance ?? Carbon::now()->addDays(2);
+
+        if ($buffer !== null) {
+            $buffer[] = [
+                'militaire_id'  => $militaire->id,
+                'type_alerte'   => $type,
+                'message'       => $message,
+                'date_echeance' => $echeance,
+                'est_vue'       => false,
+                'created_at'    => $now ?? now(),
+                'updated_at'    => $now ?? now(),
+            ];
+            return;
+        }
+
+        if ($enLot) {
+            Alerte::create([
+                'militaire_id'  => $militaire->id,
+                'type_alerte'   => $type,
+                'message'       => $message,
+                'date_echeance' => $echeance,
+                'est_vue'       => false,
+            ]);
+            return;
+        }
+
         $alerte = Alerte::where('militaire_id', $militaire->id)
             ->where('type_alerte', $type)
             ->where('message', $message)
@@ -1551,7 +1582,6 @@ class MilitaireController extends Controller
                 $alerte->update(['est_vue' => false]);
             }
         } else {
-            $echeance = $dateEcheance ?? Carbon::now()->addDays(2);
             Alerte::create([
                 'militaire_id'  => $militaire->id,
                 'type_alerte'   => $type,
