@@ -464,15 +464,14 @@
                                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                             <!-- Région de Gendarmerie -->
                                             <div class="field">
-                                                <div class="flex items-center justify-between mb-1">
-                                                    <label :for="'region_' + idx" class="block text-xs font-semibold text-gray-700">
+                                                <div class="h-6 flex items-center justify-between mb-1 gap-1">
+                                                    <label :for="'region_' + idx" class="block text-xs font-semibold text-gray-700 truncate whitespace-nowrap">
                                                         Région de Gendarmerie
                                                     </label>
                                                     <button type="button" @click="openQuickAddRegion(idx)"
-                                                            class="text-sky-700 hover:text-sky-900 text-[11px] font-semibold flex items-center gap-1 cursor-pointer bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 hover:bg-sky-100 transition-colors"
+                                                            class="w-6 h-6 rounded-md bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 hover:text-sky-900 flex items-center justify-center shrink-0 cursor-pointer transition-colors shadow-2xs"
                                                             title="Ajouter une nouvelle région">
-                                                        <i class="pi pi-plus text-[9px]"></i>
-                                                        <span>Ajouter</span>
+                                                        <i class="pi pi-plus text-xs font-bold"></i>
                                                     </button>
                                                 </div>
                                                 <Select :id="'region_' + idx"
@@ -495,20 +494,14 @@
 
                                             <!-- Unité / Brigade / Escadron -->
                                             <div class="field">
-                                                <div class="flex items-center justify-between mb-1">
-                                                    <div class="flex items-center gap-2">
-                                                        <label :for="'unite_' + idx" class="block text-xs font-semibold text-gray-700">
-                                                            Unité / Brigade / Escadron
-                                                        </label>
-                                                        <span v-if="aff.region_id && !aff.unite_id" class="text-[10px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                                                            ⚠️ Unité de cette région requise
-                                                        </span>
-                                                    </div>
+                                                <div class="h-6 flex items-center justify-between mb-1 gap-1">
+                                                    <label :for="'unite_' + idx" class="block text-xs font-semibold text-gray-700 truncate whitespace-nowrap">
+                                                        Unité / Brigade / Escadron
+                                                    </label>
                                                     <button type="button" @click="openQuickAddUnite(idx)"
-                                                            class="text-sky-700 hover:text-sky-900 text-[11px] font-semibold flex items-center gap-1 cursor-pointer bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 hover:bg-sky-100 transition-colors"
+                                                            class="w-6 h-6 rounded-md bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 hover:text-sky-900 flex items-center justify-center shrink-0 cursor-pointer transition-colors shadow-2xs"
                                                             title="Ajouter une nouvelle unité">
-                                                        <i class="pi pi-plus text-[9px]"></i>
-                                                        <span>Ajouter</span>
+                                                        <i class="pi pi-plus text-xs font-bold"></i>
                                                     </button>
                                                 </div>
                                                 <Select :id="'unite_' + idx"
@@ -530,13 +523,18 @@
                                                         </div>
                                                     </template>
                                                 </Select>
+                                                <small v-if="aff.region_id && !aff.unite_id" class="text-[10px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 inline-block mt-1">
+                                                    ⚠️ Unité de cette région requise
+                                                </small>
                                             </div>
 
                                             <!-- Date Mutation -->
                                             <div class="field">
-                                                <label :for="'date_mutation_' + idx" class="block text-xs font-semibold text-gray-700 mb-1">
-                                                    Date de mutation
-                                                </label>
+                                                <div class="h-6 flex items-center mb-1">
+                                                    <label :for="'date_mutation_' + idx" class="block text-xs font-semibold text-gray-700 truncate whitespace-nowrap">
+                                                        Date de mutation
+                                                    </label>
+                                                </div>
                                                 <DatePicker :id="'date_mutation_' + idx" v-model="aff.date_mutation"
                                                             dateFormat="dd/mm/yy" showIcon class="w-full" size="small" />
                                             </div>
@@ -545,15 +543,14 @@
                                             <template v-if="idx === 0">
                                                 <!-- Position actuelle (Endroit où il se trouve) -->
                                                 <div class="field sm:col-span-1 lg:col-span-1 min-w-0 pt-2 border-t border-slate-100 sm:border-0 sm:pt-0">
-                                                    <div class="flex items-center justify-between mb-1 gap-1">
-                                                        <label for="position_actuelle" class="block text-sm font-semibold text-gray-700 truncate">
+                                                    <div class="h-6 flex items-center justify-between mb-1 gap-1">
+                                                        <label for="position_actuelle" class="block text-xs font-semibold text-gray-700 truncate whitespace-nowrap">
                                                             Position actuelle
                                                         </label>
                                                         <button type="button" @click="openQuickAddPosition"
-                                                                class="text-sky-700 hover:text-sky-900 text-[11px] font-semibold flex items-center gap-1 cursor-pointer bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 hover:bg-sky-100 transition-colors shrink-0"
+                                                                class="w-6 h-6 rounded-md bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 hover:text-sky-900 flex items-center justify-center shrink-0 cursor-pointer transition-colors shadow-2xs"
                                                                 title="Ajouter un nouvel endroit de déploiement">
-                                                            <i class="pi pi-plus text-[10px]"></i>
-                                                            <span>Ajouter</span>
+                                                            <i class="pi pi-plus text-xs font-bold"></i>
                                                         </button>
                                                     </div>
                                                     <Select id="position_actuelle"
@@ -563,7 +560,7 @@
                                                             optionValue="id"
                                                             filter
                                                             placeholder="Sélectionner la position..."
-                                                            class="w-full min-w-0"
+                                                            class="w-full min-w-0 text-xs"
                                                             @change="onPositionSelect">
                                                         <template #option="slotProps">
                                                             <div class="flex items-center justify-between w-full py-0.5">
@@ -578,13 +575,15 @@
 
                                                 <!-- Observations particulières / Mention officielle (à côté de la position) -->
                                                 <div class="field sm:col-span-1 lg:col-span-2 min-w-0 pt-2 border-t border-slate-100 sm:border-0 sm:pt-0">
-                                                    <label for="observations" class="block text-sm font-semibold text-gray-700 mb-1 flex flex-wrap items-center justify-between gap-1">
-                                                        <span class="truncate">Observations particulières / Mention officielle</span>
-                                                        <span class="text-[11px] text-slate-400 font-normal italic">Remarques, otage, situation...</span>
-                                                    </label>
+                                                    <div class="h-6 flex items-center justify-between mb-1 gap-2">
+                                                        <label for="observations" class="block text-xs font-semibold text-gray-700 truncate whitespace-nowrap">
+                                                            Observations particulières / Mention officielle
+                                                        </label>
+                                                        <span class="text-[10px] text-slate-400 font-normal italic truncate">Remarques, otage, situation...</span>
+                                                    </div>
                                                     <InputText id="observations"
                                                                v-model="form.observations"
-                                                               class="w-full min-w-0"
+                                                               class="w-full min-w-0 text-xs"
                                                                placeholder="Ex: Otage devant partir à la Retraité depuis 2020..." />
                                                 </div>
                                             </template>
