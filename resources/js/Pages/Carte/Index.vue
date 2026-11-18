@@ -129,15 +129,15 @@
             <!-- 2. Zone principale : Cadre blanc standard, SEUL LE CANEVAS DE LA CARTE EST EN BLEU ARDOISE (#16212e) -->
             <div
                 ref="carteZoneRef"
-                class="flex-1 min-h-0 grid gap-2 items-stretch transition-all duration-200"
+                class="flex-1 min-h-0 grid grid-rows-1 gap-2 items-stretch transition-all duration-200"
                 :class="[
                     isFullscreen
-                        ? 'fixed inset-0 z-50 p-2 sm:p-3 bg-slate-100 w-screen h-screen ' + (showSidePanelInFullscreen ? 'lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_340px]' : 'grid-cols-1')
-                        : 'lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_340px]'
+                        ? 'fixed inset-0 z-50 p-2 sm:p-3 bg-slate-100 w-screen h-screen ' + (showSidePanelInFullscreen ? 'lg:grid-cols-[1fr_295px] xl:grid-cols-[1fr_310px]' : 'grid-cols-1')
+                        : 'lg:grid-cols-[1fr_295px] xl:grid-cols-[1fr_310px]'
                 ]"
             >
                 <!-- PANNEAU CARTE (Cadre blanc standard, en-tête clair, et uniquement l'endroit de la carte en fond sombre #16212e) -->
-                <div class="bg-white rounded-lg border border-slate-200 p-2.5 min-w-0 flex flex-col h-full overflow-hidden shadow-sm">
+                <div class="bg-white rounded-lg border border-slate-200 p-2 min-w-0 flex flex-col h-full max-h-full overflow-hidden shadow-sm">
                     <!-- En-tête de la carte CLAIR (comme demandé : "même l'en-tête faut laisser") -->
                     <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5 flex-none">
                         <div class="flex items-center gap-1.5 flex-wrap">
@@ -207,7 +207,7 @@
 
                     <!-- UNIQUEMENT CET ENDROIT : LE CANEVAS DE LA CARTE EN BLEU ARDOISE ADOUCI (#16212E) -->
                     <div
-                        class="flex-1 min-h-[480px] lg:min-h-[540px] w-full h-full relative flex items-center justify-center overflow-hidden bg-[#16212e] rounded-lg border border-[#263446] p-1 select-none"
+                        class="flex-1 min-h-[380px] lg:min-h-[430px] xl:min-h-[460px] w-full h-full relative flex items-center justify-center overflow-hidden bg-[#16212e] rounded-lg border border-[#263446] p-1 select-none"
                         :class="{ '!cursor-grabbing': isDragging, 'cursor-grab': true }"
                         @mousedown="onMouseDown($event)"
                         @wheel="onWheel($event)"
@@ -763,30 +763,56 @@
                     <!-- Légende opérationnelle au bas de la carte -->
                     <div class="flex flex-wrap items-center justify-between gap-2 mt-1 text-[11px] text-slate-500 flex-none">
                         <template v-if="sel">
-                            <div class="flex items-center gap-3">
-                                <span class="flex items-center gap-1.5 font-medium text-slate-700">
-                                    <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-red-500 border border-black text-[9px] font-black text-black">N</span>
-                                    Cercles proportionnels rouges (Jacques Bertin)
+                            <div class="flex items-center gap-2.5 flex-wrap">
+                                <!-- Règle 1 : Cercle effectif -->
+                                <span class="flex items-center gap-1.5 font-semibold text-slate-800">
+                                    <span class="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-red-500 border border-black text-[8px] font-black text-black">N</span>
+                                    <span>Cercle rouge : Effectif de l'unité</span>
                                 </span>
+
                                 <span class="text-slate-300">•</span>
-                                <span class="flex items-center gap-1 font-medium text-slate-600">
-                                    <span class="inline-block w-2.5 h-2.5 rounded-sm bg-slate-200 border border-black"></span> 0
-                                    <span class="inline-block w-2.5 h-2.5 rounded-sm bg-yellow-200 border border-black ml-1"></span> Q1 (≤ {{ Math.round(quantileThresholds[0]) }})
-                                    <span class="inline-block w-2.5 h-2.5 rounded-sm bg-amber-400 border border-black ml-1"></span> Q2-Q3
-                                    <span class="inline-block w-2.5 h-2.5 rounded-sm bg-orange-500 border border-black ml-1"></span> Q4
-                                    <span class="inline-block w-2.5 h-2.5 rounded-sm bg-red-600 border border-black ml-1"></span> Q5 (≥ {{ Math.round(quantileThresholds[3]) }})
+
+                                <!-- Règle 2 : Niveaux d'effectif avec chiffres précis sans jargon mathématique -->
+                                <span class="flex items-center gap-1 font-medium text-slate-700">
+                                    <span class="text-slate-500 font-semibold mr-0.5">Niveau :</span>
+                                    <span class="inline-flex items-center gap-0.5" title="Unité à 0 effectif">
+                                        <span class="inline-block w-2.5 h-2.5 rounded-xs bg-slate-200 border border-slate-700"></span> 0
+                                    </span>
+                                    <span class="inline-flex items-center gap-0.5" :title="'Faible effectif : 1 à ' + Math.max(1, Math.round(quantileThresholds[0])) + ' militaire(s)'">
+                                        <span class="inline-block w-2.5 h-2.5 rounded-xs bg-yellow-200 border border-slate-700 ml-1"></span>
+                                        Faible (≤ {{ Math.max(1, Math.round(quantileThresholds[0])) }})
+                                    </span>
+                                    <span class="inline-flex items-center gap-0.5" title="Effectif modéré">
+                                        <span class="inline-block w-2.5 h-2.5 rounded-xs bg-amber-400 border border-slate-700 ml-1"></span>
+                                        Moyen
+                                    </span>
+                                    <span class="inline-flex items-center gap-0.5" title="Effectif important">
+                                        <span class="inline-block w-2.5 h-2.5 rounded-xs bg-orange-500 border border-slate-700 ml-1"></span>
+                                        Élevé
+                                    </span>
+                                    <span class="inline-flex items-center gap-0.5" :title="'Fort effectif : à partir de ' + Math.round(quantileThresholds[3]) + ' militaires'">
+                                        <span class="inline-block w-2.5 h-2.5 rounded-xs bg-red-600 border border-slate-700 ml-1"></span>
+                                        Très élevé (≥ {{ Math.round(quantileThresholds[3]) }})
+                                    </span>
                                 </span>
+
                                 <span class="text-slate-300">•</span>
-                                <span class="flex items-center font-medium text-slate-600">
-                                    Parcelles délimitées (découpage automatique)
+
+                                <!-- Règle 3 : Secteurs géographiques -->
+                                <span class="flex items-center font-medium text-slate-600" title="Zone de compétence géographique assignée à chaque unité">
+                                    Secteurs des unités
                                 </span>
+
                                 <span class="text-slate-300">•</span>
-                                <span class="flex items-center gap-1 font-medium text-slate-500" title="Unité sans coordonnées GPS : position estimée par défaut dans sa région">
+
+                                <!-- Règle 4 : Unités sans GPS -->
+                                <span class="flex items-center gap-1 font-medium text-slate-600" title="Unité sans coordonnées GPS : position estimée au chef-lieu de sa région">
                                     <svg width="12" height="12" class="inline-block shrink-0"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#64748b" stroke-width="1.2" stroke-dasharray="2 1.5"/></svg>
-                                    <span>Pointillé : position approx.</span>
+                                    <span>Pointillé : Sans GPS (au chef-lieu)</span>
                                 </span>
                             </div>
-                            <span class="text-slate-500 font-semibold">
+
+                            <span class="text-slate-600 font-bold tabular-nums">
                                 {{ countUnitesVisibles }} unité(s) cartographiée(s)
                             </span>
                         </template>
@@ -801,10 +827,10 @@
                     </div>
                 </div>
 
-                <!-- PANNEAU DROIT CLAIR / BLANC (comme demandé : "pas les autres cards") -->
+                <!-- PANNEAU DROIT CLAIR / BLANC (même niveau et alignement que la carte) -->
                 <div
                     v-show="!isFullscreen || showSidePanelInFullscreen"
-                    class="bg-white rounded-lg border border-slate-200 p-2.5 min-w-0 flex flex-col h-full overflow-hidden shadow-sm text-slate-900 transition-all"
+                    class="bg-white rounded-lg border border-slate-200 p-2 min-w-0 flex flex-col h-full max-h-full overflow-hidden shadow-sm text-slate-900 transition-all"
                 >
                     <!-- Entête du panneau -->
                     <div class="flex items-center justify-between gap-2 flex-none">
@@ -822,21 +848,21 @@
                     </div>
 
                     <!-- Grille métriques compacte claire -->
-                    <div class="grid grid-cols-3 gap-1.5 my-1.5 p-1.5 border border-slate-100 flex-none bg-slate-50/80 rounded-md text-center">
-                        <div v-for="d in detail" :key="d.label" class="min-w-0">
-                            <div class="text-[10px] text-slate-500 truncate">{{ d.label }}</div>
-                            <div class="text-xs sm:text-sm font-bold text-slate-900 tabular-nums truncate">
+                    <div class="grid grid-cols-3 gap-1 my-1 p-1 border border-slate-200/70 flex-none bg-slate-50/90 rounded text-center">
+                        <div v-for="d in detail" :key="d.label" class="min-w-0 px-0.5">
+                            <div class="text-[9px] text-slate-500 truncate leading-tight">{{ d.label }}</div>
+                            <div class="text-xs font-bold text-slate-900 tabular-nums truncate">
                                 {{ d.value }}
                             </div>
                         </div>
                     </div>
 
                     <!-- Onglets de bascule : Liste vs Détail Effectif -->
-                    <div class="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-medium my-1.5 flex-none">
+                    <div class="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-medium my-1 flex-none">
                         <button
                             type="button"
                             @click="sidebarTab = 'liste'"
-                            class="flex-1 py-1 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                            class="flex-1 py-0.5 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer text-[11px]"
                             :class="sidebarTab === 'liste' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'"
                         >
                             <i class="pi pi-list text-[10px]"></i>
@@ -845,7 +871,7 @@
                         <button
                             type="button"
                             @click="sidebarTab = 'effectif'"
-                            class="flex-1 py-1 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                            class="flex-1 py-0.5 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer text-[11px]"
                             :class="sidebarTab === 'effectif' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'"
                         >
                             <i class="pi pi-chart-pie text-[10px]"></i>
@@ -860,18 +886,18 @@
                             <h3 class="text-xs font-bold text-slate-900 truncate">
                                 {{ sel ? 'Unités de la région' : 'Classement : ' + METRICS[metric].label }}
                             </h3>
-                            <div class="relative w-36 sm:w-44">
+                            <div class="relative w-36 sm:w-40">
                                 <input
                                     v-model="searchInput"
                                     type="text"
                                     :placeholder="sel ? 'Filtrer brigades...' : 'Filtrer régions...'"
-                                    class="w-full text-[11px] py-1 pl-6 pr-2 rounded border border-slate-200 bg-white placeholder-slate-400 focus:outline-none focus:border-sky-500"
+                                    class="w-full text-[11px] py-0.5 pl-5 pr-5 rounded border border-slate-200 bg-white placeholder-slate-400 focus:outline-none focus:border-sky-500"
                                 />
-                                <i class="pi pi-search absolute left-2 top-2 text-[10px] text-slate-400"></i>
+                                <i class="pi pi-search absolute left-1.5 top-1.5 text-[9px] text-slate-400"></i>
                                 <button
                                     v-if="searchInput"
                                     @click="searchInput = ''; searchQuery = ''"
-                                    class="absolute right-1.5 top-1.5 text-slate-400 hover:text-slate-600 text-[10px]"
+                                    class="absolute right-1 top-1 text-slate-400 hover:text-slate-600 text-[10px]"
                                     title="Effacer"
                                 >
                                     <i class="pi pi-times"></i>
@@ -879,8 +905,8 @@
                             </div>
                         </div>
 
-                        <!-- LISTE DÉROULANTE INTERNE (PLEINE HAUTEUR - FLUIDE ET SCROLLABLE) -->
-                        <div class="flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar">
+                        <!-- LISTE DÉROULANTE INTERNE (HAUTEUR FIXE ALIGNÉE SUR LA CARTE - SCROLL INTERNE) -->
+                        <div class="flex-1 min-h-0 max-h-[380px] lg:max-h-[410px] xl:max-h-[440px] overflow-y-auto pr-1 custom-scrollbar overscroll-contain">
                             <ul v-if="lignesFiltrees.length > 0" class="rank">
                                 <li v-for="row in lignesFiltrees" :key="row.key">
                                     <button
@@ -921,7 +947,7 @@
 
                     <!-- VUE 2 : DÉTAIL DE L'EFFECTIF (AFFICHÉ QUAND ON CLIQUE SUR L'ONGLET) -->
                     <template v-else>
-                        <div class="flex-1 min-h-0 overflow-y-auto pr-1 space-y-2.5 custom-scrollbar text-xs">
+                        <div class="flex-1 min-h-0 max-h-[380px] lg:max-h-[410px] xl:max-h-[440px] overflow-y-auto pr-1 space-y-2 custom-scrollbar text-xs overscroll-contain">
                             <!-- En activité -->
                             <div class="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70 space-y-2">
                                 <div class="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
@@ -1052,8 +1078,8 @@
                         </div>
                     </template>
 
-                    <!-- Guide d'interaction en bas -->
-                    <p class="text-[10px] text-slate-400 mt-1 pt-1 border-t border-slate-100 flex-none truncate">
+                    <!-- Guide d'interaction en bas (aligné au bas du panneau) -->
+                    <p class="text-[10px] text-slate-400 mt-auto pt-1 border-t border-slate-100 flex-none truncate">
                         {{ sel
                             ? 'Cliquez sur une unité pour la cibler sur la carte.'
                             : 'Cliquez sur une région pour zoomer et afficher ses unités.' }}
@@ -2623,14 +2649,14 @@ const lignesFiltrees = computed(() => {
     all: unset;
     box-sizing: border-box;
     display: grid;
-    grid-template-columns: minmax(105px, 1.25fr) 1fr 45px;
-    gap: 6px;
+    grid-template-columns: minmax(90px, 1.25fr) 1fr 38px;
+    gap: 5px;
     align-items: center;
     width: 100%;
-    padding: 3.5px 5px;
-    border-radius: 5px;
+    padding: 2.5px 4px;
+    border-radius: 4px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 11.5px;
     transition: background 0.12s ease;
 }
 .rank button:hover,
@@ -2651,7 +2677,7 @@ const lignesFiltrees = computed(() => {
     white-space: nowrap;
 }
 .rank .t {
-    height: 6px;
+    height: 5px;
     background: #e2e8f0;
     border-radius: 3px;
     overflow: hidden;
@@ -2663,25 +2689,29 @@ const lignesFiltrees = computed(() => {
 }
 .rank .v {
     text-align: right;
-    font-weight: 600;
-    font-size: 11.5px;
+    font-weight: 700;
+    font-size: 11px;
     font-variant-numeric: tabular-nums;
 }
 
+.custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #94a3b8 #f1f5f9;
+}
 .custom-scrollbar::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+    width: 6px;
+    height: 6px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-    background: #f8fafc;
+    background: #f1f5f9;
     border-radius: 4px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
+    background: #94a3b8;
     border-radius: 4px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+    background: #64748b;
 }
 
 .fade-enter-active,
