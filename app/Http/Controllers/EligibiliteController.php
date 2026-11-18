@@ -61,10 +61,12 @@ class EligibiliteController extends Controller
         $targetKey = in_array($type, ['promotions', 'formations', 'retraites', 'contrats', 'mutations']) ? $type : 'promotions';
         $items = $allComputed[$targetKey] ?? [];
 
-        // Filtre par grade
+        // Filtre par grade (supporte nom du grade ou identifiant ID)
         if (!empty($grade)) {
-            $items = array_values(array_filter($items, function ($item) use ($grade) {
-                return ($item['militaire']['grade_actuel'] ?? $item['grade_actuel'] ?? '') === $grade;
+            $gradeNom = is_numeric($grade) ? Grade::where('id', (int) $grade)->value('nom_grade') : $grade;
+            $items = array_values(array_filter($items, function ($item) use ($grade, $gradeNom) {
+                $g = $item['militaire']['grade_actuel'] ?? $item['grade_actuel'] ?? '';
+                return $g === $grade || ($gradeNom && $g === $gradeNom);
             }));
         }
 
@@ -696,7 +698,8 @@ class EligibiliteController extends Controller
         foreach ($categories as $cat) {
             $catItems = $allComputed[$cat] ?? [];
             if (!empty($grade)) {
-                $catItems = array_values(array_filter($catItems, fn($it) => ($it['militaire']['grade_actuel'] ?? $it['grade_actuel'] ?? '') === $grade));
+                $gradeNom = is_numeric($grade) ? Grade::where('id', (int) $grade)->value('nom_grade') : $grade;
+                $catItems = array_values(array_filter($catItems, fn($it) => ($it['militaire']['grade_actuel'] ?? $it['grade_actuel'] ?? '') === $grade || ($gradeNom && ($it['militaire']['grade_actuel'] ?? $it['grade_actuel'] ?? '') === $gradeNom)));
             }
             if (!empty($formation) && $cat === 'formations') {
                 $catItems = array_values(array_filter($catItems, fn($it) => ($it['formation'] ?? '') === $formation));
