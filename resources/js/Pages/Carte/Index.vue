@@ -364,15 +364,15 @@
 
                                 <div class="relative w-36 sm:w-44">
                                     <input
-                                        v-model="parcelSearchQuery"
+                                        v-model="parcelSearchInput"
                                         type="text"
                                         placeholder="Filtrer brigade..."
                                         class="w-full text-[11px] py-0.5 pl-5 pr-5 rounded border border-slate-700/80 bg-[#090e17]/95 text-white placeholder-slate-400 focus:outline-none focus:border-sky-400 shadow-md"
                                     />
                                     <i class="pi pi-search absolute left-1.5 top-1.5 text-[10px] text-slate-400"></i>
                                     <button
-                                        v-if="parcelSearchQuery"
-                                        @click="parcelSearchQuery = ''"
+                                        v-if="parcelSearchInput"
+                                        @click="parcelSearchInput = ''; parcelSearchQuery = ''"
                                         class="absolute right-1.5 top-1 text-slate-400 hover:text-white text-[10px] cursor-pointer"
                                     >
                                         <i class="pi pi-times"></i>
@@ -654,9 +654,9 @@
                                         class="animate-pulse"
                                     />
 
-                                    <!-- Double contour noir épais pour les unités majeures (Style France 578 / 492) -->
+                                    <!-- Double contour noir épais pour les unités majeures (Top quantile 5) -->
                                     <circle
-                                        v-if="p.unit.effectif >= 7 && parcelCircleR(p.unit) > 0"
+                                        v-if="p.unit.effectif > 0 && p.unit.effectif >= quantileThresholds[3] && parcelCircleR(p.unit) > 0"
                                         :cx="p.cx"
                                         :cy="p.cy"
                                         :r="parcelCircleR(p.unit) + 0.65 * rUnit"
@@ -761,9 +761,10 @@
                                 <span class="text-slate-300">•</span>
                                 <span class="flex items-center gap-1 font-medium text-slate-600">
                                     <span class="inline-block w-2.5 h-2.5 rounded-sm bg-slate-200 border border-black"></span> 0
-                                    <span class="inline-block w-2.5 h-2.5 rounded-sm bg-yellow-200 border border-black ml-1"></span> 1-2
-                                    <span class="inline-block w-2.5 h-2.5 rounded-sm bg-orange-400 border border-black ml-1"></span> 3-6
-                                    <span class="inline-block w-2.5 h-2.5 rounded-sm bg-red-500 border border-black ml-1"></span> 7+
+                                    <span class="inline-block w-2.5 h-2.5 rounded-sm bg-yellow-200 border border-black ml-1"></span> Q1 (≤ {{ Math.round(quantileThresholds[0]) }})
+                                    <span class="inline-block w-2.5 h-2.5 rounded-sm bg-amber-400 border border-black ml-1"></span> Q2-Q3
+                                    <span class="inline-block w-2.5 h-2.5 rounded-sm bg-orange-500 border border-black ml-1"></span> Q4
+                                    <span class="inline-block w-2.5 h-2.5 rounded-sm bg-red-600 border border-black ml-1"></span> Q5 (≥ {{ Math.round(quantileThresholds[3]) }})
                                 </span>
                                 <span class="text-slate-300">•</span>
                                 <span class="flex items-center font-medium text-slate-600">
@@ -846,15 +847,15 @@
                             </h3>
                             <div class="relative w-36 sm:w-44">
                                 <input
-                                    v-model="searchQuery"
+                                    v-model="searchInput"
                                     type="text"
                                     :placeholder="sel ? 'Filtrer brigades...' : 'Filtrer régions...'"
                                     class="w-full text-[11px] py-1 pl-6 pr-2 rounded border border-slate-200 bg-white placeholder-slate-400 focus:outline-none focus:border-sky-500"
                                 />
                                 <i class="pi pi-search absolute left-2 top-2 text-[10px] text-slate-400"></i>
                                 <button
-                                    v-if="searchQuery"
-                                    @click="searchQuery = ''"
+                                    v-if="searchInput"
+                                    @click="searchInput = ''; searchQuery = ''"
                                     class="absolute right-1.5 top-1.5 text-slate-400 hover:text-slate-600 text-[10px]"
                                     title="Effacer"
                                 >
@@ -898,7 +899,7 @@
                                 </li>
                             </ul>
                             <div v-else class="py-6 text-center text-xs text-slate-400">
-                                Aucun élément pour « {{ searchQuery }} »
+                                Aucun élément pour « {{ searchInput }} »
                             </div>
                         </div>
                     </template>
@@ -1353,7 +1354,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
 import Dialog from 'primevue/dialog';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
@@ -1527,7 +1528,15 @@ const METRICS = {
 const metric = ref('eff');
 const sel = ref(props.regionInitiale && props.regions.some(r => r.code === props.regionInitiale) ? props.regionInitiale : null); // code de la région choisie ou null = Mali entier
 const selUnit = ref(null);     // id de l'unité mise en évidence
-const searchQuery = ref('');   // recherche rapide dans le volet déroulant
+const searchInput = ref('');
+const searchQuery = ref('');   // recherche rapide dans le volet déroulant (débouncée à 150ms)
+let searchTimer = null;
+watch(searchInput, (val) => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+        searchQuery.value = val;
+    }, 150);
+});
 const hoveredItem = ref(null); // objet survolé (région ou unité)
 const hoveredCode = ref(null); // code de la région survolée
 
@@ -1627,7 +1636,9 @@ const badgeWidth = (r) => {
 const choisir = (code) => {
     sel.value = code;
     selUnit.value = null;
+    searchInput.value = '';
     searchQuery.value = '';
+    parcelSearchInput.value = '';
     parcelSearchQuery.value = '';
     const reg = props.regions.find(r => r.code === code);
     const withEffCount = (reg?.unites || []).filter(u => (Number(u.effectif) || 0) > 0).length;
@@ -1640,7 +1651,9 @@ const choisir = (code) => {
 const retour = () => {
     sel.value = null;
     selUnit.value = null;
+    searchInput.value = '';
     searchQuery.value = '';
+    parcelSearchInput.value = '';
     parcelSearchQuery.value = '';
     parcelFilterType.value = 'all';
     userZoom.value = 1;
@@ -1868,12 +1881,20 @@ const rUnit = computed(() => {
 
 // --- Mode Régional : Découpage thématique en parcelles avec cercles proportionnels (Style Carte de France) ---
 const parcelFilterType = ref('with_eff'); // Par défaut : 'with_eff' pour afficher immédiatement les unités déployées comme sur la carte de France
+const parcelSearchInput = ref('');
 const parcelSearchQuery = ref('');
+let parcelSearchTimer = null;
+watch(parcelSearchInput, (val) => {
+    clearTimeout(parcelSearchTimer);
+    parcelSearchTimer = setTimeout(() => {
+        parcelSearchQuery.value = val;
+    }, 150);
+});
 
 const countWithEff = computed(() => (selRegion.value?.unites || []).filter(u => (Number(u.effectif) || 0) > 0).length);
 const countZeroEff = computed(() => (selRegion.value?.unites || []).filter(u => (Number(u.effectif) || 0) === 0).length);
 
-// 1. Unités de la région classées strictement par effectif décroissant (Règle d'or demandée par l'utilisateur)
+// 1. Unités de la région classées strictement par effectif décroissant
 const unitesClassees = computed(() => {
     if (!selRegion.value?.unites) return [];
     let list = [...selRegion.value.unites];
@@ -1897,7 +1918,50 @@ const unitesClassees = computed(() => {
     return list;
 });
 
+// Découpage robuste de tout tracé SVG en un ou plusieurs polygones (anneaux / îlots / enclaves)
+const parseSvgPathToRings = (svgPath) => {
+    if (!svgPath || typeof svgPath !== 'string') return [];
+    const subpaths = svgPath.match(/[Mm][^Mm]+/g) || [];
+    const rings = [];
+
+    for (const sub of subpaths) {
+        const numRegex = /[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?/g;
+        const nums = [];
+        let m;
+        while ((m = numRegex.exec(sub)) !== null) {
+            nums.push(Number(m[0]));
+        }
+        const coords = [];
+        for (let i = 0; i + 1 < nums.length; i += 2) {
+            if (!isNaN(nums[i]) && !isNaN(nums[i + 1])) {
+                coords.push([nums[i], nums[i + 1]]);
+            }
+        }
+        if (coords.length >= 3) {
+            rings.push(coords);
+        }
+    }
+    return rings;
+};
+
+// Test point-in-polygon multi-anneaux (Règle Even-Odd Ray-Casting standard SVG)
+const isPointInRings = (x, y, rings) => {
+    if (!rings || rings.length === 0) return true;
+    let inside = false;
+    for (let r = 0; r < rings.length; r++) {
+        const ring = rings[r];
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+            const xi = ring[i][0], yi = ring[i][1];
+            const xj = ring[j][0], yj = ring[j][1];
+            const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+            if (intersect) inside = !inside;
+        }
+    }
+    return inside;
+};
+
 // 2. Découpage cartographique automatique par diagramme de Voronoi (Style Carte de France)
+// Utilise les vraies coordonnées GPS project(lat, lon) comme point de départ
 const regionalParcels = computed(() => {
     if (!sel.value || !selRegion.value) return [];
     const units = unitesClassees.value;
@@ -1911,70 +1975,106 @@ const regionalParcels = computed(() => {
     const pw = maxX - minX;
     const ph = maxY - minY;
 
+    // Découpage multi-polygones robuste du contour de la région (gère îlots et enclaves)
+    const rawPath = pathD(selRegion.value) || '';
+    const rings = parseSvgPathToRings(rawPath);
+
+    // Cas d'une seule unité
     if (n === 1) {
+        const u = units[0];
+        let pX = cx, pY = cy;
+        if (u.lat !== null && u.lon !== null && !isNaN(Number(u.lat)) && !isNaN(Number(u.lon))) {
+            const pt = project(Number(u.lat), Number(u.lon));
+            if (sel.value === 'R1') {
+                const baseCx = 164.6, baseCy = 495.4;
+                pX = baseCx + (pt.x - baseCx) * 4.0;
+                pY = baseCy + (pt.y - baseCy) * 4.0;
+            } else {
+                pX = pt.x;
+                pY = pt.y;
+            }
+        }
         return [{
-            unit: units[0],
+            unit: u,
             path: `M ${minX - 10} ${minY - 10} H ${maxX + 10} V ${maxY + 10} H ${minX - 10} Z`,
-            cx, cy
+            cx: pX,
+            cy: pY
         }];
     }
 
-    if (n === 2) {
-        // Deux unités : division nette par l'axe médian
-        const p0 = [cx - pw * 0.22, cy];
-        const p1 = [cx + pw * 0.22, cy];
-        const padX = pw * 0.2;
-        const padY = ph * 0.2;
-        const path0 = `M ${minX - padX} ${minY - padY} H ${cx} V ${maxY + padY} H ${minX - padX} Z`;
-        const path1 = `M ${cx} ${minY - padY} H ${maxX + padX} V ${maxY + padY} H ${cx} Z`;
-        return [
-            { unit: units[0], path: path0, cx: p0[0], cy: p0[1] },
-            { unit: units[1], path: path1, cx: p1[0], cy: p1[1] }
-        ];
+    // 1) Projection des coordonnées GPS réelles de chaque unité
+    const rawPoints = [];
+    const coLocMap = new Map();
+
+    for (let i = 0; i < n; i++) {
+        const u = units[i];
+        const hasGps = u.lat !== null && u.lon !== null && !isNaN(Number(u.lat)) && !isNaN(Number(u.lon));
+        if (hasGps) {
+            const pt = project(Number(u.lat), Number(u.lon));
+            let x = pt.x, y = pt.y;
+            if (sel.value === 'R1') {
+                const baseCx = 164.6, baseCy = 495.4;
+                x = baseCx + (x - baseCx) * 4.0;
+                y = baseCy + (y - baseCy) * 4.0;
+            }
+            rawPoints.push({ hasGps: true, x, y, index: i });
+            const key = `${x.toFixed(2)},${y.toFixed(2)}`;
+            coLocMap.set(key, (coLocMap.get(key) || 0) + 1);
+        } else {
+            rawPoints.push({ hasGps: false, x: cx, y: cy, index: i });
+        }
     }
 
-    // Polygone extérieur de la région pour garantir que 100% des graines sont strictement à l'intérieur
-    const rawPath = pathD(selRegion.value) || '';
-    const polyCoords = rawPath.startsWith('M') && rawPath.endsWith('Z')
-        ? rawPath.slice(1, -1).split('L').map(s => s.split(' ').map(Number)).filter(pt => pt.length === 2 && !isNaN(pt[0]))
-        : [];
+    // 2) Micro-dispersion des unités co-localisées au même casernement/camp
+    //    et placement en spirale douce pour les éventuelles unités sans GPS
+    const coLocSeen = new Map();
+    let noGpsIdx = 0;
+    const numNoGps = rawPoints.filter(p => !p.hasGps).length;
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5));
 
-    const isInside = (x, y) => {
-        if (polyCoords.length < 3) return true;
-        let inside = false;
-        for (let i = 0, j = polyCoords.length - 1; i < polyCoords.length; j = i++) {
-            const xi = polyCoords[i][0], yi = polyCoords[i][1];
-            const xj = polyCoords[j][0], yj = polyCoords[j][1];
-            const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-            if (intersect) inside = !inside;
-        }
-        return inside;
-    };
-
-    // Distribution des graines équilibrée sur toute la géométrie (évite l'agglutinement au centre)
     let points = [];
-    const rx = pw * 0.44;
-    const ry = ph * 0.44;
-    const goldenAngle = Math.PI * (3 - Math.sqrt(5)); // ~137.5077°
     for (let i = 0; i < n; i++) {
-        const r = Math.sqrt((i + 0.5) / n);
-        const theta = i * goldenAngle;
-        let x = cx + r * rx * Math.cos(theta);
-        let y = cy + r * ry * Math.sin(theta);
+        const p = rawPoints[i];
+        let x = p.x, y = p.y;
+
+        if (p.hasGps) {
+            const key = `${p.x.toFixed(2)},${p.y.toFixed(2)}`;
+            const groupSize = coLocMap.get(key) || 1;
+            const seen = coLocSeen.get(key) || 0;
+            coLocSeen.set(key, seen + 1);
+
+            if (groupSize > 1) {
+                // Micro-dispersion déterministe autour de la position GPS réelle
+                const rDisp = Math.min(pw, ph) * 0.035;
+                const theta = (seen / groupSize) * 2 * Math.PI;
+                x += rDisp * Math.cos(theta);
+                y += rDisp * Math.sin(theta);
+            }
+        } else {
+            const r = Math.sqrt((noGpsIdx + 0.5) / (numNoGps || 1)) * (pw * 0.3);
+            const theta = noGpsIdx * goldenAngle;
+            x = cx + r * Math.cos(theta);
+            y = cy + r * Math.sin(theta);
+            noGpsIdx++;
+        }
+
+        // Vérification d'inclusion dans le contour multi-polygones de la région
         let steps = 0;
-        while (!isInside(x, y) && steps < 25) {
-            x = x * 0.9 + cx * 0.1;
-            y = y * 0.9 + cy * 0.1;
+        while (!isPointInRings(x, y, rings) && steps < 25) {
+            x = x * 0.93 + cx * 0.07;
+            y = y * 0.93 + cy * 0.07;
             steps++;
         }
+
         points.push([x, y]);
     }
 
     const pad = Math.max(pw, ph) * 0.25;
     const bounds = [minX - pad, minY - pad, maxX + pad, maxY + pad];
 
-    // Relaxation de Lloyd (2 passes) pour que chaque unité ait une vraie parcelle territoriale équilibrée
-    for (let pass = 0; pass < 2; pass++) {
+    // Lloyd relaxation modérée (1 passe pondérée) pour équilibrer les frontières territoriales
+    // tout en maintenant l'ancrage sur la position géographique réelle (80% GPS, 20% Centroïde)
+    if (n <= 150) {
         try {
             const v = Delaunay.from(points).voronoi(bounds);
             const newPoints = [];
@@ -1987,10 +2087,12 @@ const regionalParcels = computed(() => {
                         sx += poly[k][0];
                         sy += poly[k][1];
                     }
-                    let px = sx / len;
-                    let py = sy / len;
-                    if (isInside(px, py)) {
-                        newPoints.push([px, py]);
+                    const px = sx / len;
+                    const py = sy / len;
+                    const targetX = points[i][0] * 0.8 + px * 0.2;
+                    const targetY = points[i][1] * 0.8 + py * 0.2;
+                    if (isPointInRings(targetX, targetY, rings)) {
+                        newPoints.push([targetX, targetY]);
                     } else {
                         newPoints.push(points[i]);
                     }
@@ -2000,31 +2102,30 @@ const regionalParcels = computed(() => {
             }
             points = newPoints;
         } catch (e) {
-            break;
+            // Continuer sans relaxation en cas d'exception
         }
     }
 
-    // Séparation anti-collision pour garantir qu'aucun cercle ne chevauche son voisin
-    if (n > 10) {
-        for (let pass = 0; pass < 3; pass++) {
+    // Séparation anti-collision : SEULEMENT si n <= 150 (évite pénalité O(n²) sur grandes volumétries)
+    if (n > 5 && n <= 150) {
+        for (let pass = 0; pass < 2; pass++) {
             for (let i = 0; i < n; i++) {
                 for (let j = i + 1; j < n; j++) {
-                    const effI = units[i].effectif || 0;
-                    const effJ = units[j].effectif || 0;
-                    const rI = effI >= 8 ? 5.1 : (effI >= 7 ? 4.6 : (effI >= 5 ? 4.0 : (effI >= 3 ? 3.1 : 2.2)));
-                    const rJ = effJ >= 8 ? 5.1 : (effJ >= 7 ? 4.6 : (effJ >= 5 ? 4.0 : (effJ >= 3 ? 3.1 : 2.2)));
-                    const targetDist = rI + rJ + 0.5;
+                    const rI = parcelCircleR(units[i]);
+                    const rJ = parcelCircleR(units[j]);
+                    if (rI === 0 && rJ === 0) continue;
+                    const targetDist = rI + rJ + 0.6;
                     const dx = points[j][0] - points[i][0];
                     const dy = points[j][1] - points[i][1];
                     const dist = Math.hypot(dx, dy);
                     if (dist > 0 && dist < targetDist) {
-                        const overlap = (targetDist - dist) * 0.55;
+                        const overlap = (targetDist - dist) * 0.5;
                         const nx = (dx / dist) * overlap;
                         const ny = (dy / dist) * overlap;
                         const nxI = points[i][0] - nx, nyI = points[i][1] - ny;
                         const nxJ = points[j][0] + nx, nyJ = points[j][1] + ny;
-                        if (isInside(nxI, nyI)) { points[i][0] = nxI; points[i][1] = nyI; }
-                        if (isInside(nxJ, nyJ)) { points[j][0] = nxJ; points[j][1] = nyJ; }
+                        if (isPointInRings(nxI, nyI, rings)) { points[i][0] = nxI; points[i][1] = nyI; }
+                        if (isPointInRings(nxJ, nyJ, rings)) { points[j][0] = nxJ; points[j][1] = nyJ; }
                     }
                 }
             }
@@ -2058,45 +2159,77 @@ const regionalParcels = computed(() => {
 
 const selParcel = computed(() => {
     if (!selUnit.value) return null;
-    return regionalParcels.value.find(p => p.unit.id === selUnit.value);
+    return (regionalParcels.value || []).find(p => p.unit.id === selUnit.value);
 });
 
-// 3. Nuancier thématique identique à la carte de France (Jaune doux -> Orange -> Rouge vif)
+// Effectif maximum parmi les unités affichées dans la région
+const maxRegionalEff = computed(() => {
+    const list = unitesClassees.value;
+    if (list.length === 0) return 1;
+    let m = 1;
+    for (const u of list) {
+        const eff = Number(u.effectif) || 0;
+        if (eff > m) m = eff;
+    }
+    return m;
+});
+
+// Seuils dynamiques par quantiles pour 5 classes de couleurs (20%, 40%, 60%, 80%) sur les effectifs non nuls
+const quantileThresholds = computed(() => {
+    const nonZero = unitesClassees.value
+        .map(u => Number(u.effectif) || 0)
+        .filter(e => e > 0)
+        .sort((a, b) => a - b);
+
+    if (nonZero.length === 0) return [1, 2, 3, 4];
+    if (nonZero.length === 1) {
+        const val = nonZero[0];
+        return [val, val, val, val];
+    }
+
+    const getQuantile = (p) => {
+        const idx = (nonZero.length - 1) * p;
+        const low = Math.floor(idx);
+        const high = Math.ceil(idx);
+        if (low === high) return nonZero[low];
+        return nonZero[low] + (nonZero[high] - nonZero[low]) * (idx - low);
+    };
+
+    return [
+        getQuantile(0.20),
+        getQuantile(0.40),
+        getQuantile(0.60),
+        getQuantile(0.80)
+    ];
+});
+
+// 3. Nuancier thématique dynamique en 5 classes par quantiles (Jaune doux -> Ambre -> Orange -> Rouge vif)
 const parcelFill = (unit) => {
     const eff = Number(unit?.effectif) || 0;
-    if (eff === 0) return '#f8fafc'; // Gris neutre clair (Style Mayotte 0)
-    if (eff >= 7) return '#dc2626'; // Rouge vif soutenu (Style Île-de-France 492 / Grand-Est 578)
-    if (eff >= 5) return '#ea580c'; // Orange profond
-    if (eff >= 3) return '#f97316'; // Orange vif
-    if (eff === 2) return '#f59e0b'; // Ambre / Jaune d'or (Style Normandie 54 / Pays de Loire 34)
-    return '#fef08a'; // Jaune doux lumineux (Style Centre 20)
+    if (eff === 0) return '#f8fafc'; // Gris neutre clair (0 effectif)
+
+    const [q1, q2, q3, q4] = quantileThresholds.value;
+
+    if (eff > q4) return '#dc2626'; // Classe 5 : Rouge vif soutenu (Top 20%)
+    if (eff > q3) return '#ea580c'; // Classe 4 : Orange profond (60-80%)
+    if (eff > q2) return '#f97316'; // Classe 3 : Orange vif (40-60%)
+    if (eff > q1) return '#f59e0b'; // Classe 2 : Ambre / Jaune d'or (20-40%)
+    return '#fef08a';                // Classe 1 : Jaune doux lumineux (0-20%)
 };
 
-// 4. Rayon du cercle proportionnel rouge (Jacques Bertin, Style Carte de France)
+// 4. Rayon du cercle proportionnel rouge (Méthode de Jacques Bertin : Surface proportionnelle à l'effectif)
 const parcelCircleR = (unit) => {
     const eff = Math.max(0, Number(unit?.effectif) || 0);
-    if (eff === 0) return 0; // Strict Jacques Bertin : 0 effectif = AUCUN cercle !
+    if (eff === 0) return 0; // Strict Jacques Bertin : 0 effectif = AUCUN cercle
 
-    const isDense = regionalParcels.value.length > 15;
-    if (isDense) {
-        // Bamako (26 unités actives) : Grands disques bien calibrés sans aucun chevauchement
-        if (eff >= 8) return 5.1 * rUnit.value;
-        if (eff >= 7) return 4.6 * rUnit.value;
-        if (eff >= 5) return 4.0 * rUnit.value;
-        if (eff >= 4) return 3.5 * rUnit.value;
-        if (eff >= 3) return 3.1 * rUnit.value;
-        if (eff >= 2) return 2.6 * rUnit.value;
-        return 2.1 * rUnit.value;
-    } else {
-        // Régions aérées (Ségou, Sikasso, Kayes... avec 1 à 6 unités actives) :
-        // Disques majestueux et imposants comme sur la carte de France
-        if (eff >= 8) return 8.5 * rUnit.value;
-        if (eff >= 7) return 7.8 * rUnit.value;
-        if (eff >= 5) return 6.8 * rUnit.value;
-        if (eff >= 3) return 5.8 * rUnit.value;
-        if (eff >= 2) return 5.0 * rUnit.value;
-        return 4.2 * rUnit.value;
-    }
+    const maxEff = maxRegionalEff.value;
+    const isDense = (unitesClassees.value?.length || 0) > 15;
+    const rMax = (isDense ? 5.2 : 8.5) * rUnit.value;
+    const rMin = (isDense ? 1.6 : 3.2) * rUnit.value;
+
+    // Formule Bertin : Surface proportionnelle à l'effectif => r = rMax * sqrt(eff / maxEff)
+    const bertinR = rMax * Math.sqrt(eff / maxEff);
+    return Math.max(rMin, bertinR);
 };
 
 // 5. Chiffre centré dans le cercle proportionnel (grand, gras 900, noir, lisible de loin)
@@ -2105,7 +2238,8 @@ const parcelCircleFontSize = (unit) => {
     if (r === 0) return 0;
     const eff = Math.max(0, Number(unit?.effectif) || 0);
     const len = String(eff).length;
-    const factor = len >= 3 ? 0.82 : (len === 2 ? 0.95 : 1.05);
+    // Calibré dynamiquement pour 1 chiffre (ex: 8), 2 chiffres (ex: 45), 3 chiffres (ex: 350), 4+ chiffres (ex: 1200)
+    const factor = len >= 4 ? 0.65 : (len === 3 ? 0.78 : (len === 2 ? 0.92 : 1.05));
     return r * factor;
 };
 
@@ -2154,7 +2288,7 @@ const shouldShowParcelLabel = (p) => {
     if (selUnit.value === p.unit.id) return true;
     if (hoveredItem.value?.isUnit && hoveredItem.value?.uId === p.unit.id) return true;
     // Si la région est aérée (<= 6 unités actives, ex: Ségou, Sikasso, Kayes), afficher le libellé sous le grand cercle
-    if (regionalParcels.value.length <= 6) return true;
+    if ((unitesClassees.value?.length || 0) <= 6) return true;
     // Vue dense (Bamako 26 unités) : aucun libellé pour garder la carte épurée et lisible (exactement comme la carte de France !)
     return false;
 };
