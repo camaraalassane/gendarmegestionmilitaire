@@ -367,7 +367,7 @@ class ContratController extends Controller
 
         $militaireId = $request->militaire_id;
 
-        // Récupérer le contrat actif (le nouveau)
+        // Récupérer le contrat actif (le nouveau créé lors du renouvellement)
         $nouveauContrat = Contrat::where('militaire_id', $militaireId)
             ->where('statut', 'actif')
             ->latest('date_debut')
@@ -377,7 +377,7 @@ class ContratController extends Controller
             return redirect()->back()->with('error', 'Aucun contrat actif trouvé.');
         }
 
-        // Récupérer le dernier contrat renouvelé (l'ancien)
+        // Récupérer le dernier contrat renouvelé (l'ancien archivé)
         $ancienContrat = Contrat::where('militaire_id', $militaireId)
             ->where('statut', 'renouvele')
             ->latest('date_renouvellement')
@@ -388,27 +388,26 @@ class ContratController extends Controller
         }
 
         DB::transaction(function () use ($militaireId, $nouveauContrat, $ancienContrat) {
-            // Restaurer l'ancien contrat
+            // Restaurer l'ancien contrat à son échéance normale d'origine
+            $dateFinRestauree = $ancienContrat->date_debut && $ancienContrat->duree_annees
+                ? Carbon::parse($ancienContrat->date_debut)->addYears((int) $ancienContrat->duree_annees)
+                : ($nouveauContrat->date_debut ? Carbon::parse($nouveauContrat->date_debut)->subDay() : now()->subDay());
+
+            // Sécurité : si la date de fin calculée est dans le futur de plus de 6 mois, forcer à la date précédant le renouvellement annulé
+            if ($dateFinRestauree->isFuture() && $dateFinRestauree->diffInDays(now()) > 180) {
+                $dateFinRestauree = $nouveauContrat->date_debut 
+                    ? Carbon::parse($nouveauContrat->date_debut)->subDay() 
+                    : now()->subDay();
+            }
+
             $ancienContrat->update([
                 'statut' => 'actif',
-                'date_fin' => $nouveauContrat->date_fin,
+                'date_fin' => $dateFinRestauree,
                 'date_renouvellement' => null,
             ]);
 
-            // Supprimer le nouveau contrat
+            // Supprimer le nouveau contrat qui vient d'être annulé
             $nouveauContrat->delete();
-
-            // Recréer l'alerte
-            $serviceYears = $ancienContrat->date_debut->diffInYears(now());
-            $serviceYears = max(0, $serviceYears);
-
-            Alerte::create([
-                'militaire_id' => $militaireId,
-                'type_alerte' => 'contrat',
-                'message' => "Renouvellement de contrat requis pour le militaire (renouvellement annulé) - {$serviceYears} ans de service",
-                'date_echeance' => $ancienContrat->date_fin ?? now()->addMonths(6),
-                'est_vue' => false,
-            ]);
 
             if (auth()->check()) {
                 ActivityLog::create([
@@ -420,6 +419,32 @@ class ContratController extends Controller
             }
         });
 
+        // Régénérer immédiatement et automatiquement les alertes et l'éligibilité pour ce militaire
+        $militaire = Militaire::find($militaireId);
+        if ($militaire) {
+            app(MilitaireController::class)->verifierAlertes($militaire);
+
+            // Garantir que l'alerte de renouvellement de contrat existe bien
+            $alerteExiste = Alerte::where('militaire_id', $militaireId)
+                ->where('type_alerte', 'contrat')
+                ->exists();
+
+            if (!$alerteExiste) {
+                $serviceYears = $militaire->date_entree_service 
+                    ? (int) floor(Carbon::parse($militaire->date_entree_service)->diffInYears(now()))
+                    : (int) floor(Carbon::parse($ancienContrat->date_debut)->diffInYears(now()));
+                $serviceYears = max(5, $serviceYears);
+
+                Alerte::create([
+                    'militaire_id' => $militaireId,
+                    'type_alerte' => 'contrat',
+                    'message' => "Renouvellement de contrat requis pour {$militaire->prenom} {$militaire->nom} ({$serviceYears} ans de service) - Grade: {$militaire->grade_actuel}",
+                    'date_echeance' => $ancienContrat->date_fin ?? now()->addMonths(6),
+                    'est_vue' => false,
+                ]);
+            }
+        }
+
         // Invalidation atomique de tous les caches pour actualisation dynamique immédiate
         Militaire::incrementCacheVersion();
         Cache::forget('alertes:statistiques_globales');
@@ -428,6 +453,6 @@ class ContratController extends Controller
         Cache::forget('dashboard:statistiques_cards');
         Cache::forget('carte:stats');
 
-        return redirect()->back()->with('success', 'Renouvellement annulé avec succès.');
+        return redirect()->back()->with('success', 'Renouvellement annulé avec succès. L\'alerte et l\'éligibilité ont été régénérées automatiquement.');
     }
 }

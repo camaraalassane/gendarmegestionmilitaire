@@ -553,15 +553,35 @@ class EligibiliteController extends Controller
             }
 
             // 4. CONTRATS
-            if (isset($alertesContrat[$m->id])) {
+            $hasContratAlerte = isset($alertesContrat[$m->id]);
+            $isEligibleContrat = $hasContratAlerte;
+
+            if (!$isEligibleContrat && $dEntree && $conditionsBase && $m->statut === 'actif') {
+                $anneesServiceContrat = (int) floor($dEntree->diffInYears($now));
+                $gradesContrats = [
+                    'Soldat 2', 'Soldat 1', 'Caporal', 'Caporal-chef',
+                    'Sergent', 'Sergent-Chef', 'Adjudant', 'Adjudant-Chef', 'Major',
+                    'Sapeur 1ère classe'
+                ];
+                if ($anneesServiceContrat >= 5 && in_array($grade, $gradesContrats)) {
+                    $cActif = $m->contratActif;
+                    // Éligible au renouvellement si sans contrat actif ou contrat finissant dans <= 6 mois (ou expiré)
+                    if (!$cActif || !$cActif->date_fin || !$cActif->date_fin->isFuture() || $cActif->date_fin->diffInDays($now) <= 180) {
+                        $isEligibleContrat = true;
+                    }
+                }
+            }
+
+            if ($isEligibleContrat) {
                 $contratActif = $m->contratActif;
-                $anneesService = $dEntree ? floor($dEntree->diffInYears($now)) : 0;
+                $anneesService = $dEntree ? (int) floor($dEntree->diffInYears($now)) : 0;
+                $msgContrat = $alertesContrat[$m->id] ?? "Renouvellement de contrat requis pour {$m->prenom} {$m->nom} ({$anneesService} ans de service) - Grade: {$grade}";
                 $allContrats[] = [
                     'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
                     'annees_service' => $anneesService,
                     'statut_contrat' => $contratActif ? 'actif' : 'sans contrat',
                     'date_echeance' => $contratActif?->date_fin?->format('Y-m-d'),
-                    'message' => $alertesContrat[$m->id],
+                    'message' => $msgContrat,
                 ];
             }
 
