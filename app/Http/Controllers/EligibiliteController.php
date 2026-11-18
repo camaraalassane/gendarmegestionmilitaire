@@ -558,7 +558,7 @@ class EligibiliteController extends Controller
             $hasContratAlerte = isset($alertesContrat[$m->id]);
             $isEligibleContrat = $hasContratAlerte;
 
-            if (!$isEligibleContrat && $conditionsBase && $m->statut === 'actif') {
+            if (!$isEligibleContrat && $conditionsBase && $m->estEnActivite()) {
                 $gradesContrats = [
                     'Soldat 2', 'Soldat 1', 'Caporal', 'Caporal-chef',
                     'Sergent', 'Sergent-Chef', 'Adjudant', 'Adjudant-Chef', 'Major',

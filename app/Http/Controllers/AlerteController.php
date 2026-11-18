@@ -369,7 +369,7 @@ class AlerteController extends Controller
         $now = now();
 
         Militaire::enActivite()
-            ->with(['certificats', 'affectations', 'contrats'])
+            ->with(['certificats', 'affectations', 'contratActif', 'contrats'])
             ->chunkById(500, function ($militaires) use ($militaireController, &$buffer, $now) {
                 foreach ($militaires as $militaire) {
                     $militaireController->verifierAlertes($militaire, true, $buffer, $now);
@@ -394,6 +394,8 @@ class AlerteController extends Controller
         Cache::forget('alertes:non_vues_count_gendarme');
         Cache::forget('dashboard:statistiques_cards');
         Cache::forget('alertes:statistiques_globales');
+        Militaire::incrementCacheVersion();
+        \App\Http\Controllers\CarteController::flush();
 
         $totalNonVues = Alerte::where('est_vue', false)->count();
 
@@ -420,6 +422,7 @@ class AlerteController extends Controller
             Militaire::whereIn('id', $lot)->update(['statut' => 'retraité', 'statut_code' => 7]);
         }
         if ($retraitesIds) {
+            Militaire::incrementCacheVersion();
             \App\Http\Controllers\CarteController::flush();
             Cache::forget('dashboard:statistiques_cards');
         }

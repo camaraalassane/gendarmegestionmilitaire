@@ -1206,13 +1206,18 @@ class MilitaireController extends Controller
             return;
         }
 
+        $currentNow = $now ?? now();
+
         // Si le militaire a un contrat actif dont la fin est dans plus de 6 mois, pas d'alerte de renouvellement
-        $contratActif = $militaire->relationLoaded('contrats')
-            ? $militaire->contrats->where('statut', 'actif')->sortByDesc('date_debut')->first()
-            : $militaire->contrats()->where('statut', 'actif')->latest('date_debut')->first();
+        $contratActif = $militaire->relationLoaded('contratActif') && $militaire->contratActif
+            ? $militaire->contratActif
+            : ($militaire->relationLoaded('contrats')
+                ? $militaire->contrats->filter(fn($c) => trim(strtolower($c->statut ?? '')) === 'actif')->sortByDesc('date_debut')->first()
+                : $militaire->contrats()->where('statut', 'actif')->latest('date_debut')->first());
 
         if ($contratActif && $contratActif->date_fin) {
-            if ($contratActif->date_fin->isFuture() && $contratActif->date_fin->diffInDays(now()) > 180) {
+            $dateFin = $contratActif->date_fin instanceof Carbon ? $contratActif->date_fin : Carbon::parse($contratActif->date_fin);
+            if ($dateFin->isFuture() && $dateFin->diffInDays($currentNow) > 180) {
                 if (!$enLot) {
                     Alerte::where('militaire_id', $militaire->id)
                         ->where('type_alerte', 'contrat')
@@ -1223,8 +1228,9 @@ class MilitaireController extends Controller
         }
 
         // Calcul des années de service si date d'entrée présente
-        $serviceYears = $militaire->date_entree_service 
-            ? (int) floor($militaire->date_entree_service->diffInYears(now()))
+        $dateEntree = $militaire->date_entree_service ? ($militaire->date_entree_service instanceof Carbon ? $militaire->date_entree_service : Carbon::parse($militaire->date_entree_service)) : null;
+        $serviceYears = $dateEntree 
+            ? (int) floor($dateEntree->diffInYears($currentNow))
             : null;
 
         // Si la date d'entrée est renseignée mais le militaire a moins de 5 ans de service et pas de contrat actif à renouveler
@@ -1247,7 +1253,7 @@ class MilitaireController extends Controller
             ? "Renouvellement de contrat requis pour {$militaire->prenom} {$militaire->nom} ({$serviceYears} ans de service) - Grade: {$militaire->grade_actuel}"
             : "Régularisation / Renouvellement de contrat requis pour {$militaire->prenom} {$militaire->nom} (sans contrat actif) - Grade: {$militaire->grade_actuel}";
 
-        $this->creerAlerte($militaire, 'contrat', $message, $contratActif?->date_fin ?? now()->addMonths(6), $enLot, $buffer, $now);
+        $this->creerAlerte($militaire, 'contrat', $message, $contratActif?->date_fin ?? $currentNow->copy()->addMonths(6), $enLot, $buffer, $currentNow);
     }
 
     private function getDateProposition()
@@ -1495,6 +1501,17 @@ class MilitaireController extends Controller
                     $dateConditions = Carbon::parse($certifBA1->pivot->date_obtention)->addYears(3);
                 }
                 $this->creerAlerteFormation($militaire, 'BA2', "Brevet d'Arme N2", $dateProposition, $dateConditions, $enLot, $buffer, $now);
+            }
+        }
+
+        // 8. CEM
+        if (!in_array('CEM', $certificatsObtenus)) {
+            if (in_array($grade, ['Capitaine', 'Commandant'])) {
+                if (($grade === 'Capitaine' && $ancienneteGrade >= 3) || $grade === 'Commandant') {
+                    if ($age <= 45) {
+                        $this->creerAlerteFormation($militaire, 'CEM', "Cour d'État-Major", $dateProposition, null, $enLot, $buffer, $now);
+                    }
+                }
             }
         }
 
