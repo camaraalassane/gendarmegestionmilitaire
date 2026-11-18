@@ -21,6 +21,7 @@ class Grade extends Model
         'type_grade',
         'ordre',
         'retraite_obligatoire',
+        'description',
     ];
 
     /**

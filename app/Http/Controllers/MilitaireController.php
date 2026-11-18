@@ -182,10 +182,7 @@ class MilitaireController extends Controller
                 $q->where('militaires.statut_code', 9)
                   ->orWhereNotNull('militaires.date_deces');
             })->where(function($q) use ($debutAnnee, $finAnnee) {
-                $q->whereBetween('militaires.date_deces', [$debutAnnee, $finAnnee])
-                  ->orWhere(function($sub) use ($debutAnnee, $finAnnee) {
-                      $sub->whereNull('militaires.date_deces')->whereBetween('militaires.updated_at', [$debutAnnee, $finAnnee]);
-                  });
+                $q->whereBetween('militaires.date_deces', [$debutAnnee, $finAnnee]);
             });
         } elseif (str_starts_with(mb_strtolower($statutFilter), 'deser')) {
             $query->where(function($q) {

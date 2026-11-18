@@ -1347,7 +1347,7 @@ const form = reactive({
     date_derniere_promotion: parsePropDate(props.militaire.date_derniere_promotion),
     specialite: props.militaire.specialite || '',
     origine_formation: props.militaire.origine_formation || '',
-    position_id: props.militaire.position_id ?? (props.positions.find(p => p.nom?.toLowerCase() === (props.militaire.position_actuelle || '').toLowerCase())?.id ?? (props.militaire.position_actuelle || null)),
+    position_id: props.militaire.position_id ?? (props.positions.find(p => p.nom?.toLowerCase() === (props.militaire.position_actuelle || '').toLowerCase())?.id ?? null),
     position_actuelle: props.militaire.position_actuelle || '',
     unite_id: props.militaire.unite_id ?? (props.unites.find(u => u.nom === props.militaire.unite)?.id ?? null),
     unite: props.militaire.unite || '',

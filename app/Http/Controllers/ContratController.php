@@ -288,7 +288,8 @@ class ContratController extends Controller
                 continue;
             }
 
-            $serviceYears = now()->diffInYears($contratActif->date_debut);
+            $dateRef = $militaire->date_entree_service ?? $contratActif->date_debut;
+            $serviceYears = $dateRef ? (int) floor(Carbon::parse($dateRef)->diffInYears(now())) : 0;
 
             if ($serviceYears >= 5) {
                 $alerteExiste = Alerte::where('militaire_id', $militaire->id)
@@ -339,7 +340,8 @@ class ContratController extends Controller
         foreach ($militaires as $militaire) {
             $contrat = $militaire->contrats->first();
             if ($contrat) {
-                $annees = now()->diffInYears($contrat->date_debut);
+                $refDate = $militaire->date_entree_service ?? $contrat->date_debut;
+                $annees = $refDate ? (int) floor(Carbon::parse($refDate)->diffInYears(now())) : 0;
                 if ($annees >= 15) $a15ans++;
                 elseif ($annees >= 10) $a10ans++;
                 elseif ($annees >= 5) $a5ans++;

@@ -888,6 +888,11 @@ const filteredUnites = computed(() => {
 // Pagination Unités
 const unitesPerPage = 25;
 const unitesCurrentPage = ref(1);
+
+watch([searchUnite, filterRegion, filterOperationnel], () => {
+    unitesCurrentPage.value = 1;
+});
+
 const unitesTotalPages = computed(() => Math.ceil(filteredUnites.value.length / unitesPerPage));
 const unitesStartIndex = computed(() => (unitesCurrentPage.value - 1) * unitesPerPage);
 const unitesEndIndex = computed(() => unitesStartIndex.value + unitesPerPage);
