@@ -362,24 +362,88 @@
                         </div>
 
                         <!-- ================================================================================= -->
-                        <!-- ÉTAPE 1 : AFFECTATION & CARRIÈRE                                                 -->
+                        <!-- ================================================================================= -->
+                        <!-- ÉTAPE 2 : CARRIÈRE & AFFECTATION                                                  -->
                         <!-- ================================================================================= -->
                         <div v-show="currentStep === 1" class="space-y-6">
-                            <!-- Affectations territoriales -->
-                            <div>
-                                <div class="flex items-center justify-between mb-3 border-b border-slate-200 pb-2">
-                                    <label class="block text-sm font-bold text-slate-800">
-                                        <i class="pi pi-building text-sky-800 mr-1.5"></i>
-                                        Affectation & Maillage Territorial
-                                    </label>
+
+                            <!-- CARD 1 : Dates clés et Fonctions de Carrière -->
+                            <div class="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 shadow-2xs">
+                                <div class="flex items-center gap-2 text-sky-900 border-b border-slate-200 pb-3 mb-4 text-sm font-extrabold uppercase tracking-wide">
+                                    <i class="pi pi-briefcase text-sky-800 text-base"></i>
+                                    <span>Card 1 — Dates clés et Fonctions de Carrière</span>
+                                </div>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <!-- Date d'entrée en service -->
+                                    <div class="field">
+                                        <label for="date_entree_service" class="block text-sm font-bold text-gray-700 mb-1 truncate whitespace-nowrap">
+                                            Date d'entrée en service <span class="text-red-500">*</span>
+                                        </label>
+                                        <DatePicker id="date_entree_service" v-model="form.date_entree_service" dateFormat="dd/mm/yy" showIcon class="w-full"
+                                                    :class="{ 'p-invalid': errors.date_entree_service || stepErrors[1].date_entree_service }" />
+                                        <small v-if="errors.date_entree_service || stepErrors[1].date_entree_service" class="text-red-500 font-medium">
+                                            {{ errors.date_entree_service || stepErrors[1].date_entree_service }}
+                                        </small>
+                                    </div>
+
+                                    <!-- Date dernière promotion -->
+                                    <div class="field">
+                                        <label for="date_derniere_promotion" class="block text-sm font-semibold text-gray-700 mb-1 truncate whitespace-nowrap">
+                                            Date dernière promotion
+                                        </label>
+                                        <DatePicker id="date_derniere_promotion" v-model="form.date_derniere_promotion" dateFormat="dd/mm/yy" showIcon class="w-full" />
+                                    </div>
+
+                                    <!-- Origine de formation -->
+                                    <div class="field">
+                                        <label for="origine_formation" class="block text-sm font-semibold text-gray-700 mb-1 truncate whitespace-nowrap">
+                                            Origine / École de formation
+                                        </label>
+                                        <InputText id="origine_formation" v-model="form.origine_formation" class="w-full" placeholder="Ex: EMIA, Rang, ESOA..." />
+                                    </div>
+
+                                    <!-- Fonction actuelle -->
+                                    <div class="field">
+                                        <label for="fonction_actuelle" class="block text-sm font-semibold text-gray-700 mb-1 truncate whitespace-nowrap">
+                                            Fonction actuelle
+                                        </label>
+                                        <InputText id="fonction_actuelle" v-model="form.fonction_actuelle" class="w-full" placeholder="Ex: C.B.T, Commandant d'unité..." />
+                                    </div>
+
+                                    <!-- Fonction passée -->
+                                    <div class="field">
+                                        <label for="fonction_passee" class="block text-sm font-semibold text-gray-700 mb-1 truncate whitespace-nowrap">
+                                            Fonction passée
+                                        </label>
+                                        <InputText id="fonction_passee" v-model="form.fonction_passee" class="w-full" />
+                                    </div>
+
+                                    <!-- Spécialité -->
+                                    <div class="field">
+                                        <label for="specialite" class="block text-sm font-semibold text-gray-700 mb-1 truncate whitespace-nowrap">
+                                            Spécialité
+                                        </label>
+                                        <InputText id="specialite" v-model="form.specialite" class="w-full" placeholder="Ex: Motocycliste, OPJ, Télécom..." />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- CARD 2 : Affectation & Maillage Territorial -->
+                            <div class="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 shadow-2xs">
+                                <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
+                                    <div class="flex items-center gap-2 text-sky-900 text-sm font-extrabold uppercase tracking-wide">
+                                        <i class="pi pi-building text-sky-800 text-base"></i>
+                                        <span>Card 2 — Affectation & Maillage Territorial</span>
+                                    </div>
                                     <Button type="button" label="Ajouter une affectation" icon="pi pi-plus"
                                             class="p-button-sm !bg-white hover:!bg-sky-50 !text-sky-800 !border !border-sky-300 font-bold shadow-2xs cursor-pointer"
                                             @click="addAffectation" />
                                 </div>
 
-                                <div class="space-y-3">
+                                <div class="space-y-4">
                                     <div v-for="(aff, idx) in form.affectations" :key="idx"
-                                         class="p-4 rounded-xl border border-slate-200 bg-slate-50/70 relative transition-all">
+                                         class="p-4 rounded-xl border border-slate-200 bg-white relative transition-all shadow-2xs">
                                         <div class="flex items-center justify-between mb-3 border-b border-slate-200 pb-2">
                                             <div class="flex items-center gap-2">
                                                 <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-sky-800 text-white font-extrabold text-xs">
@@ -474,114 +538,55 @@
                                                 <DatePicker :id="'date_mutation_' + idx" v-model="aff.date_mutation"
                                                             dateFormat="dd/mm/yy" showIcon class="w-full" size="small" />
                                             </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
 
-                            <!-- Dates et fonctions de carrière -->
-                            <div class="pt-4 border-t border-slate-200">
-                                <label class="block text-sm font-bold text-slate-800 mb-3">
-                                    <i class="pi pi-briefcase text-sky-800 mr-1.5"></i>
-                                    Dates clés et Fonctions de Carrière
-                                </label>
+                                            <!-- Position actuelle & Observations (uniquement sur l'affectation actuelle / idx === 0) -->
+                                            <template v-if="idx === 0">
+                                                <!-- Position actuelle (Endroit où il se trouve) -->
+                                                <div class="field sm:col-span-1 lg:col-span-1 min-w-0 pt-2 border-t border-slate-100 sm:border-0 sm:pt-0">
+                                                    <div class="flex items-center justify-between mb-1 gap-1">
+                                                        <label for="position_actuelle" class="block text-sm font-semibold text-gray-700 truncate">
+                                                            Position actuelle
+                                                        </label>
+                                                        <button type="button" @click="openQuickAddPosition"
+                                                                class="text-sky-700 hover:text-sky-900 text-[11px] font-semibold flex items-center gap-1 cursor-pointer bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 hover:bg-sky-100 transition-colors shrink-0"
+                                                                title="Ajouter un nouvel endroit de déploiement">
+                                                            <i class="pi pi-plus text-[10px]"></i>
+                                                            <span>Ajouter</span>
+                                                        </button>
+                                                    </div>
+                                                    <Select id="position_actuelle"
+                                                            v-model="form.position_id"
+                                                            :options="localPositions"
+                                                            optionLabel="nom"
+                                                            optionValue="id"
+                                                            filter
+                                                            placeholder="Sélectionner la position..."
+                                                            class="w-full min-w-0"
+                                                            @change="onPositionSelect">
+                                                        <template #option="slotProps">
+                                                            <div class="flex items-center justify-between w-full py-0.5">
+                                                                <span class="text-xs font-medium">{{ slotProps.option.nom }}</span>
+                                                                <span class="text-[10px] px-1.5 py-0.2 rounded font-semibold bg-slate-100 text-slate-700">
+                                                                    {{ slotProps.option.type === 'operationnelle' ? 'Théâtre / Déploiement' : 'Poste' }}
+                                                                </span>
+                                                            </div>
+                                                        </template>
+                                                    </Select>
+                                                </div>
 
-                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    <!-- Date d'entrée en service -->
-                                    <div class="field">
-                                        <label for="date_entree_service" class="block text-sm font-bold text-gray-700 mb-1">
-                                            Date d'entrée en service <span class="text-red-500">*</span>
-                                        </label>
-                                        <DatePicker id="date_entree_service" v-model="form.date_entree_service" dateFormat="dd/mm/yy" showIcon class="w-full"
-                                                    :class="{ 'p-invalid': errors.date_entree_service || stepErrors[1].date_entree_service }" />
-                                        <small v-if="errors.date_entree_service || stepErrors[1].date_entree_service" class="text-red-500 font-medium">
-                                            {{ errors.date_entree_service || stepErrors[1].date_entree_service }}
-                                        </small>
-                                    </div>
-
-                                    <!-- Date dernière promotion -->
-                                    <div class="field">
-                                        <label for="date_derniere_promotion" class="block text-sm font-semibold text-gray-700 mb-1">
-                                            Date dernière promotion
-                                        </label>
-                                        <DatePicker id="date_derniere_promotion" v-model="form.date_derniere_promotion" dateFormat="dd/mm/yy" showIcon class="w-full" />
-                                    </div>
-
-                                    <!-- Origine de formation -->
-                                    <div class="field">
-                                        <label for="origine_formation" class="block text-sm font-semibold text-gray-700 mb-1">
-                                            Origine / École de formation
-                                        </label>
-                                        <InputText id="origine_formation" v-model="form.origine_formation" class="w-full" placeholder="Ex: EMIA, Rang, ESOA..." />
-                                    </div>
-
-                                    <!-- Fonction actuelle -->
-                                    <div class="field">
-                                        <label for="fonction_actuelle" class="block text-sm font-semibold text-gray-700 mb-1">
-                                            Fonction actuelle
-                                        </label>
-                                        <InputText id="fonction_actuelle" v-model="form.fonction_actuelle" class="w-full" placeholder="Ex: C.B.T, Commandant d'unité..." />
-                                    </div>
-
-                                    <!-- Fonction passée -->
-                                    <div class="field">
-                                        <label for="fonction_passee" class="block text-sm font-semibold text-gray-700 mb-1">
-                                            Fonction passée
-                                        </label>
-                                        <InputText id="fonction_passee" v-model="form.fonction_passee" class="w-full" />
-                                    </div>
-
-                                    <!-- Spécialité -->
-                                    <div class="field">
-                                        <label for="specialite" class="block text-sm font-semibold text-gray-700 mb-1">
-                                            Spécialité
-                                        </label>
-                                        <InputText id="specialite" v-model="form.specialite" class="w-full" placeholder="Ex: Motocycliste, OPJ, Télécom..." />
-                                    </div>
-
-                                    <!-- Position actuelle (Endroit où il se trouve) -->
-                                    <div class="field sm:col-span-1 lg:col-span-1 min-w-0">
-                                        <div class="flex items-center justify-between mb-1 gap-1">
-                                            <label for="position_actuelle" class="block text-sm font-semibold text-gray-700 truncate">
-                                                Position actuelle
-                                            </label>
-                                            <button type="button" @click="openQuickAddPosition"
-                                                    class="text-sky-700 hover:text-sky-900 text-[11px] font-semibold flex items-center gap-1 cursor-pointer bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 hover:bg-sky-100 transition-colors shrink-0"
-                                                    title="Ajouter un nouvel endroit de déploiement">
-                                                <i class="pi pi-plus text-[10px]"></i>
-                                                <span>Ajouter</span>
-                                            </button>
-                                        </div>
-                                        <Select id="position_actuelle"
-                                                v-model="form.position_id"
-                                                :options="localPositions"
-                                                optionLabel="nom"
-                                                optionValue="id"
-                                                filter
-                                                placeholder="Sélectionner la position..."
-                                                class="w-full min-w-0"
-                                                @change="onPositionSelect">
-                                            <template #option="slotProps">
-                                                <div class="flex items-center justify-between w-full py-0.5">
-                                                    <span class="text-xs font-medium">{{ slotProps.option.nom }}</span>
-                                                    <span class="text-[10px] px-1.5 py-0.2 rounded font-semibold bg-slate-100 text-slate-700">
-                                                        {{ slotProps.option.type === 'operationnelle' ? 'Théâtre / Déploiement' : 'Poste' }}
-                                                    </span>
+                                                <!-- Observations particulières / Mention officielle (à côté de la position) -->
+                                                <div class="field sm:col-span-1 lg:col-span-2 min-w-0 pt-2 border-t border-slate-100 sm:border-0 sm:pt-0">
+                                                    <label for="observations" class="block text-sm font-semibold text-gray-700 mb-1 flex flex-wrap items-center justify-between gap-1">
+                                                        <span class="truncate">Observations particulières / Mention officielle</span>
+                                                        <span class="text-[11px] text-slate-400 font-normal italic">Remarques, otage, situation...</span>
+                                                    </label>
+                                                    <InputText id="observations"
+                                                               v-model="form.observations"
+                                                               class="w-full min-w-0"
+                                                               placeholder="Ex: Otage devant partir à la Retraité depuis 2020 à maintenir dans le Fichier..." />
                                                 </div>
                                             </template>
-                                        </Select>
-                                    </div>
-
-                                    <!-- Observations particulières / Mention officielle (à côté de la position) -->
-                                    <div class="field sm:col-span-1 lg:col-span-2 min-w-0">
-                                        <label for="observations" class="block text-sm font-semibold text-gray-700 mb-1 flex flex-wrap items-center justify-between gap-1">
-                                            <span class="truncate">Observations particulières / Mention officielle</span>
-                                            <span class="text-[11px] text-slate-400 font-normal italic">Remarques, otage, situation...</span>
-                                        </label>
-                                        <InputText id="observations"
-                                                   v-model="form.observations"
-                                                   class="w-full min-w-0"
-                                                   placeholder="Ex: Otage devant partir à la Retraité depuis 2020 à maintenir dans le Fichier..." />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
