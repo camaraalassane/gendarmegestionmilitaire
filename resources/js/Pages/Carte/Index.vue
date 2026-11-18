@@ -1177,7 +1177,7 @@
         <Dialog
             v-model:visible="showStatutModal"
             modal
-            :header="`${statutModalTitre} (${statutModalMilitaires.length})`"
+            :header="`${statutModalTitre} (${statutModalTotal})`"
             :style="{ width: '1050px', maxWidth: '96vw' }"
             class="p-fluid"
         >
@@ -1205,12 +1205,28 @@
                     <button
                         type="button"
                         @click="exporterStatutExcel"
-                        :disabled="loadingStatutModal || statutModalMilitaires.length === 0"
+                        :disabled="loadingStatutModal || statutModalTotal === 0"
                         class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
                         title="Télécharger cette liste au format Excel (.xlsx)"
                     >
                         <i class="pi pi-file-excel text-sm"></i>
                         <span>Exporter en Excel (.xlsx)</span>
+                    </button>
+                </div>
+
+                <!-- Avertissement si affichage tronqué (> 200 lignes pour préserver les performances du navigateur) -->
+                <div v-if="statutModalIsLimited" class="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-950 flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <i class="pi pi-info-circle text-amber-600 text-sm shrink-0"></i>
+                        <span>Affichage limité aux <strong>200</strong> premiers personnels pour préserver la fluidité (total : <strong>{{ statutModalTotal }}</strong>).</span>
+                    </div>
+                    <button
+                        type="button"
+                        @click="exporterStatutExcel"
+                        class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold text-[11px] shrink-0 cursor-pointer flex items-center gap-1 shadow-2xs"
+                    >
+                        <i class="pi pi-download text-[10px]"></i>
+                        <span>Télécharger les {{ statutModalTotal }} en Excel</span>
                     </button>
                 </div>
 
@@ -1310,13 +1326,13 @@
             <template #footer>
                 <div class="flex items-center justify-between w-full pt-2 border-t border-slate-200">
                     <span class="text-xs text-slate-500">
-                        Total : <strong>{{ statutModalMilitaires.length }}</strong> militaire(s)
+                        Total effectif : <strong>{{ statutModalTotal }}</strong> militaire(s)
                     </span>
                     <div class="flex items-center gap-2">
                         <button
                             type="button"
                             @click="exporterStatutExcel"
-                            :disabled="statutModalMilitaires.length === 0"
+                            :disabled="statutModalTotal === 0"
                             class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
                         >
                             <i class="pi pi-file-excel"></i>
@@ -1381,6 +1397,8 @@ const statutModalType = ref('');
 const statutModalTitre = ref('');
 const statutModalPerimetre = ref('');
 const statutModalMilitaires = ref([]);
+const statutModalTotal = ref(0);
+const statutModalIsLimited = ref(false);
 const searchStatutModal = ref('');
 
 const statutMilitairesFiltres = computed(() => {
@@ -1418,6 +1436,8 @@ const ouvrirModalStatut = async (type) => {
         statutModalTitre.value = data.titre || 'Détail de l\'effectif';
         statutModalPerimetre.value = data.perimetre || (selRegion.value ? selRegion.value.nom : 'Mali entier');
         statutModalMilitaires.value = data.militaires || [];
+        statutModalTotal.value = data.count || 0;
+        statutModalIsLimited.value = !!data.is_limited;
     } catch (err) {
         console.error('Erreur lors du chargement des militaires par statut:', err);
     } finally {

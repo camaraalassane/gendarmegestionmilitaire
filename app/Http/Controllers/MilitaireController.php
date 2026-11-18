@@ -25,6 +25,7 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use App\Support\Effectif;
 
 class MilitaireController extends Controller
@@ -339,9 +340,13 @@ class MilitaireController extends Controller
             'origine_formation' => 'nullable|string|max:255',
             'position_id' => 'nullable|exists:positions,id',
             'position_actuelle' => 'nullable|string|max:255',
-            'unite_id' => 'nullable|exists:unites,id',
-            'unite' => 'nullable|string|max:255',
             'region_id' => 'nullable|exists:regions,id',
+            'unite_id' => [
+                'nullable',
+                'required_with:region_id',
+                Rule::exists('unites', 'id')->when($request->filled('region_id'), fn ($q) => $q->where('region_id', $request->region_id)),
+            ],
+            'unite' => 'nullable|string|max:255',
             'region' => 'nullable|string|max:100',
             'date_mutation' => 'nullable|date',
             'fonction_passee' => 'nullable|string|max:255',
@@ -367,6 +372,9 @@ class MilitaireController extends Controller
             'reference_decision' => 'nullable|string|max:255',
             'unite_transfert' => 'nullable|string|max:255',
             'motif_transfert' => 'nullable|string|max:255',
+        ], [
+            'unite_id.required_with' => 'L\'unité d\'affectation est obligatoire lorsqu\'une région est sélectionnée.',
+            'unite_id.exists' => 'L\'unité sélectionnée n\'existe pas ou n\'appartient pas à la région choisie.',
         ]);
 
         $data = $this->extractData($request);
@@ -688,9 +696,13 @@ class MilitaireController extends Controller
             'origine_formation' => 'nullable|string|max:255',
             'position_id' => 'nullable|exists:positions,id',
             'position_actuelle' => 'nullable|string|max:255',
-            'unite_id' => 'nullable|exists:unites,id',
-            'unite' => 'nullable|string|max:255',
             'region_id' => 'nullable|exists:regions,id',
+            'unite_id' => [
+                'nullable',
+                'required_with:region_id',
+                Rule::exists('unites', 'id')->when($request->filled('region_id'), fn ($q) => $q->where('region_id', $request->region_id)),
+            ],
+            'unite' => 'nullable|string|max:255',
             'region' => 'nullable|string|max:100',
             'date_mutation' => 'nullable|date',
             'fonction_passee' => 'nullable|string|max:255',
@@ -716,6 +728,9 @@ class MilitaireController extends Controller
             'reference_decision' => 'nullable|string|max:255',
             'unite_transfert' => 'nullable|string|max:255',
             'motif_transfert' => 'nullable|string|max:255',
+        ], [
+            'unite_id.required_with' => 'L\'unité d\'affectation est obligatoire lorsqu\'une région est sélectionnée.',
+            'unite_id.exists' => 'L\'unité sélectionnée n\'existe pas ou n\'appartient pas à la région choisie.',
         ]);
 
         $data = $this->extractData($request, $militaire);

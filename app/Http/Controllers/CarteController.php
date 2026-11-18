@@ -172,15 +172,49 @@ class CarteController extends Controller
         $type = $request->query('type', 'actifs');
         $region = $request->query('region');
 
-        $result = self::getMilitairesParStatut($type, $region);
+        $info = self::buildQueryStatut($type, $region);
+        $query = $info['query'];
+        $retraitesMap = $info['retraitesMap'];
 
-        return response()->json($result);
+        $limit = 200;
+        $total = (clone $query)->count();
+
+        $militaires = (clone $query)->limit($limit)->get()->map(function ($m) use ($retraitesMap) {
+            $dateRetraite = $retraitesMap[$m->id]['date_retraite_formatted']
+                ?? ($m->calculerDateRetraite()?->format('d/m/Y') ?? '-');
+
+            return [
+                'id' => $m->id,
+                'matricule' => $m->matricule,
+                'mle_grm' => $m->mle_grm,
+                'nom' => $m->nom,
+                'prenom' => $m->prenom,
+                'grade' => $m->grade?->nom_grade ?? $m->grade_actuel ?? '-',
+                'region_nom' => $m->region?->nom ?? '-',
+                'unite_nom' => $m->unite?->nom ?? $m->unite ?? '-',
+                'statut' => $m->statut ?? '-',
+                'position' => $m->position_actuelle ?? '-',
+                'date_naissance' => $m->date_naissance ? $m->date_naissance->format('d/m/Y') : '-',
+                'date_retraite' => $dateRetraite,
+            ];
+        })->all();
+
+        return response()->json([
+            'type' => $info['type'],
+            'titre' => $info['titre'],
+            'perimetre' => $info['perimetre'],
+            'region_code' => $info['region_code'],
+            'count' => $total,
+            'is_limited' => $total > $limit,
+            'limit' => $limit,
+            'militaires' => $militaires,
+        ]);
     }
 
     /**
-     * Récupère la liste détaillée des militaires selon un statut et un périmètre géographique
+     * Construit la requête Eloquent et les métadonnées pour un statut et un périmètre donné
      */
-    public static function getMilitairesParStatut(string $type, ?string $regionCode = null): array
+    public static function buildQueryStatut(string $type, ?string $regionCode = null): array
     {
         $region = null;
         if ($regionCode && $regionCode !== 'national' && $regionCode !== 'all') {
@@ -193,45 +227,30 @@ class CarteController extends Controller
             ? (str_starts_with($region->nom, 'Région') ? "{$region->nom} ({$region->code})" : "Région de {$region->nom} ({$region->code})")
             : "Mali entier (Toutes régions)";
 
+        $retraitesMap = [];
+
         if ($type === 'retraites') {
             $dash = app(DashboardController::class);
             $retraitesData = $dash->getRetraitesBoth()['retraitesN']['data'] ?? [];
             $ids = array_column($retraitesData, 'id');
 
-            $retraitesMap = [];
             foreach ($retraitesData as $rd) {
                 $retraitesMap[$rd['id']] = $rd;
             }
 
-            $query = Militaire::with(['region', 'unite', 'grade'])->whereIn('id', $ids);
+            $query = Militaire::with(['region', 'unite', 'grade'])->whereIn('id', $ids ?: [0]);
             if ($region) {
                 $query->where('region_id', $region->id);
             }
-            $militaires = $query->orderBy('nom')->orderBy('prenom')->get()->map(function ($m) use ($retraitesMap) {
-                $rInfo = $retraitesMap[$m->id] ?? [];
-                return [
-                    'id' => $m->id,
-                    'matricule' => $m->matricule,
-                    'mle_grm' => $m->mle_grm,
-                    'nom' => $m->nom,
-                    'prenom' => $m->prenom,
-                    'grade' => $m->grade?->nom_grade ?? $m->grade_actuel ?? '-',
-                    'region_nom' => $m->region?->nom ?? '-',
-                    'unite_nom' => $m->unite?->nom ?? $m->unite ?? '-',
-                    'statut' => $m->statut ?? 'Actif',
-                    'position' => $m->position_actuelle ?? '-',
-                    'date_naissance' => $m->date_naissance ? $m->date_naissance->format('d/m/Y') : '-',
-                    'date_retraite' => $rInfo['date_retraite_formatted'] ?? ($m->date_retraite_prevue ? \Carbon\Carbon::parse($m->date_retraite_prevue)->format('d/m/Y') : '-'),
-                ];
-            })->all();
+            $query->orderBy('nom')->orderBy('prenom');
 
             return [
                 'type' => $type,
                 'titre' => 'Départs à la retraite ' . now()->year,
                 'perimetre' => $perimetre,
                 'region_code' => $region?->code,
-                'count' => count($militaires),
-                'militaires' => $militaires,
+                'query' => $query,
+                'retraitesMap' => $retraitesMap,
             ];
         }
 
@@ -263,39 +282,29 @@ class CarteController extends Controller
                 $debut = now()->setDate($annee, 1, 1)->startOfDay()->format('Y-m-d H:i:s');
                 $fin = now()->setDate($annee, 12, 31)->endOfDay()->format('Y-m-d H:i:s');
                 $query->where(function ($q) use ($debut, $fin) {
-                    $q->where('statut_code', 9)
-                      ->orWhere(function ($sub) use ($debut, $fin) {
-                          $sub->whereNotNull('date_deces')->whereBetween('date_deces', [$debut, $fin]);
-                      });
+                    $q->where(function ($sub) {
+                        $sub->where('statut_code', 9)
+                            ->orWhereNotNull('date_deces');
+                    })->where(function ($sub) use ($debut, $fin) {
+                        $sub->whereBetween('date_deces', [$debut, $fin])
+                            ->orWhere(function ($s) use ($debut, $fin) {
+                                $s->whereNull('date_deces')->whereBetween('updated_at', [$debut, $fin]);
+                            });
+                    });
                 });
             })(),
             default => null,
         };
 
-        $militaires = $query->orderBy('nom')->orderBy('prenom')->get()->map(function ($m) {
-            return [
-                'id' => $m->id,
-                'matricule' => $m->matricule,
-                'mle_grm' => $m->mle_grm,
-                'nom' => $m->nom,
-                'prenom' => $m->prenom,
-                'grade' => $m->grade?->nom_grade ?? $m->grade_actuel ?? '-',
-                'region_nom' => $m->region?->nom ?? '-',
-                'unite_nom' => $m->unite?->nom ?? $m->unite ?? '-',
-                'statut' => $m->statut ?? '-',
-                'position' => $m->position_actuelle ?? '-',
-                'date_naissance' => $m->date_naissance ? $m->date_naissance->format('d/m/Y') : '-',
-                'date_retraite' => $m->date_retraite_prevue ? \Carbon\Carbon::parse($m->date_retraite_prevue)->format('d/m/Y') : '-',
-            ];
-        })->all();
+        $query->orderBy('nom')->orderBy('prenom');
 
         return [
             'type' => $type,
             'titre' => $titre,
             'perimetre' => $perimetre,
             'region_code' => $region?->code,
-            'count' => count($militaires),
-            'militaires' => $militaires,
+            'query' => $query,
+            'retraitesMap' => $retraitesMap,
         ];
     }
 }

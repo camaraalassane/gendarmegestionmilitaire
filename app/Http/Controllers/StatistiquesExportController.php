@@ -170,13 +170,13 @@ class StatistiquesExportController extends Controller
         $type = $request->query('type', 'actifs');
         $region = $request->query('region');
 
-        $result = CarteController::getMilitairesParStatut($type, $region);
+        $info = CarteController::buildQueryStatut($type, $region);
 
-        $suffixeRegion = $result['region_code'] ? strtolower($result['region_code']) : 'mali_entier';
+        $suffixeRegion = $info['region_code'] ? strtolower($info['region_code']) : 'mali_entier';
         $filename = "effectif_{$type}_{$suffixeRegion}_" . date('Ymd_His') . ".xlsx";
 
         return Excel::download(
-            new CarteStatutDetailExport($result['titre'], $result['perimetre'], $result['militaires']),
+            new CarteStatutDetailExport($info['query'], $info['titre'], $info['perimetre'], $info['retraitesMap']),
             $filename
         );
     }
