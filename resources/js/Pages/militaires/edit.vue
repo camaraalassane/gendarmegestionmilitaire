@@ -608,32 +608,36 @@
                                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     <!-- Groupe sanguin -->
                                     <div class="field">
-                                        <label for="groupe_sanguin" class="block text-sm font-semibold text-gray-700 mb-1">
-                                            Groupe sanguin
-                                        </label>
+                                        <div class="h-6 flex items-center mb-1">
+                                            <label for="groupe_sanguin" class="block text-xs font-semibold text-gray-700 truncate whitespace-nowrap">
+                                                Groupe sanguin
+                                            </label>
+                                        </div>
                                         <Select v-model="form.groupe_sanguin" :options="groupeSanguinOptions" optionLabel="label" optionValue="value"
                                                 placeholder="Sélectionner" class="w-full" showClear />
                                     </div>
 
                                     <!-- Taille -->
                                     <div class="field">
-                                        <label for="taille" class="block text-sm font-semibold text-gray-700 mb-1">
-                                            Taille (stature)
-                                        </label>
+                                        <div class="h-6 flex items-center mb-1">
+                                            <label for="taille" class="block text-xs font-semibold text-gray-700 truncate whitespace-nowrap">
+                                                Taille (stature)
+                                            </label>
+                                        </div>
                                         <InputText id="taille" v-model="form.taille" class="w-full" placeholder="Ex: 1.78 m ou 178 cm" />
                                     </div>
 
                                     <!-- Statut sanitaire -->
                                     <div class="field">
-                                        <div class="flex items-center justify-between mb-1">
-                                            <label for="status_sanitaire" class="block text-sm font-semibold text-gray-700">
+                                        <div class="h-6 flex items-center justify-between mb-1 gap-1">
+                                            <label for="status_sanitaire" class="block text-xs font-semibold text-gray-700 truncate whitespace-nowrap">
                                                 Statut sanitaire / Aptitude
                                             </label>
                                             <button type="button" 
                                                     @click="toggleAddStatus" 
-                                                    class="inline-flex items-center gap-1 text-[11px] font-bold text-sky-800 hover:text-sky-950 cursor-pointer">
-                                                <i :class="showAddStatus ? 'pi pi-times' : 'pi pi-plus'"></i>
-                                                <span>{{ showAddStatus ? 'Fermer' : 'Nouveau statut' }}</span>
+                                                    class="w-6 h-6 rounded-md bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 hover:text-sky-900 flex items-center justify-center shrink-0 cursor-pointer transition-colors shadow-2xs"
+                                                    :title="showAddStatus ? 'Fermer' : 'Ajouter un nouveau statut sanitaire'">
+                                                <i :class="showAddStatus ? 'pi pi-times' : 'pi pi-plus'" class="text-xs font-bold"></i>
                                             </button>
                                         </div>
 
@@ -749,45 +753,59 @@
                                                 </label>
                                             </div>
 
-                                            <div v-if="form.certificats[certificat.id].obtenu" class="mt-3 pl-6 space-y-2">
+                                            <div v-if="form.certificats[certificat.id].obtenu" class="mt-2.5 pl-6 pt-2 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                 <div>
-                                                    <label :for="'date_certif_' + certificat.id" class="block text-xs font-semibold text-gray-600 mb-1">
+                                                    <label :for="'date_certif_' + certificat.id" class="block text-[11px] font-semibold text-gray-600 mb-1">
                                                         Date d'obtention <span class="text-red-500">*</span>
                                                     </label>
                                                     <DatePicker :id="'date_certif_' + certificat.id"
                                                                 v-model="form.certificats[certificat.id].date_obtention"
-                                                                dateFormat="dd/mm/yy" showIcon class="w-full" size="small"
+                                                                dateFormat="dd/mm/yy" showIcon class="w-full text-xs" size="small"
                                                                 :class="{ 'p-invalid': dateErrors[certificat.id] }" />
-                                                    <small v-if="dateErrors[certificat.id]" class="text-red-500 text-xs font-medium">
+                                                    <small v-if="dateErrors[certificat.id]" class="text-red-500 text-[10px] font-medium block mt-0.5">
                                                         Date d'obtention obligatoire
                                                     </small>
                                                 </div>
 
                                                 <div>
-                                                    <label :for="'doc_' + certificat.id" class="block text-xs text-gray-600 mb-1">Document justificatif (optionnel)</label>
-                                                    <div class="flex items-center gap-2">
-                                                        <FileUpload :id="'doc_' + certificat.id" mode="basic"
-                                                                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                                                                    chooseLabel="📎 Choisir" customUpload
-                                                                    @select="(event) => onFileSelect(certificat.id, event)"
-                                                                    class="w-full" />
-                                                        <Button v-if="form.certificats[certificat.id].document"
-                                                                icon="pi pi-times"
-                                                                class="p-button-rounded p-button-danger p-button-text cursor-pointer"
-                                                                size="small"
-                                                                @click="removeDocument(certificat.id)"
-                                                                title="Supprimer le document sélectionné" />
-                                                    </div>
-                                                    <div v-if="form.certificats[certificat.id].document_existant" class="mt-1 text-xs text-slate-500 flex items-center justify-between bg-slate-50 p-1.5 rounded-lg border border-slate-200">
-                                                        <span class="flex items-center gap-1 truncate">
-                                                            <i class="pi pi-file text-sky-700"></i>
-                                                            <span class="truncate">Actuel : {{ form.certificats[certificat.id].document_existant.nom_fichier }}</span>
+                                                    <label class="block text-[11px] font-semibold text-gray-600 mb-1">Document justificatif (optionnel)</label>
+                                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                                        <label :for="'doc_' + certificat.id"
+                                                               class="cursor-pointer inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-sky-800 hover:bg-sky-900 text-white transition-colors shadow-2xs shrink-0">
+                                                            <i class="pi pi-paperclip text-[11px]"></i>
+                                                            <span>{{ (form.certificats[certificat.id].document || form.certificats[certificat.id].document_existant) ? 'Changer' : 'Joindre' }}</span>
+                                                            <input :id="'doc_' + certificat.id"
+                                                                   type="file"
+                                                                   accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                                                   class="hidden"
+                                                                   @change="(e) => onFileSelect(certificat.id, e)" />
+                                                        </label>
+                                                        <div v-if="form.certificats[certificat.id].document"
+                                                             class="flex items-center gap-1 min-w-0 bg-sky-50 px-2 py-1 rounded border border-sky-200 text-xs">
+                                                            <span class="truncate text-sky-950 font-medium text-[11px] max-w-[100px]" :title="form.certificats[certificat.id].document.name || 'Fichier joint'">
+                                                                {{ form.certificats[certificat.id].document.name }}
+                                                            </span>
+                                                            <button type="button" @click="removeDocument(certificat.id)"
+                                                                    class="text-red-500 hover:text-red-700 cursor-pointer shrink-0 ml-0.5"
+                                                                    title="Supprimer le document">
+                                                                <i class="pi pi-times text-[10px]"></i>
+                                                            </button>
+                                                        </div>
+                                                        <div v-else-if="form.certificats[certificat.id].document_existant"
+                                                             class="flex items-center gap-1 min-w-0 bg-slate-100 px-2 py-1 rounded border border-slate-200 text-xs">
+                                                            <i class="pi pi-file text-sky-700 text-[10px]"></i>
+                                                            <span class="truncate text-slate-700 font-medium text-[11px] max-w-[100px]" :title="form.certificats[certificat.id].document_existant.nom_fichier">
+                                                                {{ form.certificats[certificat.id].document_existant.nom_fichier }}
+                                                            </span>
+                                                            <button type="button" @click="removeDocument(certificat.id)"
+                                                                    class="text-red-500 hover:text-red-700 cursor-pointer shrink-0 ml-0.5"
+                                                                    title="Supprimer le document">
+                                                                <i class="pi pi-times text-[10px]"></i>
+                                                            </button>
+                                                        </div>
+                                                        <span v-else class="text-[11px] text-slate-400 italic">
+                                                            Aucun fichier
                                                         </span>
-                                                        <Button icon="pi pi-trash"
-                                                                class="p-button-rounded p-button-danger p-button-text !p-1 cursor-pointer shrink-0"
-                                                                size="small"
-                                                                @click="removeDocument(certificat.id)"
-                                                                title="Supprimer le fichier actuel" />
                                                     </div>
                                                 </div>
                                             </div>
@@ -1776,8 +1794,9 @@ const onCertificatChange = (certifId) => {
 };
 
 const onFileSelect = (certifId, event) => {
-    if (event.files && event.files[0]) {
-        form.certificats[certifId].document = event.files[0];
+    const file = event.target?.files?.[0] || (event.files && event.files[0]);
+    if (file) {
+        form.certificats[certifId].document = file;
     }
 };
 
