@@ -193,6 +193,7 @@ class MilitaireTest extends TestCase
 
     public function test_can_create_militaire_with_photo_and_gendarmerie_fields(): void
     {
+        Storage::fake('local');
         Storage::fake('public');
         $user = User::factory()->create();
 
@@ -229,9 +230,9 @@ class MilitaireTest extends TestCase
         $this->assertEquals('Escadron 2/1', $militaire->unite);
         $this->assertEquals('Bamako', $militaire->region);
         $this->assertEquals('Apte TAP', $militaire->status_sanitaire);
-        $this->assertStringContainsString('storage/militaires/photos/', $militaire->photo_url);
+        $this->assertStringContainsString('/militaires/' . $militaire->id . '/photo', $militaire->photo_url);
 
-        Storage::disk('public')->assertExists($militaire->photo);
+        Storage::disk('local')->assertExists($militaire->photo);
     }
 
     public function test_can_delete_photo_on_update(): void

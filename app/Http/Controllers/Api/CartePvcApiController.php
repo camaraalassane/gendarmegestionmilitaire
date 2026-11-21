@@ -47,18 +47,21 @@ class CartePvcApiController extends Controller
 
         // 1. Recherche globale (matricule, nom, prénom, NINA, etc.)
         if ($request->filled('search')) {
-            $search = trim($request->search);
-            $query->where(function ($q) use ($search) {
-                $q->where('matricule', 'LIKE', "%{$search}%")
-                  ->orWhere('nom', 'LIKE', "%{$search}%")
-                  ->orWhere('prenom', 'LIKE', "%{$search}%")
-                  ->orWhere('numero_nina', 'LIKE', "%{$search}%");
+            $search = trim((string) $request->search);
+            $searchPattern = '%' . addcslashes($search, '%_\\') . '%';
+            $likeOp = config('database.default') === 'pgsql' ? 'ILIKE' : 'LIKE';
+
+            $query->where(function ($q) use ($searchPattern, $likeOp) {
+                $q->where('matricule', $likeOp, $searchPattern)
+                  ->orWhere('nom', $likeOp, $searchPattern)
+                  ->orWhere('prenom', $likeOp, $searchPattern)
+                  ->orWhere('numero_nina', $likeOp, $searchPattern);
 
                 if ($this->hasMleGrmColumn()) {
-                    $q->orWhere('mle_grm', 'LIKE', "%{$search}%");
+                    $q->orWhere('mle_grm', $likeOp, $searchPattern);
                 }
                 if ($this->hasNumeroInfoColumn()) {
-                    $q->orWhere('numero_info', 'LIKE', "%{$search}%");
+                    $q->orWhere('numero_info', $likeOp, $searchPattern);
                 }
             });
         }
@@ -112,18 +115,16 @@ class CartePvcApiController extends Controller
     }
 
     /**
-     * Récupère la fiche complète d'une carte d'identité par ID ou par Matricule.
+     * Récupère la fiche complète d'une carte d'identité par ID numérique strict.
      */
-    public function show($idOrMatricule): JsonResponse
+    public function show(int $id): JsonResponse
     {
-        $militaire = Militaire::where('id', $idOrMatricule)
-            ->orWhere('matricule', $idOrMatricule)
-            ->first();
+        $militaire = Militaire::find($id);
 
         if (!$militaire) {
             return response()->json([
                 'success' => false,
-                'message' => "Militaire introuvable avec l'identifiant ou matricule : {$idOrMatricule}",
+                'message' => "Militaire introuvable avec l'identifiant : {$id}",
             ], 404);
         }
 
@@ -417,11 +418,24 @@ class CartePvcApiController extends Controller
     {
         if (empty($photoPath)) return null;
 
-        // Chemins possibles
+        if (\Illuminate\Support\Facades\Storage::disk('local')->exists($photoPath)) {
+            $mime = \Illuminate\Support\Facades\Storage::disk('local')->mimeType($photoPath) ?: 'image/jpeg';
+            $content = \Illuminate\Support\Facades\Storage::disk('local')->get($photoPath);
+            return 'data:' . $mime . ';base64,' . base64_encode($content);
+        }
+
+        if (\Illuminate\Support\Facades\Storage::disk('public')->exists($photoPath)) {
+            $mime = \Illuminate\Support\Facades\Storage::disk('public')->mimeType($photoPath) ?: 'image/jpeg';
+            $content = \Illuminate\Support\Facades\Storage::disk('public')->get($photoPath);
+            return 'data:' . $mime . ';base64,' . base64_encode($content);
+        }
+
+        // Chemins de secours sur le système de fichiers
         $candidates = [
+            storage_path('app/private/' . $photoPath),
+            storage_path('app/' . $photoPath),
             storage_path('app/public/' . $photoPath),
             public_path('storage/' . $photoPath),
-            public_path($photoPath),
         ];
 
         foreach ($candidates as $filePath) {

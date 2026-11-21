@@ -42,12 +42,12 @@ class UserController extends Controller
             'role' => 'required|in:1,2',
         ]);
 
-        $newUser = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'role' => (int) $request->role,
-        ]);
+        $newUser = new User();
+        $newUser->name = $request->name;
+        $newUser->email = $request->email;
+        $newUser->password = Hash::make($request->password);
+        $newUser->role = (int) $request->role;
+        $newUser->save();
 
         if (auth()->check()) {
             ActivityLog::create([

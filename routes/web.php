@@ -14,6 +14,7 @@ use App\Http\Controllers\MilitairesImportController;
 use App\Http\Controllers\ConfigurationController;
 use App\Http\Controllers\CarteController;
 use App\Http\Controllers\PriseArmeController;
+use App\Http\Controllers\MilitairePhotoController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -64,10 +65,10 @@ Route::middleware(['auth', 'admin'])->group(function () {
     // Contrats
     Route::get('/contrats', [ContratController::class, 'index'])->name('contrats.index');
     Route::post('/contrats', [ContratController::class, 'store'])->name('contrats.store');
-    Route::get('/contrats/{contrat}', [ContratController::class, 'show'])->name('contrats.show');
+    Route::get('/contrats/stats', [ContratController::class, 'stats'])->name('contrats.stats');
     Route::get('/contrats/historique/{militaire}', [ContratController::class, 'historique'])->name('contrats.historique');
     Route::post('/contrats/check-alerts', [ContratController::class, 'checkAndGenerateAlerts'])->name('contrats.check-alerts');
-    Route::get('/contrats/stats', [ContratController::class, 'stats'])->name('contrats.stats');
+    Route::get('/contrats/{contrat}', [ContratController::class, 'show'])->whereNumber('contrat')->name('contrats.show');
     Route::post('/contrats/annuler-renouvellement', [ContratController::class, 'annulerRenouvellement'])->name('contrats.annuler-renouvellement');
 
     // Grades
@@ -83,6 +84,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
         ->name('certificats.document.download');
 
     // Militaires
+    Route::get('/militaires/{militaire}/photo', [MilitairePhotoController::class, 'show'])->name('militaires.photo');
     Route::get('/militaires/export', [MilitaireController::class, 'export'])->name('militaires.export');
     Route::get('/militaires/export/template', [MilitaireController::class, 'exportTemplate'])->name('militaires.export.template');
     Route::get('/militaires/search-selection', [MilitaireController::class, 'searchSelection'])->name('militaires.search-selection');

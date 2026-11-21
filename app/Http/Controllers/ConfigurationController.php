@@ -6,6 +6,7 @@ use App\Models\Position;
 use App\Models\Region;
 use App\Models\Unite;
 use App\Models\Theatre;
+use App\Models\Militaire;
 use App\Http\Controllers\CarteController;
 use App\Services\RegionGeo;
 use Illuminate\Http\Request;

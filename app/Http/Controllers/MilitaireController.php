@@ -1027,23 +1027,17 @@ class MilitaireController extends Controller
         $grade = $request->input('grade');
         $statut = $request->input('statut');
 
-        \Log::info('📊 Export reçu - paramètres bruts :', $request->all());
-
         $search = ($search && $search !== 'null') ? $search : null;
         $grade = ($grade && $grade !== 'null') ? $grade : null;
         $statut = ($statut && $statut !== 'null') ? $statut : null;
 
-        \Log::info('🎯 Paramètres après nettoyage :', [
-            'search' => $search,
-            'grade' => $grade,
-            'statut' => $statut
-        ]);
-
-        if ($grade) {
-            $count = is_numeric($grade) 
-                ? Militaire::where('grade_id', (int) $grade)->count()
-                : Militaire::where('grade_id', Grade::where('nom_grade', $grade)->orWhere('code_grade', $grade)->value('id'))->count();
-            \Log::info('📊 Nombre de militaires avec grade "' . $grade . '" : ' . $count);
+        if (auth()->check()) {
+            ActivityLog::create([
+                'user_id' => auth()->id(),
+                'action' => 'Export',
+                'description' => "Export Excel du personnel (statut=" . ($statut ?? 'tous') . ", grade=" . ($grade ?? 'tous') . ")",
+                'ip_address' => request()->ip(),
+            ]);
         }
 
         $anneeN = \Carbon\Carbon::now()->year;
@@ -1090,13 +1084,21 @@ class MilitaireController extends Controller
             }
         }
 
-        // Gestion de la photo d'identité
+        // Gestion de la photo d'identité (stockage privé sécurisé)
         if ($request->hasFile('photo')) {
-            if ($militaire && $militaire->photo && Storage::disk('public')->exists($militaire->photo)) {
-                Storage::disk('public')->delete($militaire->photo);
+            if ($militaire && $militaire->photo) {
+                if (Storage::disk('local')->exists($militaire->photo)) {
+                    Storage::disk('local')->delete($militaire->photo);
+                }
+                if (Storage::disk('public')->exists($militaire->photo)) {
+                    Storage::disk('public')->delete($militaire->photo);
+                }
             }
-            $data['photo'] = $request->file('photo')->store('militaires/photos', 'public');
+            $data['photo'] = $request->file('photo')->store('militaires/photos', 'local');
         } elseif ($request->boolean('supprimer_photo') && $militaire && $militaire->photo) {
+            if (Storage::disk('local')->exists($militaire->photo)) {
+                Storage::disk('local')->delete($militaire->photo);
+            }
             if (Storage::disk('public')->exists($militaire->photo)) {
                 Storage::disk('public')->delete($militaire->photo);
             }

@@ -4,8 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
-use Carbon\Carbon;
+use Illuminate\Support\Str;
 
 class UserSeeder extends Seeder
 {
@@ -14,44 +13,24 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
-        $users = [
-            [
-                'id' => 1,
-                'name' => 'Super Administrateur',
-                'email' => 'admin@gendarmerie.ml',
-                'email_verified_at' => null,
-                'password' => Hash::make('password123'),
-                'role' => 1,
-                'created_at' => Carbon::now(),
-                'updated_at' => Carbon::now()
-            ],
-            [
-                'id' => 2,
-                'name' => 'Administrateur FAMa',
-                'email' => 'admin@fama.ml',
-                'email_verified_at' => null,
-                'password' => Hash::make('12345678'),
-                'role' => 1,
-                'created_at' => Carbon::now(),
-                'updated_at' => Carbon::now()
-            ],
-            [
-                'id' => 3,
-                'name' => 'Gestionnaire Gendarmerie',
-                'email' => 'gestionnaire@gendarmerie.ml',
-                'email_verified_at' => null,
-                'password' => Hash::make('password123'),
-                'role' => 2,
-                'created_at' => Carbon::now(),
-                'updated_at' => Carbon::now()
-            ],
+        // En développement uniquement : initialisation sécurisée de comptes de test
+        $devUsers = [
+            ['email' => 'admin@example.test', 'name' => 'Super Administrateur (dev)', 'role' => 1],
+            ['email' => 'gestionnaire@example.test', 'name' => 'Gestionnaire (dev)', 'role' => 2],
         ];
 
-        foreach ($users as $user) {
-            User::updateOrCreate(
-                ['id' => $user['id']],
-                $user
-            );
+        foreach ($devUsers as $u) {
+            $user = User::where('email', $u['email'])->first();
+            if (!$user) {
+                $password = Str::random(24);
+                $user = new User();
+                $user->email = $u['email'];
+                $user->name = $u['name'];
+                $user->password = $password; // hashed par casts()
+                $user->role = $u['role'];
+                $user->save();
+                $this->command?->warn("Compte dev créé: {$u['email']} | Mot de passe généré: {$password}");
+            }
         }
     }
 }

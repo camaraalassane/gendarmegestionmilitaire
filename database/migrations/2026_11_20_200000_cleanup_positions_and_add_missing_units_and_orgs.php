@@ -11,94 +11,97 @@ return new class extends Migration
 {
     public function up(): void
     {
-        $bamakoId = Region::where('nom', 'ILIKE', '%Bamako%')->value('id') ?? 1;
+        $likeOp = DB::getDriverName() === 'pgsql' ? 'ILIKE' : 'LIKE';
+        $bamakoId = Region::where('nom', $likeOp, '%Bamako%')->value('id') ?? Region::value('id');
 
         // 1. AJOUTER LES VRAIS ESCADRONS & LE CAMP 1 DANS LA TABLE UNITES (Gendarmerie) S'ILS N'EXISTENT PAS
-        $unitesToAdd = [
-            [
-                'nom' => 'Camp 1 (DGGN Bamako)',
-                'code' => 'DGGN-C1',
-                'type' => 'Direction / Service',
-                'region_id' => $bamakoId,
-                'ville' => 'Bamako',
-                'est_operationnelle' => true,
-            ],
-            [
-                'nom' => 'Escadron Djiguiya',
-                'code' => 'ESC-DJIGUIYA',
-                'type' => 'Escadron',
-                'region_id' => $bamakoId,
-                'ville' => 'Bamako',
-                'est_operationnelle' => true,
-            ],
-            [
-                'nom' => 'Escadron Yereko',
-                'code' => 'ESC-YEREKO',
-                'type' => 'Escadron',
-                'region_id' => $bamakoId,
-                'ville' => 'Bamako',
-                'est_operationnelle' => true,
-            ],
-            [
-                'nom' => 'Escadron Kalo',
-                'code' => 'ESC-KALO',
-                'type' => 'Escadron',
-                'region_id' => $bamakoId,
-                'ville' => 'Bamako',
-                'est_operationnelle' => true,
-            ],
-            [
-                'nom' => 'Escadron Samory',
-                'code' => 'ESC-SAMORY',
-                'type' => 'Escadron',
-                'region_id' => $bamakoId,
-                'ville' => 'Bamako',
-                'est_operationnelle' => true,
-            ],
-            [
-                'nom' => 'Escadron Horon',
-                'code' => 'ESC-HORON',
-                'type' => 'Escadron',
-                'region_id' => $bamakoId,
-                'ville' => 'Bamako',
-                'est_operationnelle' => true,
-            ],
-            [
-                'nom' => 'Escadron Kilé',
-                'code' => 'ESC-KILE',
-                'type' => 'Escadron',
-                'region_id' => $bamakoId,
-                'ville' => 'Bamako',
-                'est_operationnelle' => true,
-            ],
-            [
-                'nom' => 'Escadron Assahatt',
-                'code' => 'ESC-ASSAHATT',
-                'type' => 'Escadron',
-                'region_id' => $bamakoId,
-                'ville' => 'Bamako',
-                'est_operationnelle' => true,
-            ],
-            [
-                'nom' => 'Escadron Fangatigui',
-                'code' => 'ESC-FANGATIGUI',
-                'type' => 'Escadron',
-                'region_id' => $bamakoId,
-                'ville' => 'Bamako',
-                'est_operationnelle' => true,
-            ],
-        ];
+        if ($bamakoId) {
+            $unitesToAdd = [
+                [
+                    'nom' => 'Camp 1 (DGGN Bamako)',
+                    'code' => 'DGGN-C1',
+                    'type' => 'Direction / Service',
+                    'region_id' => $bamakoId,
+                    'ville' => 'Bamako',
+                    'est_operationnelle' => true,
+                ],
+                [
+                    'nom' => 'Escadron Djiguiya',
+                    'code' => 'ESC-DJIGUIYA',
+                    'type' => 'Escadron',
+                    'region_id' => $bamakoId,
+                    'ville' => 'Bamako',
+                    'est_operationnelle' => true,
+                ],
+                [
+                    'nom' => 'Escadron Yereko',
+                    'code' => 'ESC-YEREKO',
+                    'type' => 'Escadron',
+                    'region_id' => $bamakoId,
+                    'ville' => 'Bamako',
+                    'est_operationnelle' => true,
+                ],
+                [
+                    'nom' => 'Escadron Kalo',
+                    'code' => 'ESC-KALO',
+                    'type' => 'Escadron',
+                    'region_id' => $bamakoId,
+                    'ville' => 'Bamako',
+                    'est_operationnelle' => true,
+                ],
+                [
+                    'nom' => 'Escadron Samory',
+                    'code' => 'ESC-SAMORY',
+                    'type' => 'Escadron',
+                    'region_id' => $bamakoId,
+                    'ville' => 'Bamako',
+                    'est_operationnelle' => true,
+                ],
+                [
+                    'nom' => 'Escadron Horon',
+                    'code' => 'ESC-HORON',
+                    'type' => 'Escadron',
+                    'region_id' => $bamakoId,
+                    'ville' => 'Bamako',
+                    'est_operationnelle' => true,
+                ],
+                [
+                    'nom' => 'Escadron Kilé',
+                    'code' => 'ESC-KILE',
+                    'type' => 'Escadron',
+                    'region_id' => $bamakoId,
+                    'ville' => 'Bamako',
+                    'est_operationnelle' => true,
+                ],
+                [
+                    'nom' => 'Escadron Assahatt',
+                    'code' => 'ESC-ASSAHATT',
+                    'type' => 'Escadron',
+                    'region_id' => $bamakoId,
+                    'ville' => 'Bamako',
+                    'est_operationnelle' => true,
+                ],
+                [
+                    'nom' => 'Escadron Fangatigui',
+                    'code' => 'ESC-FANGATIGUI',
+                    'type' => 'Escadron',
+                    'region_id' => $bamakoId,
+                    'ville' => 'Bamako',
+                    'est_operationnelle' => true,
+                ],
+            ];
 
-        foreach ($unitesToAdd as $u) {
-            $exists = Unite::where('nom', $u['nom'])->exists();
-            if (!$exists) {
-                Unite::create($u);
+            foreach ($unitesToAdd as $u) {
+                $exists = Unite::where('nom', $u['nom'])->exists();
+                if (!$exists) {
+                    Unite::create($u);
+                }
             }
         }
 
         // 2. AJOUTER PRM (Présidence de la République / Palais de Koulouba) DANS ORGANISMES_DETACHEMENT
         $prmExists = OrganismeDetachement::where('code', 'PRM')
-            ->orWhere('nom', 'ILIKE', '%Présidence de la République%')
+            ->orWhere('nom', $likeOp, '%Présidence de la République%')
             ->exists();
         if (!$prmExists) {
             $maxOrdre = OrganismeDetachement::max('ordre') ?? 48;

@@ -37,7 +37,7 @@ Route::prefix('v1/cartes-pvc')->middleware(['throttle:60,1'])->group(function ()
         // Recherche directe par matricule (pour scanner code-barre)
         Route::get('/militaires/matricule/{matricule}', [CartePvcApiController::class, 'showByMatricule']);
 
-        // Fiche militaire complète pour impression (par ID ou Matricule)
-        Route::get('/militaires/{idOrMatricule}', [CartePvcApiController::class, 'show']);
+        // Fiche militaire complète pour impression (par ID numérique strict)
+        Route::get('/militaires/{id}', [CartePvcApiController::class, 'show'])->whereNumber('id');
     });
 });

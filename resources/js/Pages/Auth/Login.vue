@@ -34,9 +34,10 @@ const submit = () => {
 </script>
 
 <template>
-    <div class="h-screen flex items-center justify-center bg-gradient-to-br from-sky-950 via-sky-900 to-slate-950 relative overflow-hidden">
-        <!-- Formes décoratives animées -->
-        <div class="absolute inset-0 overflow-hidden">
+    <Head title="Connexion" />
+    <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-950 via-sky-900 to-slate-950 relative overflow-y-auto py-8">
+        <!-- Formes décoratives -->
+        <div class="absolute inset-0 overflow-hidden pointer-events-none">
             <div class="absolute -top-40 -right-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
             <div class="absolute -bottom-40 -left-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse animation-delay-2000"></div>
         </div>
@@ -48,7 +49,7 @@ const submit = () => {
                     <img src="/images/logo-gendarmerie-officiel.png" alt="Gendarmerie Nationale" class="w-full h-full object-contain" />
                 </div>
                 <h1 class="text-white text-xl font-bold tracking-tight">Gestion Militaire</h1>
-                <p class="text-white/80 text-[11px] mt-0.5 font-medium tracking-wide">Gendarmerie Nationale • Direction Générale de la Gendarmerie Nationale</p>
+                <p class="text-white/80 text-xs mt-0.5 font-medium tracking-wide">Gendarmerie Nationale • Direction Générale de la Gendarmerie Nationale</p>
             </div>
             
             <!-- Carte de connexion - ultra compacte -->
@@ -59,7 +60,7 @@ const submit = () => {
                             <i class="pi pi-user text-base text-white"></i>
                         </div>
                         <h2 class="text-lg font-bold text-gray-800">Se connecter</h2>
-                        <p class="text-gray-500 text-[11px] mt-0.5">Accédez à votre espace</p>
+                        <p class="text-gray-500 text-xs mt-0.5">Accédez à votre espace</p>
                     </div>
                 </template>
 
@@ -75,43 +76,52 @@ const submit = () => {
 
                         <!-- Email -->
                         <div class="field">
-                            <label class="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
-                                <i class="pi pi-envelope text-sky-500 text-[11px]"></i>
+                            <label for="email" class="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
+                                <i class="pi pi-envelope text-sky-500 text-xs"></i>
                                 Email
                             </label>
                             <div class="relative group">
                                 <InputText 
+                                    id="email"
                                     v-model="form.email" 
                                     type="email" 
+                                    autocomplete="username"
+                                    autofocus
+                                    required
                                     class="w-full pl-8 pr-3 py-2 text-sm border-gray-200 focus:border-sky-400 focus:ring-sky-400"
                                     :class="{ 'p-invalid': form.errors.email }"
-                                    placeholder="admin@gendarmerie.ml" />
+                                    placeholder="Adresse e-mail" />
                             </div>
-                            <small v-if="form.errors.email" class="text-red-500 text-[11px] mt-1 flex items-center gap-1">
-                                <i class="pi pi-exclamation-circle text-[10px]"></i>
+                            <small v-if="form.errors.email" class="text-red-500 text-xs mt-1 flex items-center gap-1">
+                                <i class="pi pi-exclamation-circle text-xs"></i>
                                 {{ form.errors.email }}
                             </small>
                         </div>
 
                         <!-- Password -->
                         <div class="field">
-                            <label class="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
-                                <i class="pi pi-lock text-sky-500 text-[11px]"></i>
+                            <label for="password" class="text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
+                                <i class="pi pi-lock text-sky-500 text-xs"></i>
                                 Mot de passe
                             </label>
                             <div class="relative group">
                                 <InputText 
+                                    id="password"
                                     :type="showPassword ? 'text' : 'password'"
                                     v-model="form.password" 
+                                    autocomplete="current-password"
+                                    required
                                     class="w-full pl-8 pr-8 py-2 text-sm border-gray-200 focus:border-sky-400 focus:ring-sky-400"
                                     :class="{ 'p-invalid': form.errors.password }"
                                     placeholder="••••••••" />
-                                <button type="button" @click="showPassword = !showPassword" class="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-sky-500">
+                                <button type="button" @click="showPassword = !showPassword" 
+                                    :aria-label="showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'"
+                                    class="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-sky-500">
                                     <i :class="showPassword ? 'pi pi-eye-slash text-xs' : 'pi pi-eye text-xs'"></i>
                                 </button>
                             </div>
-                            <small v-if="form.errors.password" class="text-red-500 text-[11px] mt-1 flex items-center gap-1">
-                                <i class="pi pi-exclamation-circle text-[10px]"></i>
+                            <small v-if="form.errors.password" class="text-red-500 text-xs mt-1 flex items-center gap-1">
+                                <i class="pi pi-exclamation-circle text-xs"></i>
                                 {{ form.errors.password }}
                             </small>
                         </div>

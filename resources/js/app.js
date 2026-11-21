@@ -72,10 +72,10 @@ createInertiaApp({
         });
         app.use(ToastService);
 
-        // âœ… Enregistrer la directive tooltip de PrimeVue
+        // Enregistrer la directive tooltip de PrimeVue
         app.directive('tooltip', Tooltip);
 
-        // Enregistrer la directive click-outside personnalisÃ©e
+        // Enregistrer la directive click-outside personnalisée
         app.directive('click-outside', ClickOutside);
 
         app.mount(el);

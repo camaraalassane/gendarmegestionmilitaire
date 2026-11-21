@@ -12,6 +12,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::getDriverName() !== 'pgsql') {
+            return;
+        }
+
         // 1. unites.est_operationnelle
         DB::statement("ALTER TABLE unites ALTER COLUMN est_operationnelle DROP DEFAULT");
         DB::statement("ALTER TABLE unites ALTER COLUMN est_operationnelle TYPE smallint USING (CASE WHEN est_operationnelle = TRUE THEN 1 ELSE 0 END)");
@@ -37,6 +41,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (DB::getDriverName() !== 'pgsql') {
+            return;
+        }
+
         DB::statement("ALTER TABLE unites ALTER COLUMN est_operationnelle TYPE boolean USING (CASE WHEN est_operationnelle = 1 THEN TRUE ELSE FALSE END)");
         DB::statement("ALTER TABLE unites ALTER COLUMN est_operationnelle SET DEFAULT TRUE");
 

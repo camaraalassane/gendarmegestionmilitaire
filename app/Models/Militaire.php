@@ -511,13 +511,15 @@ class Militaire extends Model
 
     public function getPhotoUrlAttribute(): ?string
     {
-        if ($this->photo) {
-            if (str_starts_with($this->photo, 'http://') || str_starts_with($this->photo, 'https://')) {
-                return $this->photo;
-            }
-            return asset('storage/' . $this->photo);
+        if (!$this->photo) {
+            return null;
         }
-        return null;
+
+        if (str_starts_with($this->photo, 'http://') || str_starts_with($this->photo, 'https://')) {
+            return $this->photo;
+        }
+
+        return route('militaires.photo', $this->id, absolute: false) . '?v=' . substr(md5($this->photo), 0, 8);
     }
 
     public function getAncienneteAttribute(): int

@@ -24,14 +24,27 @@ return new class extends Migration
         }
 
         // Remplissage automatique et immédiat des grade_id pour tous les militaires existants
-        DB::statement("
-            UPDATE militaires m
-            SET grade_id = g.id
-            FROM grades g
-            WHERE (LOWER(TRIM(m.grade_actuel)) = LOWER(TRIM(g.nom_grade))
-               OR LOWER(TRIM(m.grade_actuel)) = LOWER(TRIM(g.code_grade)))
-              AND m.grade_id IS NULL
-        ");
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement("
+                UPDATE militaires m
+                SET grade_id = g.id
+                FROM grades g
+                WHERE (LOWER(TRIM(m.grade_actuel)) = LOWER(TRIM(g.nom_grade))
+                   OR LOWER(TRIM(m.grade_actuel)) = LOWER(TRIM(g.code_grade)))
+                  AND m.grade_id IS NULL
+            ");
+        } else {
+            DB::statement("
+                UPDATE militaires
+                SET grade_id = (
+                    SELECT g.id FROM grades g
+                    WHERE (LOWER(TRIM(militaires.grade_actuel)) = LOWER(TRIM(g.nom_grade))
+                       OR LOWER(TRIM(militaires.grade_actuel)) = LOWER(TRIM(g.code_grade)))
+                    LIMIT 1
+                )
+                WHERE grade_id IS NULL
+            ");
+        }
 
         // Index composé pour accélération maximale : statut_code + grade_id
         DB::statement("

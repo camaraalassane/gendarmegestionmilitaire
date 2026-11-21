@@ -10,11 +10,13 @@ return new class extends Migration
      */
     public function up(): void
     {
+        $likeOp = DB::getDriverName() === 'pgsql' ? 'ILIKE' : 'LIKE';
+
         $detached = DB::table('militaires')
             ->whereNotNull('organisme_detachement_id')
-            ->where(function ($q) {
-                $q->where('position_actuelle', 'ILIKE', '%détach%')
-                  ->orWhere('position_actuelle', 'ILIKE', '%detach%')
+            ->where(function ($q) use ($likeOp) {
+                $q->where('position_actuelle', $likeOp, '%détach%')
+                  ->orWhere('position_actuelle', $likeOp, '%detach%')
                   ->orWhere('position_id', 26);
             })
             ->get(['id', 'organisme_detachement_id']);

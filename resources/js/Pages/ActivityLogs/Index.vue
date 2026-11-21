@@ -59,15 +59,21 @@ defineProps({
                                 <div
                                     v-if="link.url === null"
                                     class="mr-1 mb-1 px-4 py-3 text-sm leading-4 text-gray-400 border rounded"
-                                    v-html="link.label"
-                                />
+                                >
+                                    <span v-if="link.label.includes('Previous') || link.label.includes('&laquo;')">&laquo; Précédent</span>
+                                    <span v-else-if="link.label.includes('Next') || link.label.includes('&raquo;')">Suivant &raquo;</span>
+                                    <span v-else>{{ link.label }}</span>
+                                </div>
                                 <Link
                                     v-else
                                     class="mr-1 mb-1 px-4 py-3 text-sm leading-4 border rounded hover:bg-white focus:border-sky-500 focus:text-sky-700"
                                     :class="{ 'bg-gradient-to-r from-sky-800 to-sky-700 text-white shadow-xs font-semibold': link.active }"
                                     :href="link.url"
-                                    v-html="link.label"
-                                />
+                                >
+                                    <span v-if="link.label.includes('Previous') || link.label.includes('&laquo;')">&laquo; Précédent</span>
+                                    <span v-else-if="link.label.includes('Next') || link.label.includes('&raquo;')">Suivant &raquo;</span>
+                                    <span v-else>{{ link.label }}</span>
+                                </Link>
                             </template>
                         </div>
                     </div>

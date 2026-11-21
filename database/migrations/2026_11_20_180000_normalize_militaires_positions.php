@@ -38,11 +38,13 @@ return new class extends Migration
                 'unite_id' => null,
             ]);
 
+        $likeOp = DB::getDriverName() === 'pgsql' ? 'ILIKE' : 'LIKE';
+
         // 3. Stages / Ecoles (Sanou, Doumbia, Camara)
         DB::table('militaires')
-            ->where(function($q) {
-                $q->where('position_actuelle', 'ILIKE', '%cours-sup%')
-                  ->orWhere('position_actuelle', 'ILIKE', '%ecole de guerre%');
+            ->where(function($q) use ($likeOp) {
+                $q->where('position_actuelle', $likeOp, '%cours-sup%')
+                  ->orWhere('position_actuelle', $likeOp, '%ecole de guerre%');
             })
             ->update([
                 'position_actuelle' => 'En stage / Formation',
@@ -51,7 +53,7 @@ return new class extends Migration
 
         // 4. Otage (Diawara)
         DB::table('militaires')
-            ->where('position_actuelle', 'ILIKE', '%otage%')
+            ->where('position_actuelle', $likeOp, '%otage%')
             ->update([
                 'position_actuelle' => "Cas d'otage",
                 'position_id' => $posOtage,

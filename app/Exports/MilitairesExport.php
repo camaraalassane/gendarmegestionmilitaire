@@ -3,19 +3,24 @@
 namespace App\Exports;
 
 use App\Models\Militaire;
+use App\Models\Grade;
 use Carbon\Carbon;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithStyles;
+use Maatwebsite\Excel\Concerns\WithCustomValueBinder;
+use PhpOffice\PhpSpreadsheet\Cell\DefaultValueBinder;
+use App\Exports\Concerns\ProtegeFormules;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 
-class MilitairesExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoSize, WithStyles
+class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHeadings, WithMapping, ShouldAutoSize, WithStyles, WithCustomValueBinder
 {
+    use ProtegeFormules;
     protected $search;
     protected $grade;
     protected $statut;

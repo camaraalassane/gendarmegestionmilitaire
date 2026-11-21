@@ -41,6 +41,28 @@ class CheckCartePvcApiKey
             ], 401);
         }
 
+        // Contrôle de liste blanche d'IP (si configurée)
+        $allowedIps = array_filter(array_map('trim', explode(',', (string) config('services.carte_pvc.allowed_ips'))));
+        if (!empty($allowedIps) && !in_array($request->ip(), $allowedIps, true)) {
+            \Illuminate\Support\Facades\Log::channel('audit')->warning('api.carte_pvc.ip_blocked', [
+                'ip' => $request->ip(),
+                'path' => $request->path(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Accès refusé : Adresse IP non autorisée.',
+                'error_code' => 'IP_NOT_ALLOWED',
+            ], 403);
+        }
+
+        // Journalisation de sécurité dans le canal d'audit
+        \Illuminate\Support\Facades\Log::channel('audit')->info('api.carte_pvc', [
+            'ip' => $request->ip(),
+            'method' => $request->method(),
+            'path' => $request->path(),
+            'key_id' => substr(hash('sha256', (string) $providedKey), 0, 8),
+        ]);
+
         return $next($request);
     }
 }

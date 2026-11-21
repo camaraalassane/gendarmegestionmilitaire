@@ -37,6 +37,7 @@ return [
 
     'carte_pvc' => [
         'key' => env('CARTE_PVC_API_KEY'),
+        'allowed_ips' => env('CARTE_PVC_ALLOWED_IPS'),
     ],
 
 ];

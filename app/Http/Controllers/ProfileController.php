@@ -51,6 +51,10 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
+        if ($user->isSuperAdmin() && \App\Models\User::where('role', 1)->count() <= 1) {
+            return back()->withErrors(['password' => 'Impossible de supprimer le dernier Super-Administrateur.']);
+        }
+
         Auth::logout();
 
         $user->delete();

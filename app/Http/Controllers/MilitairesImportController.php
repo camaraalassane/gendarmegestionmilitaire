@@ -104,6 +104,12 @@ class MilitairesImportController extends Controller
         $headers = MilitairesImport::getTemplateHeaders();
         $exampleRow = MilitairesImport::getTemplateExampleRow();
 
+        // Protection contre l'injection de formules CSV
+        $exampleRow = array_map(function ($val) {
+            $str = (string) $val;
+            return (preg_match('/^[=+\-@\t\r]/', $str) && !is_numeric($str)) ? "'" . $str : $str;
+        }, $exampleRow);
+
         $csvContent = implode(';', $headers) . "\n";
         $csvContent .= implode(';', $exampleRow) . "\n";
 

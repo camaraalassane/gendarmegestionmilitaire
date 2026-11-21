@@ -18,8 +18,13 @@ class SecurityHeadersMiddleware
         $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
-        $response->headers->set('X-XSS-Protection', '1; mode=block');
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+        $response->headers->set('X-Robots-Tag', 'noindex, nofollow');
+        $response->headers->remove('X-XSS-Protection');
+
+        if ($request->isSecure()) {
+            $response->headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+        }
 
         // Cache immuable pour les assets statiques servis par l'application
         if ($request->is('build/*') || $request->is('images/*') || $request->is('favicon.ico')) {

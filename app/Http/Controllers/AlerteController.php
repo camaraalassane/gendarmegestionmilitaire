@@ -37,14 +37,18 @@ class AlerteController extends Controller
         // Recherche multi-colonnes améliorée
         if ($request->filled('search')) {
             $search = trim($request->search);
+            $likeOp = config('database.default') === 'pgsql' ? 'ILIKE' : 'LIKE';
+            $searchPattern = '%' . addcslashes($search, '%_\\') . '%';
             
-            // Conversion éventuelle de format de date JJ/MM/AAAA en AAAA-MM-JJ
+            // Conversion éventuelle de format de date JJ/MM/AAAA ou reconnaissance AAAA-MM-JJ
             $dateConverted = null;
             if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $search, $matches)) {
                 $dateConverted = sprintf('%04d-%02d-%02d', $matches[3], $matches[2], $matches[1]);
+            } elseif (preg_match('/^\d{4}-\d{2}-\d{2}$/', $search)) {
+                $dateConverted = $search;
             }
 
-            $query->where(function($q) use ($search, $dateConverted) {
+            $query->where(function($q) use ($search, $searchPattern, $likeOp, $dateConverted) {
                 // Recherche directe et instantanée par ID (entier)
                 if (ctype_digit($search)) {
                     $searchId = (int) $search;
@@ -53,19 +57,19 @@ class AlerteController extends Controller
                 }
 
                 // 1. Recherche par Militaire (recherche full-text indexée, nom, prénom, matricule)
-                $q->orWhereHas('militaire', function($mQ) use ($search) {
-                    $mQ->where('recherche', 'like', "%{$search}%")
-                       ->orWhere('nom', 'like', "%{$search}%")
-                       ->orWhere('prenom', 'like', "%{$search}%")
-                       ->orWhere('matricule', 'like', "%{$search}%");
+                $q->orWhereHas('militaire', function($mQ) use ($searchPattern, $likeOp) {
+                    $mQ->where('recherche', $likeOp, $searchPattern)
+                       ->orWhere('nom', $likeOp, $searchPattern)
+                       ->orWhere('prenom', $likeOp, $searchPattern)
+                       ->orWhere('matricule', $likeOp, $searchPattern);
                 })
                 // 2. Recherche par Type d'alerte (promotion, formation, contrat, mutation, retraite)
-                ->orWhere('type_alerte', 'like', "%{$search}%")
+                ->orWhere('type_alerte', $likeOp, $searchPattern)
                 // 3. Recherche par Message / Description
-                ->orWhere('message', 'like', "%{$search}%");
+                ->orWhere('message', $likeOp, $searchPattern);
 
                 if ($dateConverted) {
-                    $q->orWhere('date_echeance', $dateConverted);
+                    $q->orWhereDate('date_echeance', $dateConverted);
                 }
             });
         }

@@ -14,7 +14,11 @@ class DatabaseSeeder extends Seeder
         $this->call([
             GradeSeeder::class,
             CertificatSeeder::class,
-            UserSeeder::class,
         ]);
+
+        // Les comptes de démonstration ne sont jamais créés hors environnement local/testing
+        if (app()->environment('local', 'testing')) {
+            $this->call(UserSeeder::class);
+        }
     }
 }
