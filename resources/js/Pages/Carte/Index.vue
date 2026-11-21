@@ -1524,7 +1524,7 @@ const lignesFiltrees = computed(() => {
                     <button
                         type="button"
                         @click="showNonRattachesModal = true"
-                        class="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                        class="px-2.5 py-1.5 bg-sky-800 hover:bg-sky-900 text-white rounded-md font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
                         title="Voir la liste détaillée des recrues pour leur assigner une région et unité"
                     >
                         <i class="pi pi-users text-xs"></i>
@@ -1577,11 +1577,11 @@ const lignesFiltrees = computed(() => {
                                     :class="[
                                         'px-2 py-0.5 text-xs font-bold rounded-md transition flex items-center gap-1.5 cursor-pointer',
                                         carteMode === 'theatres'
-                                            ? 'bg-white text-orange-800 shadow-xs border border-slate-200/80'
+                                            ? 'bg-white text-sky-900 shadow-xs border border-slate-200/80'
                                             : 'text-slate-600 hover:text-slate-900'
                                     ]"
                                 >
-                                    <i class="pi pi-flag text-orange-600 text-[11px]"></i>
+                                    <i class="pi pi-flag text-sky-700 text-[11px]"></i>
                                     <span>Théâtres d'Opérations ({{ theatres.length }})</span>
                                 </button>
                             </div>
@@ -1619,16 +1619,16 @@ const lignesFiltrees = computed(() => {
                             <template v-else>
                                 <template v-if="selTheatre">
                                     <button
-                                        class="chip bg-orange-700 text-white border-orange-700 hover:bg-orange-800 flex items-center gap-1.5 font-bold shadow-xs text-xs px-2.5 py-1 cursor-pointer"
+                                        class="chip bg-sky-900 text-white border-sky-900 hover:bg-sky-800 flex items-center gap-1.5 font-bold shadow-xs text-xs px-2.5 py-1 cursor-pointer"
                                         @click="selTheatre = null"
                                     >
                                         <i class="pi pi-arrow-left text-[11px]"></i>
                                         <span>← Tous les théâtres</span>
                                     </button>
-                                    <span class="text-xs font-bold px-2 py-0.5 rounded-full border border-slate-200 bg-orange-50 text-orange-900 flex items-center gap-1.5">
+                                    <span class="text-xs font-bold px-2 py-0.5 rounded-full border border-slate-200 bg-sky-50 text-sky-900 flex items-center gap-1.5">
                                         <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ backgroundColor: selTheatreObj?.couleur }"></span>
                                         <span>{{ selTheatreObj?.nom }}</span>
-                                        <span class="text-orange-700 font-semibold">({{ selTheatreObj?.effectif }} militaires)</span>
+                                        <span class="text-sky-700 font-semibold">({{ selTheatreObj?.effectif }} militaires)</span>
                                     </span>
                                 </template>
                                 <template v-else>
@@ -1658,7 +1658,7 @@ const lignesFiltrees = computed(() => {
                                 v-else
                                 :value="selTheatre || ''"
                                 @change="selTheatre = $event.target.value || null"
-                                class="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-700 focus:outline-none focus:border-orange-500 font-semibold"
+                                class="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-700 focus:outline-none focus:border-sky-500 font-semibold"
                                 aria-label="Choisir un théâtre"
                             >
                                 <option value="">Tous les théâtres ({{ theatres.length }})</option>
@@ -1822,7 +1822,7 @@ const lignesFiltrees = computed(() => {
                                         type="button"
                                         @click="parcelFilterType = 'with_eff'"
                                         class="px-2 py-0.5 rounded transition flex items-center gap-1 cursor-pointer"
-                                        :class="parcelFilterType === 'with_eff' ? 'bg-red-600 text-white font-bold' : 'text-slate-400 hover:text-white'"
+                                        :class="parcelFilterType === 'with_eff' ? 'bg-sky-600 text-white font-bold' : 'text-slate-400 hover:text-white'"
                                         title="Unités avec effectif > 0 (Style Carte de France)"
                                     >
                                         <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
@@ -2304,7 +2304,7 @@ const lignesFiltrees = computed(() => {
                     <div v-if="carteMode === 'theatres'" class="flex items-center gap-1 overflow-x-auto py-1 px-1 mt-1 bg-slate-50/90 rounded-md border border-slate-200 text-[11px] flex-none custom-scrollbar">
                         <button
                             class="px-2 py-0.5 rounded font-semibold transition-all flex items-center gap-1 flex-none cursor-pointer"
-                            :class="!selTheatre ? 'bg-orange-800 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'"
+                            :class="!selTheatre ? 'bg-sky-900 text-white shadow-xs font-bold' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'"
                             @click="selTheatre = null"
                             title="Afficher tous les théâtres"
                         >
@@ -2315,7 +2315,7 @@ const lignesFiltrees = computed(() => {
                             v-for="th in theatres"
                             :key="th.code"
                             class="px-2 py-0.5 rounded font-medium transition-all flex items-center gap-1 flex-none cursor-pointer"
-                            :class="selTheatre === th.code ? 'bg-orange-800 text-white shadow-xs font-bold' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'"
+                            :class="selTheatre === th.code ? 'bg-sky-900 text-white shadow-xs font-bold' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'"
                             @click="selTheatre = selTheatre === th.code ? null : th.code"
                             :title="th.nom + ' (PC ' + (th.pc_lieu || 'N/A') + ')'"
                         >
@@ -2443,20 +2443,20 @@ const lignesFiltrees = computed(() => {
                             <div class="flex items-center justify-between gap-2 flex-none pb-1.5 border-b border-slate-200">
                                 <div>
                                     <h2 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                                        <i class="pi pi-flag text-orange-600 text-xs"></i>
+                                        <i class="pi pi-flag text-sky-700 text-xs"></i>
                                         <span>Théâtres d'Opérations</span>
                                     </h2>
                                     <p class="text-[10px] text-slate-500">
                                         Dispositif opérationnel FAMa / Gendarmerie
                                     </p>
                                 </div>
-                                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200 flex-none">
+                                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200 flex-none">
                                     {{ theatres.length }} théâtres
                                 </span>
                             </div>
 
                             <!-- Grille métriques globale théâtres -->
-                            <div class="grid grid-cols-3 gap-1 my-1.5 p-1 border border-slate-200/70 flex-none bg-orange-50/50 rounded text-center">
+                            <div class="grid grid-cols-3 gap-1 my-1.5 p-1 border border-slate-200/70 flex-none bg-sky-50/50 rounded text-center">
                                 <div class="min-w-0 px-0.5">
                                     <div class="text-[9px] text-slate-500 font-semibold truncate leading-tight uppercase">Engagés</div>
                                     <div class="text-xs font-bold text-slate-900 tabular-nums">
@@ -2484,7 +2484,7 @@ const lignesFiltrees = computed(() => {
                                     :key="th.id"
                                     @click="selTheatre = th.code"
                                     class="p-2.5 rounded-lg border transition cursor-pointer hover:shadow-xs group"
-                                    :class="selTheatre === th.code ? 'border-orange-500 bg-orange-50/60 ring-1 ring-orange-400' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80'"
+                                    :class="selTheatre === th.code ? 'border-sky-500 bg-sky-50/60 ring-1 ring-sky-400' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80'"
                                 >
                                     <div class="flex items-center justify-between gap-1 mb-1">
                                         <div class="flex items-center gap-1.5">
@@ -2492,9 +2492,9 @@ const lignesFiltrees = computed(() => {
                                                 class="w-3 h-3 rounded-full shrink-0 border border-black/20"
                                                 :style="{ backgroundColor: th.couleur }"
                                             ></span>
-                                            <span class="font-bold text-xs font-mono text-slate-900 group-hover:text-orange-800">{{ th.code }}</span>
+                                            <span class="font-bold text-xs font-mono text-slate-900 group-hover:text-sky-900">{{ th.code }}</span>
                                         </div>
-                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-900 border border-sky-200">
                                             {{ th.effectif }} gendarme(s)
                                         </span>
                                     </div>
@@ -2503,7 +2503,7 @@ const lignesFiltrees = computed(() => {
 
                                     <div class="flex items-center justify-between gap-1 text-[11px] text-slate-600 mt-1">
                                         <span class="flex items-center gap-1 truncate">
-                                            <i class="pi pi-map-marker text-orange-600 text-[10px]"></i>
+                                            <i class="pi pi-map-marker text-sky-600 text-[10px]"></i>
                                             <span>PC : {{ th.pc_lieu || 'Non spécifié' }}</span>
                                         </span>
                                         <span class="text-[10px] font-semibold text-sky-700 group-hover:underline flex items-center gap-0.5">
@@ -2545,7 +2545,7 @@ const lignesFiltrees = computed(() => {
                                 <button
                                     type="button"
                                     @click="ouvrirEditTheatreCoordsModal(selTheatreObj)"
-                                    class="inline-flex items-center gap-1 text-[10px] font-semibold text-orange-800 bg-orange-50 hover:bg-orange-100 border border-orange-200 px-2 py-0.5 rounded transition cursor-pointer"
+                                    class="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-800 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-2 py-0.5 rounded transition cursor-pointer"
                                     title="Modifier l'emplacement GPS du PC sur la carte"
                                 >
                                     <i class="pi pi-map-marker text-[9px]"></i>
@@ -2573,7 +2573,7 @@ const lignesFiltrees = computed(() => {
                                 <div class="text-xs font-bold text-slate-900 leading-snug">{{ selTheatreObj.nom }}</div>
                                 <div class="text-[11px] text-slate-600 mt-1 flex items-center justify-between gap-1">
                                     <span class="flex items-center gap-1 truncate">
-                                        <i class="pi pi-compass text-orange-600 text-[10px]"></i>
+                                        <i class="pi pi-compass text-sky-600 text-[10px]"></i>
                                         <span>PC : <strong>{{ selTheatreObj.pc_lieu || 'Non renseigné' }}</strong></span>
                                     </span>
                                     <span v-if="selTheatreObj.lat && selTheatreObj.lon" class="text-slate-400 font-mono text-[10px] shrink-0">
@@ -2585,15 +2585,15 @@ const lignesFiltrees = computed(() => {
                             <!-- 1. BLOC SYNTHÉTIQUE CLIQUABLE D'EFFECTIF GLOBAL -->
                             <div
                                 @click="ouvrirModalMilitairesTheatre('tous')"
-                                class="p-3 bg-linear-to-br from-orange-50 via-amber-50 to-orange-100/70 hover:from-orange-100 hover:to-amber-100 border border-orange-200 hover:border-orange-300 rounded-xl cursor-pointer transition shadow-xs group mb-2.5 flex-none"
+                                class="p-3 bg-linear-to-br from-sky-50 via-slate-50 to-sky-100/70 hover:from-sky-100 hover:to-slate-100 border border-sky-200 hover:border-sky-300 rounded-xl cursor-pointer transition shadow-xs group mb-2.5 flex-none"
                                 title="Cliquer pour afficher la liste nominative ordonnée par grade"
                             >
                                 <div class="flex items-center justify-between mb-1">
-                                    <span class="text-[10px] font-bold uppercase tracking-wider text-orange-900 flex items-center gap-1.5">
-                                        <i class="pi pi-users text-orange-600"></i>
+                                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                                        <i class="pi pi-users text-sky-700"></i>
                                         <span>Effectif Total Déployé</span>
                                     </span>
-                                    <span class="text-[9.5px] font-bold text-orange-800 bg-white/90 group-hover:bg-white px-2 py-0.5 rounded-full border border-orange-200 flex items-center gap-1 shadow-2xs">
+                                    <span class="text-[9.5px] font-bold text-sky-800 bg-white/90 group-hover:bg-white px-2 py-0.5 rounded-full border border-sky-200 flex items-center gap-1 shadow-2xs">
                                         <span>Voir la liste</span>
                                         <i class="pi pi-arrow-up-right text-[8px]"></i>
                                     </span>
@@ -2606,8 +2606,8 @@ const lignesFiltrees = computed(() => {
                                         gendarme(s) engagé(s)
                                     </div>
                                 </div>
-                                <div class="text-[10px] text-orange-800/90 mt-1 flex items-center gap-1 font-medium">
-                                    <i class="pi pi-info-circle text-[10px] text-orange-600"></i>
+                                <div class="text-[10px] text-sky-800/90 mt-1 flex items-center gap-1 font-medium">
+                                    <i class="pi pi-info-circle text-[10px] text-sky-600"></i>
                                     <span>Cliquer pour ouvrir la liste complète (du plus haut au plus petit grade)</span>
                                 </div>
                             </div>
@@ -2724,7 +2724,7 @@ const lignesFiltrees = computed(() => {
                             <button
                                 type="button"
                                 @click="ouvrirModalMilitairesTheatre('tous')"
-                                class="w-full mt-auto py-2.5 px-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition cursor-pointer flex-none"
+                                class="w-full mt-auto py-2.5 px-3 bg-gradient-to-r from-sky-800 to-sky-700 hover:from-sky-900 hover:to-sky-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition cursor-pointer flex-none"
                             >
                                 <i class="pi pi-list text-xs"></i>
                                 <span>Revue nominale par grade ({{ selTheatreObj.effectif }})</span>
@@ -3129,7 +3129,7 @@ const lignesFiltrees = computed(() => {
                                     <div class="inline-flex items-center gap-1.5 justify-end">
                                         <Link
                                             :href="route('militaires.edit', m.id)"
-                                            class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold text-[11px] flex items-center gap-1 shadow-xs transition-colors"
+                                            class="px-2.5 py-1 bg-sky-800 hover:bg-sky-900 text-white rounded font-bold text-[11px] flex items-center gap-1 shadow-xs transition-colors"
                                             title="Affecter une région et une unité à cette recrue"
                                         >
                                             <i class="pi pi-pencil text-[10px]"></i>
@@ -3221,7 +3221,7 @@ const lignesFiltrees = computed(() => {
                     <button
                         type="button"
                         @click="exporterStatutExcel"
-                        class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold text-[11px] shrink-0 cursor-pointer flex items-center gap-1 shadow-2xs"
+                        class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-[11px] shrink-0 cursor-pointer flex items-center gap-1 shadow-2xs transition-colors"
                     >
                         <i class="pi pi-download text-[10px]"></i>
                         <span>Télécharger les {{ statutModalTotal }} en Excel</span>
@@ -3494,7 +3494,7 @@ const lignesFiltrees = computed(() => {
                         <div>
                             <div class="text-sm font-black text-white flex items-center gap-2">
                                 <span>{{ selTheatreObj.nom }}</span>
-                                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-sky-500/20 text-sky-200 border border-sky-500/30">
                                     {{ selTheatreObj.code }}
                                 </span>
                             </div>
@@ -3508,7 +3508,7 @@ const lignesFiltrees = computed(() => {
                     <div class="flex items-center gap-3 sm:border-l sm:border-slate-800 sm:pl-4">
                         <div class="text-right">
                             <div class="text-[10px] uppercase font-bold text-slate-400">Total Projeté</div>
-                            <div class="text-2xl font-black text-orange-400 font-mono">{{ selTheatreObj.effectif }}</div>
+                            <div class="text-2xl font-black text-sky-300 font-mono">{{ selTheatreObj.effectif }}</div>
                         </div>
                     </div>
                 </div>
@@ -3521,7 +3521,7 @@ const lignesFiltrees = computed(() => {
                             type="button"
                             @click="theatreMilitaireCategorieFilter = 'tous'"
                             class="px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer text-xs"
-                            :class="theatreMilitaireCategorieFilter === 'tous' ? 'bg-orange-600 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'"
+                            :class="theatreMilitaireCategorieFilter === 'tous' ? 'bg-sky-800 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'"
                         >
                             Tous ({{ selTheatreObj?.effectif || 0 }})
                         </button>
@@ -3569,7 +3569,7 @@ const lignesFiltrees = computed(() => {
                             v-model="searchTheatreMilitaire"
                             type="text"
                             placeholder="Rechercher nom, grade, matricule..."
-                            class="w-full text-xs py-1.5 pl-8 pr-2.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            class="w-full text-xs py-1.5 pl-8 pr-2.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                         />
                         <i class="pi pi-search absolute left-2.5 top-2 text-xs text-slate-400"></i>
                     </div>
@@ -3578,7 +3578,7 @@ const lignesFiltrees = computed(() => {
                 <!-- Indication d'ordonnancement -->
                 <div class="flex items-center justify-between text-[11px] text-slate-500 px-1">
                     <span class="flex items-center gap-1.5 font-medium">
-                        <i class="pi pi-sort-amount-down text-orange-600"></i>
+                        <i class="pi pi-sort-amount-down text-sky-700"></i>
                         <span>Liste classée <strong>par ordre hiérarchique décroissant</strong> (du plus haut grade au soldat).</span>
                     </span>
                     <span class="font-mono text-slate-600">
@@ -3602,7 +3602,7 @@ const lignesFiltrees = computed(() => {
                             <tr
                                 v-for="m in theatreMilitairesTriesEtFiltres"
                                 :key="m.id"
-                                class="hover:bg-orange-50/40 transition"
+                                class="hover:bg-sky-50/40 transition"
                                 :class="m.est_blesse_guerre ? 'bg-rose-50/30' : ''"
                             >
                                 <!-- Grade & Nom -->
@@ -3712,9 +3712,9 @@ const lignesFiltrees = computed(() => {
             class="p-fluid"
         >
             <div class="space-y-3.5 pt-1">
-                <div v-if="editTheatreCoordsForm.theatre" class="p-3 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-between gap-3">
+                <div v-if="editTheatreCoordsForm.theatre" class="p-3 rounded-lg bg-sky-50 border border-sky-200 flex items-center justify-between gap-3">
                     <div class="min-w-0">
-                        <div class="text-[10px] font-bold uppercase tracking-wider text-orange-800">Théâtre d'opérations</div>
+                        <div class="text-[10px] font-bold uppercase tracking-wider text-sky-900">Théâtre d'opérations</div>
                         <div class="font-extrabold text-slate-900 text-sm truncate">{{ editTheatreCoordsForm.theatre.nom }}</div>
                         <div class="text-[11px] text-slate-600 mt-0.5 font-mono">
                             Code : <strong>{{ editTheatreCoordsForm.theatre.code }}</strong>
@@ -3730,13 +3730,13 @@ const lignesFiltrees = computed(() => {
                 <!-- Sélection de la région pour coordonnées par défaut -->
                 <div>
                     <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                        <span><i class="pi pi-map text-orange-600 mr-1"></i>Région d'ancrage (Coordonnées par défaut)</span>
-                        <span class="text-[10px] text-orange-700 font-normal">Pré-remplissage</span>
+                        <span><i class="pi pi-map text-sky-700 mr-1"></i>Région d'ancrage (Coordonnées par défaut)</span>
+                        <span class="text-[10px] text-sky-700 font-normal">Pré-remplissage</span>
                     </label>
                     <select
                         v-model="selectedRegionForPCModal"
                         @change="onSelectRegionForPCModal(selectedRegionForPCModal)"
-                        class="w-full text-xs py-2 px-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500 font-medium"
+                        class="w-full text-xs py-2 px-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium"
                     >
                         <option value="">-- Choisir une région d'ancrage --</option>
                         <option v-for="r in regions" :key="r.code" :value="r.code">
@@ -3756,7 +3756,7 @@ const lignesFiltrees = computed(() => {
                         v-model="editTheatreCoordsForm.pc_lieu"
                         type="text"
                         placeholder="Ex: Sévaré, Gao, Sikasso, Tombouctou..."
-                        class="w-full text-xs py-1.5 px-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        class="w-full text-xs py-1.5 px-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
                     />
                 </div>
 
@@ -3771,7 +3771,7 @@ const lignesFiltrees = computed(() => {
                             type="number"
                             step="0.000001"
                             placeholder="Ex: 14.5333"
-                            class="w-full text-xs py-1.5 px-2.5 font-mono rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            class="w-full text-xs py-1.5 px-2.5 font-mono rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
                         />
                     </div>
                     <div>
@@ -3784,14 +3784,14 @@ const lignesFiltrees = computed(() => {
                             type="number"
                             step="0.000001"
                             placeholder="Ex: -4.1000"
-                            class="w-full text-xs py-1.5 px-2.5 font-mono rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            class="w-full text-xs py-1.5 px-2.5 font-mono rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
                         />
                     </div>
                 </div>
 
                 <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-600 space-y-1">
                     <div class="font-semibold text-slate-800 flex items-center gap-1.5">
-                        <i class="pi pi-compass text-orange-600"></i>
+                        <i class="pi pi-compass text-sky-700"></i>
                         <span>Ancrage géographique du Poste de Commandement</span>
                     </div>
                     <p class="text-slate-500 leading-relaxed">
@@ -3811,7 +3811,7 @@ const lignesFiltrees = computed(() => {
                         type="button"
                         @click="saveTheatreCoords"
                         :disabled="savingTheatreCoords"
-                        class="px-4 py-1.5 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                        class="px-4 py-1.5 bg-gradient-to-r from-sky-800 to-sky-700 hover:from-sky-900 hover:to-sky-800 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
                     >
                         <i v-if="savingTheatreCoords" class="pi pi-spin pi-spinner text-xs"></i>
                         <i v-else class="pi pi-check text-xs"></i>

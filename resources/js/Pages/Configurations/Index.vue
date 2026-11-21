@@ -606,11 +606,11 @@ const saveTheatre = () => {
                 </div>
 
                 <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 flex items-center gap-4">
-                    <div class="w-12 h-12 rounded-xl bg-orange-100 text-orange-800 flex items-center justify-center text-xl shrink-0">
+                    <div class="w-12 h-12 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center text-xl shrink-0">
                         <i class="pi pi-flag"></i>
                     </div>
                     <div>
-                        <div class="text-2xl font-bold text-orange-700">{{ stats.total_theatres || theatres.length }}</div>
+                        <div class="text-2xl font-bold text-sky-900">{{ stats.total_theatres || theatres.length }}</div>
                         <div class="text-xs text-slate-500 font-medium">Théâtres d'Opérations</div>
                     </div>
                 </div>
@@ -663,11 +663,11 @@ const saveTheatre = () => {
                         :class="[
                             'px-4 py-2.5 font-semibold text-sm rounded-t-lg transition-all flex items-center gap-2 border-b-2 whitespace-nowrap cursor-pointer',
                             activeTab === 'theatres'
-                                ? 'bg-white text-orange-800 border-orange-600 shadow-sm'
+                                ? 'bg-white text-sky-800 border-sky-600 shadow-sm'
                                 : 'text-slate-600 border-transparent hover:text-slate-900 hover:bg-slate-100/60'
                         ]"
                     >
-                        <i class="pi pi-flag text-orange-600"></i>
+                        <i class="pi pi-flag text-sky-700"></i>
                         <span>Théâtres d'Opérations ({{ theatres.length }})</span>
                     </button>
                 </div>
@@ -1014,7 +1014,7 @@ const saveTheatre = () => {
                             <Button
                                 label="Nouveau Théâtre d'Opérations"
                                 icon="pi pi-plus"
-                                class="bg-orange-600 hover:bg-orange-700 text-white border-0 text-xs shadow-sm cursor-pointer"
+                                class="bg-sky-700 hover:bg-sky-800 text-white border-0 text-xs shadow-sm cursor-pointer"
                                 @click="openCreateTheatreDialog"
                             />
                         </div>
@@ -1059,7 +1059,7 @@ const saveTheatre = () => {
                                     </td>
                                     <td class="py-3 px-3">
                                         <div class="flex items-center gap-1.5 font-medium text-slate-800">
-                                            <i class="pi pi-map-marker text-orange-600 text-xs"></i>
+                                            <i class="pi pi-map-marker text-sky-700 text-xs"></i>
                                             <span>{{ th.pc_lieu || 'Non spécifié' }}</span>
                                         </div>
                                         <div v-if="th.latitude && th.longitude" class="text-[10px] text-slate-400 font-mono mt-0.5">
@@ -1083,7 +1083,7 @@ const saveTheatre = () => {
                                         </div>
                                     </td>
                                     <td class="py-3 px-3 text-center">
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-50 text-sky-800 border border-sky-200">
                                             {{ th.militaires_count || 0 }} gendarme(s)
                                         </span>
                                     </td>
@@ -1511,7 +1511,7 @@ const saveTheatre = () => {
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">
-                            Région d'ancrage du PC <span class="text-orange-600 font-bold">*</span>
+                            Région d'ancrage du PC <span class="text-sky-700 font-bold">*</span>
                         </label>
                         <Select
                             v-model="selectedRegionForPC"
@@ -1536,7 +1536,7 @@ const saveTheatre = () => {
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">
-                            <i class="pi pi-map-marker text-orange-600 mr-1"></i>Latitude GPS (PC)
+                            <i class="pi pi-map-marker text-sky-700 mr-1"></i>Latitude GPS (PC)
                         </label>
                         <InputText
                             v-model="theatreForm.latitude"
@@ -1549,7 +1549,7 @@ const saveTheatre = () => {
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">
-                            <i class="pi pi-map-marker text-orange-600 mr-1"></i>Longitude GPS (PC)
+                            <i class="pi pi-map-marker text-sky-700 mr-1"></i>Longitude GPS (PC)
                         </label>
                         <InputText
                             v-model="theatreForm.longitude"
@@ -1624,7 +1624,7 @@ const saveTheatre = () => {
                                 type="checkbox"
                                 :checked="theatreForm.regions_codes && theatreForm.regions_codes.includes(r.code)"
                                 @change="toggleRegionInTheatre(r.code)"
-                                class="rounded text-orange-600 focus:ring-orange-500 h-3.5 w-3.5 cursor-pointer"
+                                class="rounded text-sky-700 focus:ring-sky-500 h-3.5 w-3.5 cursor-pointer"
                             />
                             <span class="font-mono font-bold text-slate-800 text-[11px]">{{ r.code }}</span>
                             <span class="text-slate-600 truncate text-[11px]">{{ r.nom.replace(/^(Région de |Région du |District de )/, '') }}</span>
@@ -1662,7 +1662,7 @@ const saveTheatre = () => {
                         <Button
                             :label="theatreEditMode ? 'Enregistrer les modifications' : 'Créer le théâtre'"
                             icon="pi pi-check"
-                            class="bg-orange-600 hover:bg-orange-700 text-white border-0 text-xs"
+                            class="bg-sky-700 hover:bg-sky-800 text-white border-0 text-xs shadow-sm cursor-pointer"
                             :loading="savingTheatre"
                             @click="saveTheatre"
                         />

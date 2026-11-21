@@ -686,9 +686,9 @@ const executeBulkAssign = () => {
                     <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
                         <!-- Bouton d'affectation collective toujours disponible -->
                         <button @click="openBulkAssignModal" type="button"
-                            class="px-3 py-2 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-lg font-semibold hover:from-orange-700 hover:to-amber-700 transition-all flex items-center gap-1.5 shadow-xs text-xs whitespace-nowrap cursor-pointer shrink-0"
+                            class="px-3 py-2 bg-gradient-to-r from-sky-900 to-slate-800 text-white rounded-lg font-semibold hover:from-sky-950 hover:to-slate-900 transition-all flex items-center gap-1.5 shadow-xs text-xs whitespace-nowrap cursor-pointer shrink-0 border border-sky-700/60"
                             title="Affecter ou déployer en masse des militaires vers un théâtre ou une région/unité">
-                            <i class="pi pi-flag text-xs"></i> <span>Affectation collective</span>
+                            <i class="pi pi-flag text-xs text-sky-300"></i> <span>Affectation collective</span>
                         </button>
 
                         <!-- Bouton d'impression groupée visible dès qu'au moins 1 militaire est coché -->
@@ -813,8 +813,8 @@ const executeBulkAssign = () => {
                     </div>
                     <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                         <button type="button" @click="openBulkAssignModal"
-                            class="px-3 py-1.5 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer">
-                            <i class="pi pi-flag text-xs"></i> <span>Déployer / Affecter ({{ selectedMilitaires.length }})</span>
+                            class="px-3 py-1.5 bg-gradient-to-r from-sky-900 to-slate-800 hover:from-sky-950 hover:to-slate-900 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer border border-sky-700/50">
+                            <i class="pi pi-flag text-xs text-sky-300"></i> <span>Déployer / Affecter ({{ selectedMilitaires.length }})</span>
                         </button>
                         <button type="button" @click="openBatchCertificatsModal"
                             class="px-3 py-1.5 bg-gradient-to-r from-sky-800 to-sky-700 hover:from-sky-900 hover:to-sky-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer">
@@ -1139,10 +1139,10 @@ const executeBulkAssign = () => {
         >
             <div class="space-y-4 pt-1">
                 <!-- BLOC 1 : CHOIX DE LA DESTINATION (APPLIQUÉE À TOUS LES MILITAIRES COCHÉS) -->
-                <div class="p-3.5 bg-gradient-to-r from-orange-50 via-amber-50 to-sky-50 border border-orange-200 rounded-xl space-y-3">
+                <div class="p-3.5 bg-gradient-to-r from-sky-50/80 via-slate-50 to-sky-50/50 border border-sky-200 rounded-xl space-y-3">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
-                            <span class="w-7 h-7 rounded-lg bg-orange-600 text-white flex items-center justify-center text-sm shadow-xs font-bold">1</span>
+                            <span class="w-7 h-7 rounded-lg bg-sky-800 text-white flex items-center justify-center text-sm shadow-xs font-bold">1</span>
                             <div>
                                 <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wide">
                                     Définir la destination (attribuée à tous les militaires cochés)
@@ -1152,7 +1152,7 @@ const executeBulkAssign = () => {
                                 </p>
                             </div>
                         </div>
-                        <span class="px-2.5 py-1 rounded-full text-xs font-extrabold bg-orange-600 text-white shadow-xs">
+                        <span class="px-2.5 py-1 rounded-full text-xs font-extrabold bg-sky-800 text-white shadow-xs">
                             {{ bulkSelectedIds.size }} militaire(s) ciblé(s)
                         </span>
                     </div>
@@ -1160,13 +1160,13 @@ const executeBulkAssign = () => {
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
                         <!-- Théâtre d'opérations -->
                         <div>
-                            <label class="block text-xs font-bold text-orange-950 mb-1 flex items-center gap-1.5">
-                                <i class="pi pi-flag text-orange-600"></i>
+                            <label class="block text-xs font-bold text-slate-800 mb-1 flex items-center gap-1.5">
+                                <i class="pi pi-flag text-sky-700"></i>
                                 <span>Théâtre d'opérations</span>
                             </label>
                             <select
                                 v-model="bulkTarget.theatre_id"
-                                class="w-full text-xs py-2 px-2.5 rounded-lg border border-orange-300 bg-white text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                class="w-full text-xs py-2 px-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-sky-500"
                             >
                                 <option :value="null">-- Ne pas modifier le théâtre --</option>
                                 <option value="remove">❌ Retirer du théâtre (Hors théâtre)</option>
@@ -1312,7 +1312,7 @@ const executeBulkAssign = () => {
                                             type="checkbox"
                                             :checked="bulkCandidates.length > 0 && bulkCandidates.every(m => bulkSelectedIds.has(m.id))"
                                             @change="toggleSelectAllCandidates"
-                                            class="rounded text-orange-600 focus:ring-orange-500 cursor-pointer"
+                                            class="rounded text-sky-700 focus:ring-sky-600 cursor-pointer"
                                         />
                                     </th>
                                     <th class="p-2">Grade & Nom</th>
@@ -1327,14 +1327,14 @@ const executeBulkAssign = () => {
                                     :key="m.id"
                                     @click="toggleCandidate(m)"
                                     class="hover:bg-sky-50/50 cursor-pointer transition"
-                                    :class="bulkSelectedIds.has(m.id) ? 'bg-orange-50/40' : ''"
+                                    :class="bulkSelectedIds.has(m.id) ? 'bg-sky-50/60' : ''"
                                 >
                                     <td class="p-2 text-center" @click.stop>
                                         <input
                                             type="checkbox"
                                             :checked="bulkSelectedIds.has(m.id)"
                                             @change="toggleCandidate(m)"
-                                            class="rounded text-orange-600 focus:ring-orange-500 cursor-pointer"
+                                            class="rounded text-sky-700 focus:ring-sky-600 cursor-pointer"
                                         />
                                     </td>
                                     <td class="p-2">
@@ -1353,7 +1353,7 @@ const executeBulkAssign = () => {
                                     <td class="p-2">
                                         <span
                                             v-if="m.theatre_code"
-                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800 border border-orange-200"
+                                            class="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-900 border border-sky-200"
                                         >
                                             {{ m.theatre_code }}
                                         </span>
@@ -1380,7 +1380,7 @@ const executeBulkAssign = () => {
                 <!-- Footer modal avec actions -->
                 <div class="flex items-center justify-between pt-3 border-t border-slate-200">
                     <div class="text-xs text-slate-600">
-                        <strong class="text-orange-700 font-extrabold text-sm">{{ bulkSelectedIds.size }}</strong> militaire(s) recevront cette nouvelle affectation.
+                        <strong class="text-sky-900 font-extrabold text-sm">{{ bulkSelectedIds.size }}</strong> militaire(s) recevront cette nouvelle affectation.
                     </div>
                     <div class="flex items-center gap-2">
                         <button
@@ -1394,7 +1394,7 @@ const executeBulkAssign = () => {
                             type="button"
                             @click="executeBulkAssign"
                             :disabled="savingBulkAssign || bulkSelectedIds.size === 0"
-                            class="px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-xs cursor-pointer transition"
+                            class="px-4 py-2 bg-gradient-to-r from-sky-800 to-sky-700 hover:from-sky-900 hover:to-sky-800 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center gap-2 shadow-xs cursor-pointer transition"
                         >
                             <i v-if="savingBulkAssign" class="pi pi-spin pi-spinner text-xs"></i>
                             <i v-else class="pi pi-check text-xs"></i>
