@@ -1,3 +1,88 @@
+<script setup>
+import { ref } from 'vue';
+import { router } from '@inertiajs/vue3';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import Card from 'primevue/card';
+import Button from 'primevue/button';
+import Tag from 'primevue/tag';
+import Badge from 'primevue/badge';
+import DataTable from 'primevue/datatable';
+import Column from 'primevue/column';
+import Toast from 'primevue/toast';
+import { useToast } from 'primevue/usetoast';
+import Tooltip from 'primevue/tooltip';
+
+const props = defineProps({
+    grade: {
+        type: Object,
+        required: true
+    },
+    militaires: {
+        type: Object,
+        required: true
+    },
+    statistiques: {
+        type: Object,
+        required: true
+    }
+});
+
+const toast = useToast();
+const loading = ref(false);
+
+// Style pour les badges selon le type de grade
+const getTypeStyle = (type) => {
+    const styles = {
+        'Officier général': { background: '#fecaca', color: '#991b1b' },
+        'Officier supérieur': { background: '#fed7aa', color: '#c2410c' },
+        'Officier subalterne': { background: '#bae6fd', color: '#0369a1' },
+        'Sous-officier supérieur': { background: '#7dd3fc', color: '#0369a1' },
+        'Sous-officier subalterne': { background: '#7dd3fc', color: '#0369a1' },
+        'Militaires du rang': { background: '#e5e7eb', color: '#374151' }
+    };
+    return styles[type] || { background: '#bae6fd', color: '#0369a1' };
+};
+
+// Changement de page
+const onPageChange = (event) => {
+    changePage(event.page + 1);
+};
+
+const changePage = (page) => {
+    if (page >= 1 && page <= props.militaires.last_page) {
+        loading.value = true;
+        
+        router.get(route('grades.show', props.grade.id), {
+            page
+        }, {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => {
+                loading.value = false;
+            },
+            onError: () => {
+                loading.value = false;
+                toast.add({
+                    severity: 'error',
+                    summary: 'Erreur',
+                    detail: 'Impossible de charger la page',
+                    life: 3000
+                });
+            }
+        });
+    }
+};
+
+// Navigation
+const viewMilitaire = (id) => {
+    router.visit(route('militaires.show', id));
+};
+
+const goBack = () => {
+    router.visit(route('grades.index'));
+};
+</script>
+
 <template>
     <AuthenticatedLayout>
         <template #header>
@@ -210,91 +295,6 @@
         <Toast position="top-right" />
     </AuthenticatedLayout>
 </template>
-
-<script setup>
-import { ref } from 'vue';
-import { router } from '@inertiajs/vue3';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import Card from 'primevue/card';
-import Button from 'primevue/button';
-import Tag from 'primevue/tag';
-import Badge from 'primevue/badge';
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
-import Toast from 'primevue/toast';
-import { useToast } from 'primevue/usetoast';
-import Tooltip from 'primevue/tooltip';
-
-const props = defineProps({
-    grade: {
-        type: Object,
-        required: true
-    },
-    militaires: {
-        type: Object,
-        required: true
-    },
-    statistiques: {
-        type: Object,
-        required: true
-    }
-});
-
-const toast = useToast();
-const loading = ref(false);
-
-// Style pour les badges selon le type de grade
-const getTypeStyle = (type) => {
-    const styles = {
-        'Officier général': { background: '#fecaca', color: '#991b1b' },
-        'Officier supérieur': { background: '#fed7aa', color: '#c2410c' },
-        'Officier subalterne': { background: '#bae6fd', color: '#0369a1' },
-        'Sous-officier supérieur': { background: '#7dd3fc', color: '#0369a1' },
-        'Sous-officier subalterne': { background: '#7dd3fc', color: '#0369a1' },
-        'Militaires du rang': { background: '#e5e7eb', color: '#374151' }
-    };
-    return styles[type] || { background: '#bae6fd', color: '#0369a1' };
-};
-
-// Changement de page
-const onPageChange = (event) => {
-    changePage(event.page + 1);
-};
-
-const changePage = (page) => {
-    if (page >= 1 && page <= props.militaires.last_page) {
-        loading.value = true;
-        
-        router.get(route('grades.show', props.grade.id), {
-            page
-        }, {
-            preserveState: true,
-            preserveScroll: true,
-            onSuccess: () => {
-                loading.value = false;
-            },
-            onError: () => {
-                loading.value = false;
-                toast.add({
-                    severity: 'error',
-                    summary: 'Erreur',
-                    detail: 'Impossible de charger la page',
-                    life: 3000
-                });
-            }
-        });
-    }
-};
-
-// Navigation
-const viewMilitaire = (id) => {
-    router.visit(route('militaires.show', id));
-};
-
-const goBack = () => {
-    router.visit(route('grades.index'));
-};
-</script>
 
 <style scoped>
 :deep(.p-card) {

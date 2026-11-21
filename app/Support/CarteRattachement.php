@@ -54,7 +54,14 @@ class CarteRattachement
         $texteSeul = ($m->isDirty('unite') || $m->isDirty('region'))
             && !$m->isDirty('unite_id') && !$m->isDirty('region_id');
 
-        if ($texteSeul || (!$m->unite_id && !$m->region_id && ($m->unite || $m->region))) {
+        $isDetache = ($m instanceof \App\Models\Militaire) && (
+            str_contains(mb_strtolower((string) $m->position_actuelle), 'détach') ||
+            str_contains(mb_strtolower((string) $m->position_actuelle), 'detach') ||
+            $m->statut === 'détaché' ||
+            $m->statut_code === 2
+        );
+
+        if (!$isDetache && ($texteSeul || (!$m->unite_id && !$m->region_id && ($m->unite || $m->region)))) {
             $ids = $r->resoudre($m->unite, $m->region);
             $m->unite_id = $ids['unite_id'];
             $m->region_id = $ids['region_id'];

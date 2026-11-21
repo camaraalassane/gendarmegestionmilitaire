@@ -1,3 +1,112 @@
+<script setup>
+import { computed } from 'vue';
+import { router } from '@inertiajs/vue3';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import Card from 'primevue/card';
+import Tag from 'primevue/tag';
+import Button from 'primevue/button';
+
+const props = defineProps({
+    certificat: {
+        type: Object,
+        required: true
+    }
+});
+
+// Vérifier si l'ancienneté est requise
+const ancienneteRequise = computed(() => {
+    return props.certificat.anciennete_requise && props.certificat.anciennete_requise > 0;
+});
+
+// Formater l'ancienneté requise
+const ancienneteFormatee = computed(() => {
+    return props.certificat.anciennete_requise 
+        ? `${props.certificat.anciennete_requise} ans`
+        : 'Aucune ancienneté requise';
+});
+
+// Style pour le niveau selon la couleur
+const getNiveauStyle = (niveau) => {
+    const styles = {
+        'CAT1': { background: '#7dd3fc', color: '#0369a1' },
+        'CAT2': { background: '#38bdf8', color: '#075985' },
+        'CIA': { background: '#22d3ee', color: '#0e7490' },
+        'BSP': { background: '#fdba74', color: '#c2410c' },
+        'BSG': { background: '#fca5a5', color: '#b91c1c' },
+        'BSC': { background: '#9ca3af', color: '#374151' },
+        'CSG': { background: '#c4b5fd', color: '#5b21b6' }
+    };
+    return styles[niveau] || { background: '#7dd3fc', color: '#0369a1' };
+};
+
+// Style pour les conditions
+const getConditionStyle = (value, severity) => {
+    if (value === 'Oui') {
+        return { background: '#bae6fd', color: '#0369a1' };
+    }
+    if (value === 'Non') {
+        return { background: '#fee2e2', color: '#991b1b' };
+    }
+    return { background: '#e5e7eb', color: '#6b7280' };
+};
+
+// Traiter les conditions
+const conditions = computed(() => {
+    if (!props.certificat.conditions) return [];
+    
+    let conditionsData = props.certificat.conditions;
+    
+    // Si c'est une chaîne JSON, la décoder
+    if (typeof conditionsData === 'string') {
+        try {
+            conditionsData = JSON.parse(conditionsData);
+        } catch (e) {
+            console.error('Erreur de parsing des conditions:', e);
+            return [];
+        }
+    }
+    
+    // Convertir l'objet en tableau avec formatage
+    if (typeof conditionsData === 'object' && conditionsData !== null) {
+        return Object.entries(conditionsData).map(([key, value]) => {
+            let formattedValue = value;
+            
+            if (typeof value === 'boolean') {
+                formattedValue = value ? 'Oui' : 'Non';
+            } else if (typeof value === 'number') {
+                formattedValue = value.toString();
+            }
+            
+            return {
+                key,
+                value: formattedValue,
+                severity: typeof value === 'boolean' ? (value ? 'success' : 'danger') : 'info'
+            };
+        });
+    }
+    
+    return [];
+});
+
+// Formater le label de la condition
+const formatConditionLabel = (key) => {
+    return key
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+};
+
+// Formater la valeur de la condition
+const formatConditionValue = (value) => {
+    return value;
+};
+
+// Navigation retour
+const goBack = () => {
+    router.visit(route('certificats.index'));
+};
+</script>
+
 <template>
     <AuthenticatedLayout>
         <template #header>
@@ -114,115 +223,6 @@
         </div>
     </AuthenticatedLayout>
 </template>
-
-<script setup>
-import { computed } from 'vue';
-import { router } from '@inertiajs/vue3';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import Card from 'primevue/card';
-import Tag from 'primevue/tag';
-import Button from 'primevue/button';
-
-const props = defineProps({
-    certificat: {
-        type: Object,
-        required: true
-    }
-});
-
-// Vérifier si l'ancienneté est requise
-const ancienneteRequise = computed(() => {
-    return props.certificat.anciennete_requise && props.certificat.anciennete_requise > 0;
-});
-
-// Formater l'ancienneté requise
-const ancienneteFormatee = computed(() => {
-    return props.certificat.anciennete_requise 
-        ? `${props.certificat.anciennete_requise} ans`
-        : 'Aucune ancienneté requise';
-});
-
-// Style pour le niveau selon la couleur
-const getNiveauStyle = (niveau) => {
-    const styles = {
-        'CAT1': { background: '#7dd3fc', color: '#0369a1' },
-        'CAT2': { background: '#38bdf8', color: '#075985' },
-        'CIA': { background: '#22d3ee', color: '#0e7490' },
-        'BSP': { background: '#fdba74', color: '#c2410c' },
-        'BSG': { background: '#fca5a5', color: '#b91c1c' },
-        'BSC': { background: '#9ca3af', color: '#374151' },
-        'CSG': { background: '#c4b5fd', color: '#5b21b6' }
-    };
-    return styles[niveau] || { background: '#7dd3fc', color: '#0369a1' };
-};
-
-// Style pour les conditions
-const getConditionStyle = (value, severity) => {
-    if (value === 'Oui') {
-        return { background: '#bae6fd', color: '#0369a1' };
-    }
-    if (value === 'Non') {
-        return { background: '#fee2e2', color: '#991b1b' };
-    }
-    return { background: '#e5e7eb', color: '#6b7280' };
-};
-
-// Traiter les conditions
-const conditions = computed(() => {
-    if (!props.certificat.conditions) return [];
-    
-    let conditionsData = props.certificat.conditions;
-    
-    // Si c'est une chaîne JSON, la décoder
-    if (typeof conditionsData === 'string') {
-        try {
-            conditionsData = JSON.parse(conditionsData);
-        } catch (e) {
-            console.error('Erreur de parsing des conditions:', e);
-            return [];
-        }
-    }
-    
-    // Convertir l'objet en tableau avec formatage
-    if (typeof conditionsData === 'object' && conditionsData !== null) {
-        return Object.entries(conditionsData).map(([key, value]) => {
-            let formattedValue = value;
-            
-            if (typeof value === 'boolean') {
-                formattedValue = value ? 'Oui' : 'Non';
-            } else if (typeof value === 'number') {
-                formattedValue = value.toString();
-            }
-            
-            return {
-                key,
-                value: formattedValue,
-                severity: typeof value === 'boolean' ? (value ? 'success' : 'danger') : 'info'
-            };
-        });
-    }
-    
-    return [];
-});
-
-// Formater le label de la condition
-const formatConditionLabel = (key) => {
-    return key
-        .split('_')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
-};
-
-// Formater la valeur de la condition
-const formatConditionValue = (value) => {
-    return value;
-};
-
-// Navigation retour
-const goBack = () => {
-    router.visit(route('certificats.index'));
-};
-</script>
 
 <style scoped>
 :deep(.p-card) {

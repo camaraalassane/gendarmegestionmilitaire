@@ -1,3 +1,1195 @@
+<script setup>
+import { ref, reactive, computed, watch } from 'vue';
+import { router } from '@inertiajs/vue3';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import InputText from 'primevue/inputtext';
+import Select from 'primevue/select';
+import DatePicker from 'primevue/datepicker';
+import Checkbox from 'primevue/checkbox';
+import Button from 'primevue/button';
+import Tag from 'primevue/tag';
+import Toast from 'primevue/toast';
+import Dialog from 'primevue/dialog';
+import FileUpload from 'primevue/fileupload';
+import { useToast } from 'primevue/usetoast';
+import axios from 'axios';
+
+const props = defineProps({
+    militaire: { type: Object, required: true },
+    grades: { type: Array, required: true },
+    affectations: { type: Array, default: () => [] },
+    certificats: { type: Array, default: () => [] },
+    certificats_du_militaire: { type: Object, default: () => ({}) },
+    regions: { type: Array, default: () => [] },
+    unites: { type: Array, default: () => [] },
+    positions: { type: Array, default: () => [] },
+    organismes_detachement: { type: Array, default: () => [] },
+});
+
+const localRegions = ref([...(props.regions || [])]);
+const localUnites = ref([...(props.unites || [])]);
+const localPositions = ref([...(props.positions || [])]);
+const localOrganismes = ref([...(props.organismes_detachement || [])]);
+
+// Si le militaire possède une position actuelle qui n'est pas encore dans la liste des options, on l'ajoute automatiquement
+if (props.militaire?.position_actuelle && !localPositions.value.some(p => p.nom?.toLowerCase() === props.militaire.position_actuelle.toLowerCase())) {
+    localPositions.value.unshift({
+        id: props.militaire.position_id || props.militaire.position_actuelle,
+        nom: props.militaire.position_actuelle,
+        type: 'operationnelle'
+    });
+}
+
+const toast = useToast();
+const saving = ref(false);
+const errors = ref({});
+const dateErrors = ref({});
+const photoPreview = ref(props.militaire?.photo_url || null);
+const photoFile = ref(null);
+const supprimerPhoto = ref(false);
+
+// =========================================================================================
+// CONFIGURATION DU STEPPER (3 ÉTAPES)
+// Étape 1 : Identité & État Civil (Card 1 Photo/Matricule + Card 2 État Civil/Contact)
+// Étape 2 : Affectation & Carrière (Unités, Région, Dates, Fonctions)
+// Étape 3 : Aptitude, Formations & Synthèse (Card 1 Santé/Discipline + Card 2 Certificats/Diplômes + Synthèse)
+// =========================================================================================
+const steps = [
+    { label: 'Identité & État Civil', title: '1. Identité Militaire & État Civil', subtitle: 'Photo d\'identité, matricules officiels, grade et état civil complet.', icon: 'pi pi-id-card' },
+    { label: 'Affectation & Carrière', title: '2. Affectations Territoriales & Parcours', subtitle: 'Historique des unités d\'affectation, dates clés et fonctions exercées.', icon: 'pi pi-briefcase' },
+    { label: 'Aptitude, Formations & Synthèse', title: '3. Santé, Discipline, Formations & Synthèse', subtitle: 'Profil médical, antécédents, certificats, diplômes civils et validation.', icon: 'pi pi-check-circle' }
+];
+
+const currentStep = ref(0);
+// Pour la modification, toutes les étapes ont déjà des données existantes, on peut donc naviguer librement
+const maxStepVisited = ref(steps.length - 1);
+const stepErrors = reactive({
+    0: {},
+    1: {},
+    2: {}
+});
+
+const progress = computed(() => {
+    return ((currentStep.value + 1) / steps.length) * 100;
+});
+
+const validateStep = (stepIndex) => {
+    stepErrors[stepIndex] = {};
+    let isValid = true;
+
+    if (stepIndex === 0) {
+        // Validation Card 1 : Identifiants & Grade
+        if (!form.matricule || !form.matricule.trim()) {
+            stepErrors[0].matricule = 'Le matricule est obligatoire';
+            isValid = false;
+        }
+        if (!form.grade_actuel) {
+            stepErrors[0].grade_actuel = 'Le grade actuel est obligatoire';
+            isValid = false;
+        }
+        if (!form.statut) {
+            stepErrors[0].statut = 'Le statut administratif est obligatoire';
+            isValid = false;
+        }
+        // Validation Card 2 : État Civil
+        if (!form.nom || !form.nom.trim()) {
+            stepErrors[0].nom = 'Le nom de famille est obligatoire';
+            isValid = false;
+        }
+        if (!form.prenom || !form.prenom.trim()) {
+            stepErrors[0].prenom = 'Le prénom est obligatoire';
+            isValid = false;
+        }
+        if (!form.date_naissance) {
+            stepErrors[0].date_naissance = 'La date de naissance est obligatoire';
+            isValid = false;
+        }
+
+        if (!isValid) {
+            toast.add({
+                severity: 'warn',
+                summary: 'Champs obligatoires requis',
+                detail: 'Veuillez renseigner le Matricule, le Grade, le Statut, le Nom, le Prénom et la Date de naissance.',
+                life: 4500
+            });
+        }
+    } else if (stepIndex === 1) {
+        // Validation Carrière & Affectation
+        if (!form.date_entree_service) {
+            stepErrors[1].date_entree_service = 'La date d\'entrée en service est obligatoire';
+            isValid = false;
+            toast.add({
+                severity: 'warn',
+                summary: 'Date d\'engagement requise',
+                detail: 'Veuillez renseigner la Date d\'entrée en service (engagement).',
+                life: 4000
+            });
+        }
+        // Validation situation de détachement vs affectations territoriales
+        if (isDetache.value) {
+            if (!form.organisme_detachement_id) {
+                isValid = false;
+                toast.add({
+                    severity: 'warn',
+                    summary: 'Organisme de détachement requis',
+                    detail: 'Veuillez sélectionner l\'Organisme de Détachement (SPA) d\'accueil.',
+                    life: 5000
+                });
+            }
+        } else if (!isPositionSpeciale.value && form.affectations && form.affectations.length > 0) {
+            // Vérifier que chaque affectation ayant une région possède obligatoirement son unité (uniquement pour les militaires réguliers en unité/poste)
+            for (let i = 0; i < form.affectations.length; i++) {
+                const aff = form.affectations[i];
+                if (aff.region_id && !aff.unite_id) {
+                    isValid = false;
+                    toast.add({
+                        severity: 'warn',
+                        summary: 'Unité requise pour la région',
+                        detail: `Veuillez sélectionner une unité d'affectation pour la région choisie (affectation n°${i + 1}).`,
+                        life: 5000
+                    });
+                    break;
+                }
+            }
+        }
+    } else if (stepIndex === 2) {
+        // Validation des certificats cochés sans date
+        dateErrors.value = {};
+        let hasDateError = false;
+        Object.keys(form.certificats).forEach(certifId => {
+            if (form.certificats[certifId].obtenu && !form.certificats[certifId].date_obtention) {
+                dateErrors.value[certifId] = true;
+                hasDateError = true;
+            }
+        });
+        if (hasDateError) {
+            isValid = false;
+            toast.add({
+                severity: 'error',
+                summary: 'Date d\'obtention requise',
+                detail: 'Veuillez renseigner la date d\'obtention pour chaque certificat coché.',
+                life: 5000
+            });
+        }
+    }
+
+    return isValid;
+};
+
+const nextStep = () => {
+    if (validateStep(currentStep.value)) {
+        if (currentStep.value < steps.length - 1) {
+            currentStep.value++;
+            if (currentStep.value > maxStepVisited.value) {
+                maxStepVisited.value = currentStep.value;
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }
+};
+
+const prevStep = () => {
+    if (currentStep.value > 0) {
+        currentStep.value--;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+};
+
+const goToStep = (targetIndex) => {
+    if (targetIndex <= maxStepVisited.value) {
+        currentStep.value = targetIndex;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+};
+
+// =========================================================================================
+// OPTIONS & VALEURS DU FORMULAIRE
+// =========================================================================================
+const statutOptions = [
+    { label: 'Actif (En service régulier)', value: 'actif' },
+    { label: 'Procédure en cours', value: 'procédure en cours' },
+    { label: 'Déserteur', value: 'déserteur' },
+    { label: 'Retraité', value: 'retraité' },
+    { label: 'Radié', value: 'radié' },
+    { label: 'Décédé', value: 'décédé' }
+];
+
+const organismesDetachementOptions = computed(() => [
+    { label: '-- Sélectionner un organisme (ex: DOCS, ANSE, MJGS...) --', value: null },
+    ...localOrganismes.value.map(o => ({
+        label: `[${o.code}] ${o.nom}`,
+        value: o.id,
+        code: o.code,
+        nom: o.nom
+    }))
+]);
+
+const getOrganismeCode = (id) => {
+    const org = localOrganismes.value.find(o => o.id === id);
+    return org ? org.code : '';
+};
+
+const getOrganismeNom = (id) => {
+    const org = localOrganismes.value.find(o => o.id === id);
+    return org ? org.nom : '';
+};
+
+const categorieOptions = [
+    { label: 'Militaire du Rang', value: 'Militaire du Rang' },
+    { label: 'Sous-officier Subalterne', value: 'Sous-officier Subalterne' },
+    { label: 'Sous-officier Supérieur', value: 'Sous-officier Supérieur' },
+    { label: 'Officier Subalterne', value: 'Officier Subalterne' },
+    { label: 'Officier Supérieur', value: 'Officier Supérieur' },
+    { label: 'Officier Général', value: 'Officier Général' }
+];
+
+const sexeOptions = [
+    { label: 'Masculin (M)', value: 'M' },
+    { label: 'Féminin (F)', value: 'F' }
+];
+
+const defaultStatusSanitaire = [
+    'Apte',
+    'Blessé de guerre',
+    'Inapte temporaire',
+    'Inapte définitif',
+    'Apte avec restrictions',
+    'En convalescence',
+    'Réformé',
+    'Exempté de service'
+];
+
+const sanitizeStatusLabel = (str) => {
+    if (!str) return '';
+    const clean = String(str).replace(/\s+/g, ' ').trim();
+    if (clean.length > 55) {
+        return clean.substring(0, 52) + '...';
+    }
+    return clean;
+};
+
+const loadStatusSanitaireList = () => {
+    try {
+        const saved = localStorage.getItem('status_sanitaire_options_v4');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                const cleaned = parsed.map(s => String(s).replace(/\s+/g, ' ').trim()).filter(Boolean);
+                return Array.from(new Set(cleaned));
+            }
+        }
+    } catch (e) {}
+    return defaultStatusSanitaire;
+};
+
+const saveStatusSanitaireList = (list) => {
+    try {
+        localStorage.setItem('status_sanitaire_options_v4', JSON.stringify(list));
+    } catch (e) {}
+};
+
+const statusSanitaireOptions = ref(
+    loadStatusSanitaireList().map(s => ({
+        label: sanitizeStatusLabel(s),
+        value: String(s).replace(/\s+/g, ' ').trim(),
+        fullLabel: String(s).replace(/\s+/g, ' ').trim()
+    }))
+);
+
+const showAddStatus = ref(false);
+const newStatusInput = ref('');
+
+const toggleAddStatus = () => {
+    showAddStatus.value = !showAddStatus.value;
+    newStatusInput.value = '';
+};
+
+const addNewStatus = () => {
+    const trimmed = (newStatusInput.value || '').replace(/\s+/g, ' ').trim();
+    if (!trimmed) return;
+
+    const existing = statusSanitaireOptions.value.find(o => o.value.toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+        form.status_sanitaire = existing.value;
+    } else {
+        const newOpt = {
+            label: sanitizeStatusLabel(trimmed),
+            value: trimmed,
+            fullLabel: trimmed,
+            custom: true
+        };
+        statusSanitaireOptions.value.push(newOpt);
+        form.status_sanitaire = trimmed;
+        saveStatusSanitaireList(statusSanitaireOptions.value.map(o => o.value));
+    }
+
+    newStatusInput.value = '';
+    showAddStatus.value = false;
+};
+
+const removeStatusOption = (valToRemove) => {
+    if (!valToRemove) return;
+    statusSanitaireOptions.value = statusSanitaireOptions.value.filter(o => o.value !== valToRemove);
+    if (form.status_sanitaire === valToRemove) {
+        form.status_sanitaire = '';
+    }
+    saveStatusSanitaireList(statusSanitaireOptions.value.map(o => o.value));
+};
+
+if (props.militaire && props.militaire.status_sanitaire) {
+    const rawVal = String(props.militaire.status_sanitaire).replace(/\s+/g, ' ').trim();
+    if (rawVal && !statusSanitaireOptions.value.some(o => o.value === rawVal)) {
+        statusSanitaireOptions.value.unshift({
+            label: sanitizeStatusLabel(rawVal),
+            value: rawVal,
+            fullLabel: rawVal,
+            custom: true
+        });
+    }
+}
+
+const groupeSanguinOptions = [
+    { label: 'A+', value: 'A+' },
+    { label: 'A-', value: 'A-' },
+    { label: 'B+', value: 'B+' },
+    { label: 'B-', value: 'B-' },
+    { label: 'AB+', value: 'AB+' },
+    { label: 'AB-', value: 'AB-' },
+    { label: 'O+', value: 'O+' },
+    { label: 'O-', value: 'O-' }
+];
+
+// =========================================================================
+// ENGAGEMENTS OPS / THÉÂTRES D'OPÉRATIONS DYNAMIQUES
+// =========================================================================
+const defaultTheatresOps = [
+    'Opération Maliko (Théâtre Est)',
+    'Opération Maliko (Théâtre Centre)',
+    'Opération Maliko (Théâtre Sud)',
+    'Opération Dambé',
+    'Détachement Sokolo',
+    'Détachement Dialoumbé',
+    'Détachement Timissa',
+    'Détachement Toguéré-Coumbé',
+    'Détachement Saye',
+    'Détachement Goma-Coura',
+    'GARSI (Groupement d\'Action Rapide de Surveillance et d\'Intervention)',
+    'PSIRC (Peloton Spécial d\'Intervention de la Région Centre)',
+    'Prévôté Kidal / Ménaka / Gao',
+    'Force Conjointe G-5 Sahel',
+    'Mission Internationale (MISMA / MINUSMA)',
+    'GIGM / FTS Opérationnelle'
+];
+
+const loadTheatresOpsList = () => {
+    try {
+        const saved = localStorage.getItem('theatres_ops_options_v1');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+    } catch (e) {}
+    return defaultTheatresOps;
+};
+
+const saveTheatresOpsList = (list) => {
+    try {
+        localStorage.setItem('theatres_ops_options_v1', JSON.stringify(list));
+    } catch (e) {}
+};
+
+const theatresOpsOptions = ref(
+    loadTheatresOpsList().map(s => ({ label: s, value: s }))
+);
+
+const initEngagementsOpsList = () => {
+    const raw = props.militaire?.engagement_ops;
+    if (!raw || raw.trim() === '' || raw.trim() === '0 OPS' || raw.trim() === '1/1/1970') {
+        return [];
+    }
+    const cleaned = raw.replace(/[-–—]?\s*\d+\s*OPS/i, '').trim();
+    if (!cleaned) return [];
+    const parts = cleaned.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+    return parts.map(p => {
+        if (!theatresOpsOptions.value.find(o => o.value.toLowerCase() === p.toLowerCase())) {
+            theatresOpsOptions.value.push({ label: p, value: p });
+        }
+        return { theatre: p };
+    });
+};
+
+const engagementsOpsList = ref(initEngagementsOpsList());
+
+const syncEngagementOpsField = () => {
+    const valid = engagementsOpsList.value
+        .map(i => i.theatre ? i.theatre.trim() : '')
+        .filter(Boolean);
+    if (valid.length === 0) {
+        form.engagement_ops = '0 OPS';
+    } else {
+        form.engagement_ops = `${valid.join(', ')} - ${valid.length} OPS`;
+    }
+};
+
+const addEngagementOpsRow = () => {
+    engagementsOpsList.value.push({ theatre: '' });
+    syncEngagementOpsField();
+};
+
+const removeEngagementOpsRow = (idx) => {
+    engagementsOpsList.value.splice(idx, 1);
+    syncEngagementOpsField();
+};
+
+const showAddTheatreOption = ref(false);
+const newTheatreInput = ref('');
+
+const toggleAddTheatreOption = () => {
+    showAddTheatreOption.value = !showAddTheatreOption.value;
+    newTheatreInput.value = '';
+};
+
+const saveNewTheatreOption = () => {
+    const trimmed = (newTheatreInput.value || '').trim();
+    if (!trimmed) return;
+    const existing = theatresOpsOptions.value.find(o => o.value.toLowerCase() === trimmed.toLowerCase());
+    if (!existing) {
+        theatresOpsOptions.value.push({ label: trimmed, value: trimmed });
+        saveTheatresOpsList(theatresOpsOptions.value.map(o => o.value));
+    }
+    if (engagementsOpsList.value.length > 0 && !engagementsOpsList.value[engagementsOpsList.value.length - 1].theatre) {
+        engagementsOpsList.value[engagementsOpsList.value.length - 1].theatre = trimmed;
+    } else {
+        engagementsOpsList.value.push({ theatre: trimmed });
+    }
+    syncEngagementOpsField();
+    newTheatreInput.value = '';
+    showAddTheatreOption.value = false;
+};
+
+const parsePropDate = (val) => {
+    if (!val) return null;
+    return new Date(val);
+};
+
+const initialOrganisme = (props.organismes_detachement || []).find(o => o.id === props.militaire.organisme_detachement_id);
+const initialUnite = (props.militaire.organisme_detachement_id && initialOrganisme)
+    ? initialOrganisme.nom
+    : (props.militaire.unite || '');
+
+const form = reactive({
+    id: props.militaire.id,
+    matricule: props.militaire.matricule || '',
+    mle_grm: props.militaire.mle_grm || '',
+    numero_info: props.militaire.numero_info || '',
+    numero_nina: props.militaire.numero_nina || '',
+    grade_actuel: props.militaire.grade_actuel || null,
+    categorie: props.militaire.categorie || null,
+    nom: props.militaire.nom || '',
+    prenom: props.militaire.prenom || '',
+    date_naissance: parsePropDate(props.militaire.date_naissance),
+    lieu_naissance: props.militaire.lieu_naissance || '',
+    date_entree_service: parsePropDate(props.militaire.date_entree_service),
+    date_derniere_promotion: parsePropDate(props.militaire.date_derniere_promotion),
+    specialite: props.militaire.specialite || '',
+    origine_formation: props.militaire.origine_formation || '',
+    position_id: props.militaire.position_id ?? (props.positions.find(p => p.nom?.toLowerCase() === (props.militaire.position_actuelle || '').toLowerCase())?.id ?? null),
+    position_actuelle: props.militaire.position_actuelle || '',
+    unite_id: props.militaire.organisme_detachement_id ? null : (props.militaire.unite_id ?? (props.unites.find(u => u.nom === props.militaire.unite)?.id ?? null)),
+    unite: initialUnite,
+    region_id: props.militaire.region_id ?? (props.regions.find(r => r.nom === props.militaire.region || r.code === props.militaire.region)?.id ?? null),
+    region: props.militaire.region || '',
+    date_mutation: parsePropDate(props.militaire.date_mutation),
+    affectations: (props.affectations && props.affectations.length > 0)
+        ? props.affectations.map(a => {
+            const rId = a.region_id ?? (props.regions.find(r => r.nom === a.region || r.code === a.region)?.id ?? null);
+            const uId = a.unite_id ?? (props.unites.find(u => u.nom === a.unite)?.id ?? null);
+            return {
+                region_id: rId,
+                unite_id: uId,
+                unite: a.unite || '',
+                region: a.region || '',
+                date_mutation: parsePropDate(a.date_mutation)
+            };
+        })
+        : [
+            {
+                region_id: props.militaire.region_id ?? (props.regions.find(r => r.nom === props.militaire.region || r.code === props.militaire.region)?.id ?? null),
+                unite_id: props.militaire.unite_id ?? (props.unites.find(u => u.nom === props.militaire.unite)?.id ?? null),
+                unite: props.militaire.unite || '',
+                region: props.militaire.region || '',
+                date_mutation: parsePropDate(props.militaire.date_mutation)
+            }
+        ],
+    fonction_passee: props.militaire.fonction_passee || '',
+    fonction_actuelle: props.militaire.fonction_actuelle || '',
+    telephone: props.militaire.telephone || '',
+    statut: props.militaire.statut || 'actif',
+    organisme_detachement_id: props.militaire.organisme_detachement_id || null,
+    sexe: props.militaire.sexe || null,
+    groupe_sanguin: props.militaire.groupe_sanguin || null,
+    taille: props.militaire.taille || '',
+    status_sanitaire: props.militaire.status_sanitaire || '',
+    engagement_ops: props.militaire.engagement_ops || '',
+    personne_a_contacter: props.militaire.personne_a_contacter || '',
+    telephone_personne_contacter: props.militaire.telephone_personne_contacter || '',
+    decorations: props.militaire.decorations || '',
+    diplomes_academiques: props.militaire.diplomes_academiques || '',
+    observations: props.militaire.observations || '',
+    date_deces: parsePropDate(props.militaire.date_deces),
+    circonstances_deces: props.militaire.circonstances_deces || '',
+    motif_radiation: props.militaire.motif_radiation || '',
+    reference_decision: props.militaire.reference_decision || '',
+    unite_transfert: props.militaire.unite_transfert || '',
+    motif_transfert: props.militaire.motif_transfert || '',
+    a_permis_conduire: !!props.militaire.a_permis_conduire,
+    antecedent_judiciaire: !!props.militaire.antecedent_judiciaire,
+    antecedent_disciplinaire: !!props.militaire.antecedent_disciplinaire,
+    certificats: {}
+});
+
+props.certificats.forEach(certificat => {
+    const certifExistant = props.certificats_du_militaire[certificat.id];
+    form.certificats[certificat.id] = {
+        obtenu: certifExistant ? certifExistant.obtenu : false,
+        date_obtention: (certifExistant && certifExistant.date_obtention)
+            ? new Date(certifExistant.date_obtention)
+            : null,
+        document: null,
+        document_existant: (certifExistant && certifExistant.document)
+            ? certifExistant.document
+            : null
+    };
+});
+
+const selectedGradeInfo = computed(() => {
+    return props.grades?.find(g => g.nom_grade === form.grade_actuel);
+});
+
+const ageRetraiteMax = computed(() => {
+    return selectedGradeInfo.value?.retraite_obligatoire || null;
+});
+
+const isRetraiteDepassee = computed(() => {
+    if (!form.date_naissance || !ageRetraiteMax.value) return false;
+    const dob = new Date(form.date_naissance);
+    if (isNaN(dob.getTime())) return false;
+    const retirementDate = new Date(dob);
+    retirementDate.setFullYear(retirementDate.getFullYear() + ageRetraiteMax.value);
+    return retirementDate < new Date();
+});
+
+watch(isRetraiteDepassee, (isPast) => {
+    if (isPast && form.statut === 'actif') {
+        form.statut = 'retraité';
+    }
+});
+
+const determinerCategorieStatutaire = (gradeNom) => {
+    if (!gradeNom) return null;
+    const clean = gradeNom.toLowerCase().trim();
+
+    if (clean.includes('adjudant') || clean.includes('major') || ['acm', 'adc', 'adj', 'adm'].includes(clean)) {
+        return 'Sous-officier Supérieur';
+    }
+    if (clean.includes('sergent') || clean.includes('maréchal') || clean.includes('marechal') || clean.includes('eleve sous officier') || clean.includes('élève sous officier') || ['sgt', 'sch', 'mdl', 'mdc', 'esoa'].includes(clean)) {
+        return 'Sous-officier Subalterne';
+    }
+    if (clean.includes('général') || clean.includes('general') || ['gbr', 'gdb', 'gdv', 'gdd', 'gca', 'gar'].includes(clean)) {
+        return 'Officier Général';
+    }
+    if (clean.includes('commandant') || clean.includes('chef d\'escadron') || clean.includes('colonel') || ['cdt', 'ces', 'lcl', 'col', 'clm'].includes(clean)) {
+        return 'Officier Supérieur';
+    }
+    if (clean.includes('lieutenant') || clean.includes('capitaine') || clean.includes('aspirant') || clean.includes('eleve officier') || clean.includes('élève officier') || ['slt', 'ltn', 'cne', 'asp', 'eoa'].includes(clean)) {
+        return 'Officier Subalterne';
+    }
+    if (clean.includes('soldat') || clean.includes('caporal') || clean.includes('gendarme adjoint') || clean.includes('sapeur') || ['sdt1', 'sdt2', 's1', 's2', 'cpl', 'ga', 'eg', 'sap1', '1°cl'].includes(clean)) {
+        return 'Militaire du Rang';
+    }
+    return null;
+};
+
+watch(() => form.grade_actuel, (newGrade, oldGrade) => {
+    if (!newGrade) return;
+    if (!form.categorie || (oldGrade !== undefined && oldGrade !== null && oldGrade !== newGrade)) {
+        const gradeInfo = props.grades?.find(g => g.nom_grade === newGrade || g.code_grade === newGrade);
+        if (gradeInfo?.categorie_statutaire) {
+            form.categorie = gradeInfo.categorie_statutaire;
+        } else {
+            const cat = determinerCategorieStatutaire(newGrade);
+            if (cat) form.categorie = cat;
+        }
+    }
+});
+
+const onPhotoSelected = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+        photoFile.value = file;
+        photoPreview.value = URL.createObjectURL(file);
+        supprimerPhoto.value = false;
+    }
+};
+
+const removePhoto = () => {
+    photoFile.value = null;
+    photoPreview.value = null;
+    supprimerPhoto.value = true;
+};
+
+const addAffectation = () => {
+    form.affectations.push({
+        unite: '',
+        region: '',
+        date_mutation: null
+    });
+};
+
+const removeAffectation = (index) => {
+    if (form.affectations.length > 1) {
+        form.affectations.splice(index, 1);
+    } else {
+        form.affectations[0] = { unite: '', region: '', date_mutation: null };
+    }
+};
+
+// --- Filtres et Ajout Rapide Régions / Unités / Positions ---
+const quickRegionVisible = ref(false);
+const quickRegionLoading = ref(false);
+const quickRegionForm = ref({ code: '', nom: '' });
+
+const quickUniteVisible = ref(false);
+const quickUniteLoading = ref(false);
+const quickUniteForm = ref({ region_id: null, nom: '', type: 'Brigade Territoriale', est_operationnelle: true });
+
+const quickPositionVisible = ref(false);
+const quickPositionLoading = ref(false);
+const quickPositionForm = ref({ nom: '', type: 'administrative' });
+
+const quickOrganismeVisible = ref(false);
+const quickOrganismeLoading = ref(false);
+const quickOrganismeForm = ref({ code: '', nom: '' });
+
+const currentQuickAffIndex = ref(null);
+
+const isDetache = computed(() => {
+    const pos = localPositions.value.find(p => p.id === form.position_id);
+    const nom = pos?.nom || form.position_actuelle || '';
+    return nom.toLowerCase().includes('détachement') || nom.toLowerCase().includes('detachement');
+});
+
+const isPositionSpeciale = computed(() => {
+    const pos = localPositions.value.find(p => p.id === form.position_id);
+    const nom = (pos?.nom || form.position_actuelle || '').toLowerCase();
+    return nom.includes('détachement') || nom.includes('detachement')
+        || nom.includes('stage') || nom.includes('formation')
+        || nom.includes('mission') || nom.includes('otage');
+});
+
+const setDefaultPositionUnite = () => {
+    const posUnite = localPositions.value.find(p => p.id === 21 || p.nom?.toLowerCase().includes('unité') || p.nom?.toLowerCase().includes('poste'));
+    if (posUnite) {
+        form.position_id = posUnite.id;
+        form.position_actuelle = posUnite.nom;
+    }
+    form.organisme_detachement_id = null;
+};
+
+const getUnitesForRow = (idx) => {
+    const selectedRegionId = form.affectations[idx]?.region_id;
+    if (!selectedRegionId) {
+        return localUnites.value;
+    }
+    return localUnites.value.filter(u => u.region_id === selectedRegionId);
+};
+
+const onRegionSelect = (idx) => {
+    const selectedRegionId = form.affectations[idx]?.region_id;
+    const regionObj = localRegions.value.find(r => r.id === selectedRegionId);
+    if (regionObj) {
+        form.affectations[idx].region = regionObj.nom;
+    } else {
+        form.affectations[idx].region = '';
+    }
+
+    const currentUniteId = form.affectations[idx]?.unite_id;
+    if (selectedRegionId && currentUniteId) {
+        const uniteObj = localUnites.value.find(u => u.id === currentUniteId);
+        if (uniteObj && uniteObj.region_id !== selectedRegionId) {
+            form.affectations[idx].unite_id = null;
+            form.affectations[idx].unite = '';
+        }
+    }
+};
+
+const onUniteSelect = (idx) => {
+    const selectedUniteId = form.affectations[idx]?.unite_id;
+    if (!selectedUniteId) return;
+    const uniteObj = localUnites.value.find(u => u.id === selectedUniteId);
+    if (uniteObj) {
+        form.affectations[idx].unite = uniteObj.nom;
+        if (uniteObj.region_id) {
+            form.affectations[idx].region_id = uniteObj.region_id;
+            const regionObj = localRegions.value.find(r => r.id === uniteObj.region_id);
+            form.affectations[idx].region = regionObj?.nom || uniteObj.region?.nom || '';
+        }
+        if (idx === 0) {
+            setDefaultPositionUnite();
+        }
+    }
+};
+
+const onPositionSelect = () => {
+    const posObj = localPositions.value.find(p => p.id === form.position_id);
+    if (posObj) {
+        form.position_actuelle = posObj.nom;
+    }
+    if (isDetache.value) {
+        if (form.affectations && form.affectations[0]) {
+            form.affectations[0].region_id = null;
+            form.affectations[0].unite_id = null;
+            form.affectations[0].region = '';
+        }
+    } else {
+        form.organisme_detachement_id = null;
+    }
+};
+
+const onOrganismeSelect = () => {
+    const org = localOrganismes.value.find(o => o.id === form.organisme_detachement_id);
+    if (org) {
+        form.unite = org.nom;
+        if (form.affectations && form.affectations[0]) {
+            form.affectations[0].unite = org.nom;
+            form.affectations[0].region_id = null;
+            form.affectations[0].unite_id = null;
+            form.affectations[0].region = '';
+        }
+    }
+};
+
+const openQuickAddOrganisme = () => {
+    quickOrganismeForm.value = { code: '', nom: '' };
+    quickOrganismeVisible.value = true;
+};
+
+const saveQuickOrganisme = async () => {
+    if (!quickOrganismeForm.value.code || !quickOrganismeForm.value.nom) {
+        toast.add({ severity: 'warn', summary: 'Champs requis', detail: 'Le code/sigle et le nom officiel sont obligatoires.', life: 3000 });
+        return;
+    }
+    quickOrganismeLoading.value = true;
+    try {
+        const response = await axios.post(route('prise-armes.organismes.store'), {
+            code: quickOrganismeForm.value.code.toUpperCase().trim(),
+            nom: quickOrganismeForm.value.nom.trim(),
+            est_actif: true,
+            est_organique: false
+        });
+        if (response.data && response.data.organisme) {
+            const org = response.data.organisme;
+            localOrganismes.value.push(org);
+            form.organisme_detachement_id = org.id;
+            form.unite = org.nom;
+            if (form.affectations && form.affectations[0]) {
+                form.affectations[0].unite = org.nom;
+                form.affectations[0].region_id = null;
+                form.affectations[0].unite_id = null;
+                form.affectations[0].region = '';
+            }
+            quickOrganismeVisible.value = false;
+            toast.add({ severity: 'success', summary: 'Succès', detail: `Organisme [${org.code}] créé et sélectionné !`, life: 3000 });
+        }
+    } catch (e) {
+        const msg = e.response?.data?.errors?.code?.[0] || e.response?.data?.errors?.nom?.[0] || e.response?.data?.message || 'Erreur lors de la création.';
+        toast.add({ severity: 'error', summary: 'Erreur', detail: msg, life: 4000 });
+    } finally {
+        quickOrganismeLoading.value = false;
+    }
+};
+
+const openQuickAddRegion = (idx) => {
+    currentQuickAffIndex.value = idx;
+    quickRegionForm.value = { code: '', nom: '' };
+    quickRegionVisible.value = true;
+};
+
+const saveQuickRegion = async () => {
+    if (!quickRegionForm.value.code || !quickRegionForm.value.nom) {
+        toast.add({ severity: 'warn', summary: 'Champs requis', detail: 'Code et nom sont obligatoires.', life: 3000 });
+        return;
+    }
+    quickRegionLoading.value = true;
+    try {
+        const response = await axios.post(route('configurations.regions.store'), quickRegionForm.value);
+        if (response.data && response.data.region) {
+            localRegions.value.push(response.data.region);
+            if (currentQuickAffIndex.value !== null && form.affectations[currentQuickAffIndex.value]) {
+                form.affectations[currentQuickAffIndex.value].region_id = response.data.region.id;
+                form.affectations[currentQuickAffIndex.value].region = response.data.region.nom;
+            }
+            quickRegionVisible.value = false;
+            toast.add({ severity: 'success', summary: 'Succès', detail: 'Nouvelle région ajoutée et sélectionnée !', life: 3000 });
+        }
+    } catch (e) {
+        const msg = e.response?.data?.errors?.code?.[0] || e.response?.data?.message || 'Erreur lors de la création.';
+        toast.add({ severity: 'error', summary: 'Erreur', detail: msg, life: 4000 });
+    } finally {
+        quickRegionLoading.value = false;
+    }
+};
+
+const openQuickAddUnite = (idx) => {
+    currentQuickAffIndex.value = idx;
+    let preselectedRegionId = form.affectations[idx]?.region_id;
+    if (!preselectedRegionId) {
+        const currentRegionNom = form.affectations[idx]?.region;
+        if (currentRegionNom) {
+            const rObj = localRegions.value.find(r => r.nom === currentRegionNom || r.code === currentRegionNom);
+            if (rObj) preselectedRegionId = rObj.id;
+        }
+    }
+    quickUniteForm.value = {
+        region_id: preselectedRegionId || (localRegions.value[0]?.id ?? null),
+        nom: '',
+        type: 'Brigade Territoriale',
+        est_operationnelle: true
+    };
+    quickUniteVisible.value = true;
+};
+
+const saveQuickUnite = async () => {
+    if (!quickUniteForm.value.region_id || !quickUniteForm.value.nom) {
+        toast.add({ severity: 'warn', summary: 'Champs requis', detail: 'Région et nom de l\'unité obligatoires.', life: 3000 });
+        return;
+    }
+    quickUniteLoading.value = true;
+    try {
+        const response = await axios.post(route('configurations.unites.store'), quickUniteForm.value);
+        if (response.data && response.data.unite) {
+            localUnites.value.push(response.data.unite);
+            if (currentQuickAffIndex.value !== null && form.affectations[currentQuickAffIndex.value]) {
+                form.affectations[currentQuickAffIndex.value].unite_id = response.data.unite.id;
+                form.affectations[currentQuickAffIndex.value].unite = response.data.unite.nom;
+                if (response.data.unite.region_id) {
+                    form.affectations[currentQuickAffIndex.value].region_id = response.data.unite.region_id;
+                }
+                if (response.data.unite.region?.nom) {
+                    form.affectations[currentQuickAffIndex.value].region = response.data.unite.region.nom;
+                }
+            }
+            quickUniteVisible.value = false;
+            toast.add({ severity: 'success', summary: 'Succès', detail: 'Nouvelle unité ajoutée et sélectionnée !', life: 3000 });
+        }
+    } catch (e) {
+        const msg = e.response?.data?.errors?.nom?.[0] || e.response?.data?.message || 'Erreur lors de la création.';
+        toast.add({ severity: 'error', summary: 'Erreur', detail: msg, life: 4000 });
+    } finally {
+        quickUniteLoading.value = false;
+    }
+};
+
+const openQuickAddPosition = () => {
+    quickPositionForm.value = { nom: '', type: 'administrative' };
+    quickPositionVisible.value = true;
+};
+
+const saveQuickPosition = async () => {
+    if (!quickPositionForm.value.nom) {
+        toast.add({ severity: 'warn', summary: 'Champ requis', detail: 'Le nom de la position est obligatoire.', life: 3000 });
+        return;
+    }
+    quickPositionLoading.value = true;
+    try {
+        const response = await axios.post(route('configurations.positions.store'), quickPositionForm.value);
+        if (response.data && response.data.position) {
+            localPositions.value.push(response.data.position);
+            form.position_id = response.data.position.id;
+            form.position_actuelle = response.data.position.nom;
+            quickPositionVisible.value = false;
+            toast.add({ severity: 'success', summary: 'Succès', detail: 'Nouvelle position ajoutée et sélectionnée !', life: 3000 });
+        }
+    } catch (e) {
+        const msg = e.response?.data?.errors?.nom?.[0] || e.response?.data?.message || 'Erreur lors de la création.';
+        toast.add({ severity: 'error', summary: 'Erreur', detail: msg, life: 4000 });
+    } finally {
+        quickPositionLoading.value = false;
+    }
+};
+
+// --- Décorations & Diplômes dynamiques ---
+const parseList = (val) => {
+    if (!val) return [];
+    if (Array.isArray(val)) {
+        const seen = new Set();
+        return val.map(s => String(s).trim()).filter(s => {
+            if (!s || s === '#N/A' || s === 'N/A') return false;
+            const k = s.toLowerCase();
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+        });
+    }
+    if (typeof val === 'string') {
+        const trimmed = val.trim();
+        if (trimmed === '#N/A' || trimmed === 'N/A' || trimmed === 'null' || trimmed === '' || trimmed === '-') return [];
+        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+            try {
+                const parsed = JSON.parse(trimmed);
+                if (Array.isArray(parsed)) {
+                    return parseList(parsed);
+                }
+            } catch (e) {}
+        }
+        const rawParts = trimmed.split(/[;\n]+/);
+        const seen = new Set();
+        const result = [];
+
+        for (const p of rawParts) {
+            const clean = p.replace(/\s+/g, ' ').replace(/^[-•*]\s*/, '').replace(/,+$/, '').trim();
+            if (!clean || clean === '#N/A' || clean === 'N/A' || clean === '-') continue;
+            const key = clean.toLowerCase();
+            if (!seen.has(key)) {
+                seen.add(key);
+                result.push(clean);
+            }
+        }
+        return result;
+    }
+    return [];
+};
+
+const decorationsList = ref(parseList(props.militaire.decorations));
+const diplomesList = ref(parseList(props.militaire.diplomes_academiques));
+
+const addDecoration = () => {
+    decorationsList.value.push('');
+};
+
+const removeDecoration = (index) => {
+    decorationsList.value.splice(index, 1);
+};
+
+const addDiplome = () => {
+    diplomesList.value.push('');
+};
+
+const removeDiplome = (index) => {
+    diplomesList.value.splice(index, 1);
+};
+
+const formationsOfficiers = [
+    'APLI', 'CFCU', 'Certificat État-major', 'Certificat d\'état-major', 'École d\'État-Major', 'EEM',
+    'Cours supérieur d\'état-major', 'École de guerre', 'Brevet Supérieur de Second Degré',
+    'Cour d\'Application', 'Cour des Futurs Commandants d\'Unité'
+];
+
+const officierTypes = ['officier général', 'officier supérieur', 'officier subalterne'];
+
+const estFormationOfficier = (certificat) => {
+    const nom = certificat.nom_certificat;
+    const niveau = certificat.niveau_certificat;
+    if (formationsOfficiers.includes(nom) || formationsOfficiers.includes(niveau)) return true;
+    for (const f of formationsOfficiers) {
+        if (nom && (nom.includes(f) || f.includes(nom))) return true;
+        if (niveau && (niveau.includes(f) || f.includes(niveau))) return true;
+    }
+    return false;
+};
+
+const showFormationsSection = computed(() => form.grade_actuel !== null && form.grade_actuel !== '');
+
+const filteredCertificats = computed(() => {
+    if (!form.grade_actuel) return [];
+    const gradeInfo = props.grades.find(g => g.nom_grade === form.grade_actuel);
+    if (!gradeInfo) return [];
+    if (officierTypes.includes(gradeInfo.type_grade?.toLowerCase())) return props.certificats;
+    return props.certificats.filter(cert => !estFormationOfficier(cert));
+});
+
+const getNiveauStyle = (niveau) => {
+    const styles = {
+        'BE':   { background: '#e0f2fe', color: '#0369a1' },
+        'CAT1': { background: '#7dd3fc', color: '#0369a1' },
+        'CAT2': { background: '#38bdf8', color: '#075985' },
+        'CIA':  { background: '#22d3ee', color: '#0e7490' },
+        'BA1':  { background: '#a7f3d0', color: '#047857' },
+        'BA2':  { background: '#6ee7b7', color: '#065f46' },
+        'BMP1': { background: '#fde68a', color: '#b45309' },
+        'BMP2': { background: '#fcd34d', color: '#92400e' },
+        'BS':   { background: '#fed7aa', color: '#c2410c' },
+        'CT1':  { background: '#ddd6fe', color: '#6d28d9' },
+        'CT2':  { background: '#c4b5fd', color: '#5b21b6' },
+    };
+    return styles[niveau] || { background: '#bae6fd', color: '#0369a1' };
+};
+
+const onCertificatChange = (certifId) => {
+    if (!form.certificats[certifId].obtenu) {
+        form.certificats[certifId].date_obtention = null;
+        form.certificats[certifId].document = null;
+    }
+};
+
+const onFileSelect = (certifId, event) => {
+    const file = event.target?.files?.[0] || (event.files && event.files[0]);
+    if (file) {
+        form.certificats[certifId].document = file;
+    }
+};
+
+const removeDocument = (certifId) => {
+    form.certificats[certifId].document = null;
+    form.certificats[certifId].document_existant = null;
+};
+
+const formatDateForServer = (date) => {
+    if (!date) return '';
+    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return date;
+    }
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const submitForm = () => {
+    // Valider toutes les étapes avant de soumettre
+    if (!validateStep(0) || !validateStep(1) || !validateStep(2)) return;
+
+    syncEngagementOpsField();
+
+    saving.value = true;
+    errors.value = {};
+
+    // Synchroniser l'affectation la plus récente (par date de mutation) dans les champs principaux
+    if (form.affectations && form.affectations.length > 0) {
+        const sorted = [...form.affectations].filter(a => a.unite_id || a.unite || a.region_id || a.region || a.date_mutation);
+        sorted.sort((a, b) => {
+            const dateA = a.date_mutation ? new Date(a.date_mutation).getTime() : 0;
+            const dateB = b.date_mutation ? new Date(b.date_mutation).getTime() : 0;
+            return dateB - dateA;
+        });
+        const mostRecent = sorted[0] || form.affectations[0];
+        form.unite_id = mostRecent.unite_id || null;
+        form.unite = mostRecent.unite || '';
+        form.region_id = mostRecent.region_id || null;
+        form.region = mostRecent.region || '';
+        form.date_mutation = mostRecent.date_mutation || null;
+    }
+
+    const formData = new FormData();
+
+    if (form.affectations && form.affectations.length > 0) {
+        form.affectations.forEach((aff, idx) => {
+            if (aff.region_id) formData.append(`affectations[${idx}][region_id]`, aff.region_id);
+            if (aff.unite_id) formData.append(`affectations[${idx}][unite_id]`, aff.unite_id);
+            formData.append(`affectations[${idx}][unite]`, aff.unite || '');
+            formData.append(`affectations[${idx}][region]`, aff.region || '');
+            formData.append(`affectations[${idx}][date_mutation]`, aff.date_mutation ? formatDateForServer(aff.date_mutation) : '');
+        });
+    }
+
+    // Sérialisation des listes dynamiques Décorations & Diplômes
+    const cleanDecorations = decorationsList.value.map(s => s.trim()).filter(Boolean);
+    const cleanDiplomes = diplomesList.value.map(s => s.trim()).filter(Boolean);
+    form.decorations = cleanDecorations.length > 0 ? JSON.stringify(cleanDecorations) : '';
+    form.diplomes_academiques = cleanDiplomes.length > 0 ? JSON.stringify(cleanDiplomes) : '';
+
+    const textFields = [
+        'matricule', 'mle_grm', 'numero_info', 'numero_nina', 'grade_actuel', 'categorie',
+        'nom', 'prenom', 'lieu_naissance', 'specialite', 'origine_formation',
+        'position_id', 'position_actuelle', 'unite_id', 'unite', 'region_id', 'region', 'fonction_passee', 'fonction_actuelle',
+        'telephone', 'statut', 'sexe', 'groupe_sanguin', 'taille', 'status_sanitaire', 'engagement_ops',
+        'personne_a_contacter', 'telephone_personne_contacter',
+        'decorations', 'diplomes_academiques', 'observations',
+        'circonstances_deces', 'motif_radiation', 'reference_decision',
+        'unite_transfert', 'motif_transfert'
+    ];
+
+    textFields.forEach(field => {
+        formData.append(field, (form[field] !== null && form[field] !== undefined) ? form[field] : '');
+    });
+
+    const dateFields = ['date_naissance', 'date_entree_service', 'date_derniere_promotion', 'date_mutation', 'date_deces'];
+    dateFields.forEach(field => {
+        formData.append(field, form[field] ? formatDateForServer(form[field]) : '');
+    });
+
+    formData.append('a_permis_conduire', form.a_permis_conduire ? '1' : '0');
+    formData.append('antecedent_judiciaire', form.antecedent_judiciaire ? '1' : '0');
+    formData.append('antecedent_disciplinaire', form.antecedent_disciplinaire ? '1' : '0');
+
+    if (photoFile.value) {
+        formData.append('photo', photoFile.value);
+    }
+    if (supprimerPhoto.value) {
+        formData.append('supprimer_photo', '1');
+    }
+
+    Object.keys(form.certificats).forEach(certifId => {
+        const certData = form.certificats[certifId];
+        formData.append(`certificats[${certifId}][obtenu]`, certData.obtenu ? '1' : '0');
+
+        if (certData.obtenu) {
+            if (certData.date_obtention) {
+                formData.append(`certificats[${certifId}][date_obtention]`, formatDateForServer(certData.date_obtention));
+            }
+            if (certData.document) {
+                formData.append(`certificats[${certifId}][document]`, certData.document);
+            } else if (certData.document_existant) {
+                formData.append(`certificats[${certifId}][document_id]`, certData.document_existant.id);
+            }
+        }
+    });
+
+    formData.append('_method', 'PUT');
+
+    router.post(route('militaires.update', form.id), formData, {
+        forceFormData: true,
+        onSuccess: () => {
+            saving.value = false;
+            toast.add({
+                severity: 'success',
+                summary: 'Succès',
+                detail: 'Militaire mis à jour avec succès',
+                life: 3000
+            });
+            router.visit(route('militaires.show', form.id));
+        },
+        onError: (err) => {
+            saving.value = false;
+            errors.value = err;
+            toast.add({
+                severity: 'error',
+                summary: 'Erreur de validation',
+                detail: 'Veuillez corriger les informations requises dans le formulaire',
+                life: 5000
+            });
+
+            // Basculement automatique vers l'étape contenant la première erreur (sur 3 étapes)
+            const errKeys = Object.keys(err);
+            if (errKeys.some(k => ['matricule', 'mle_grm', 'numero_info', 'numero_nina', 'grade_actuel', 'categorie', 'statut', 'nom', 'prenom', 'date_naissance', 'lieu_naissance', 'sexe', 'telephone'].includes(k))) {
+                currentStep.value = 0;
+            } else if (errKeys.some(k => ['date_entree_service', 'date_derniere_promotion', 'unite', 'region', 'affectations'].includes(k))) {
+                currentStep.value = 1;
+            } else {
+                currentStep.value = 2;
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    });
+};
+
+const cancel = () => {
+    router.visit(route('militaires.show', form.id));
+};
+</script>
+
 <template>
     <AuthenticatedLayout>
         <template #header>
@@ -237,7 +1429,7 @@
                                                 </span>
                                             </div>
                                             <Select v-model="form.statut" :options="statutOptions" optionLabel="label" optionValue="value"
-                                                    placeholder="Sélectionner la situation administrative (Actif, Détaché, En stage...)" class="w-full"
+                                                    placeholder="Sélectionner le statut administratif (Actif, Déserteur, Retraité...)" class="w-full"
                                                     :class="{ 'p-invalid': errors.statut || (stepErrors && stepErrors[0] && stepErrors[0].statut) }" />
                                             <small v-if="errors.statut || (stepErrors && stepErrors[0] && stepErrors[0].statut)" class="text-red-500 font-medium block mt-1">
                                                 {{ errors.statut || (stepErrors && stepErrors[0] && stepErrors[0].statut) }}
@@ -273,6 +1465,7 @@
                                         <InputText v-model="form.reference_decision" class="w-full" placeholder="Ex: N° Décret / Arrêté ministériel..." />
                                     </div>
                                 </div>
+
                             </div>
 
                             <!-- CARD 2 : État Civil & Coordonnées -->
@@ -431,19 +1624,138 @@
                                 </div>
                             </div>
 
-                            <!-- CARD 2 : Affectation & Maillage Territorial -->
+                            <!-- CARD 2 : Situation de Service & Position Actuelle -->
+                            <div class="p-5 rounded-2xl border border-slate-200 bg-white shadow-2xs">
+                                <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
+                                    <div class="flex items-center gap-2 text-sky-900 text-sm font-extrabold uppercase tracking-wide">
+                                        <i class="pi pi-compass text-sky-800 text-base"></i>
+                                        <span>Card 2 — Position Actuelle & Situation de Service</span>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <!-- Position actuelle -->
+                                    <div class="field">
+                                        <div class="h-6 flex items-center justify-between mb-1 gap-1">
+                                            <label for="position_actuelle" class="block text-xs font-semibold text-gray-700 truncate whitespace-nowrap">
+                                                Position actuelle <span class="text-red-500">*</span>
+                                            </label>
+                                            <button type="button" @click="openQuickAddPosition"
+                                                    class="w-6 h-6 rounded-md bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 hover:text-sky-900 flex items-center justify-center shrink-0 cursor-pointer transition-colors shadow-2xs"
+                                                    title="Ajouter une nouvelle position">
+                                                <i class="pi pi-plus text-xs font-bold"></i>
+                                            </button>
+                                        </div>
+                                        <Select id="position_actuelle"
+                                                v-model="form.position_id"
+                                                :options="localPositions"
+                                                optionLabel="nom"
+                                                optionValue="id"
+                                                filter
+                                                placeholder="Sélectionner la position (À l'Unité, En détachement...)"
+                                                class="w-full text-xs"
+                                                @change="onPositionSelect">
+                                            <template #option="slotProps">
+                                                <div class="flex items-center justify-between w-full py-0.5">
+                                                    <span class="text-xs font-medium">{{ slotProps.option.nom }}</span>
+                                                    <span class="text-[10px] px-1.5 py-0.2 rounded font-semibold bg-slate-100 text-slate-700">
+                                                        {{ slotProps.option.type === 'operationnelle' ? 'Théâtre / Déploiement' : 'Poste' }}
+                                                    </span>
+                                                </div>
+                                            </template>
+                                        </Select>
+                                    </div>
+
+                                    <!-- Observations particulières / Mention officielle -->
+                                    <div class="field">
+                                        <div class="h-6 flex items-center justify-between mb-1 gap-2">
+                                            <label for="observations" class="block text-xs font-semibold text-gray-700 truncate whitespace-nowrap">
+                                                Observations particulières / Mention officielle
+                                            </label>
+                                            <span class="text-[10px] text-slate-400 font-normal italic truncate">Remarques, otage, etc.</span>
+                                        </div>
+                                        <InputText id="observations"
+                                                   v-model="form.observations"
+                                                   class="w-full text-xs"
+                                                   placeholder="Ex: Otage devant partir à la Retraite depuis 2020..." />
+                                    </div>
+                                </div>
+
+                                <!-- ZONE CONDITIONNELLE : ORGANISME DE DÉTACHEMENT (Affiché uniquement si en détachement) -->
+                                <div v-if="isDetache" class="mt-4 p-4 bg-sky-50/80 border border-sky-200 rounded-xl">
+                                    <div class="flex items-center justify-between mb-1.5 gap-1">
+                                        <label class="block text-xs font-bold text-sky-950 flex items-center gap-1.5">
+                                            <i class="pi pi-briefcase text-sky-700"></i>
+                                            <span>Organisme de Détachement (SPA)</span>
+                                            <span class="text-red-500">*</span>
+                                        </label>
+                                        <button type="button" @click="openQuickAddOrganisme"
+                                                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white border border-sky-300 text-sky-800 hover:bg-sky-100 text-xs font-bold shrink-0 cursor-pointer transition-colors shadow-2xs"
+                                                title="Ajouter un nouvel organisme de détachement">
+                                            <i class="pi pi-plus text-xs"></i>
+                                            <span>Ajouter un organisme</span>
+                                        </button>
+                                    </div>
+                                    <Select v-model="form.organisme_detachement_id"
+                                            :options="organismesDetachementOptions"
+                                            optionLabel="label"
+                                            optionValue="value"
+                                            placeholder="Sélectionner l'organisme (ex: DOCS, ANSE, MJGS, PRM, PM...)"
+                                            class="w-full text-xs"
+                                            filter
+                                            filterPlaceholder="Rechercher par sigle ou nom..."
+                                            @change="onOrganismeSelect">
+                                        <template #value="slotProps">
+                                            <div v-if="slotProps.value" class="flex items-center gap-2">
+                                                <span class="font-mono text-[11px] font-extrabold text-sky-800 bg-sky-100 border border-sky-300 px-1.5 py-0.5 rounded shrink-0">
+                                                    {{ getOrganismeCode(slotProps.value) }}
+                                                </span>
+                                                <span class="text-xs text-slate-900 font-semibold truncate">{{ getOrganismeNom(slotProps.value) }}</span>
+                                            </div>
+                                            <span v-else class="text-slate-400 text-xs">
+                                                Sélectionner l'organisme (ex: DOCS, ANSE, MJGS, PRM, PM...)
+                                            </span>
+                                        </template>
+                                        <template #option="slotProps">
+                                            <div v-if="slotProps.option.value" class="flex items-center gap-2 py-0.5">
+                                                <span class="font-mono text-[11px] font-extrabold text-sky-800 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded shrink-0">
+                                                    {{ slotProps.option.code }}
+                                                </span>
+                                                <span class="text-xs text-slate-800 font-medium truncate">{{ slotProps.option.nom }}</span>
+                                            </div>
+                                            <span v-else class="text-xs text-slate-400 italic">{{ slotProps.option.label }}</span>
+                                        </template>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            <!-- CARD 3 : AFFECTATION TERRITORIALE (GENDARMERIE NATIONALE) -->
                             <div class="p-5 rounded-2xl border border-slate-200 bg-slate-50/50 shadow-2xs">
                                 <div class="flex items-center justify-between border-b border-slate-200 pb-3 mb-4">
                                     <div class="flex items-center gap-2 text-sky-900 text-sm font-extrabold uppercase tracking-wide">
                                         <i class="pi pi-building text-sky-800 text-base"></i>
-                                        <span>Card 2 — Affectation & Maillage Territorial</span>
+                                        <span>Card 3 — Affectation Territoriale (Unités de Gendarmerie)</span>
                                     </div>
-                                    <Button type="button" label="Ajouter une affectation" icon="pi pi-plus"
+                                    <Button v-if="!isDetache" type="button" label="Ajouter une affectation" icon="pi pi-plus"
                                             class="p-button-sm !bg-white hover:!bg-sky-50 !text-sky-800 !border !border-sky-300 font-bold shadow-2xs cursor-pointer"
                                             @click="addAffectation" />
                                 </div>
 
-                                <div class="space-y-4">
+                                <!-- Si en détachement : message explicatif et masque les champs de brigade territoriale -->
+                                <div v-if="isDetache" class="p-4 rounded-xl bg-white border border-sky-200 shadow-2xs flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center shrink-0">
+                                        <i class="pi pi-shield text-lg"></i>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs font-bold text-sky-950 uppercase">Personnel en position de Détachement</div>
+                                        <div class="text-xs text-slate-600 mt-0.5">
+                                            Ce militaire est placé en détachement auprès de : <strong>{{ form.unite || 'Organisme de détachement externe' }}</strong>.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Si géré par la Gendarmerie : formulaire des affectations territoriales -->
+                                <div v-else class="space-y-4">
                                     <div v-for="(aff, idx) in form.affectations" :key="idx"
                                          class="p-4 rounded-xl border border-slate-200 bg-white relative transition-all shadow-2xs">
                                         <div class="flex items-center justify-between mb-3 border-b border-slate-200 pb-2">
@@ -461,7 +1773,7 @@
                                                     @click="removeAffectation(idx)" />
                                         </div>
 
-                                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                             <!-- Région de Gendarmerie -->
                                             <div class="field">
                                                 <div class="h-6 flex items-center justify-between mb-1 gap-1">
@@ -480,7 +1792,7 @@
                                                         optionLabel="nom"
                                                         optionValue="id"
                                                         filter
-                                                        placeholder="Choisir ou chercher une région..."
+                                                        placeholder="Choisir une région..."
                                                         class="w-full text-xs"
                                                         @change="onRegionSelect(idx)">
                                                     <template #option="slotProps">
@@ -510,7 +1822,7 @@
                                                         optionLabel="nom"
                                                         optionValue="id"
                                                         filter
-                                                        placeholder="Choisir ou chercher une unité..."
+                                                        placeholder="Choisir une unité..."
                                                         class="w-full text-xs"
                                                         @change="onUniteSelect(idx)">
                                                     <template #option="slotProps">
@@ -523,7 +1835,7 @@
                                                         </div>
                                                     </template>
                                                 </Select>
-                                                <small v-if="aff.region_id && !aff.unite_id" class="text-[10px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 inline-block mt-1">
+                                                <small v-if="!isPositionSpeciale && aff.region_id && !aff.unite_id" class="text-[10px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 inline-block mt-1">
                                                     ⚠️ Unité de cette région requise
                                                 </small>
                                             </div>
@@ -538,55 +1850,6 @@
                                                 <DatePicker :id="'date_mutation_' + idx" v-model="aff.date_mutation"
                                                             dateFormat="dd/mm/yy" showIcon class="w-full" size="small" />
                                             </div>
-
-                                            <!-- Position actuelle & Observations (uniquement sur l'affectation actuelle / idx === 0) -->
-                                            <template v-if="idx === 0">
-                                                <!-- Position actuelle (Endroit où il se trouve) -->
-                                                <div class="field sm:col-span-1 lg:col-span-1 min-w-0 pt-2 border-t border-slate-100 sm:border-0 sm:pt-0">
-                                                    <div class="h-6 flex items-center justify-between mb-1 gap-1">
-                                                        <label for="position_actuelle" class="block text-xs font-semibold text-gray-700 truncate whitespace-nowrap">
-                                                            Position actuelle
-                                                        </label>
-                                                        <button type="button" @click="openQuickAddPosition"
-                                                                class="w-6 h-6 rounded-md bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 hover:text-sky-900 flex items-center justify-center shrink-0 cursor-pointer transition-colors shadow-2xs"
-                                                                title="Ajouter un nouvel endroit de déploiement">
-                                                            <i class="pi pi-plus text-xs font-bold"></i>
-                                                        </button>
-                                                    </div>
-                                                    <Select id="position_actuelle"
-                                                            v-model="form.position_id"
-                                                            :options="localPositions"
-                                                            optionLabel="nom"
-                                                            optionValue="id"
-                                                            filter
-                                                            placeholder="Sélectionner la position..."
-                                                            class="w-full min-w-0 text-xs"
-                                                            @change="onPositionSelect">
-                                                        <template #option="slotProps">
-                                                            <div class="flex items-center justify-between w-full py-0.5">
-                                                                <span class="text-xs font-medium">{{ slotProps.option.nom }}</span>
-                                                                <span class="text-[10px] px-1.5 py-0.2 rounded font-semibold bg-slate-100 text-slate-700">
-                                                                    {{ slotProps.option.type === 'operationnelle' ? 'Théâtre / Déploiement' : 'Poste' }}
-                                                                </span>
-                                                            </div>
-                                                        </template>
-                                                    </Select>
-                                                </div>
-
-                                                <!-- Observations particulières / Mention officielle (à côté de la position) -->
-                                                <div class="field sm:col-span-1 lg:col-span-2 min-w-0 pt-2 border-t border-slate-100 sm:border-0 sm:pt-0">
-                                                    <div class="h-6 flex items-center justify-between mb-1 gap-2">
-                                                        <label for="observations" class="block text-xs font-semibold text-gray-700 truncate whitespace-nowrap">
-                                                            Observations particulières / Mention officielle
-                                                        </label>
-                                                        <span class="text-[10px] text-slate-400 font-normal italic truncate">Remarques, otage, situation...</span>
-                                                    </div>
-                                                    <InputText id="observations"
-                                                               v-model="form.observations"
-                                                               class="w-full min-w-0 text-xs"
-                                                               placeholder="Ex: Otage devant partir à la Retraité depuis 2020..." />
-                                                </div>
-                                            </template>
                                         </div>
                                     </div>
                                 </div>
@@ -671,15 +1934,27 @@
                                                 :filter="true" 
                                                 filterPlaceholder="Rechercher un statut..."
                                                 placeholder="Sélectionner ou rechercher un statut" 
-                                                class="w-full" 
+                                                class="w-full"
+                                                panelClass="!max-w-[420px] !w-full overflow-hidden shadow-2xl rounded-xl border border-slate-200"
+                                                :panelStyle="{ maxWidth: '420px', width: '100%' }"
                                                 showClear>
+                                            <template #value="slotProps">
+                                                <div v-if="slotProps.value" class="truncate max-w-[280px] text-xs font-semibold text-slate-800" :title="slotProps.value">
+                                                    {{ sanitizeStatusLabel(slotProps.value) }}
+                                                </div>
+                                                <span v-else class="text-slate-400 text-xs">
+                                                    {{ slotProps.placeholder }}
+                                                </span>
+                                            </template>
                                             <template #option="slotProps">
-                                                <div class="flex items-center justify-between w-full py-0.5">
-                                                    <span>{{ slotProps.option.label }}</span>
+                                                <div class="flex items-center justify-between w-full py-1 gap-2 max-w-full overflow-hidden">
+                                                    <span class="text-xs truncate flex-1 text-slate-800 font-medium" :title="slotProps.option.fullLabel || slotProps.option.label">
+                                                        {{ slotProps.option.label }}
+                                                    </span>
                                                     <!-- Permet de retirer n'importe quelle option (existante ou personnalisée) -->
                                                     <button type="button" 
                                                             @click.stop="removeStatusOption(slotProps.option.value)"
-                                                            class="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition-colors ml-2 cursor-pointer"
+                                                            class="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition-colors shrink-0 cursor-pointer"
                                                             title="Retirer cette option de la liste">
                                                         <i class="pi pi-trash text-[11px]"></i>
                                                     </button>
@@ -688,12 +1963,91 @@
                                         </Select>
                                     </div>
 
-                                    <!-- Engagement OPS -->
-                                    <div class="field sm:col-span-2 lg:col-span-3">
-                                        <label for="engagement_ops" class="block text-sm font-semibold text-gray-700 mb-1">
-                                            Engagement OPS / Théâtres d'opérations
-                                        </label>
-                                        <InputText id="engagement_ops" v-model="form.engagement_ops" class="w-full" placeholder="Ex: 2 OPS, Opération Maliko, Théâtre Est, Sokolo, Garsi..." />
+                                    <!-- Engagement OPS Dynamique (Multi-sélection & Comptage OPS) -->
+                                    <div class="field sm:col-span-2 lg:col-span-3 p-4 rounded-xl border border-amber-200 bg-amber-50/40 shadow-2xs">
+                                        <div class="flex items-center justify-between mb-3 border-b border-amber-200/80 pb-2 flex-wrap gap-2">
+                                            <div class="flex items-center gap-2">
+                                                <i class="pi pi-shield text-amber-700 text-sm"></i>
+                                                <span class="text-xs font-extrabold uppercase tracking-wide text-amber-950">
+                                                    Engagement OPS / Théâtres d'opérations
+                                                </span>
+                                                <span class="px-2 py-0.5 rounded-full text-[11px] font-black bg-amber-600 text-white shadow-2xs">
+                                                    {{ engagementsOpsList.length }} OPS
+                                                </span>
+                                            </div>
+                                            <div class="flex items-center gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    @click="toggleAddTheatreOption"
+                                                    class="px-2.5 py-1 rounded-md text-[11px] font-bold bg-white text-amber-800 border border-amber-300 hover:bg-amber-100 flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                                                    title="Créer un nouveau théâtre d'opération dans la liste"
+                                                >
+                                                    <i :class="showAddTheatreOption ? 'pi pi-times' : 'pi pi-plus'" class="text-[10px]"></i>
+                                                    <span>{{ showAddTheatreOption ? 'Fermer' : 'Nouveau théâtre' }}</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    @click="addEngagementOpsRow"
+                                                    class="px-2.5 py-1 rounded-md text-[11px] font-bold bg-amber-700 text-white hover:bg-amber-800 flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                                                >
+                                                    <i class="pi pi-plus text-[10px]"></i>
+                                                    <span>Ajouter un théâtre</span>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Formulaire d'ajout rapide d'un nouveau nom de théâtre dans la liste déroulante -->
+                                        <div v-if="showAddTheatreOption" class="mb-3 p-3 bg-white rounded-lg border border-amber-300 shadow-xs flex items-center gap-2">
+                                            <InputText
+                                                v-model="newTheatreInput"
+                                                placeholder="Nom du théâtre (ex: Opération Tilé Koun, Théâtre Nord, Sokolo...)"
+                                                class="flex-1 !text-xs !p-2"
+                                                @keydown.enter.prevent="saveNewTheatreOption"
+                                            />
+                                            <Button label="Ajouter à la liste" size="small" severity="warning" @click="saveNewTheatreOption" class="!text-xs" />
+                                            <Button icon="pi pi-times" text severity="secondary" size="small" @click="showAddTheatreOption = false" />
+                                        </div>
+
+                                        <!-- Liste des théâtres d'opérations sélectionnés -->
+                                        <div v-if="engagementsOpsList.length > 0" class="space-y-2.5">
+                                            <div
+                                                v-for="(opsRow, idx) in engagementsOpsList"
+                                                :key="idx"
+                                                class="flex items-center gap-2 p-2 bg-white rounded-lg border border-amber-200/90 shadow-2xs"
+                                            >
+                                                <div class="w-6 h-6 rounded-full bg-amber-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0">
+                                                    {{ idx + 1 }}
+                                                </div>
+                                                <span class="text-xs font-black text-amber-800 shrink-0">
+                                                    OPS {{ idx + 1 }} :
+                                                </span>
+                                                <div class="flex-1 min-w-0">
+                                                    <Select
+                                                        v-model="opsRow.theatre"
+                                                        :options="theatresOpsOptions"
+                                                        optionLabel="label"
+                                                        optionValue="value"
+                                                        filter
+                                                        placeholder="Sélectionner ou chercher un théâtre / opération..."
+                                                        class="w-full !text-xs"
+                                                        panelClass="!max-w-[420px] !w-full overflow-hidden shadow-xl rounded-xl border border-slate-200"
+                                                        :panelStyle="{ maxWidth: '420px', width: '100%' }"
+                                                        @change="syncEngagementOpsField"
+                                                    />
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    @click="removeEngagementOpsRow(idx)"
+                                                    class="w-7 h-7 rounded text-rose-600 hover:bg-rose-50 flex items-center justify-center shrink-0 transition-colors"
+                                                    title="Supprimer ce théâtre"
+                                                >
+                                                    <i class="pi pi-trash text-xs"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div v-else class="p-3 bg-white/80 rounded-lg border border-dashed border-amber-300 text-center text-xs text-amber-800">
+                                            <span>Aucun théâtre d'opération renseigné (<strong>0 OPS</strong>). Cliquez sur « Ajouter un théâtre » pour en attribuer.</span>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -1015,936 +2369,24 @@
             </template>
         </Dialog>
 
+        <!-- DIALOG AJOUT RAPIDE ORGANISME DE DÉTACHEMENT -->
+        <Dialog v-model:visible="quickOrganismeVisible" header="Ajout Rapide : Nouvel Organisme de Détachement (SPA)" :modal="true" class="w-full max-w-md">
+            <div class="space-y-3 pt-2 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Sigle / Code officiel (ex: DOCS, ANSE, MJGS...) <span class="text-red-500">*</span></label>
+                    <InputText v-model="quickOrganismeForm.code" class="w-full text-xs font-mono uppercase" placeholder="Ex: ANSE" />
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-700 mb-1">Nom complet officiel de l'organisme <span class="text-red-500">*</span></label>
+                    <InputText v-model="quickOrganismeForm.nom" class="w-full text-xs" placeholder="Ex: Agence Nationale de la Sécurité d'Etat" />
+                </div>
+            </div>
+            <template #footer>
+                <Button label="Annuler" text severity="secondary" size="small" @click="quickOrganismeVisible = false" />
+                <Button label="Créer & Sélectionner" icon="pi pi-check" size="small" class="bg-sky-700 hover:bg-sky-800 text-white border-0" :loading="quickOrganismeLoading" @click="saveQuickOrganisme" />
+            </template>
+        </Dialog>
+
         <Toast position="top-right" />
     </AuthenticatedLayout>
 </template>
-
-<script setup>
-import { ref, reactive, computed, watch } from 'vue';
-import { router } from '@inertiajs/vue3';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import InputText from 'primevue/inputtext';
-import Select from 'primevue/select';
-import DatePicker from 'primevue/datepicker';
-import Checkbox from 'primevue/checkbox';
-import Button from 'primevue/button';
-import Tag from 'primevue/tag';
-import Toast from 'primevue/toast';
-import Dialog from 'primevue/dialog';
-import FileUpload from 'primevue/fileupload';
-import { useToast } from 'primevue/usetoast';
-import axios from 'axios';
-
-const props = defineProps({
-    militaire: { type: Object, required: true },
-    grades: { type: Array, required: true },
-    affectations: { type: Array, default: () => [] },
-    certificats: { type: Array, default: () => [] },
-    certificats_du_militaire: { type: Object, default: () => ({}) },
-    regions: { type: Array, default: () => [] },
-    unites: { type: Array, default: () => [] },
-    positions: { type: Array, default: () => [] },
-});
-
-const localRegions = ref([...(props.regions || [])]);
-const localUnites = ref([...(props.unites || [])]);
-const localPositions = ref([...(props.positions || [])]);
-
-// Si le militaire possède une position actuelle qui n'est pas encore dans la liste des options, on l'ajoute automatiquement
-if (props.militaire?.position_actuelle && !localPositions.value.some(p => p.nom?.toLowerCase() === props.militaire.position_actuelle.toLowerCase())) {
-    localPositions.value.unshift({
-        id: props.militaire.position_id || props.militaire.position_actuelle,
-        nom: props.militaire.position_actuelle,
-        type: 'operationnelle'
-    });
-}
-
-const toast = useToast();
-const saving = ref(false);
-const errors = ref({});
-const dateErrors = ref({});
-const photoPreview = ref(props.militaire?.photo_url || null);
-const photoFile = ref(null);
-const supprimerPhoto = ref(false);
-
-// =========================================================================================
-// CONFIGURATION DU STEPPER (3 ÉTAPES)
-// Étape 1 : Identité & État Civil (Card 1 Photo/Matricule + Card 2 État Civil/Contact)
-// Étape 2 : Affectation & Carrière (Unités, Région, Dates, Fonctions)
-// Étape 3 : Aptitude, Formations & Synthèse (Card 1 Santé/Discipline + Card 2 Certificats/Diplômes + Synthèse)
-// =========================================================================================
-const steps = [
-    { label: 'Identité & État Civil', title: '1. Identité Militaire & État Civil', subtitle: 'Photo d\'identité, matricules officiels, grade et état civil complet.', icon: 'pi pi-id-card' },
-    { label: 'Affectation & Carrière', title: '2. Affectations Territoriales & Parcours', subtitle: 'Historique des unités d\'affectation, dates clés et fonctions exercées.', icon: 'pi pi-briefcase' },
-    { label: 'Aptitude, Formations & Synthèse', title: '3. Santé, Discipline, Formations & Synthèse', subtitle: 'Profil médical, antécédents, certificats, diplômes civils et validation.', icon: 'pi pi-check-circle' }
-];
-
-const currentStep = ref(0);
-// Pour la modification, toutes les étapes ont déjà des données existantes, on peut donc naviguer librement
-const maxStepVisited = ref(steps.length - 1);
-const stepErrors = reactive({
-    0: {},
-    1: {},
-    2: {}
-});
-
-const progress = computed(() => {
-    return ((currentStep.value + 1) / steps.length) * 100;
-});
-
-const validateStep = (stepIndex) => {
-    stepErrors[stepIndex] = {};
-    let isValid = true;
-
-    if (stepIndex === 0) {
-        // Validation Card 1 : Identifiants & Grade
-        if (!form.matricule || !form.matricule.trim()) {
-            stepErrors[0].matricule = 'Le matricule est obligatoire';
-            isValid = false;
-        }
-        if (!form.grade_actuel) {
-            stepErrors[0].grade_actuel = 'Le grade actuel est obligatoire';
-            isValid = false;
-        }
-        if (!form.statut) {
-            stepErrors[0].statut = 'Le statut administratif est obligatoire';
-            isValid = false;
-        }
-        // Validation Card 2 : État Civil
-        if (!form.nom || !form.nom.trim()) {
-            stepErrors[0].nom = 'Le nom de famille est obligatoire';
-            isValid = false;
-        }
-        if (!form.prenom || !form.prenom.trim()) {
-            stepErrors[0].prenom = 'Le prénom est obligatoire';
-            isValid = false;
-        }
-        if (!form.date_naissance) {
-            stepErrors[0].date_naissance = 'La date de naissance est obligatoire';
-            isValid = false;
-        }
-
-        if (!isValid) {
-            toast.add({
-                severity: 'warn',
-                summary: 'Champs obligatoires requis',
-                detail: 'Veuillez renseigner le Matricule, le Grade, le Statut, le Nom, le Prénom et la Date de naissance.',
-                life: 4500
-            });
-        }
-    } else if (stepIndex === 1) {
-        // Validation Carrière & Affectation
-        if (!form.date_entree_service) {
-            stepErrors[1].date_entree_service = 'La date d\'entrée en service est obligatoire';
-            isValid = false;
-            toast.add({
-                severity: 'warn',
-                summary: 'Date d\'engagement requise',
-                detail: 'Veuillez renseigner la Date d\'entrée en service (engagement).',
-                life: 4000
-            });
-        }
-        // Vérifier que chaque affectation ayant une région possède obligatoirement son unité
-        if (form.affectations && form.affectations.length > 0) {
-            for (let i = 0; i < form.affectations.length; i++) {
-                const aff = form.affectations[i];
-                if (aff.region_id && !aff.unite_id) {
-                    isValid = false;
-                    toast.add({
-                        severity: 'warn',
-                        summary: 'Unité requise pour la région',
-                        detail: `Veuillez sélectionner une unité d'affectation pour la région choisie (affectation n°${i + 1}).`,
-                        life: 5000
-                    });
-                    break;
-                }
-            }
-        }
-    } else if (stepIndex === 2) {
-        // Validation des certificats cochés sans date
-        dateErrors.value = {};
-        let hasDateError = false;
-        Object.keys(form.certificats).forEach(certifId => {
-            if (form.certificats[certifId].obtenu && !form.certificats[certifId].date_obtention) {
-                dateErrors.value[certifId] = true;
-                hasDateError = true;
-            }
-        });
-        if (hasDateError) {
-            isValid = false;
-            toast.add({
-                severity: 'error',
-                summary: 'Date d\'obtention requise',
-                detail: 'Veuillez renseigner la date d\'obtention pour chaque certificat coché.',
-                life: 5000
-            });
-        }
-    }
-
-    return isValid;
-};
-
-const nextStep = () => {
-    if (validateStep(currentStep.value)) {
-        if (currentStep.value < steps.length - 1) {
-            currentStep.value++;
-            if (currentStep.value > maxStepVisited.value) {
-                maxStepVisited.value = currentStep.value;
-            }
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-    }
-};
-
-const prevStep = () => {
-    if (currentStep.value > 0) {
-        currentStep.value--;
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-};
-
-const goToStep = (targetIndex) => {
-    if (targetIndex <= maxStepVisited.value) {
-        currentStep.value = targetIndex;
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-};
-
-// =========================================================================================
-// OPTIONS & VALEURS DU FORMULAIRE
-// =========================================================================================
-const statutOptions = [
-    { label: 'Actif (En service régulier)', value: 'actif' },
-    { label: 'Détaché (Mis à disposition)', value: 'détaché' },
-    { label: 'En Stage / Formation', value: 'stage' },
-    { label: 'En mission', value: 'mission' },
-    { label: 'Procédure en cours', value: 'procédure en cours' },
-    { label: 'Déserteur', value: 'déserteur' },
-    { label: 'Retraité', value: 'retraité' },
-    { label: 'Radié', value: 'radié' },
-    { label: 'Décédé', value: 'décédé' }
-];
-
-const categorieOptions = [
-    { label: 'Militaire du Rang', value: 'Militaire du Rang' },
-    { label: 'Sous-officier Subalterne', value: 'Sous-officier Subalterne' },
-    { label: 'Sous-officier Supérieur', value: 'Sous-officier Supérieur' },
-    { label: 'Officier Subalterne', value: 'Officier Subalterne' },
-    { label: 'Officier Supérieur', value: 'Officier Supérieur' },
-    { label: 'Officier Général', value: 'Officier Général' }
-];
-
-const sexeOptions = [
-    { label: 'Masculin (M)', value: 'M' },
-    { label: 'Féminin (F)', value: 'F' }
-];
-
-const defaultStatusSanitaire = [
-    'Apte',
-    'Blessé de guerre',
-    'Inapte temporaire',
-    'Inapte définitif',
-    'Apte avec restrictions',
-    'En convalescence',
-    'Réformé',
-    'Exempté de service'
-];
-
-const loadStatusSanitaireList = () => {
-    try {
-        const saved = localStorage.getItem('status_sanitaire_options_v3');
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-                return parsed;
-            }
-        }
-    } catch (e) {}
-    return defaultStatusSanitaire;
-};
-
-const saveStatusSanitaireList = (list) => {
-    try {
-        localStorage.setItem('status_sanitaire_options_v3', JSON.stringify(list));
-    } catch (e) {}
-};
-
-const statusSanitaireOptions = ref(
-    loadStatusSanitaireList().map(s => ({ label: s, value: s }))
-);
-
-const showAddStatus = ref(false);
-const newStatusInput = ref('');
-
-const toggleAddStatus = () => {
-    showAddStatus.value = !showAddStatus.value;
-    newStatusInput.value = '';
-};
-
-const addNewStatus = () => {
-    const trimmed = (newStatusInput.value || '').trim();
-    if (!trimmed) return;
-
-    const existing = statusSanitaireOptions.value.find(o => o.value.toLowerCase() === trimmed.toLowerCase());
-    if (existing) {
-        form.status_sanitaire = existing.value;
-    } else {
-        const newOpt = { label: trimmed, value: trimmed };
-        statusSanitaireOptions.value.push(newOpt);
-        form.status_sanitaire = trimmed;
-        saveStatusSanitaireList(statusSanitaireOptions.value.map(o => o.value));
-    }
-
-    newStatusInput.value = '';
-    showAddStatus.value = false;
-};
-
-const removeStatusOption = (valToRemove) => {
-    if (!valToRemove) return;
-    statusSanitaireOptions.value = statusSanitaireOptions.value.filter(o => o.value !== valToRemove);
-    if (form.status_sanitaire === valToRemove) {
-        form.status_sanitaire = '';
-    }
-    saveStatusSanitaireList(statusSanitaireOptions.value.map(o => o.value));
-};
-
-if (props.militaire && props.militaire.status_sanitaire) {
-    const existingVal = props.militaire.status_sanitaire;
-    if (!statusSanitaireOptions.value.some(o => o.value === existingVal)) {
-        statusSanitaireOptions.value.push({ label: existingVal, value: existingVal, custom: true });
-    }
-}
-
-const groupeSanguinOptions = [
-    { label: 'A+', value: 'A+' },
-    { label: 'A-', value: 'A-' },
-    { label: 'B+', value: 'B+' },
-    { label: 'B-', value: 'B-' },
-    { label: 'AB+', value: 'AB+' },
-    { label: 'AB-', value: 'AB-' },
-    { label: 'O+', value: 'O+' },
-    { label: 'O-', value: 'O-' }
-];
-
-const parsePropDate = (val) => {
-    if (!val) return null;
-    return new Date(val);
-};
-
-const form = reactive({
-    id: props.militaire.id,
-    matricule: props.militaire.matricule || '',
-    mle_grm: props.militaire.mle_grm || '',
-    numero_info: props.militaire.numero_info || '',
-    numero_nina: props.militaire.numero_nina || '',
-    grade_actuel: props.militaire.grade_actuel || null,
-    categorie: props.militaire.categorie || null,
-    nom: props.militaire.nom || '',
-    prenom: props.militaire.prenom || '',
-    date_naissance: parsePropDate(props.militaire.date_naissance),
-    lieu_naissance: props.militaire.lieu_naissance || '',
-    date_entree_service: parsePropDate(props.militaire.date_entree_service),
-    date_derniere_promotion: parsePropDate(props.militaire.date_derniere_promotion),
-    specialite: props.militaire.specialite || '',
-    origine_formation: props.militaire.origine_formation || '',
-    position_id: props.militaire.position_id ?? (props.positions.find(p => p.nom?.toLowerCase() === (props.militaire.position_actuelle || '').toLowerCase())?.id ?? null),
-    position_actuelle: props.militaire.position_actuelle || '',
-    unite_id: props.militaire.unite_id ?? (props.unites.find(u => u.nom === props.militaire.unite)?.id ?? null),
-    unite: props.militaire.unite || '',
-    region_id: props.militaire.region_id ?? (props.regions.find(r => r.nom === props.militaire.region || r.code === props.militaire.region)?.id ?? null),
-    region: props.militaire.region || '',
-    date_mutation: parsePropDate(props.militaire.date_mutation),
-    affectations: (props.affectations && props.affectations.length > 0)
-        ? props.affectations.map(a => {
-            const rId = a.region_id ?? (props.regions.find(r => r.nom === a.region || r.code === a.region)?.id ?? null);
-            const uId = a.unite_id ?? (props.unites.find(u => u.nom === a.unite)?.id ?? null);
-            return {
-                region_id: rId,
-                unite_id: uId,
-                unite: a.unite || '',
-                region: a.region || '',
-                date_mutation: parsePropDate(a.date_mutation)
-            };
-        })
-        : [
-            {
-                region_id: props.militaire.region_id ?? (props.regions.find(r => r.nom === props.militaire.region || r.code === props.militaire.region)?.id ?? null),
-                unite_id: props.militaire.unite_id ?? (props.unites.find(u => u.nom === props.militaire.unite)?.id ?? null),
-                unite: props.militaire.unite || '',
-                region: props.militaire.region || '',
-                date_mutation: parsePropDate(props.militaire.date_mutation)
-            }
-        ],
-    fonction_passee: props.militaire.fonction_passee || '',
-    fonction_actuelle: props.militaire.fonction_actuelle || '',
-    telephone: props.militaire.telephone || '',
-    statut: props.militaire.statut || 'actif',
-    sexe: props.militaire.sexe || null,
-    groupe_sanguin: props.militaire.groupe_sanguin || null,
-    taille: props.militaire.taille || '',
-    status_sanitaire: props.militaire.status_sanitaire || '',
-    engagement_ops: props.militaire.engagement_ops || '',
-    personne_a_contacter: props.militaire.personne_a_contacter || '',
-    telephone_personne_contacter: props.militaire.telephone_personne_contacter || '',
-    decorations: props.militaire.decorations || '',
-    diplomes_academiques: props.militaire.diplomes_academiques || '',
-    observations: props.militaire.observations || '',
-    date_deces: parsePropDate(props.militaire.date_deces),
-    circonstances_deces: props.militaire.circonstances_deces || '',
-    motif_radiation: props.militaire.motif_radiation || '',
-    reference_decision: props.militaire.reference_decision || '',
-    unite_transfert: props.militaire.unite_transfert || '',
-    motif_transfert: props.militaire.motif_transfert || '',
-    a_permis_conduire: !!props.militaire.a_permis_conduire,
-    antecedent_judiciaire: !!props.militaire.antecedent_judiciaire,
-    antecedent_disciplinaire: !!props.militaire.antecedent_disciplinaire,
-    certificats: {}
-});
-
-props.certificats.forEach(certificat => {
-    const certifExistant = props.certificats_du_militaire[certificat.id];
-    form.certificats[certificat.id] = {
-        obtenu: certifExistant ? certifExistant.obtenu : false,
-        date_obtention: (certifExistant && certifExistant.date_obtention)
-            ? new Date(certifExistant.date_obtention)
-            : null,
-        document: null,
-        document_existant: (certifExistant && certifExistant.document)
-            ? certifExistant.document
-            : null
-    };
-});
-
-const selectedGradeInfo = computed(() => {
-    return props.grades?.find(g => g.nom_grade === form.grade_actuel);
-});
-
-const ageRetraiteMax = computed(() => {
-    return selectedGradeInfo.value?.retraite_obligatoire || null;
-});
-
-const isRetraiteDepassee = computed(() => {
-    if (!form.date_naissance || !ageRetraiteMax.value) return false;
-    const dob = new Date(form.date_naissance);
-    if (isNaN(dob.getTime())) return false;
-    const retirementDate = new Date(dob);
-    retirementDate.setFullYear(retirementDate.getFullYear() + ageRetraiteMax.value);
-    return retirementDate < new Date();
-});
-
-watch(isRetraiteDepassee, (isPast) => {
-    if (isPast && form.statut === 'actif') {
-        form.statut = 'retraité';
-    }
-});
-
-const determinerCategorieStatutaire = (gradeNom) => {
-    if (!gradeNom) return null;
-    const clean = gradeNom.toLowerCase().trim();
-
-    if (clean.includes('adjudant') || clean.includes('major') || ['acm', 'adc', 'adj', 'adm'].includes(clean)) {
-        return 'Sous-officier Supérieur';
-    }
-    if (clean.includes('sergent') || clean.includes('maréchal') || clean.includes('marechal') || clean.includes('eleve sous officier') || clean.includes('élève sous officier') || ['sgt', 'sch', 'mdl', 'mdc', 'esoa'].includes(clean)) {
-        return 'Sous-officier Subalterne';
-    }
-    if (clean.includes('général') || clean.includes('general') || ['gbr', 'gdb', 'gdv', 'gdd', 'gca', 'gar'].includes(clean)) {
-        return 'Officier Général';
-    }
-    if (clean.includes('commandant') || clean.includes('chef d\'escadron') || clean.includes('colonel') || ['cdt', 'ces', 'lcl', 'col', 'clm'].includes(clean)) {
-        return 'Officier Supérieur';
-    }
-    if (clean.includes('lieutenant') || clean.includes('capitaine') || clean.includes('aspirant') || clean.includes('eleve officier') || clean.includes('élève officier') || ['slt', 'ltn', 'cne', 'asp', 'eoa'].includes(clean)) {
-        return 'Officier Subalterne';
-    }
-    if (clean.includes('soldat') || clean.includes('caporal') || clean.includes('gendarme adjoint') || clean.includes('sapeur') || ['sdt1', 'sdt2', 's1', 's2', 'cpl', 'ga', 'eg', 'sap1', '1°cl'].includes(clean)) {
-        return 'Militaire du Rang';
-    }
-    return null;
-};
-
-watch(() => form.grade_actuel, (newGrade, oldGrade) => {
-    if (!newGrade) return;
-    if (!form.categorie || (oldGrade !== undefined && oldGrade !== null && oldGrade !== newGrade)) {
-        const gradeInfo = props.grades?.find(g => g.nom_grade === newGrade || g.code_grade === newGrade);
-        if (gradeInfo?.categorie_statutaire) {
-            form.categorie = gradeInfo.categorie_statutaire;
-        } else {
-            const cat = determinerCategorieStatutaire(newGrade);
-            if (cat) form.categorie = cat;
-        }
-    }
-});
-
-const onPhotoSelected = (event) => {
-    const file = event.target.files[0];
-    if (file) {
-        photoFile.value = file;
-        photoPreview.value = URL.createObjectURL(file);
-        supprimerPhoto.value = false;
-    }
-};
-
-const removePhoto = () => {
-    photoFile.value = null;
-    photoPreview.value = null;
-    supprimerPhoto.value = true;
-};
-
-const addAffectation = () => {
-    form.affectations.push({
-        unite: '',
-        region: '',
-        date_mutation: null
-    });
-};
-
-const removeAffectation = (index) => {
-    if (form.affectations.length > 1) {
-        form.affectations.splice(index, 1);
-    } else {
-        form.affectations[0] = { unite: '', region: '', date_mutation: null };
-    }
-};
-
-// --- Filtres et Ajout Rapide Régions / Unités / Positions ---
-const quickRegionVisible = ref(false);
-const quickRegionLoading = ref(false);
-const quickRegionForm = ref({ code: '', nom: '' });
-
-const quickUniteVisible = ref(false);
-const quickUniteLoading = ref(false);
-const quickUniteForm = ref({ region_id: null, nom: '', type: 'Brigade Territoriale', est_operationnelle: true });
-
-const quickPositionVisible = ref(false);
-const quickPositionLoading = ref(false);
-const quickPositionForm = ref({ nom: '', type: 'administrative' });
-
-const currentQuickAffIndex = ref(null);
-
-const getUnitesForRow = (idx) => {
-    const selectedRegionId = form.affectations[idx]?.region_id;
-    if (!selectedRegionId) {
-        return localUnites.value;
-    }
-    return localUnites.value.filter(u => u.region_id === selectedRegionId);
-};
-
-const onRegionSelect = (idx) => {
-    const selectedRegionId = form.affectations[idx]?.region_id;
-    const regionObj = localRegions.value.find(r => r.id === selectedRegionId);
-    if (regionObj) {
-        form.affectations[idx].region = regionObj.nom;
-    } else {
-        form.affectations[idx].region = '';
-    }
-
-    const currentUniteId = form.affectations[idx]?.unite_id;
-    if (selectedRegionId && currentUniteId) {
-        const uniteObj = localUnites.value.find(u => u.id === currentUniteId);
-        if (uniteObj && uniteObj.region_id !== selectedRegionId) {
-            form.affectations[idx].unite_id = null;
-            form.affectations[idx].unite = '';
-        }
-    }
-};
-
-const onUniteSelect = (idx) => {
-    const selectedUniteId = form.affectations[idx]?.unite_id;
-    if (!selectedUniteId) return;
-    const uniteObj = localUnites.value.find(u => u.id === selectedUniteId);
-    if (uniteObj) {
-        form.affectations[idx].unite = uniteObj.nom;
-        if (uniteObj.region_id) {
-            form.affectations[idx].region_id = uniteObj.region_id;
-            const regionObj = localRegions.value.find(r => r.id === uniteObj.region_id);
-            form.affectations[idx].region = regionObj?.nom || uniteObj.region?.nom || '';
-        }
-    }
-};
-
-const onPositionSelect = () => {
-    const posObj = localPositions.value.find(p => p.id === form.position_id);
-    if (posObj) {
-        form.position_actuelle = posObj.nom;
-    }
-};
-
-const openQuickAddRegion = (idx) => {
-    currentQuickAffIndex.value = idx;
-    quickRegionForm.value = { code: '', nom: '' };
-    quickRegionVisible.value = true;
-};
-
-const saveQuickRegion = async () => {
-    if (!quickRegionForm.value.code || !quickRegionForm.value.nom) {
-        toast.add({ severity: 'warn', summary: 'Champs requis', detail: 'Code et nom sont obligatoires.', life: 3000 });
-        return;
-    }
-    quickRegionLoading.value = true;
-    try {
-        const response = await axios.post(route('configurations.regions.store'), quickRegionForm.value);
-        if (response.data && response.data.region) {
-            localRegions.value.push(response.data.region);
-            if (currentQuickAffIndex.value !== null && form.affectations[currentQuickAffIndex.value]) {
-                form.affectations[currentQuickAffIndex.value].region_id = response.data.region.id;
-                form.affectations[currentQuickAffIndex.value].region = response.data.region.nom;
-            }
-            quickRegionVisible.value = false;
-            toast.add({ severity: 'success', summary: 'Succès', detail: 'Nouvelle région ajoutée et sélectionnée !', life: 3000 });
-        }
-    } catch (e) {
-        const msg = e.response?.data?.errors?.code?.[0] || e.response?.data?.message || 'Erreur lors de la création.';
-        toast.add({ severity: 'error', summary: 'Erreur', detail: msg, life: 4000 });
-    } finally {
-        quickRegionLoading.value = false;
-    }
-};
-
-const openQuickAddUnite = (idx) => {
-    currentQuickAffIndex.value = idx;
-    let preselectedRegionId = form.affectations[idx]?.region_id;
-    if (!preselectedRegionId) {
-        const currentRegionNom = form.affectations[idx]?.region;
-        if (currentRegionNom) {
-            const rObj = localRegions.value.find(r => r.nom === currentRegionNom || r.code === currentRegionNom);
-            if (rObj) preselectedRegionId = rObj.id;
-        }
-    }
-    quickUniteForm.value = {
-        region_id: preselectedRegionId || (localRegions.value[0]?.id ?? null),
-        nom: '',
-        type: 'Brigade Territoriale',
-        est_operationnelle: true
-    };
-    quickUniteVisible.value = true;
-};
-
-const saveQuickUnite = async () => {
-    if (!quickUniteForm.value.region_id || !quickUniteForm.value.nom) {
-        toast.add({ severity: 'warn', summary: 'Champs requis', detail: 'Région et nom de l\'unité obligatoires.', life: 3000 });
-        return;
-    }
-    quickUniteLoading.value = true;
-    try {
-        const response = await axios.post(route('configurations.unites.store'), quickUniteForm.value);
-        if (response.data && response.data.unite) {
-            localUnites.value.push(response.data.unite);
-            if (currentQuickAffIndex.value !== null && form.affectations[currentQuickAffIndex.value]) {
-                form.affectations[currentQuickAffIndex.value].unite_id = response.data.unite.id;
-                form.affectations[currentQuickAffIndex.value].unite = response.data.unite.nom;
-                if (response.data.unite.region_id) {
-                    form.affectations[currentQuickAffIndex.value].region_id = response.data.unite.region_id;
-                }
-                if (response.data.unite.region?.nom) {
-                    form.affectations[currentQuickAffIndex.value].region = response.data.unite.region.nom;
-                }
-            }
-            quickUniteVisible.value = false;
-            toast.add({ severity: 'success', summary: 'Succès', detail: 'Nouvelle unité ajoutée et sélectionnée !', life: 3000 });
-        }
-    } catch (e) {
-        const msg = e.response?.data?.errors?.nom?.[0] || e.response?.data?.message || 'Erreur lors de la création.';
-        toast.add({ severity: 'error', summary: 'Erreur', detail: msg, life: 4000 });
-    } finally {
-        quickUniteLoading.value = false;
-    }
-};
-
-const openQuickAddPosition = () => {
-    quickPositionForm.value = { nom: '', type: 'administrative' };
-    quickPositionVisible.value = true;
-};
-
-const saveQuickPosition = async () => {
-    if (!quickPositionForm.value.nom) {
-        toast.add({ severity: 'warn', summary: 'Champ requis', detail: 'Le nom de la position est obligatoire.', life: 3000 });
-        return;
-    }
-    quickPositionLoading.value = true;
-    try {
-        const response = await axios.post(route('configurations.positions.store'), quickPositionForm.value);
-        if (response.data && response.data.position) {
-            localPositions.value.push(response.data.position);
-            form.position_id = response.data.position.id;
-            form.position_actuelle = response.data.position.nom;
-            quickPositionVisible.value = false;
-            toast.add({ severity: 'success', summary: 'Succès', detail: 'Nouvelle position ajoutée et sélectionnée !', life: 3000 });
-        }
-    } catch (e) {
-        const msg = e.response?.data?.errors?.nom?.[0] || e.response?.data?.message || 'Erreur lors de la création.';
-        toast.add({ severity: 'error', summary: 'Erreur', detail: msg, life: 4000 });
-    } finally {
-        quickPositionLoading.value = false;
-    }
-};
-
-// --- Décorations & Diplômes dynamiques ---
-const parseList = (val) => {
-    if (!val) return [];
-    if (Array.isArray(val)) {
-        const seen = new Set();
-        return val.map(s => String(s).trim()).filter(s => {
-            if (!s || s === '#N/A' || s === 'N/A') return false;
-            const k = s.toLowerCase();
-            if (seen.has(k)) return false;
-            seen.add(k);
-            return true;
-        });
-    }
-    if (typeof val === 'string') {
-        const trimmed = val.trim();
-        if (trimmed === '#N/A' || trimmed === 'N/A' || trimmed === 'null' || trimmed === '' || trimmed === '-') return [];
-        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-            try {
-                const parsed = JSON.parse(trimmed);
-                if (Array.isArray(parsed)) {
-                    return parseList(parsed);
-                }
-            } catch (e) {}
-        }
-        const rawParts = trimmed.split(/[;\n]+/);
-        const seen = new Set();
-        const result = [];
-
-        for (const p of rawParts) {
-            const clean = p.replace(/\s+/g, ' ').replace(/^[-•*]\s*/, '').replace(/,+$/, '').trim();
-            if (!clean || clean === '#N/A' || clean === 'N/A' || clean === '-') continue;
-            const key = clean.toLowerCase();
-            if (!seen.has(key)) {
-                seen.add(key);
-                result.push(clean);
-            }
-        }
-        return result;
-    }
-    return [];
-};
-
-const decorationsList = ref(parseList(props.militaire.decorations));
-const diplomesList = ref(parseList(props.militaire.diplomes_academiques));
-
-const addDecoration = () => {
-    decorationsList.value.push('');
-};
-
-const removeDecoration = (index) => {
-    decorationsList.value.splice(index, 1);
-};
-
-const addDiplome = () => {
-    diplomesList.value.push('');
-};
-
-const removeDiplome = (index) => {
-    diplomesList.value.splice(index, 1);
-};
-
-const formationsOfficiers = [
-    'APLI', 'CFCU', 'Certificat État-major', 'Certificat d\'état-major', 'École d\'État-Major', 'EEM',
-    'Cours supérieur d\'état-major', 'École de guerre', 'Brevet Supérieur de Second Degré',
-    'Cour d\'Application', 'Cour des Futurs Commandants d\'Unité'
-];
-
-const officierTypes = ['officier général', 'officier supérieur', 'officier subalterne'];
-
-const estFormationOfficier = (certificat) => {
-    const nom = certificat.nom_certificat;
-    const niveau = certificat.niveau_certificat;
-    if (formationsOfficiers.includes(nom) || formationsOfficiers.includes(niveau)) return true;
-    for (const f of formationsOfficiers) {
-        if (nom && (nom.includes(f) || f.includes(nom))) return true;
-        if (niveau && (niveau.includes(f) || f.includes(niveau))) return true;
-    }
-    return false;
-};
-
-const showFormationsSection = computed(() => form.grade_actuel !== null && form.grade_actuel !== '');
-
-const filteredCertificats = computed(() => {
-    if (!form.grade_actuel) return [];
-    const gradeInfo = props.grades.find(g => g.nom_grade === form.grade_actuel);
-    if (!gradeInfo) return [];
-    if (officierTypes.includes(gradeInfo.type_grade?.toLowerCase())) return props.certificats;
-    return props.certificats.filter(cert => !estFormationOfficier(cert));
-});
-
-const getNiveauStyle = (niveau) => {
-    const styles = {
-        'BE':   { background: '#e0f2fe', color: '#0369a1' },
-        'CAT1': { background: '#7dd3fc', color: '#0369a1' },
-        'CAT2': { background: '#38bdf8', color: '#075985' },
-        'CIA':  { background: '#22d3ee', color: '#0e7490' },
-        'BA1':  { background: '#a7f3d0', color: '#047857' },
-        'BA2':  { background: '#6ee7b7', color: '#065f46' },
-        'BMP1': { background: '#fde68a', color: '#b45309' },
-        'BMP2': { background: '#fcd34d', color: '#92400e' },
-        'BS':   { background: '#fed7aa', color: '#c2410c' },
-        'CT1':  { background: '#ddd6fe', color: '#6d28d9' },
-        'CT2':  { background: '#c4b5fd', color: '#5b21b6' },
-    };
-    return styles[niveau] || { background: '#bae6fd', color: '#0369a1' };
-};
-
-const onCertificatChange = (certifId) => {
-    if (!form.certificats[certifId].obtenu) {
-        form.certificats[certifId].date_obtention = null;
-        form.certificats[certifId].document = null;
-    }
-};
-
-const onFileSelect = (certifId, event) => {
-    const file = event.target?.files?.[0] || (event.files && event.files[0]);
-    if (file) {
-        form.certificats[certifId].document = file;
-    }
-};
-
-const removeDocument = (certifId) => {
-    form.certificats[certifId].document = null;
-    form.certificats[certifId].document_existant = null;
-};
-
-const formatDateForServer = (date) => {
-    if (!date) return '';
-    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        return date;
-    }
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return '';
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-};
-
-const submitForm = () => {
-    // Valider toutes les étapes avant de soumettre
-    if (!validateStep(0) || !validateStep(1) || !validateStep(2)) return;
-
-    saving.value = true;
-    errors.value = {};
-
-    // Synchroniser l'affectation la plus récente (par date de mutation) dans les champs principaux
-    if (form.affectations && form.affectations.length > 0) {
-        const sorted = [...form.affectations].filter(a => a.unite_id || a.unite || a.region_id || a.region || a.date_mutation);
-        sorted.sort((a, b) => {
-            const dateA = a.date_mutation ? new Date(a.date_mutation).getTime() : 0;
-            const dateB = b.date_mutation ? new Date(b.date_mutation).getTime() : 0;
-            return dateB - dateA;
-        });
-        const mostRecent = sorted[0] || form.affectations[0];
-        form.unite_id = mostRecent.unite_id || null;
-        form.unite = mostRecent.unite || '';
-        form.region_id = mostRecent.region_id || null;
-        form.region = mostRecent.region || '';
-        form.date_mutation = mostRecent.date_mutation || null;
-    }
-
-    const formData = new FormData();
-
-    if (form.affectations && form.affectations.length > 0) {
-        form.affectations.forEach((aff, idx) => {
-            if (aff.region_id) formData.append(`affectations[${idx}][region_id]`, aff.region_id);
-            if (aff.unite_id) formData.append(`affectations[${idx}][unite_id]`, aff.unite_id);
-            formData.append(`affectations[${idx}][unite]`, aff.unite || '');
-            formData.append(`affectations[${idx}][region]`, aff.region || '');
-            formData.append(`affectations[${idx}][date_mutation]`, aff.date_mutation ? formatDateForServer(aff.date_mutation) : '');
-        });
-    }
-
-    // Sérialisation des listes dynamiques Décorations & Diplômes
-    const cleanDecorations = decorationsList.value.map(s => s.trim()).filter(Boolean);
-    const cleanDiplomes = diplomesList.value.map(s => s.trim()).filter(Boolean);
-    form.decorations = cleanDecorations.length > 0 ? JSON.stringify(cleanDecorations) : '';
-    form.diplomes_academiques = cleanDiplomes.length > 0 ? JSON.stringify(cleanDiplomes) : '';
-
-    const textFields = [
-        'matricule', 'mle_grm', 'numero_info', 'numero_nina', 'grade_actuel', 'categorie',
-        'nom', 'prenom', 'lieu_naissance', 'specialite', 'origine_formation',
-        'position_id', 'position_actuelle', 'unite_id', 'unite', 'region_id', 'region', 'fonction_passee', 'fonction_actuelle',
-        'telephone', 'statut', 'sexe', 'groupe_sanguin', 'taille', 'status_sanitaire', 'engagement_ops',
-        'personne_a_contacter', 'telephone_personne_contacter',
-        'decorations', 'diplomes_academiques', 'observations',
-        'circonstances_deces', 'motif_radiation', 'reference_decision',
-        'unite_transfert', 'motif_transfert'
-    ];
-
-    textFields.forEach(field => {
-        formData.append(field, (form[field] !== null && form[field] !== undefined) ? form[field] : '');
-    });
-
-    const dateFields = ['date_naissance', 'date_entree_service', 'date_derniere_promotion', 'date_mutation', 'date_deces'];
-    dateFields.forEach(field => {
-        formData.append(field, form[field] ? formatDateForServer(form[field]) : '');
-    });
-
-    formData.append('a_permis_conduire', form.a_permis_conduire ? '1' : '0');
-    formData.append('antecedent_judiciaire', form.antecedent_judiciaire ? '1' : '0');
-    formData.append('antecedent_disciplinaire', form.antecedent_disciplinaire ? '1' : '0');
-
-    if (photoFile.value) {
-        formData.append('photo', photoFile.value);
-    }
-    if (supprimerPhoto.value) {
-        formData.append('supprimer_photo', '1');
-    }
-
-    Object.keys(form.certificats).forEach(certifId => {
-        const certData = form.certificats[certifId];
-        formData.append(`certificats[${certifId}][obtenu]`, certData.obtenu ? '1' : '0');
-
-        if (certData.obtenu) {
-            if (certData.date_obtention) {
-                formData.append(`certificats[${certifId}][date_obtention]`, formatDateForServer(certData.date_obtention));
-            }
-            if (certData.document) {
-                formData.append(`certificats[${certifId}][document]`, certData.document);
-            } else if (certData.document_existant) {
-                formData.append(`certificats[${certifId}][document_id]`, certData.document_existant.id);
-            }
-        }
-    });
-
-    formData.append('_method', 'PUT');
-
-    router.post(route('militaires.update', form.id), formData, {
-        forceFormData: true,
-        onSuccess: () => {
-            saving.value = false;
-            toast.add({
-                severity: 'success',
-                summary: 'Succès',
-                detail: 'Militaire mis à jour avec succès',
-                life: 3000
-            });
-            router.visit(route('militaires.show', form.id));
-        },
-        onError: (err) => {
-            saving.value = false;
-            errors.value = err;
-            toast.add({
-                severity: 'error',
-                summary: 'Erreur de validation',
-                detail: 'Veuillez corriger les informations requises dans le formulaire',
-                life: 5000
-            });
-
-            // Basculement automatique vers l'étape contenant la première erreur (sur 3 étapes)
-            const errKeys = Object.keys(err);
-            if (errKeys.some(k => ['matricule', 'mle_grm', 'numero_info', 'numero_nina', 'grade_actuel', 'categorie', 'statut', 'nom', 'prenom', 'date_naissance', 'lieu_naissance', 'sexe', 'telephone'].includes(k))) {
-                currentStep.value = 0;
-            } else if (errKeys.some(k => ['date_entree_service', 'date_derniere_promotion', 'unite', 'region', 'affectations'].includes(k))) {
-                currentStep.value = 1;
-            } else {
-                currentStep.value = 2;
-            }
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-    });
-};
-
-const cancel = () => {
-    router.visit(route('militaires.show', form.id));
-};
-</script>

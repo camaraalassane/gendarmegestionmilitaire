@@ -1,3 +1,36 @@
+<script setup>
+import { ref } from 'vue';
+import { useForm } from '@inertiajs/vue3';
+import Dialog from 'primevue/dialog';
+import Password from 'primevue/password';
+import Button from 'primevue/button';
+
+const confirmingUserDeletion = ref(false);
+const passwordInput = ref(null);
+
+const form = useForm({
+    password: '',
+});
+
+const confirmUserDeletion = () => {
+    confirmingUserDeletion.value = true;
+};
+
+const deleteUser = () => {
+    form.delete(route('profile.destroy'), {
+        preserveScroll: true,
+        onSuccess: () => closeModal(),
+        onError: () => passwordInput.value?.$el?.focus(),
+        onFinish: () => form.reset(),
+    });
+};
+
+const closeModal = () => {
+    confirmingUserDeletion.value = false;
+    form.reset();
+};
+</script>
+
 <template>
     <section class="space-y-6">
         <header>
@@ -53,36 +86,3 @@
         </Dialog>
     </section>
 </template>
-
-<script setup>
-import { ref } from 'vue';
-import { useForm } from '@inertiajs/vue3';
-import Dialog from 'primevue/dialog';
-import Password from 'primevue/password';
-import Button from 'primevue/button';
-
-const confirmingUserDeletion = ref(false);
-const passwordInput = ref(null);
-
-const form = useForm({
-    password: '',
-});
-
-const confirmUserDeletion = () => {
-    confirmingUserDeletion.value = true;
-};
-
-const deleteUser = () => {
-    form.delete(route('profile.destroy'), {
-        preserveScroll: true,
-        onSuccess: () => closeModal(),
-        onError: () => passwordInput.value?.$el?.focus(),
-        onFinish: () => form.reset(),
-    });
-};
-
-const closeModal = () => {
-    confirmingUserDeletion.value = false;
-    form.reset();
-};
-</script>

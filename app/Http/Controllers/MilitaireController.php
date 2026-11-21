@@ -162,10 +162,20 @@ class MilitaireController extends Controller
                       $q->whereNull('militaires.unite_id')->orWhere('militaires.unite_id', 0);
                   });
         } elseif ($statutFilter === 'actif') {
-            // Actifs, détachés, en détachement, en stage, en formation, en mission : tous comptés en activité (codes 1 à 4)
-            $query->whereBetween('militaires.statut_code', [1, 4]);
+            // Actifs sous les drapeaux (y compris détachés, stages, missions)
+            $query->whereRaw(Effectif::sqlActivite('militaires.statut'));
         } elseif ($statutFilter === 'actif_strict') {
-            $query->where('militaires.statut_code', 1);
+            // Uniquement personnels en service régulier dans les corps de troupe Gendarmerie (hors détachements)
+            Effectif::appliquerFiltreActifsStricts($query, 'militaires.');
+        } elseif (str_starts_with(mb_strtolower($statutFilter), 'd_tach') || str_starts_with(mb_strtolower($statutFilter), 'detach') || str_starts_with(mb_strtolower($statutFilter), 'détach')) {
+            // Militaires placés en détachement (ministères, institutions d'accueil)
+            Effectif::appliquerFiltreDetaches($query, 'militaires.');
+        } elseif (str_starts_with(mb_strtolower($statutFilter), 'miss')) {
+            // Militaires déployés en mission
+            Effectif::appliquerFiltreMissions($query, 'militaires.');
+        } elseif (str_starts_with(mb_strtolower($statutFilter), 'stag') || str_starts_with(mb_strtolower($statutFilter), 'format')) {
+            // Militaires en stage / formation / école militaire
+            Effectif::appliquerFiltreStages($query, 'militaires.');
         } elseif ($statutFilter === 'otage') {
             $query->where(function($q) {
                 $q->whereRaw("LOWER(COALESCE(militaires.position_actuelle, '')) LIKE ?", ['%otage%'])
@@ -193,12 +203,6 @@ class MilitaireController extends Controller
             $query->where('militaires.statut_code', 7);
         } elseif (str_starts_with(mb_strtolower($statutFilter), 'radi')) {
             $query->where('militaires.statut_code', 8);
-        } elseif (str_starts_with(mb_strtolower($statutFilter), 'd_tach') || str_starts_with(mb_strtolower($statutFilter), 'detach') || str_starts_with(mb_strtolower($statutFilter), 'détach')) {
-            $query->where('militaires.statut_code', 2);
-        } elseif (str_starts_with(mb_strtolower($statutFilter), 'miss')) {
-            $query->where('militaires.statut_code', 3);
-        } elseif (str_starts_with(mb_strtolower($statutFilter), 'stag') || str_starts_with(mb_strtolower($statutFilter), 'format')) {
-            $query->where('militaires.statut_code', 4);
         } elseif (str_starts_with(mb_strtolower($statutFilter), 'dec') || str_starts_with(mb_strtolower($statutFilter), 'déc')) {
             $query->where('militaires.statut_code', 9);
         } elseif (!empty($statutFilter)) {
@@ -215,8 +219,12 @@ class MilitaireController extends Controller
             return [
                 'total'         => Militaire::count(),
                 'actifs'        => Militaire::whereRaw(Effectif::sqlActivite('statut'))->count(),
+                'actifs_stricts'=> Effectif::appliquerFiltreActifsStricts(Militaire::query())->count(),
+                'detaches'      => Effectif::appliquerFiltreDetaches(Militaire::query())->count(),
                 'non_rattaches' => Militaire::whereRaw(Effectif::sqlActivite('statut'))
-                    ->whereNull('region_id')
+                    ->where(function ($q) {
+                        $q->whereNull('region_id')->orWhere('region_id', 0);
+                    })
                     ->where(function ($q) {
                         $q->whereNull('unite_id')->orWhere('unite_id', 0);
                     })->count(),
@@ -265,6 +273,9 @@ class MilitaireController extends Controller
                 'statut' => $militaire->statut,
                 'observations' => $militaire->observations,
                 'is_otage' => $militaire->isOtage(),
+                'theatre_id' => $militaire->theatre_id,
+                'theatre_code' => $militaire->theatre?->code,
+                'theatre_nom' => $militaire->theatre?->nom,
                 'age' => $militaire->age,
                 'anciennete' => $militaire->anciennete,
                 'anciennete_grade' => $militaire->ancienneteGrade,
@@ -280,6 +291,8 @@ class MilitaireController extends Controller
             ->select('id', 'nom', 'code')
             ->get();
         $positions = Position::orderBy('nom')->select('id', 'nom')->get();
+        $theatres = \App\Models\Theatre::orderBy('nom')->select('id', 'nom', 'code', 'couleur', 'pc_lieu')->get();
+        $unites = Unite::orderBy('nom')->select('id', 'nom', 'code', 'region_id')->get();
 
         return Inertia::render('militaires/index', [
             'militaires'   => $militaires,
@@ -296,13 +309,191 @@ class MilitaireController extends Controller
             'grades'       => $grades,
             'regions'      => $regions,
             'positions'    => $positions,
+            'theatres'     => $theatres,
+            'unites'       => $unites,
         ]);
+    }
+
+    /**
+     * Recherche rapide de personnels pour l'affectation collective
+     */
+    public function searchSelection(Request $request)
+    {
+        $query = Militaire::query()->with('theatre:id,code,nom');
+
+        if ($request->filled('search')) {
+            $search = preg_replace('/\s+/', ' ', trim($request->search));
+            $searchTerms = explode(' ', $search);
+            $query->where(function($q) use ($search, $searchTerms) {
+                if (ctype_digit($search)) {
+                    $q->where('id', (int) $search)->orWhere('matricule', $search);
+                }
+                $q->orWhere(function($tous) use ($searchTerms) {
+                    foreach ($searchTerms as $term) {
+                        $t = mb_strtolower(trim($term));
+                        if ($t === '') continue;
+                        $tous->where('recherche', 'LIKE', "%{$t}%");
+                    }
+                });
+            });
+        }
+
+        if ($request->filled('grade_id')) {
+            $query->where('grade_id', (int) $request->grade_id);
+        }
+
+        if ($request->filled('categorie')) {
+            $cat = $request->input('categorie');
+            if ($cat === 'officiers') {
+                $query->where('grade_ordre', '>=', 11);
+            } elseif ($cat === 'sous_officiers') {
+                $query->whereBetween('grade_ordre', [5, 10]);
+            } elseif ($cat === 'mdr') {
+                $query->where('grade_ordre', '<=', 4);
+            }
+        }
+
+        if ($request->filled('region_id')) {
+            $query->where('region_id', (int) $request->region_id);
+        }
+
+        if ($request->filled('theatre_id')) {
+            $thId = $request->input('theatre_id');
+            if ($thId === 'none') {
+                $query->whereNull('theatre_id');
+            } else {
+                $query->where('theatre_id', (int) $thId);
+            }
+        }
+
+        $results = $query->orderBy('grade_ordre', 'desc')
+            ->orderBy('nom')
+            ->limit(150)
+            ->get([
+                'id',
+                'matricule',
+                'mle_grm',
+                'nom',
+                'prenom',
+                'grade_actuel',
+                'grade_ordre',
+                'region_id',
+                'region',
+                'unite_id',
+                'unite',
+                'theatre_id',
+                'est_blesse_guerre'
+            ])
+            ->map(fn($m) => [
+                'id' => $m->id,
+                'matricule' => $m->matricule,
+                'mle_grm' => $m->mle_grm,
+                'nom' => $m->nom,
+                'prenom' => $m->prenom,
+                'grade' => $m->grade_actuel,
+                'grade_ordre' => $m->grade_ordre,
+                'region' => $m->region,
+                'unite' => $m->unite,
+                'theatre_id' => $m->theatre_id,
+                'theatre_code' => $m->theatre?->code,
+                'theatre_nom' => $m->theatre?->nom,
+                'est_blesse_guerre' => (bool) $m->est_blesse_guerre,
+            ]);
+
+        return response()->json($results);
+    }
+
+    /**
+     * Affectation / Déploiement collectif en masse (Théâtre, Région, Unité)
+     */
+    public function bulkAssign(Request $request)
+    {
+        $request->validate([
+            'militaire_ids' => 'required|array|min:1',
+            'militaire_ids.*' => 'integer|exists:militaires,id',
+            'theatre_id' => 'nullable',
+            'region_id' => 'nullable|integer|exists:regions,id',
+            'unite_id' => 'nullable|integer|exists:unites,id',
+            'position_id' => 'nullable|integer',
+            'clear_theatre' => 'nullable|boolean',
+        ]);
+
+        $ids = $request->input('militaire_ids');
+        $theatreId = $request->input('theatre_id');
+        $regionId = $request->input('region_id');
+        $uniteId = $request->input('unite_id');
+        $positionId = $request->input('position_id');
+        $clearTheatre = $request->boolean('clear_theatre');
+
+        $theatre = ($theatreId && $theatreId !== 'remove' && is_numeric($theatreId))
+            ? \App\Models\Theatre::find((int) $theatreId)
+            : null;
+        $region = $regionId ? Region::find($regionId) : null;
+        $unite = $uniteId ? Unite::find($uniteId) : null;
+        $position = $positionId ? Position::find($positionId) : null;
+
+        DB::transaction(function () use ($ids, $theatre, $region, $unite, $position, $clearTheatre, $theatreId) {
+            $updateData = [];
+
+            if ($clearTheatre || $theatreId === 'remove') {
+                $updateData['theatre_id'] = null;
+            } elseif ($theatre) {
+                $updateData['theatre_id'] = $theatre->id;
+            }
+
+            if ($region) {
+                $updateData['region_id'] = $region->id;
+                $updateData['region'] = $region->nom;
+            }
+
+            if ($unite) {
+                $updateData['unite_id'] = $unite->id;
+                $updateData['unite'] = $unite->nom;
+                $updateData['date_mutation'] = now()->toDateString();
+                if (!$region && $unite->region_id) {
+                    $updateData['region_id'] = $unite->region_id;
+                    $reg = Region::find($unite->region_id);
+                    if ($reg) $updateData['region'] = $reg->nom;
+                }
+            }
+
+            if ($position) {
+                $updateData['position_id'] = $position->id;
+                $updateData['position_actuelle'] = $position->nom;
+            }
+
+            if (!empty($updateData)) {
+                $updateData['updated_at'] = now();
+                Militaire::whereIn('id', $ids)->update($updateData);
+
+                // Mettre à jour la recherche textuelle
+                $militaires = Militaire::whereIn('id', $ids)->get();
+                foreach ($militaires as $m) {
+                    $m->recherche = $m->construireTexteRecherche();
+                    $m->saveQuietly();
+                }
+            }
+        });
+
+        \App\Http\Controllers\CarteController::flush();
+        Militaire::incrementCacheVersion();
+
+        $count = count($ids);
+        $destination = [];
+        if ($theatre) $destination[] = "le Théâtre {$theatre->code} ({$theatre->nom})";
+        elseif ($clearTheatre || $theatreId === 'remove') $destination[] = "retirés du théâtre opérationnel";
+        if ($unite) $destination[] = "l'unité {$unite->nom}";
+        elseif ($region) $destination[] = "la {$region->nom}";
+
+        $destStr = !empty($destination) ? implode(' et ', $destination) : 'la destination choisie';
+
+        return back()->with('success', "{$count} militaire(s) affecté(s) avec succès vers {$destStr}.");
     }
 
     public function create()
     {
         $grades = Cache::remember('grades_edit_cached', 3600, function () {
-            return Grade::orderBy('ordre')->get()->map(fn ($grade) => [
+            return Grade::orderByDesc('ordre')->get()->map(fn ($grade) => [
                 'id' => $grade->id,
                 'nom_grade' => $grade->nom_grade,
                 'code_grade' => $grade->code_grade,
@@ -324,6 +515,7 @@ class MilitaireController extends Controller
         $regions = Region::orderBy('ordre')->orderBy('nom')->get();
         $unites = Unite::with('region')->orderBy('nom')->get();
         $positions = Position::orderBy('nom')->get();
+        $organismes = \App\Models\OrganismeDetachement::where('est_actif', true)->orderBy('ordre')->get(['id', 'code', 'nom']);
 
         return Inertia::render('militaires/create', [
             'grades' => $grades,
@@ -331,6 +523,7 @@ class MilitaireController extends Controller
             'regions' => $regions,
             'unites' => $unites,
             'positions' => $positions,
+            'organismes_detachement' => $organismes,
         ]);
     }
 
@@ -357,7 +550,6 @@ class MilitaireController extends Controller
             'region_id' => 'nullable|exists:regions,id',
             'unite_id' => [
                 'nullable',
-                'required_with:region_id',
                 Rule::exists('unites', 'id')->when($request->filled('region_id'), fn ($q) => $q->where('region_id', $request->region_id)),
             ],
             'unite' => 'nullable|string|max:255',
@@ -374,6 +566,7 @@ class MilitaireController extends Controller
             'personne_a_contacter' => 'nullable|string|max:255',
             'telephone_personne_contacter' => 'nullable|string|max:20',
             'statut' => 'required|string',
+            'organisme_detachement_id' => 'nullable|integer|exists:organismes_detachement,id',
             'a_permis_conduire' => 'nullable',
             'antecedent_judiciaire' => 'nullable',
             'antecedent_disciplinaire' => 'nullable',
@@ -561,7 +754,7 @@ class MilitaireController extends Controller
         $militaire->load(['certificats', 'affectations']);
 
         $grades = Cache::remember('grades_edit_cached', 3600, function () {
-            return Grade::orderBy('ordre')->get()->map(fn ($grade) => [
+            return Grade::orderByDesc('ordre')->get()->map(fn ($grade) => [
                 'id' => $grade->id,
                 'nom_grade' => $grade->nom_grade,
                 'code_grade' => $grade->code_grade,
@@ -624,14 +817,28 @@ class MilitaireController extends Controller
         $regions = Region::orderBy('ordre')->orderBy('nom')->get();
         $unites = Unite::with('region')->orderBy('nom')->get();
         $positions = Position::orderBy('nom')->get();
+        $organismes = \App\Models\OrganismeDetachement::where('est_actif', true)->orderBy('ordre')->get(['id', 'code', 'nom']);
+
+        $uniteNom = $militaire->unite;
+        $uniteId = $militaire->unite_id;
+        $isDetache = ($militaire->position_actuelle && (stripos($militaire->position_actuelle, 'détach') !== false || stripos($militaire->position_actuelle, 'detach') !== false))
+            || $militaire->position_id === 26;
+        if ($isDetache && $militaire->organisme_detachement_id) {
+            $orgDetache = $organismes->firstWhere('id', $militaire->organisme_detachement_id);
+            if ($orgDetache) {
+                $uniteNom = $orgDetache->nom;
+                $uniteId = null;
+            }
+        }
 
         return Inertia::render('militaires/edit', [
             'militaire' => [
                 'id' => $militaire->id,
                 'grade_id' => $militaire->grade_id,
                 'region_id' => $militaire->region_id,
-                'unite_id' => $militaire->unite_id,
+                'unite_id' => $uniteId,
                 'position_id' => $militaire->position_id,
+                'organisme_detachement_id' => $militaire->organisme_detachement_id,
                 'statut_code' => $militaire->statut_code,
                 'matricule' => $militaire->matricule,
                 'mle_grm' => $militaire->mle_grm,
@@ -651,8 +858,8 @@ class MilitaireController extends Controller
                 'origine_formation' => $militaire->origine_formation,
                 'position_id' => $militaire->position_id,
                 'position_actuelle' => $militaire->position_actuelle,
-                'unite_id' => $militaire->unite_id,
-                'unite' => $militaire->unite,
+                'unite_id' => $uniteId,
+                'unite' => $uniteNom,
                 'region_id' => $militaire->region_id,
                 'region' => $militaire->region,
                 'date_mutation' => $militaire->date_mutation?->format('Y-m-d'),
@@ -686,6 +893,7 @@ class MilitaireController extends Controller
             'regions' => $regions,
             'unites' => $unites,
             'positions' => $positions,
+            'organismes_detachement' => $organismes,
         ]);
     }
 
@@ -713,7 +921,6 @@ class MilitaireController extends Controller
             'region_id' => 'nullable|exists:regions,id',
             'unite_id' => [
                 'nullable',
-                'required_with:region_id',
                 Rule::exists('unites', 'id')->when($request->filled('region_id'), fn ($q) => $q->where('region_id', $request->region_id)),
             ],
             'unite' => 'nullable|string|max:255',
@@ -730,6 +937,7 @@ class MilitaireController extends Controller
             'personne_a_contacter' => 'nullable|string|max:255',
             'telephone_personne_contacter' => 'nullable|string|max:20',
             'statut' => 'required|string',
+            'organisme_detachement_id' => 'nullable|integer|exists:organismes_detachement,id',
             'a_permis_conduire' => 'nullable',
             'antecedent_judiciaire' => 'nullable',
             'antecedent_disciplinaire' => 'nullable',
@@ -859,7 +1067,7 @@ class MilitaireController extends Controller
             'matricule', 'mle_grm', 'numero_info', 'numero_nina',
             'nom', 'prenom', 'date_naissance', 'lieu_naissance', 'date_entree_service',
             'grade_actuel', 'categorie', 'date_derniere_promotion',
-            'specialite', 'origine_formation', 'statut',
+            'specialite', 'origine_formation', 'statut', 'organisme_detachement_id',
             'position_id', 'position_actuelle', 'unite_id', 'unite', 'region_id', 'region', 'date_mutation',
             'fonction_passee', 'fonction_actuelle',
             'telephone', 'sexe', 'groupe_sanguin', 'taille', 'status_sanitaire', 'engagement_ops',
@@ -915,6 +1123,17 @@ class MilitaireController extends Controller
                 ->orWhere('code_grade', $data['grade_actuel'])
                 ->first();
             $data['categorie'] = $grade ? $grade->categorie_statutaire : Grade::determinerCategorie($data['grade_actuel']);
+        }
+
+        // Si le militaire est en détachement, son unité prend le nom officiel de l'organisme et unite_id est vidé
+        $isDetache = (!empty($data['position_actuelle']) && (stripos($data['position_actuelle'], 'détach') !== false || stripos($data['position_actuelle'], 'detach') !== false))
+            || (!empty($data['position_id']) && (int) $data['position_id'] === 26);
+        if ($isDetache && !empty($data['organisme_detachement_id'])) {
+            $org = \App\Models\OrganismeDetachement::find($data['organisme_detachement_id']);
+            if ($org) {
+                $data['unite'] = $org->nom;
+                $data['unite_id'] = null;
+            }
         }
 
         return $data;

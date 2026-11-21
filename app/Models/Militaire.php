@@ -45,10 +45,17 @@ class Militaire extends Model
         'fonction_actuelle',
         'telephone',
         'sexe',
+        'sexe_code',
         'groupe_sanguin',
         'taille',
         'status_sanitaire',
         'engagement_ops',
+        'est_blesse_guerre',
+        'est_non_mobilisable',
+        'est_disparu',
+        'code_inaptitude',
+        'organisme_detachement_id',
+        'theatre_id',
         'personne_a_contacter',
         'telephone_personne_contacter',
         'statut',
@@ -78,11 +85,17 @@ class Militaire extends Model
         'date_derniere_promotion' => 'date',
         'date_mutation' => 'date',
         'date_deces' => 'date',
-        'a_permis_conduire' => 'boolean',
-        'antecedent_judiciaire' => 'boolean',
-        'antecedent_disciplinaire' => 'boolean',
+        'a_permis_conduire' => 'integer',
+        'antecedent_judiciaire' => 'integer',
+        'antecedent_disciplinaire' => 'integer',
         'statut_code' => 'integer',
         'grade_ordre' => 'integer',
+        'sexe_code' => 'integer',
+        'organisme_detachement_id' => 'integer',
+        'est_blesse_guerre' => 'integer',
+        'est_non_mobilisable' => 'integer',
+        'est_disparu' => 'integer',
+        'code_inaptitude' => 'integer',
     ];
 
     /**
@@ -169,19 +182,188 @@ class Militaire extends Model
                 $militaire->statut = StatutMilitaire::tryFrom((int) $militaire->statut_code)?->label() ?? $militaire->statut;
             }
 
+            // Synchronisation sexe (texte) <-> sexe_code (1: Homme, 2: Dame)
+            if (!empty($militaire->sexe)) {
+                $sLower = mb_strtolower(trim($militaire->sexe));
+                if (str_starts_with($sLower, 'f') || str_starts_with($sLower, 'd')) {
+                    $militaire->sexe_code = 2; // Dame / Féminin
+                } else {
+                    $militaire->sexe_code = 1; // Homme / Masculin
+                }
+            } elseif (!empty($militaire->sexe_code)) {
+                $militaire->sexe = $militaire->sexe_code === 2 ? 'Féminin' : 'Masculin';
+            }
+
+            // Synchronisation organisme_detachement_id (GRM par défaut si actif régulier non détaché)
+            $isDetache = str_contains(mb_strtolower((string) $militaire->position_actuelle), 'détach')
+                || str_contains(mb_strtolower((string) $militaire->position_actuelle), 'detach')
+                || $militaire->statut === 'détaché'
+                || $militaire->statut_code === 2;
+            if (!$isDetache && empty($militaire->organisme_detachement_id)) {
+                $grmId = \App\Models\OrganismeDetachement::where('code', 'GRM')->value('id') ?? 1;
+                $militaire->organisme_detachement_id = $grmId;
+            }
+
+            // Synchronisation statut sanitaire -> drapeaux opérationnels (codes numériques stricts 1 / 0)
+            $sanitaireLower = mb_strtolower(trim((string) $militaire->status_sanitaire));
+            if (str_contains($sanitaireLower, 'bless') || str_contains($sanitaireLower, 'amput')) {
+                $militaire->est_blesse_guerre = 1;
+                $militaire->est_non_mobilisable = 0;
+            } elseif (
+                str_contains($sanitaireLower, 'inapte') ||
+                str_contains($sanitaireLower, 'malad') ||
+                str_contains($sanitaireLower, 'exemp') ||
+                str_contains($sanitaireLower, 'convalesc') ||
+                str_contains($sanitaireLower, 'réform') ||
+                str_contains($sanitaireLower, 'reform') ||
+                str_contains($sanitaireLower, 'patholog')
+            ) {
+                if ($militaire->est_blesse_guerre !== 1) {
+                    $militaire->est_non_mobilisable = 1;
+                }
+            } elseif (str_contains($sanitaireLower, 'apte') || empty($sanitaireLower)) {
+                if ($militaire->isDirty('status_sanitaire')) {
+                    $militaire->est_blesse_guerre = 0;
+                    $militaire->est_non_mobilisable = 0;
+                }
+            }
+
+            if (!empty($militaire->is_otage) || str_contains(mb_strtolower((string) $militaire->position_actuelle), 'otage') || str_contains(mb_strtolower((string) $militaire->position_actuelle), 'disparu')) {
+                $militaire->est_disparu = 1;
+            }
+
             // Construction du texte consolidé de recherche plein texte (minuscules regroupées)
             $militaire->recherche = $militaire->construireTexteRecherche();
         });
 
-        static::saved(function () {
+        static::saved(function ($militaire) {
             static::incrementCacheVersion();
             \App\Http\Controllers\CarteController::flush();
+            $militaire->synchroniserRegistreOperationnel();
         });
 
-        static::deleted(function () {
+        static::deleted(function ($militaire) {
             static::incrementCacheVersion();
             \App\Http\Controllers\CarteController::flush();
+            RegistreOperationnel::where('militaire_id', $militaire->id)->delete();
         });
+    }
+
+    /**
+     * Synchronise ce militaire avec la table registres_operationnels
+     * selon son statut sanitaire, sa position ou son statut administratif.
+     */
+    public function synchroniserRegistreOperationnel(): void
+    {
+        $sanitaireLower = mb_strtolower(trim((string) $this->status_sanitaire));
+        $positionLower = mb_strtolower(trim((string) $this->position_actuelle));
+
+        $reg = RegistreOperationnel::where('militaire_id', $this->id)
+            ->orWhere(function ($q) {
+                if (!empty($this->matricule)) {
+                    $q->where('matricule', trim($this->matricule));
+                }
+            })
+            ->first();
+
+        // 1. Cas BLESSÉ DE GUERRE
+        if ($this->est_blesse_guerre || str_contains($sanitaireLower, 'bless')) {
+            $data = [
+                'type_registre_code' => RegistreOperationnel::TYPE_BLESSE,
+                'militaire_id' => $this->id,
+                'matricule' => $this->matricule,
+                'mle_grm' => $this->mle_grm,
+                'nom' => $this->nom,
+                'prenom' => $this->prenom,
+                'grade_id' => $this->grade_id,
+                'grade_ordre' => $this->grade_ordre,
+                'grade_texte' => $this->grade_actuel,
+                'sexe_code' => $this->sexe_code ?? 1,
+                'region_id' => $this->region_id,
+                'unite_id' => $this->unite_id,
+                'unite_texte' => $this->unite,
+                'circonstances' => $this->observations ?: 'Blessé de guerre en service commandé',
+                'nature_pathologie' => 'Blessure de guerre / OPEX',
+                'decision_aptitude' => $this->status_sanitaire ?: 'Blessé de guerre',
+                'est_actif_fichier' => 1,
+            ];
+            if ($reg) {
+                $reg->update($data);
+            } else {
+                RegistreOperationnel::create($data);
+            }
+            return;
+        }
+
+        // 2. Cas GRAND MALADE / INAPTE SÉDENTAIRE
+        if ($this->est_non_mobilisable || (
+            str_contains($sanitaireLower, 'inapte') ||
+            str_contains($sanitaireLower, 'malad') ||
+            str_contains($sanitaireLower, 'exemp') ||
+            str_contains($sanitaireLower, 'convalesc') ||
+            str_contains($sanitaireLower, 'réform') ||
+            str_contains($sanitaireLower, 'reform') ||
+            str_contains($sanitaireLower, 'patholog')
+        )) {
+            $data = [
+                'type_registre_code' => RegistreOperationnel::TYPE_GRAND_MALADE,
+                'militaire_id' => $this->id,
+                'matricule' => $this->matricule,
+                'mle_grm' => $this->mle_grm,
+                'nom' => $this->nom,
+                'prenom' => $this->prenom,
+                'grade_id' => $this->grade_id,
+                'grade_ordre' => $this->grade_ordre,
+                'grade_texte' => $this->grade_actuel,
+                'sexe_code' => $this->sexe_code ?? 1,
+                'region_id' => $this->region_id,
+                'unite_id' => $this->unite_id,
+                'unite_texte' => $this->unite,
+                'circonstances' => $this->observations ?: 'Inaptitude physique / Grand malade',
+                'nature_pathologie' => $this->status_sanitaire ?: 'Inaptitude constatée médicalement',
+                'decision_aptitude' => $this->status_sanitaire ?: 'Inapte temporaire',
+                'est_actif_fichier' => 1,
+            ];
+            if ($reg) {
+                $reg->update($data);
+            } else {
+                RegistreOperationnel::create($data);
+            }
+            return;
+        }
+
+        // 3. Cas DISPARU / OTAGE
+        if ($this->est_disparu || !empty($this->is_otage) || str_contains($positionLower, 'otage') || str_contains($positionLower, 'disparu')) {
+            $data = [
+                'type_registre_code' => RegistreOperationnel::TYPE_DISPARU,
+                'militaire_id' => $this->id,
+                'matricule' => $this->matricule,
+                'mle_grm' => $this->mle_grm,
+                'nom' => $this->nom,
+                'prenom' => $this->prenom,
+                'grade_id' => $this->grade_id,
+                'grade_ordre' => $this->grade_ordre,
+                'grade_texte' => $this->grade_actuel,
+                'sexe_code' => $this->sexe_code ?? 1,
+                'region_id' => $this->region_id,
+                'unite_id' => $this->unite_id,
+                'unite_texte' => $this->unite,
+                'circonstances' => $this->observations ?: 'Militaire pris en otage en zone d\'opérations',
+                'decision_aptitude' => 'Maintenu au fichier actif',
+                'est_actif_fichier' => 1,
+            ];
+            if ($reg) {
+                $reg->update($data);
+            } else {
+                RegistreOperationnel::create($data);
+            }
+            return;
+        }
+
+        // 4. Si redevenu Apte ou sans situation d'exception, nettoyer tout registre sanitaire obsolète
+        if ($reg && in_array($reg->type_registre_code, [RegistreOperationnel::TYPE_BLESSE, RegistreOperationnel::TYPE_GRAND_MALADE])) {
+            $reg->delete();
+        }
     }
 
     /**
@@ -247,6 +429,30 @@ class Militaire extends Model
     public function region(): BelongsTo
     {
         return $this->belongsTo(Region::class, 'region_id');
+    }
+
+    /**
+     * Vraie relation vers l'Organisme de détachement (si détaché).
+     */
+    public function organismeDetachement(): BelongsTo
+    {
+        return $this->belongsTo(OrganismeDetachement::class, 'organisme_detachement_id');
+    }
+
+    /**
+     * Théâtre d'opérations d'engagement opérationnel (si déployé).
+     */
+    public function theatre(): BelongsTo
+    {
+        return $this->belongsTo(Theatre::class, 'theatre_id');
+    }
+
+    /**
+     * Registres opérationnels (blessures, disparitions, inaptitudes, etc.).
+     */
+    public function registresOperationnels(): HasMany
+    {
+        return $this->hasMany(RegistreOperationnel::class, 'militaire_id');
     }
 
     /**

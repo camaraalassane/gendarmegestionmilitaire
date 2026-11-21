@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Position;
 use App\Models\Region;
 use App\Models\Unite;
+use App\Models\Theatre;
 use App\Http\Controllers\CarteController;
 use App\Services\RegionGeo;
 use Illuminate\Http\Request;
@@ -39,6 +40,7 @@ class ConfigurationController extends Controller
 
         $unites = $unitesQuery->get();
         $positions = Position::orderBy('nom')->get();
+        $theatres = Theatre::withCount('militaires')->orderBy('nom')->get();
 
         // Statistiques globales
         $stats = [
@@ -47,12 +49,15 @@ class ConfigurationController extends Controller
             'unites_operationnelles' => Unite::where('est_operationnelle', true)->count(),
             'unites_non_operationnelles' => Unite::where('est_operationnelle', false)->count(),
             'total_positions' => $positions->count(),
+            'total_theatres' => $theatres->count(),
+            'theatres_actifs' => $theatres->where('statut', 'actif')->count(),
         ];
 
         return Inertia::render('Configurations/Index', [
             'regions' => $regions,
             'unites' => $unites,
             'positions' => $positions,
+            'theatres' => $theatres,
             'stats' => $stats,
             'filters' => $request->only(['region_id', 'search_unite']),
         ]);
@@ -336,5 +341,97 @@ class ConfigurationController extends Controller
     {
         $position->delete();
         return redirect()->back()->with('success', 'Position supprimée avec succès.');
+    }
+
+    // ==========================================
+    // THÉÂTRES D'OPÉRATIONS
+    // ==========================================
+
+    public function storeTheatre(Request $request)
+    {
+        $validated = $request->validate([
+            'code' => 'required|string|max:50|unique:theatres,code',
+            'nom' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'pc_lieu' => 'nullable|string|max:255',
+            'latitude' => 'nullable|numeric|between:-90,90',
+            'longitude' => 'nullable|numeric|between:-180,180',
+            'regions_codes' => 'nullable|array',
+            'couleur' => 'nullable|string|max:25',
+            'statut' => 'required|string|in:actif,reserve,cloture',
+            'date_debut' => 'nullable|date',
+            'date_fin' => 'nullable|date|after_or_equal:date_debut',
+        ], [
+            'code.required' => 'Le code du théâtre est obligatoire.',
+            'code.unique' => 'Ce code de théâtre existe déjà.',
+            'nom.required' => 'Le nom du théâtre est obligatoire.',
+        ]);
+
+        Theatre::create([
+            'code' => strtoupper(trim($validated['code'])),
+            'nom' => trim($validated['nom']),
+            'description' => $validated['description'] ?? null,
+            'pc_lieu' => $validated['pc_lieu'] ?? null,
+            'latitude' => $validated['latitude'] ?? null,
+            'longitude' => $validated['longitude'] ?? null,
+            'regions_codes' => $validated['regions_codes'] ?? [],
+            'couleur' => $validated['couleur'] ?? '#f59e0b',
+            'statut' => $validated['statut'] ?? 'actif',
+            'date_debut' => $validated['date_debut'] ?? null,
+            'date_fin' => $validated['date_fin'] ?? null,
+        ]);
+
+        CarteController::flush();
+
+        return redirect()->back()->with('success', 'Théâtre d’opérations créé avec succès.');
+    }
+
+    public function updateTheatre(Request $request, Theatre $theatre)
+    {
+        $validated = $request->validate([
+            'code' => 'required|string|max:50|unique:theatres,code,' . $theatre->id,
+            'nom' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'pc_lieu' => 'nullable|string|max:255',
+            'latitude' => 'nullable|numeric|between:-90,90',
+            'longitude' => 'nullable|numeric|between:-180,180',
+            'regions_codes' => 'nullable|array',
+            'couleur' => 'nullable|string|max:25',
+            'statut' => 'required|string|in:actif,reserve,cloture',
+            'date_debut' => 'nullable|date',
+            'date_fin' => 'nullable|date|after_or_equal:date_debut',
+        ], [
+            'code.required' => 'Le code du théâtre est obligatoire.',
+            'code.unique' => 'Ce code de théâtre existe déjà.',
+            'nom.required' => 'Le nom du théâtre est obligatoire.',
+        ]);
+
+        $theatre->update([
+            'code' => strtoupper(trim($validated['code'])),
+            'nom' => trim($validated['nom']),
+            'description' => $validated['description'] ?? null,
+            'pc_lieu' => $validated['pc_lieu'] ?? null,
+            'latitude' => $validated['latitude'] ?? null,
+            'longitude' => $validated['longitude'] ?? null,
+            'regions_codes' => $validated['regions_codes'] ?? [],
+            'couleur' => $validated['couleur'] ?? '#f59e0b',
+            'statut' => $validated['statut'] ?? 'actif',
+            'date_debut' => $validated['date_debut'] ?? null,
+            'date_fin' => $validated['date_fin'] ?? null,
+        ]);
+
+        CarteController::flush();
+
+        return redirect()->back()->with('success', 'Théâtre d’opérations modifié avec succès.');
+    }
+
+    public function destroyTheatre(Theatre $theatre)
+    {
+        $theatre->militaires()->update(['theatre_id' => null]);
+        $theatre->delete();
+
+        CarteController::flush();
+
+        return redirect()->back()->with('success', 'Théâtre d’opérations supprimé avec succès.');
     }
 }

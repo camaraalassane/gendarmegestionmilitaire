@@ -50,7 +50,8 @@ class FeuilleStatistiques implements FromArray, WithTitle, WithStyles, ShouldAut
         $derniere = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($nbCol);
         $nbLignes = self::LIGNE_ENTETES + count($this->f['lignes']) + (!empty($this->f['total']) ? 1 : 0);
 
-        $sheet->freezePane('A' . (self::LIGNE_ENTETES + 1));
+        // En-tête non figé (défilement libre)
+        // $sheet->freezePane('A' . (self::LIGNE_ENTETES + 1));
 
         // Ligne d'en-têtes
         $entete = "A" . self::LIGNE_ENTETES . ":{$derniere}" . self::LIGNE_ENTETES;

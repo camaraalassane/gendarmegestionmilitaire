@@ -1,3 +1,300 @@
+<script setup>
+import { ref, computed, onMounted } from 'vue';
+import { router } from '@inertiajs/vue3';
+import axios from 'axios';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import Button from 'primevue/button';
+import Select from 'primevue/select';
+import DataTable from 'primevue/datatable';
+import Column from 'primevue/column';
+import Tag from 'primevue/tag';
+import Badge from 'primevue/badge';
+import Toast from 'primevue/toast';
+import { useToast } from 'primevue/usetoast';
+import { downloadExport } from '@/Utils/exportHelper';
+
+const props = defineProps({
+    formationsListe: { type: Array, default: () => [] },
+    gradesListe: { type: Array, default: () => [] },
+    initialType: { type: String, default: 'promotions' },
+    initialData: { type: Array, default: () => [] },
+    initialTotal: { type: Number, default: 0 },
+    initialStatistiques: { type: Object, default: () => ({}) },
+    initialFormationCounts: { type: Object, default: () => ({}) },
+    initialGradeCounts: { type: Object, default: () => ({}) },
+});
+
+const toast = useToast();
+const loading = ref(false);
+const exportingFiltered = ref(false);
+const exportingAll = ref(false);
+const selectedType = ref(props.initialType || 'promotions');
+const promotions = ref(props.initialType === 'promotions' ? props.initialData : []);
+const formations = ref(props.initialType === 'formations' ? props.initialData : []);
+const retraites = ref(props.initialType === 'retraites' ? props.initialData : []);
+const contrats = ref(props.initialType === 'contrats' ? props.initialData : []);
+const mutations = ref(props.initialType === 'mutations' ? props.initialData : []);
+
+// Pagination
+const currentPage = ref(1);
+const perPage = ref(30);
+const totalItems = ref(props.initialTotal || 0);
+const first = ref(0);
+
+// Totaux globaux
+const totalPromotions = ref(props.initialStatistiques?.total_promotions || 0);
+const totalFormations = ref(props.initialStatistiques?.total_formations || 0);
+const totalContrats = ref(props.initialStatistiques?.total_contrats || 0);
+const totalMutations = ref(props.initialStatistiques?.total_mutations || 0);
+
+// Filtres
+const selectedFormation = ref('');
+const selectedGrade = ref('');
+const formationCounts = ref(props.initialFormationCounts || {});
+const gradeCounts = ref(props.initialGradeCounts || {});
+
+const gradeOrder = [
+    'Général de division', 'Général de brigade', 'Colonel-Major', 'Colonel',
+    'Lieutenant-colonel', 'Commandant', 'Capitaine', 'Lieutenant', 'Sous-lieutenant',
+    'Major', 'Adjudant-Chef', 'Adjudant', 'Sergent-Chef', 'Sergent',
+    'Caporal-chef', 'Caporal', 'Soldat 1', 'Soldat 2'
+];
+
+const currentList = computed(() => {
+    if (selectedType.value === 'promotions') return promotions.value;
+    if (selectedType.value === 'formations') return formations.value;
+    if (selectedType.value === 'retraites') return retraites.value;
+    if (selectedType.value === 'contrats') return contrats.value;
+    if (selectedType.value === 'mutations') return mutations.value;
+    return [];
+});
+
+const hasData = computed(() => currentList.value.length > 0);
+
+const formatDate = (date) => {
+    if (!date) return '-';
+    return new Date(date).toLocaleDateString('fr-FR');
+};
+
+const formatMoisRestants = (mois) => {
+    if (mois === 0) return "Aujourd'hui";
+    if (mois === 1) return "Dans 1 mois";
+    return `Dans ${mois} mois`;
+};
+
+const getMoisRestantsStyle = (mois) => {
+    if (mois <= 0) return { background: '#fecaca', color: '#991b1b' };
+    if (mois <= 1) return { background: '#fed7aa', color: '#c2410c' };
+    if (mois <= 3) return { background: '#fef3c7', color: '#92400e' };
+    return { background: '#dbeafe', color: '#1e40af' };
+};
+
+const onPageChange = (event) => {
+    const newPage = event.page + 1;
+    if (newPage !== currentPage.value) {
+        currentPage.value = newPage;
+        first.value = event.first;
+        loadData();
+    }
+};
+
+const selectType = (type) => {
+    selectedType.value = type;
+    selectedFormation.value = '';
+    selectedGrade.value = '';
+    currentPage.value = 1;
+    first.value = 0;
+    loadData();
+};
+
+const toggleFormation = (formationId) => {
+    selectedFormation.value = selectedFormation.value === formationId ? '' : formationId;
+    currentPage.value = 1;
+    first.value = 0;
+    loadData();
+};
+
+const clearFormationFilter = () => {
+    selectedFormation.value = '';
+    currentPage.value = 1;
+    first.value = 0;
+    loadData();
+};
+
+const toggleGrade = (gradeId) => {
+    selectedGrade.value = selectedGrade.value === gradeId ? '' : gradeId;
+    currentPage.value = 1;
+    first.value = 0;
+    loadData();
+};
+
+const clearGradeFilter = () => {
+    selectedGrade.value = '';
+    currentPage.value = 1;
+    first.value = 0;
+    loadData();
+};
+
+const getFormationCount = (formationId) => {
+    return formationCounts.value[formationId] || 0;
+};
+
+const getGradeCount = (gradeId) => {
+    return gradeCounts.value[gradeId] || 0;
+};
+
+const gradeOptions = computed(() => {
+    return (props.gradesListe || []).map(g => ({
+        id: g.id,
+        nom: g.nom,
+        label: `${g.nom} (${getGradeCount(g.id)})`,
+        count: getGradeCount(g.id)
+    }));
+});
+
+const formationOptions = computed(() => {
+    return (props.formationsListe || []).map(f => ({
+        id: f.id,
+        nom: f.nom,
+        label: `${f.nom} (${getFormationCount(f.id)})`,
+        count: getFormationCount(f.id)
+    }));
+});
+
+const getGradeName = (gradeId) => {
+    const found = (props.gradesListe || []).find(g => g.id === gradeId);
+    return found ? found.nom : gradeId;
+};
+
+const getFormationName = (formationId) => {
+    const found = (props.formationsListe || []).find(f => f.id === formationId);
+    return found ? found.nom : formationId;
+};
+
+const onFilterChange = () => {
+    currentPage.value = 1;
+    first.value = 0;
+    loadData();
+};
+
+const clearAllFilters = () => {
+    selectedFormation.value = '';
+    selectedGrade.value = '';
+    currentPage.value = 1;
+    first.value = 0;
+    loadData();
+};
+
+const loadData = async () => {
+    if (!selectedType.value) return;
+
+    loading.value = true;
+    try {
+        const params = {
+            type: selectedType.value,
+            page: currentPage.value,
+            per_page: perPage.value
+        };
+        if (selectedFormation.value) params.formation = selectedFormation.value;
+        if (selectedGrade.value) params.grade = selectedGrade.value;
+
+        const response = await axios.get(route('eligibilites.filtered'), { params });
+        const data = response.data;
+
+        // Mise à jour des données
+        if (selectedType.value === 'promotions') {
+            promotions.value = data.data || [];
+        } else if (selectedType.value === 'formations') {
+            formations.value = data.data || [];
+        } else if (selectedType.value === 'retraites') {
+            retraites.value = data.data || [];
+        } else if (selectedType.value === 'contrats') {
+            contrats.value = data.data || [];
+        } else if (selectedType.value === 'mutations') {
+            mutations.value = data.data || [];
+        }
+
+        totalItems.value = data.total || 0;
+
+        // Mise à jour des statistiques
+        if (data.statistiques) {
+            totalPromotions.value = data.statistiques.total_promotions || 0;
+            totalFormations.value = data.statistiques.total_formations || 0;
+            totalContrats.value = data.statistiques.total_contrats || 0;
+            totalMutations.value = data.statistiques.total_mutations || 0;
+        }
+
+        // Mise à jour des compteurs pour les filtres (reçus directement du backend optimisé)
+        if (data.formation_counts) {
+            formationCounts.value = data.formation_counts;
+        }
+        if (data.grade_counts) {
+            gradeCounts.value = data.grade_counts;
+        }
+
+    } catch (error) {
+        console.error('Erreur:', error);
+        toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de charger les données', life: 3000 });
+    } finally {
+        loading.value = false;
+    }
+};
+
+const exportData = async () => {
+    const params = new URLSearchParams();
+    params.append('type', selectedType.value);
+    if (selectedFormation.value) params.append('formation', selectedFormation.value);
+    if (selectedGrade.value) params.append('grade', selectedGrade.value);
+    params.append('export_all', 'false');
+    const url = route('eligibilites.export') + '?' + params.toString();
+
+    await downloadExport(url, {
+        defaultFilename: `eligibilites_${selectedType.value}_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        toast,
+        onStart: () => { exportingFiltered.value = true; },
+        onFinish: () => { exportingFiltered.value = false; },
+        loadingMessage: `Préparation de l'export (${selectedType.value})... Veuillez patienter.`,
+        successMessage: `Fichier des éligibilités (${selectedType.value}) téléchargé avec succès !`
+    });
+};
+
+const exportAllData = async () => {
+    const params = new URLSearchParams();
+    params.append('type', selectedType.value);
+    if (selectedFormation.value) params.append('formation', selectedFormation.value);
+    if (selectedGrade.value) params.append('grade', selectedGrade.value);
+    params.append('export_all', 'true');
+    const url = route('eligibilites.export') + '?' + params.toString();
+
+    await downloadExport(url, {
+        defaultFilename: `eligibilites_toutes_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        toast,
+        onStart: () => { exportingAll.value = true; },
+        onFinish: () => { exportingAll.value = false; },
+        loadingMessage: 'Génération de l\'export complet des éligibilités... Veuillez patienter.',
+        successMessage: 'Fichier complet des éligibilités téléchargé avec succès !'
+    });
+};
+
+const viewMilitaire = (id) => {
+    router.visit(route('militaires.show', id));
+};
+
+const goToRenewal = (militaireId) => {
+    router.visit(route('contrats.index', {
+        militaire: Number(militaireId),
+        openModal: 1
+    }));
+};
+
+// Charger les données au montage seulement si elles n'ont pas été pré-injectées par Inertia
+onMounted(() => {
+    if (!promotions.value.length && !formations.value.length && !contrats.value.length && !mutations.value.length) {
+        loadData();
+    }
+});
+</script>
+
 <template>
     <AuthenticatedLayout>
         <!-- Header -->
@@ -134,14 +431,16 @@
                                 <i class="pi pi-filter-slash text-xs"></i> <span>Réinitialiser</span>
                             </button>
                         </div>
-                    <!-- Boutons d'exportation dans le card de filtre -->
+                        <!-- Boutons d'exportation dans le card de filtre -->
                         <div class="shrink-0 sm:self-end flex items-center gap-2 pb-0.5 sm:ml-auto">
-                            <Button label="Exporter" icon="pi pi-file-excel"
+                            <Button :label="exportingFiltered ? 'Exportation...' : 'Exporter'" icon="pi pi-file-excel"
                                 size="small" severity="success" outlined
+                                :loading="exportingFiltered"
                                 class="text-xs font-semibold"
                                 @click="exportData" />
-                            <Button label="Tout exporter" icon="pi pi-file-excel"
+                            <Button :label="exportingAll ? 'Exportation...' : 'Tout exporter'" icon="pi pi-file-excel"
                                 size="small" severity="success"
+                                :loading="exportingAll"
                                 class="text-xs font-semibold" 
                                 @click="exportAllData" />
                         </div>
@@ -409,281 +708,3 @@
         <Toast position="top-right" />
     </AuthenticatedLayout>
 </template>
-
-<script setup>
-import { ref, computed, onMounted } from 'vue';
-import { router } from '@inertiajs/vue3';
-import axios from 'axios';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import Button from 'primevue/button';
-import Select from 'primevue/select';
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
-import Tag from 'primevue/tag';
-import Badge from 'primevue/badge';
-import Toast from 'primevue/toast';
-import { useToast } from 'primevue/usetoast';
-
-const props = defineProps({
-    formationsListe: { type: Array, default: () => [] },
-    gradesListe: { type: Array, default: () => [] },
-    initialType: { type: String, default: 'promotions' },
-    initialData: { type: Array, default: () => [] },
-    initialTotal: { type: Number, default: 0 },
-    initialStatistiques: { type: Object, default: () => ({}) },
-    initialFormationCounts: { type: Object, default: () => ({}) },
-    initialGradeCounts: { type: Object, default: () => ({}) },
-});
-
-const toast = useToast();
-const loading = ref(false);
-const selectedType = ref(props.initialType || 'promotions');
-const promotions = ref(props.initialType === 'promotions' ? props.initialData : []);
-const formations = ref(props.initialType === 'formations' ? props.initialData : []);
-const retraites = ref(props.initialType === 'retraites' ? props.initialData : []);
-const contrats = ref(props.initialType === 'contrats' ? props.initialData : []);
-const mutations = ref(props.initialType === 'mutations' ? props.initialData : []);
-
-// Pagination
-const currentPage = ref(1);
-const perPage = ref(30);
-const totalItems = ref(props.initialTotal || 0);
-const first = ref(0);
-
-// Totaux globaux
-const totalPromotions = ref(props.initialStatistiques?.total_promotions || 0);
-const totalFormations = ref(props.initialStatistiques?.total_formations || 0);
-const totalContrats = ref(props.initialStatistiques?.total_contrats || 0);
-const totalMutations = ref(props.initialStatistiques?.total_mutations || 0);
-
-// Filtres
-const selectedFormation = ref('');
-const selectedGrade = ref('');
-const formationCounts = ref(props.initialFormationCounts || {});
-const gradeCounts = ref(props.initialGradeCounts || {});
-
-const gradeOrder = [
-    'Général de division', 'Général de brigade', 'Colonel-Major', 'Colonel',
-    'Lieutenant-colonel', 'Commandant', 'Capitaine', 'Lieutenant', 'Sous-lieutenant',
-    'Major', 'Adjudant-Chef', 'Adjudant', 'Sergent-Chef', 'Sergent',
-    'Caporal-chef', 'Caporal', 'Soldat 1', 'Soldat 2'
-];
-
-const currentList = computed(() => {
-    if (selectedType.value === 'promotions') return promotions.value;
-    if (selectedType.value === 'formations') return formations.value;
-    if (selectedType.value === 'retraites') return retraites.value;
-    if (selectedType.value === 'contrats') return contrats.value;
-    if (selectedType.value === 'mutations') return mutations.value;
-    return [];
-});
-
-const hasData = computed(() => currentList.value.length > 0);
-
-const formatDate = (date) => {
-    if (!date) return '-';
-    return new Date(date).toLocaleDateString('fr-FR');
-};
-
-const formatMoisRestants = (mois) => {
-    if (mois === 0) return "Aujourd'hui";
-    if (mois === 1) return "Dans 1 mois";
-    return `Dans ${mois} mois`;
-};
-
-const getMoisRestantsStyle = (mois) => {
-    if (mois <= 0) return { background: '#fecaca', color: '#991b1b' };
-    if (mois <= 1) return { background: '#fed7aa', color: '#c2410c' };
-    if (mois <= 3) return { background: '#fef3c7', color: '#92400e' };
-    return { background: '#dbeafe', color: '#1e40af' };
-};
-
-const onPageChange = (event) => {
-    const newPage = event.page + 1;
-    if (newPage !== currentPage.value) {
-        currentPage.value = newPage;
-        first.value = event.first;
-        loadData();
-    }
-};
-
-const selectType = (type) => {
-    selectedType.value = type;
-    selectedFormation.value = '';
-    selectedGrade.value = '';
-    currentPage.value = 1;
-    first.value = 0;
-    loadData();
-};
-
-const toggleFormation = (formationId) => {
-    selectedFormation.value = selectedFormation.value === formationId ? '' : formationId;
-    currentPage.value = 1;
-    first.value = 0;
-    loadData();
-};
-
-const clearFormationFilter = () => {
-    selectedFormation.value = '';
-    currentPage.value = 1;
-    first.value = 0;
-    loadData();
-};
-
-const toggleGrade = (gradeId) => {
-    selectedGrade.value = selectedGrade.value === gradeId ? '' : gradeId;
-    currentPage.value = 1;
-    first.value = 0;
-    loadData();
-};
-
-const clearGradeFilter = () => {
-    selectedGrade.value = '';
-    currentPage.value = 1;
-    first.value = 0;
-    loadData();
-};
-
-const getFormationCount = (formationId) => {
-    return formationCounts.value[formationId] || 0;
-};
-
-const getGradeCount = (gradeId) => {
-    return gradeCounts.value[gradeId] || 0;
-};
-
-const gradeOptions = computed(() => {
-    return (props.gradesListe || []).map(g => ({
-        id: g.id,
-        nom: g.nom,
-        label: `${g.nom} (${getGradeCount(g.id)})`,
-        count: getGradeCount(g.id)
-    }));
-});
-
-const formationOptions = computed(() => {
-    return (props.formationsListe || []).map(f => ({
-        id: f.id,
-        nom: f.nom,
-        label: `${f.nom} (${getFormationCount(f.id)})`,
-        count: getFormationCount(f.id)
-    }));
-});
-
-const getGradeName = (gradeId) => {
-    const found = (props.gradesListe || []).find(g => g.id === gradeId);
-    return found ? found.nom : gradeId;
-};
-
-const getFormationName = (formationId) => {
-    const found = (props.formationsListe || []).find(f => f.id === formationId);
-    return found ? found.nom : formationId;
-};
-
-const onFilterChange = () => {
-    currentPage.value = 1;
-    first.value = 0;
-    loadData();
-};
-
-const clearAllFilters = () => {
-    selectedFormation.value = '';
-    selectedGrade.value = '';
-    currentPage.value = 1;
-    first.value = 0;
-    loadData();
-};
-
-const loadData = async () => {
-    if (!selectedType.value) return;
-
-    loading.value = true;
-    try {
-        const params = {
-            type: selectedType.value,
-            page: currentPage.value,
-            per_page: perPage.value
-        };
-        if (selectedFormation.value) params.formation = selectedFormation.value;
-        if (selectedGrade.value) params.grade = selectedGrade.value;
-
-        const response = await axios.get(route('eligibilites.filtered'), { params });
-        const data = response.data;
-
-        // Mise à jour des données
-        if (selectedType.value === 'promotions') {
-            promotions.value = data.data || [];
-        } else if (selectedType.value === 'formations') {
-            formations.value = data.data || [];
-        } else if (selectedType.value === 'retraites') {
-            retraites.value = data.data || [];
-        } else if (selectedType.value === 'contrats') {
-            contrats.value = data.data || [];
-        } else if (selectedType.value === 'mutations') {
-            mutations.value = data.data || [];
-        }
-
-        totalItems.value = data.total || 0;
-
-        // Mise à jour des statistiques
-        if (data.statistiques) {
-            totalPromotions.value = data.statistiques.total_promotions || 0;
-            totalFormations.value = data.statistiques.total_formations || 0;
-            totalContrats.value = data.statistiques.total_contrats || 0;
-            totalMutations.value = data.statistiques.total_mutations || 0;
-        }
-
-        // Mise à jour des compteurs pour les filtres (reçus directement du backend optimisé)
-        if (data.formation_counts) {
-            formationCounts.value = data.formation_counts;
-        }
-        if (data.grade_counts) {
-            gradeCounts.value = data.grade_counts;
-        }
-
-    } catch (error) {
-        console.error('Erreur:', error);
-        toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de charger les données', life: 3000 });
-    } finally {
-        loading.value = false;
-    }
-};
-
-const exportData = () => {
-    const params = new URLSearchParams();
-    params.append('type', selectedType.value);
-    if (selectedFormation.value) params.append('formation', selectedFormation.value);
-    if (selectedGrade.value) params.append('grade', selectedGrade.value);
-    params.append('export_all', 'false');
-    window.location.href = route('eligibilites.export') + '?' + params.toString();
-    toast.add({ severity: 'success', summary: 'Export', detail: 'Export des données filtrées en cours...', life: 3000 });
-};
-
-const exportAllData = () => {
-    const params = new URLSearchParams();
-    params.append('type', selectedType.value);
-    if (selectedFormation.value) params.append('formation', selectedFormation.value);
-    if (selectedGrade.value) params.append('grade', selectedGrade.value);
-    params.append('export_all', 'true');
-    window.location.href = route('eligibilites.export') + '?' + params.toString();
-    toast.add({ severity: 'success', summary: 'Export', detail: 'Export de toutes les données en cours...', life: 3000 });
-};
-
-const viewMilitaire = (id) => {
-    router.visit(route('militaires.show', id));
-};
-
-const goToRenewal = (militaireId) => {
-    router.visit(route('contrats.index', {
-        militaire: Number(militaireId),
-        openModal: 1
-    }));
-};
-
-// Charger les données au montage seulement si elles n'ont pas été pré-injectées par Inertia
-onMounted(() => {
-    if (!promotions.value.length && !formations.value.length && !contrats.value.length && !mutations.value.length) {
-        loadData();
-    }
-});
-</script>

@@ -1,3 +1,37 @@
+<script setup>
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { Head, Link, useForm } from '@inertiajs/vue3';
+import { ref } from 'vue';
+import Modal from '@/Components/Modal.vue';
+import DangerButton from '@/Components/DangerButton.vue';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
+
+defineProps({
+    users: Array,
+});
+
+const userToDelete = ref(null);
+const processing = ref(false);
+const form = useForm({});
+
+const confirmDelete = (user) => {
+    userToDelete.value = user;
+};
+
+const deleteUser = () => {
+    processing.value = true;
+    form.delete(route('users.destroy', userToDelete.value.id), {
+        onSuccess: () => {
+            userToDelete.value = null;
+            processing.value = false;
+        },
+        onError: () => {
+            processing.value = false;
+        }
+    });
+};
+</script>
+
 <template>
     <AuthenticatedLayout>
         <template #header>
@@ -82,37 +116,3 @@
         </Modal>
     </AuthenticatedLayout>
 </template>
-
-<script setup>
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
-import Modal from '@/Components/Modal.vue';
-import DangerButton from '@/Components/DangerButton.vue';
-import SecondaryButton from '@/Components/SecondaryButton.vue';
-
-defineProps({
-    users: Array,
-});
-
-const userToDelete = ref(null);
-const processing = ref(false);
-const form = useForm({});
-
-const confirmDelete = (user) => {
-    userToDelete.value = user;
-};
-
-const deleteUser = () => {
-    processing.value = true;
-    form.delete(route('users.destroy', userToDelete.value.id), {
-        onSuccess: () => {
-            userToDelete.value = null;
-            processing.value = false;
-        },
-        onError: () => {
-            processing.value = false;
-        }
-    });
-};
-</script>

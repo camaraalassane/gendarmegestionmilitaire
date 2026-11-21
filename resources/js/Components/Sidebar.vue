@@ -1,3 +1,74 @@
+<script setup>
+import { ref, computed, onMounted } from 'vue';
+import { router, usePage } from '@inertiajs/vue3';
+import NavLink from './NavLink.vue';
+
+const props = defineProps({
+    isOpen: {
+        type: Boolean,
+        default: false
+    },
+    isMobile: {
+        type: Boolean,
+        default: false
+    }
+});
+
+const emit = defineEmits(['update:isOpen', 'closeMobile']);
+
+const page = usePage();
+const alertesCount = computed(() => page.props.alertesCount || 0);
+
+// Logo Gendarmerie
+const logoExists = ref(true);
+const logoUrl = ref('/images/logo-gendarmerie-officiel.png?v=2026');
+
+const toggleSidebar = () => {
+    emit('update:isOpen', !props.isOpen);
+};
+
+const closeMobileMenu = () => {
+    emit('closeMobile');
+};
+
+const handleNavClick = () => {
+    if (props.isMobile) {
+        closeMobileMenu();
+    }
+};
+
+const menuItems = computed(() => {
+    if (page.props.auth.user.role === 1) {
+        return [
+            { name: 'Utilisateurs', href: '/users', icon: 'pi pi-users' },
+            { name: 'Journal d\'activités', href: '/activity-logs', icon: 'pi pi-history' }
+        ];
+    } else {
+        return [
+            { name: 'Tableau de bord', href: '/dashboard', icon: 'pi pi-gauge' },
+            { name: 'Carte opérationnelle', href: '/carte', icon: 'pi pi-compass' },
+            { name: 'Prise d\'Armes (SPA)', href: '/prise-armes', icon: 'pi pi-file-excel' },
+            { name: 'Militaires', href: '/militaires', icon: 'pi pi-shield' },
+            { name: 'Alertes', href: '/alertes', icon: 'pi pi-exclamation-triangle' },
+            { name: 'Éligibilités', href: '/eligibilites', icon: 'pi pi-check-square' },
+            { name: 'Avancement', href: '/avancements', icon: 'pi pi-angle-double-up' },
+            { name: 'Contrats', href: '/contrats', icon: 'pi pi-briefcase' },
+            { name: 'Grades', href: '/grades', icon: 'pi pi-sitemap' },
+            { name: 'Certificats', href: '/certificats', icon: 'pi pi-verified' },
+            { name: 'Configuration', href: '/configurations', icon: 'pi pi-cog' }
+        ];
+    }
+});
+
+const isActive = (href) => {
+    return window.location.pathname === href || window.location.pathname.startsWith(href + '/');
+};
+
+const logout = () => {
+    router.post(route('logout'));
+};
+</script>
+
 <template>
     <!-- Menu version desktop -->
     <aside :class="[
@@ -94,76 +165,6 @@
         class="fixed inset-0 bg-black bg-opacity-50 z-30 transition-opacity duration-300"></div>
 </template>
 
-<script setup>
-import { ref, computed, onMounted } from 'vue';
-import { router, usePage } from '@inertiajs/vue3';
-import NavLink from './NavLink.vue';
-
-const props = defineProps({
-    isOpen: {
-        type: Boolean,
-        default: false
-    },
-    isMobile: {
-        type: Boolean,
-        default: false
-    }
-});
-
-const emit = defineEmits(['update:isOpen', 'closeMobile']);
-
-const page = usePage();
-const alertesCount = computed(() => page.props.alertesCount || 0);
-
-// Logo Gendarmerie
-const logoExists = ref(true);
-const logoUrl = ref('/images/logo-gendarmerie-officiel.png?v=2026');
-
-const toggleSidebar = () => {
-    emit('update:isOpen', !props.isOpen);
-};
-
-const closeMobileMenu = () => {
-    emit('closeMobile');
-};
-
-const handleNavClick = () => {
-    if (props.isMobile) {
-        closeMobileMenu();
-    }
-};
-
-const menuItems = computed(() => {
-    if (page.props.auth.user.role === 1) {
-        return [
-            { name: 'Utilisateurs', href: '/users', icon: 'pi pi-users' },
-            { name: 'Journal d\'activités', href: '/activity-logs', icon: 'pi pi-history' }
-        ];
-    } else {
-        return [
-            { name: 'Tableau de bord', href: '/dashboard', icon: 'pi pi-gauge' },
-            { name: 'Carte opérationnelle', href: '/carte', icon: 'pi pi-compass' },
-            { name: 'Militaires', href: '/militaires', icon: 'pi pi-shield' },
-            { name: 'Alertes', href: '/alertes', icon: 'pi pi-exclamation-triangle' },
-            { name: 'Éligibilités', href: '/eligibilites', icon: 'pi pi-check-square' },
-            { name: 'Avancement', href: '/avancements', icon: 'pi pi-angle-double-up' },
-            { name: 'Contrats', href: '/contrats', icon: 'pi pi-briefcase' },
-            { name: 'Grades', href: '/grades', icon: 'pi pi-sitemap' },
-            { name: 'Certificats', href: '/certificats', icon: 'pi pi-verified' },
-            { name: 'Configuration', href: '/configurations', icon: 'pi pi-cog' }
-        ];
-    }
-});
-
-const isActive = (href) => {
-    return window.location.pathname === href || window.location.pathname.startsWith(href + '/');
-};
-
-const logout = () => {
-    router.post(route('logout'));
-};
-</script>
-
 <style scoped>
 .no-scrollbar {
     -ms-overflow-style: none !important;
@@ -223,4 +224,3 @@ const logout = () => {
     overflow: hidden;
 }
 </style>
-

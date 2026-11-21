@@ -1,3 +1,251 @@
+<script setup>
+import { ref, reactive, watch } from 'vue';
+import { router, usePage } from '@inertiajs/vue3';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import Card from 'primevue/card';
+import Button from 'primevue/button';
+import InputText from 'primevue/inputtext';
+import DataTable from 'primevue/datatable';
+import Column from 'primevue/column';
+import Tag from 'primevue/tag';
+import Toast from 'primevue/toast';
+import Dialog from 'primevue/dialog';
+import DatePicker from 'primevue/datepicker';
+import InputNumber from 'primevue/inputnumber';
+import Textarea from 'primevue/textarea';
+import { useToast } from 'primevue/usetoast';
+import debounce from 'lodash/debounce';
+
+const props = defineProps({
+    alertes: { type: Object, required: true },
+    statistiques: { type: Object, required: true },
+    filters: { type: Object, default: () => ({}) }
+});
+
+const toast = useToast();
+const page = usePage();
+const loading = ref(false);
+const loadingStates = ref({});
+const generatingAll = ref(false);
+const activeTab = ref(props.filters?.type || 'all');
+
+const showRenewModal = ref(false);
+const submitting = ref(false);
+const selectedMilitaire = ref(null);
+
+// FIX : source de vérité unique pour la date du nouveau contrat.
+// form.date_debut a été supprimé — on lit directement selectedDate au submit.
+const selectedDate = ref(null);
+
+const form = reactive({
+    militaire_id: null,
+    duree_annees: 5,
+    observations: ''
+});
+
+const filters = reactive({
+    search: props.filters?.search || ''
+});
+
+// Watcher pour les messages flash
+watch(() => page.props.flash, (flash) => {
+    if (flash?.success) {
+        toast.add({ severity: 'success', summary: 'Succès', detail: flash.success, life: 5000 });
+    }
+    if (flash?.error) {
+        toast.add({ severity: 'error', summary: 'Erreur', detail: flash.error, life: 5000 });
+    }
+    if (flash?.info) {
+        toast.add({ severity: 'info', summary: 'Information', detail: flash.info, life: 5000 });
+    }
+}, { immediate: true });
+
+const getTabTitle = () => {
+    const titles = {
+        'promotion': 'Alertes de promotion',
+        'formation': 'Alertes de formation',
+        'contrat': 'Alertes de contrat',
+        'mutation': 'Alertes de mutation (durée d\'affectation >= 3 ans)',
+        'all': 'Toutes les alertes'
+    };
+    return titles[activeTab.value] || 'Toutes les alertes';
+};
+
+const debouncedSearch = debounce(() => { loadAlertes(1); }, 500);
+const onSearchInput = () => { debouncedSearch(); };
+watch(() => filters.search, () => { debouncedSearch(); });
+
+const getTypeLabel = (type) => {
+    const labels = {
+        'promotion': 'Promotion',
+        'formation': 'Formation',
+        'retraite': 'Retraite',
+        'certificat': 'Certificat',
+        'contrat': 'Contrat',
+        'mutation': 'Mutation'
+    };
+    return labels[type] || type;
+};
+
+const getTypeStyle = (type) => {
+    const styles = {
+        'promotion': { background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.55rem', borderRadius: '0.375rem' },
+        'formation': { background: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe', fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.55rem', borderRadius: '0.375rem' },
+        'contrat': { background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.55rem', borderRadius: '0.375rem' },
+        'mutation': { background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.55rem', borderRadius: '0.375rem' },
+        'retraite': { background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.55rem', borderRadius: '0.375rem' },
+        'certificat': { background: '#f5f3ff', color: '#6d28d9', border: '1px solid #ddd6fe', fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.55rem', borderRadius: '0.375rem' },
+    };
+    return styles[type] || { background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.55rem', borderRadius: '0.375rem' };
+};
+
+const isEcheanceProche = (date) => {
+    if (!date) return false;
+    const today = new Date();
+    const echeance = new Date(date);
+    const diffDays = Math.ceil((echeance - today) / (1000 * 60 * 60 * 24));
+    return diffDays <= 30 && diffDays >= 0;
+};
+
+const rowClass = (data) => data.est_vue ? '' : 'bg-sky-50/40';
+
+const loadAlertes = (page = 1) => {
+    loading.value = true;
+    const params = { page, search: filters.search };
+    if (activeTab.value !== 'all') params.type = activeTab.value;
+
+    router.get(route('alertes.index'), params, {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => { loading.value = false; },
+        onError: () => {
+            loading.value = false;
+            toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de charger les alertes', life: 3000 });
+        }
+    });
+};
+
+const setActiveTab = (tab) => {
+    if (activeTab.value === tab) return;
+    activeTab.value = tab;
+    loadAlertes(1);
+};
+
+const onPageChange = (event) => { loadAlertes(event.page + 1); };
+
+const markAsRead = (alerteId) => {
+    loadingStates.value[alerteId] = true;
+    router.post(route('alertes.marquer-vue', alerteId), {}, {
+        preserveScroll: true,
+        onError: () => {
+            toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de marquer l\'alerte', life: 3000 });
+        },
+        onFinish: () => {
+            loadingStates.value[alerteId] = false;
+        }
+    });
+};
+
+const markAllAsRead = () => {
+    router.post(route('alertes.marquer-tout-vue'), {}, {
+        preserveScroll: true,
+        onError: () => {
+            toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de marquer toutes les alertes', life: 3000 });
+        }
+    });
+};
+
+const generateAllAlerts = () => {
+    generatingAll.value = true;
+    router.post(route('alertes.generer'), {}, {
+        preserveScroll: true,
+        onError: () => {
+            toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de générer les alertes', life: 3000 });
+        },
+        onFinish: () => {
+            generatingAll.value = false;
+        }
+    });
+};
+
+// Ouvrir le modal de renouvellement
+const openRenewModal = (militaire) => {
+    selectedMilitaire.value = militaire;
+    form.militaire_id = militaire.id;
+    selectedDate.value = new Date();
+    form.duree_annees = 5;
+    form.observations = '';
+    showRenewModal.value = true;
+};
+
+// Fermer le modal
+const closeModal = () => {
+    showRenewModal.value = false;
+    form.militaire_id = null;
+    selectedDate.value = null;
+    form.duree_annees = 5;
+    form.observations = '';
+};
+
+// Formater une date locale (année-mois-jour) sans décalage de fuseau horaire
+const formatDateLocal = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+// Renouveler le contrat
+const renewContract = () => {
+    if (!selectedDate.value) {
+        toast.add({
+            severity: 'error',
+            summary: 'Erreur',
+            detail: 'Veuillez sélectionner une date de début',
+            life: 3000
+        });
+        return;
+    }
+
+    submitting.value = true;
+
+    const data = {
+        militaire_id: form.militaire_id,
+        date_debut: formatDateLocal(selectedDate.value),
+        duree_annees: form.duree_annees,
+        observations: form.observations
+    };
+
+    router.post(route('contrats.store'), data, {
+        preserveScroll: true,
+        onSuccess: () => {
+            submitting.value = false;
+            showRenewModal.value = false;
+            toast.add({
+                severity: 'success',
+                summary: 'Succès',
+                detail: 'Contrat renouvelé avec succès',
+                life: 3000
+            });
+            loadAlertes(props.alertes.current_page);
+        },
+        onError: (errors) => {
+            submitting.value = false;
+            toast.add({
+                severity: 'error',
+                summary: 'Erreur',
+                detail: Object.values(errors).flat()[0] || 'Impossible de renouveler le contrat',
+                life: 3000
+            });
+        }
+    });
+};
+
+const viewMilitaire = (id) => {
+    router.visit(route('militaires.show', id));
+};
+</script>
+
 <template>
     <AuthenticatedLayout>
         <template #header>
@@ -308,254 +556,6 @@
         <Toast position="top-right" />
     </AuthenticatedLayout>
 </template>
-
-<script setup>
-import { ref, reactive, watch } from 'vue';
-import { router, usePage } from '@inertiajs/vue3';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import Card from 'primevue/card';
-import Button from 'primevue/button';
-import InputText from 'primevue/inputtext';
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
-import Tag from 'primevue/tag';
-import Toast from 'primevue/toast';
-import Dialog from 'primevue/dialog';
-import DatePicker from 'primevue/datepicker';
-import InputNumber from 'primevue/inputnumber';
-import Textarea from 'primevue/textarea';
-import { useToast } from 'primevue/usetoast';
-import debounce from 'lodash/debounce';
-
-const props = defineProps({
-    alertes: { type: Object, required: true },
-    statistiques: { type: Object, required: true },
-    filters: { type: Object, default: () => ({}) }
-});
-
-const toast = useToast();
-const page = usePage();
-const loading = ref(false);
-const loadingStates = ref({});
-const generatingAll = ref(false);
-const activeTab = ref(props.filters?.type || 'all');
-
-const showRenewModal = ref(false);
-const submitting = ref(false);
-const selectedMilitaire = ref(null);
-
-// FIX : source de vérité unique pour la date du nouveau contrat.
-// form.date_debut a été supprimé — on lit directement selectedDate au submit.
-const selectedDate = ref(null);
-
-const form = reactive({
-    militaire_id: null,
-    duree_annees: 5,
-    observations: ''
-});
-
-const filters = reactive({
-    search: props.filters?.search || ''
-});
-
-// Watcher pour les messages flash
-watch(() => page.props.flash, (flash) => {
-    if (flash?.success) {
-        toast.add({ severity: 'success', summary: 'Succès', detail: flash.success, life: 5000 });
-    }
-    if (flash?.error) {
-        toast.add({ severity: 'error', summary: 'Erreur', detail: flash.error, life: 5000 });
-    }
-    if (flash?.info) {
-        toast.add({ severity: 'info', summary: 'Information', detail: flash.info, life: 5000 });
-    }
-}, { immediate: true });
-
-const getTabTitle = () => {
-    const titles = {
-        'promotion': 'Alertes de promotion',
-        'formation': 'Alertes de formation',
-        'contrat': 'Alertes de contrat',
-        'mutation': 'Alertes de mutation (durée d\'affectation >= 3 ans)',
-        'all': 'Toutes les alertes'
-    };
-    return titles[activeTab.value] || 'Toutes les alertes';
-};
-
-const debouncedSearch = debounce(() => { loadAlertes(1); }, 500);
-const onSearchInput = () => { debouncedSearch(); };
-watch(() => filters.search, () => { debouncedSearch(); });
-
-const getTypeLabel = (type) => {
-    const labels = {
-        'promotion': 'Promotion',
-        'formation': 'Formation',
-        'retraite': 'Retraite',
-        'certificat': 'Certificat',
-        'contrat': 'Contrat',
-        'mutation': 'Mutation'
-    };
-    return labels[type] || type;
-};
-
-const getTypeStyle = (type) => {
-    const styles = {
-        'promotion': { background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.55rem', borderRadius: '0.375rem' },
-        'formation': { background: '#e0e7ff', color: '#3730a3', border: '1px solid #c7d2fe', fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.55rem', borderRadius: '0.375rem' },
-        'contrat': { background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.55rem', borderRadius: '0.375rem' },
-        'mutation': { background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.55rem', borderRadius: '0.375rem' },
-        'retraite': { background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca', fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.55rem', borderRadius: '0.375rem' },
-        'certificat': { background: '#f5f3ff', color: '#6d28d9', border: '1px solid #ddd6fe', fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.55rem', borderRadius: '0.375rem' },
-    };
-    return styles[type] || { background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.55rem', borderRadius: '0.375rem' };
-};
-
-const isEcheanceProche = (date) => {
-    if (!date) return false;
-    const today = new Date();
-    const echeance = new Date(date);
-    const diffDays = Math.ceil((echeance - today) / (1000 * 60 * 60 * 24));
-    return diffDays <= 30 && diffDays >= 0;
-};
-
-const rowClass = (data) => data.est_vue ? '' : 'bg-sky-50/40';
-
-const loadAlertes = (page = 1) => {
-    loading.value = true;
-    const params = { page, search: filters.search };
-    if (activeTab.value !== 'all') params.type = activeTab.value;
-
-    router.get(route('alertes.index'), params, {
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: () => { loading.value = false; },
-        onError: () => {
-            loading.value = false;
-            toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de charger les alertes', life: 3000 });
-        }
-    });
-};
-
-const setActiveTab = (tab) => {
-    if (activeTab.value === tab) return;
-    activeTab.value = tab;
-    loadAlertes(1);
-};
-
-const onPageChange = (event) => { loadAlertes(event.page + 1); };
-
-const markAsRead = (alerteId) => {
-    loadingStates.value[alerteId] = true;
-    router.post(route('alertes.marquer-vue', alerteId), {}, {
-        preserveScroll: true,
-        onError: () => {
-            toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de marquer l\'alerte', life: 3000 });
-        },
-        onFinish: () => {
-            loadingStates.value[alerteId] = false;
-        }
-    });
-};
-
-const markAllAsRead = () => {
-    router.post(route('alertes.marquer-tout-vue'), {}, {
-        preserveScroll: true,
-        onError: () => {
-            toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de marquer toutes les alertes', life: 3000 });
-        }
-    });
-};
-
-const generateAllAlerts = () => {
-    generatingAll.value = true;
-    router.post(route('alertes.generer'), {}, {
-        preserveScroll: true,
-        onError: () => {
-            toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de générer les alertes', life: 3000 });
-        },
-        onFinish: () => {
-            generatingAll.value = false;
-        }
-    });
-};
-
-// Ouvrir le modal de renouvellement
-const openRenewModal = (militaire) => {
-    selectedMilitaire.value = militaire;
-    form.militaire_id = militaire.id;
-    selectedDate.value = new Date();
-    form.duree_annees = 5;
-    form.observations = '';
-    showRenewModal.value = true;
-};
-
-// Fermer le modal
-const closeModal = () => {
-    showRenewModal.value = false;
-    form.militaire_id = null;
-    selectedDate.value = null;
-    form.duree_annees = 5;
-    form.observations = '';
-};
-
-// Formater une date locale (année-mois-jour) sans décalage de fuseau horaire
-const formatDateLocal = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-};
-
-// Renouveler le contrat
-const renewContract = () => {
-    if (!selectedDate.value) {
-        toast.add({
-            severity: 'error',
-            summary: 'Erreur',
-            detail: 'Veuillez sélectionner une date de début',
-            life: 3000
-        });
-        return;
-    }
-
-    submitting.value = true;
-
-    const data = {
-        militaire_id: form.militaire_id,
-        date_debut: formatDateLocal(selectedDate.value),
-        duree_annees: form.duree_annees,
-        observations: form.observations
-    };
-
-    router.post(route('contrats.store'), data, {
-        preserveScroll: true,
-        onSuccess: () => {
-            submitting.value = false;
-            showRenewModal.value = false;
-            toast.add({
-                severity: 'success',
-                summary: 'Succès',
-                detail: 'Contrat renouvelé avec succès',
-                life: 3000
-            });
-            loadAlertes(props.alertes.current_page);
-        },
-        onError: (errors) => {
-            submitting.value = false;
-            toast.add({
-                severity: 'error',
-                summary: 'Erreur',
-                detail: Object.values(errors).flat()[0] || 'Impossible de renouveler le contrat',
-                life: 3000
-            });
-        }
-    });
-};
-
-const viewMilitaire = (id) => {
-    router.visit(route('militaires.show', id));
-};
-</script>
 
 <style scoped>
 :deep(.p-card) {

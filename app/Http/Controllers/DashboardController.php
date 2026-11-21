@@ -99,12 +99,12 @@ class DashboardController extends Controller
                   ->orWhereRaw("LOWER(motif_radiation) LIKE '%desert%'");
             })->count();
 
-            $actifsStricts = Militaire::where('statut_code', 1)->count();
-            $totalDetaches = Militaire::where('statut_code', 2)->count();
-            $totalMissions = Militaire::where('statut_code', 3)->count();
-            $totalStages = Militaire::where('statut_code', 4)->count();
-            $totalRadies = Militaire::where('statut_code', 8)->count();
-            $totalNonClasses = Militaire::whereNull('statut_code')->count();
+            $totalDetaches = Effectif::appliquerFiltreDetaches($this->enActivite())->count();
+            $totalMissions = Effectif::appliquerFiltreMissions($this->enActivite())->count();
+            $totalStages = Effectif::appliquerFiltreStages($this->enActivite())->count();
+            $actifsStricts = Effectif::appliquerFiltreActifsStricts($this->enActivite())->count();
+            $totalRadies = Militaire::where('statut_code', 8)->orWhere('statut', 'radié')->count();
+            $totalNonClasses = Militaire::whereNull('statut_code')->whereNull('statut')->count();
 
             return [
                 'annee' => $anneeCourante,
@@ -120,6 +120,9 @@ class DashboardController extends Controller
                 'retraites_n' => $totalRetraitesN,
                 'decedes_cette_annee' => $totalDecedesCetteAnnee,
                 'deserteurs' => $totalDeserteurs,
+                'total_blesses' => \App\Models\RegistreOperationnel::where('type_registre_code', \App\Models\RegistreOperationnel::TYPE_BLESSE)->count(),
+                'total_grands_malades' => \App\Models\RegistreOperationnel::where('type_registre_code', \App\Models\RegistreOperationnel::TYPE_GRAND_MALADE)->count(),
+                'total_disparus' => \App\Models\RegistreOperationnel::where('type_registre_code', \App\Models\RegistreOperationnel::TYPE_DISPARU)->count(),
             ];
         });
     }
@@ -130,12 +133,9 @@ class DashboardController extends Controller
         $v ??= \App\Models\Militaire::getCacheVersion();
 
         return Cache::remember("v{$v}:dashboard:charts_data", 600, function () {
-            // 1. STATISTIQUES PAR STATUT (Situation de tous les personnels)
+            // 1. STATISTIQUES PAR STATUT (Situation Administrative Statutaire)
         $statutsMeta = [
             'actif' => ['num' => 1, 'label' => 'Actif (En service)', 'color' => '#059669', 'bg' => 'bg-emerald-50 text-emerald-800 border-emerald-200'],
-            'détaché' => ['num' => 2, 'label' => 'Détaché', 'color' => '#0284c7', 'bg' => 'bg-sky-50 text-sky-800 border-sky-200'],
-            'stage' => ['num' => 4, 'label' => 'En Stage / Formation', 'color' => '#06b6d4', 'bg' => 'bg-cyan-50 text-cyan-800 border-cyan-200'],
-            'mission' => ['num' => 3, 'label' => 'En mission', 'color' => '#6366f1', 'bg' => 'bg-indigo-50 text-indigo-800 border-indigo-200'],
             'procédure en cours' => ['num' => 5, 'label' => 'Procédure en cours', 'color' => '#d97706', 'bg' => 'bg-amber-50 text-amber-800 border-amber-200'],
             'déserteur' => ['num' => 6, 'label' => 'Déserteur', 'color' => '#ea580c', 'bg' => 'bg-orange-50 text-orange-800 border-orange-200'],
             'retraité' => ['num' => 7, 'label' => 'Retraité', 'color' => '#9333ea', 'bg' => 'bg-purple-50 text-purple-800 border-purple-200'],

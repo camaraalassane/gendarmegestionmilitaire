@@ -87,4 +87,72 @@ class Effectif
         $st = "LOWER(TRIM(COALESCE(statut,'')))";
         return (str_contains($motif, '%') || str_contains($motif, '_')) ? "{$st} LIKE '{$motif}'" : "{$st} = '{$motif}'";
     }
+
+    /**
+     * Filtre un QueryBuilder sur les personnels en détachement (ministères, organismes extérieurs).
+     */
+    public static function appliquerFiltreDetaches($query, string $prefix = '')
+    {
+        $p = $prefix ? rtrim($prefix, '.') . '.' : '';
+        return $query->where(function ($q) use ($p) {
+            $q->where("{$p}position_id", 26)
+              ->orWhere("{$p}position_actuelle", 'ILIKE', '%détach%')
+              ->orWhere("{$p}position_actuelle", 'ILIKE', '%detach%')
+              ->orWhere("{$p}statut_code", 2)
+              ->orWhere(function ($sq) use ($p) {
+                  $sq->whereNotNull("{$p}organisme_detachement_id")
+                     ->where("{$p}organisme_detachement_id", '!=', 1);
+              });
+        });
+    }
+
+    /**
+     * Filtre un QueryBuilder sur les personnels en stage / formation / école militaire.
+     */
+    public static function appliquerFiltreStages($query, string $prefix = '')
+    {
+        $p = $prefix ? rtrim($prefix, '.') . '.' : '';
+        return $query->where(function ($q) use ($p) {
+            $q->where("{$p}position_id", 28)
+              ->orWhere("{$p}position_actuelle", 'ILIKE', '%stag%')
+              ->orWhere("{$p}position_actuelle", 'ILIKE', '%format%')
+              ->orWhere("{$p}position_actuelle", 'ILIKE', '%cours-sup%')
+              ->orWhere("{$p}position_actuelle", 'ILIKE', '%ecole%')
+              ->orWhere("{$p}statut_code", 4);
+        });
+    }
+
+    /**
+     * Filtre un QueryBuilder sur les personnels déployés en mission.
+     */
+    public static function appliquerFiltreMissions($query, string $prefix = '')
+    {
+        $p = $prefix ? rtrim($prefix, '.') . '.' : '';
+        return $query->where(function ($q) use ($p) {
+            $q->where("{$p}position_id", 29)
+              ->orWhere("{$p}position_actuelle", 'ILIKE', '%miss%')
+              ->orWhere("{$p}statut_code", 3);
+        });
+    }
+
+    /**
+     * Filtre un QueryBuilder sur les personnels actifs au poste / corps de troupe Gendarmerie (hors détachés).
+     */
+    public static function appliquerFiltreActifsStricts($query, string $prefix = '')
+    {
+        $p = $prefix ? rtrim($prefix, '.') . '.' : '';
+        return $query->where(function ($q) use ($p) {
+            $q->where("{$p}statut_code", 1)->orWhere("{$p}statut", 'actif');
+        })->where(function ($q) use ($p) {
+            $q->where("{$p}organisme_detachement_id", 1)
+              ->orWhereNull("{$p}organisme_detachement_id");
+        })->where(function ($q) use ($p) {
+            $q->where("{$p}position_id", '!=', 26)->orWhereNull("{$p}position_id");
+        })->where(function ($q) use ($p) {
+            $q->where(function ($sq) use ($p) {
+                $sq->where("{$p}position_actuelle", 'NOT ILIKE', '%détach%')
+                   ->where("{$p}position_actuelle", 'NOT ILIKE', '%detach%');
+            })->orWhereNull("{$p}position_actuelle");
+        });
+    }
 }

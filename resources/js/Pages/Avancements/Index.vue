@@ -1,5 +1,496 @@
+<script setup>
+import { ref, computed, watch, onUnmounted } from 'vue';
+import { router } from '@inertiajs/vue3';
+import axios from 'axios';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import Toast from 'primevue/toast';
+import { useToast } from 'primevue/usetoast';
+import { downloadExport } from '@/Utils/exportHelper';
+
+const toast = useToast();
+
+const props = defineProps({
+    candidates: { type: Array, default: () => [] },
+    gradesOfficiers: { type: Array, default: () => [] },
+    gradesSousOfficiers: { type: Array, default: () => [] },
+    selectedAnnee: { type: Number, default: () => new Date().getFullYear() },
+    selectedGrade: { type: String, default: 'all' },
+    initialTab: { type: String, default: 'officiers' },
+    search: { type: String, default: '' },
+    stats: {
+        type: Object,
+        default: () => ({
+            total_candidats: 0,
+            total_officiers: 0,
+            total_sous_officiers: 0,
+            total_grades_officiers: 0,
+            total_grades_sous_officiers: 0,
+            total_enregistres: 0
+        })
+    }
+});
+
+// Onglet actif : 'officiers' ou 'sous_officiers'
+const activeTab = ref(props.initialTab || 'officiers');
+const currentAnnee = ref(props.selectedAnnee);
+const currentGrade = ref(props.selectedGrade || 'all');
+const searchQuery = ref(props.search);
+const saving = ref(false);
+const hasUnsavedChanges = ref(false);
+
+// Pagination
+const currentPage = ref(1);
+const perPage = ref(25);
+
+const dateImpression = new Date().toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+});
+
+// Données locales réactives
+const localCandidates = ref(JSON.parse(JSON.stringify(props.candidates)));
+
+watch(() => props.candidates, (newVal) => {
+    localCandidates.value = JSON.parse(JSON.stringify(newVal));
+    hasUnsavedChanges.value = false;
+});
+
+/**
+ * Grades disponibles selon l'onglet actif
+ */
+const activeAvailableGrades = computed(() => {
+    return activeTab.value === 'officiers' ? props.gradesOfficiers : props.gradesSousOfficiers;
+});
+
+// =========================================================================
+// GESTION DE LA TEMPORISATION DU CLASSEMENT (SAISIE PAR COLONNE FLUIDE)
+// =========================================================================
+const DELAY_RECLASSEMENT = 45; // 45 secondes de battement avant réorganisation
+const countdownSeconds = ref(DELAY_RECLASSEMENT);
+const countdownActive = ref(false);
+const sortVersion = ref(0);
+let countdownInterval = null;
+
+const demarrerOuReinitialiserCompteARebours = () => {
+    countdownSeconds.value = DELAY_RECLASSEMENT;
+    countdownActive.value = true;
+
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+    }
+
+    countdownInterval = setInterval(() => {
+        if (countdownSeconds.value > 1) {
+            countdownSeconds.value--;
+        } else {
+            arreterCompteARebours();
+            recalculerRangsOfficiers();
+            showNotification('info', 'Classement actualisé', 'Le tableau a été réorganisé selon les nouvelles notes saisies.');
+        }
+    }, 1000);
+};
+
+const arreterCompteARebours = () => {
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+    }
+    countdownActive.value = false;
+    countdownSeconds.value = DELAY_RECLASSEMENT;
+};
+
+const forcerReclassement = () => {
+    arreterCompteARebours();
+    recalculerRangsOfficiers();
+    showNotification('success', 'Classement actualisé', 'Les rangs et l\'ordre des officiers ont été mis à jour.');
+};
+
+// Navigation fluide au clavier dans les colonnes (Touche Entrée / Flèche Bas / Flèche Haut)
+const onCellKeydown = (event, colName) => {
+    if (event.key === 'ArrowDown' || event.key === 'Enter') {
+        event.preventDefault();
+        const inputs = Array.from(document.querySelectorAll(`input[data-col="${colName}"]`));
+        const idx = inputs.indexOf(event.target);
+        if (idx !== -1 && idx < inputs.length - 1) {
+            inputs[idx + 1].focus();
+            inputs[idx + 1].select();
+        }
+    } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        const inputs = Array.from(document.querySelectorAll(`input[data-col="${colName}"]`));
+        const idx = inputs.indexOf(event.target);
+        if (idx > 0) {
+            inputs[idx - 1].focus();
+            inputs[idx - 1].select();
+        }
+    }
+};
+
+onUnmounted(() => {
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+    }
+});
+
+/**
+ * Changement d'onglet
+ */
+const switchTab = (tab) => {
+    if (countdownActive.value) {
+        forcerReclassement();
+    }
+    activeTab.value = tab;
+    currentGrade.value = 'all';
+    currentPage.value = 1;
+};
+
+/**
+ * Calcul instantané de la ligne Officier
+ */
+const handleInputChange = (item) => {
+    // 1. Calcul du malus punition (-0.1 par jour)
+    const jours = Math.max(0, parseInt(item.jours_punition, 10) || 0);
+    item.jours_punition = jours;
+    item.malus_punition = Math.round(jours * 0.1 * 100) / 100;
+
+    // 2. Règle limite d'âge
+    if (item.annees_restantes_retraite !== null && item.annees_restantes_retraite !== undefined) {
+        if (item.annees_restantes_retraite <= 1) {
+            item.malus_limite_age = 2.0;
+        } else if (item.annees_restantes_retraite === 2) {
+            item.malus_limite_age = 1.0;
+        } else {
+            item.malus_limite_age = 0.0;
+        }
+    } else {
+        item.malus_limite_age = parseFloat(item.malus_limite_age) || 0;
+    }
+
+    // 3. Normalisation des valeurs numériques
+    const ptsFonction = parseFloat(item.points_fonction_actuelle) || 0;
+    const rendement = parseFloat(item.note_rendement) || 0;
+    const bonus = parseFloat(item.bonus_dernier_emploi) || 0;
+    const diplomes = parseFloat(item.points_diplomes) || 0;
+    const decos = parseFloat(item.points_decorations) || 0;
+    const ancGrade = parseFloat(item.points_anciennete_grade) || 0;
+
+    // 4. Total général (mis à jour immédiatement sur la ligne)
+    const total = rendement + ptsFonction + bonus + diplomes + decos + ancGrade - item.malus_limite_age - item.malus_punition;
+    item.total_points = Math.round(Math.max(0, total) * 100) / 100;
+
+    hasUnsavedChanges.value = true;
+
+    // 5. Ne pas réordonner la table immédiatement !
+    // Lancer ou réinitialiser le compte à rebours de 45 secondes pour laisser l'utilisateur saisir par colonne
+    demarrerOuReinitialiserCompteARebours();
+};
+
+/**
+ * Recalcule les rangs des Officiers par grade (par total_points décroissant)
+ */
+const recalculerRangsOfficiers = () => {
+    const groups = {};
+    localCandidates.value.filter(c => c.is_officier).forEach(c => {
+        const g = c.grade_actuel || 'Non défini';
+        if (!groups[g]) groups[g] = [];
+        groups[g].push(c);
+    });
+
+    Object.keys(groups).forEach(grade => {
+        groups[grade].sort((a, b) => {
+            if (b.total_points !== a.total_points) {
+                return b.total_points - a.total_points;
+            }
+            if (b.anciennete_grade_annees !== a.anciennete_grade_annees) {
+                return b.anciennete_grade_annees - a.anciennete_grade_annees;
+            }
+            return (a.nom || '').localeCompare(b.nom || '');
+        });
+
+        groups[grade].forEach((candidat, index) => {
+            candidat.rang = index + 1;
+        });
+    });
+
+    sortVersion.value++;
+};
+
+/**
+ * Candidats filtrés par l'onglet actif, puis le grade et la recherche
+ */
+const tabCandidates = computed(() => {
+    if (activeTab.value === 'officiers') {
+        return localCandidates.value.filter(c => !!c.is_officier);
+    } else {
+        return localCandidates.value.filter(c => !c.is_officier);
+    }
+});
+
+const filteredCandidates = computed(() => {
+    let list = tabCandidates.value;
+
+    if (currentGrade.value && currentGrade.value !== 'all') {
+        list = list.filter(c => (c.grade_actuel || '') === currentGrade.value);
+    }
+
+    if (searchQuery.value) {
+        const q = searchQuery.value.toLowerCase().trim();
+        list = list.filter(c =>
+            (c.nom && c.nom.toLowerCase().includes(q)) ||
+            (c.prenom && c.prenom.toLowerCase().includes(q)) ||
+            (c.matricule && c.matricule.toLowerCase().includes(q)) ||
+            (c.mle_grm && c.mle_grm.toLowerCase().includes(q))
+        );
+    }
+    return list;
+});
+
+/**
+ * Pagination
+ */
+const totalItems = computed(() => filteredCandidates.value.length);
+const totalPages = computed(() => Math.ceil(totalItems.value / perPage.value) || 1);
+
+const visiblePages = computed(() => {
+    const pages = [];
+    const max = 5;
+    let start = Math.max(1, currentPage.value - Math.floor(max / 2));
+    let end = Math.min(totalPages.value, start + max - 1);
+    if (end - start + 1 < max) {
+        start = Math.max(1, end - max + 1);
+    }
+    for (let i = start; i <= end; i++) {
+        pages.push(i);
+    }
+    return pages;
+});
+
+const paginatedCandidates = computed(() => {
+    if (perPage.value >= 9999) {
+        return filteredCandidates.value;
+    }
+    const start = (currentPage.value - 1) * perPage.value;
+    return filteredCandidates.value.slice(start, start + perPage.value);
+});
+
+const paginationInfo = computed(() => {
+    const total = totalItems.value;
+    if (total === 0) return { from: 0, to: 0, total: 0 };
+    const from = (currentPage.value - 1) * perPage.value + 1;
+    const to = Math.min(currentPage.value * perPage.value, total);
+    return { from, to, total };
+});
+
+/**
+ * Regroupement par Grade
+ */
+const paginatedGroupedByGrade = computed(() => {
+    // Dépendance réactive explicite pour re-trier lors de l'expiration du décompte ou forçage
+    const _ = sortVersion.value;
+
+    const map = {};
+    paginatedCandidates.value.forEach(c => {
+        const grade = c.grade_actuel || 'Non défini';
+        if (!map[grade]) {
+            map[grade] = [];
+        }
+        map[grade].push(c);
+    });
+
+    Object.keys(map).forEach(grade => {
+        map[grade].sort((a, b) => a.rang - b.rang);
+    });
+
+    return map;
+});
+
+/**
+ * Modals & Notifications
+ */
+const showImportConfirmModal = ref(false);
+const pendingImportFile = ref(null);
+
+const notification = ref({
+    show: false,
+    type: 'success',
+    title: '',
+    message: ''
+});
+
+const showNotification = (type, title, message) => {
+    notification.value = {
+        show: true,
+        type,
+        title,
+        message
+    };
+};
+
+const closeNotification = () => {
+    notification.value.show = false;
+};
+
+/**
+ * Sauvegarde des notes (Officiers)
+ */
+const saveNotes = async () => {
+    // S'assurer que le classement est à jour et arrêter le compte à rebours
+    if (countdownActive.value) {
+        arreterCompteARebours();
+    }
+    recalculerRangsOfficiers();
+
+    saving.value = true;
+    try {
+        const itemsToSave = localCandidates.value.filter(c => c.is_officier).map(c => ({
+            militaire_id: c.militaire_id,
+            grade_actuel: c.grade_actuel,
+            grade_cible: c.grade_cible,
+            fonction_actuelle: c.fonction_nom,
+            points_fonction_actuelle: c.points_fonction_actuelle,
+            note_rendement: c.note_rendement,
+            bonus_dernier_emploi: c.bonus_dernier_emploi,
+            points_diplomes: c.points_diplomes,
+            points_decorations: c.points_decorations,
+            points_anciennete_grade: c.points_anciennete_grade,
+            jours_punition: c.jours_punition,
+            annees_restantes_retraite: c.annees_restantes_retraite,
+            malus_limite_age: c.malus_limite_age
+        }));
+
+        const response = await axios.post('/avancements/save', {
+            annee: currentAnnee.value,
+            items: itemsToSave
+        });
+
+        if (response.data?.success) {
+            hasUnsavedChanges.value = false;
+            localCandidates.value.forEach(c => c.est_enregistre = true);
+            showNotification('success', 'Enregistrement réussi', 'Les notes et classements des officiers ont été enregistrés avec succès.');
+        } else {
+            showNotification('error', 'Erreur d\'enregistrement', response.data?.message || 'Une erreur est survenue lors de l\'enregistrement.');
+        }
+    } catch (error) {
+        console.error('Erreur sauvegarde avancements:', error);
+        showNotification('error', 'Erreur d\'enregistrement', 'Impossible d\'enregistrer les notes. Veuillez vérifier les valeurs saisies.');
+    } finally {
+        saving.value = false;
+    }
+};
+
+const exportProgressText = ref('');
+const exporting = ref(false);
+
+const exportExcel = async () => {
+    const params = new URLSearchParams({
+        annee: currentAnnee.value,
+        grade: currentGrade.value,
+        tab: activeTab.value
+    });
+    const url = `/avancements/export?${params.toString()}`;
+    const tabName = activeTab.value === 'officiers' ? 'Officiers' : 'Sous_Officiers';
+
+    await downloadExport(url, {
+        defaultFilename: `Tableau_Avancement_${tabName}_${currentAnnee.value}.xlsx`,
+        toast,
+        onStart: () => {
+            exporting.value = true;
+            exportProgressText.value = 'Génération du tableau d\'avancement en cours...';
+        },
+        onProgress: (percent) => {
+            if (percent !== null) {
+                exportProgressText.value = `Téléchargement : ${percent}%`;
+            } else {
+                exportProgressText.value = 'Réception du fichier Excel...';
+            }
+        },
+        onFinish: () => {
+            exporting.value = false;
+            exportProgressText.value = '';
+        },
+        loadingMessage: `Préparation du tableau d'avancement (${tabName})... Veuillez patienter.`,
+        successMessage: `Tableau d'avancement (${tabName}) téléchargé avec succès !`
+    });
+};
+
+/**
+ * Import Excel via Modal de Confirmation (Officiers)
+ */
+const fileInputRef = ref(null);
+const importing = ref(false);
+
+const triggerFileInput = () => {
+    fileInputRef.value?.click();
+};
+
+const onFileSelected = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    pendingImportFile.value = file;
+    showImportConfirmModal.value = true;
+};
+
+const cancelImport = () => {
+    showImportConfirmModal.value = false;
+    pendingImportFile.value = null;
+    if (fileInputRef.value) {
+        fileInputRef.value.value = '';
+    }
+};
+
+const confirmAndExecuteImport = async () => {
+    if (!pendingImportFile.value) return;
+
+    const formData = new FormData();
+    formData.append('file', pendingImportFile.value);
+    formData.append('annee', currentAnnee.value);
+
+    importing.value = true;
+    try {
+        const response = await axios.post('/avancements/import', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+
+        showImportConfirmModal.value = false;
+        pendingImportFile.value = null;
+        if (fileInputRef.value) fileInputRef.value.value = '';
+
+        if (response.data?.success) {
+            showNotification('success', 'Importation terminée', response.data.message || 'Notes et classements mis à jour avec succès.');
+            router.reload({ preserveScroll: true });
+        } else {
+            showNotification('error', 'Erreur d\'importation', response.data?.message || 'Erreur lors de l\'importation.');
+        }
+    } catch (err) {
+        showImportConfirmModal.value = false;
+        console.error('Erreur import avancements:', err);
+        const msg = err.response?.data?.message || 'Erreur lors de l\'importation du fichier Excel.';
+        showNotification('error', 'Échec de l\'importation', msg);
+    } finally {
+        importing.value = false;
+    }
+};
+
+/**
+ * Impression officielle paysage plein écran sans coupure de colonnes
+ */
+const printTable = () => {
+    const prevPerPage = perPage.value;
+    perPage.value = 9999; // Affiche tous les candidats sans pagination
+    setTimeout(() => {
+        window.print();
+        setTimeout(() => {
+            perPage.value = prevPerPage;
+        }, 1000);
+    }, 300);
+};
+</script>
+
 <template>
     <AuthenticatedLayout>
+        <Toast position="top-right" />
         <!-- Header épuré -->
         <template #header>
             <div class="flex items-center justify-between">
@@ -186,7 +677,7 @@
                         <button @click="exportExcel" :disabled="exporting"
                             class="px-3 py-1.5 bg-sky-700 hover:bg-sky-800 text-white font-bold rounded-lg shadow-xs flex items-center gap-1.5 transition-all text-xs disabled:opacity-50 cursor-pointer">
                             <i :class="exporting ? 'pi pi-spin pi-spinner' : 'pi pi-file-excel text-sky-200'"></i>
-                            <span>{{ exporting ? 'Export...' : (activeTab === 'officiers' ? 'Exporter Excel (Officiers)' : 'Exporter Excel (Sous-officiers)') }}</span>
+                            <span>{{ exporting ? (exportProgressText || 'Exportation...') : (activeTab === 'officiers' ? 'Exporter Excel (Officiers)' : 'Exporter Excel (Sous-officiers)') }}</span>
                         </button>
 
                         <!-- Importer Excel (Uniquement Officiers) -->
@@ -794,491 +1285,6 @@
         </div>
     </AuthenticatedLayout>
 </template>
-
-<script setup>
-import { ref, computed, watch, onUnmounted } from 'vue';
-import { router } from '@inertiajs/vue3';
-import axios from 'axios';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-
-const props = defineProps({
-    candidates: { type: Array, default: () => [] },
-    gradesOfficiers: { type: Array, default: () => [] },
-    gradesSousOfficiers: { type: Array, default: () => [] },
-    selectedAnnee: { type: Number, default: () => new Date().getFullYear() },
-    selectedGrade: { type: String, default: 'all' },
-    initialTab: { type: String, default: 'officiers' },
-    search: { type: String, default: '' },
-    stats: {
-        type: Object,
-        default: () => ({
-            total_candidats: 0,
-            total_officiers: 0,
-            total_sous_officiers: 0,
-            total_grades_officiers: 0,
-            total_grades_sous_officiers: 0,
-            total_enregistres: 0
-        })
-    }
-});
-
-// Onglet actif : 'officiers' ou 'sous_officiers'
-const activeTab = ref(props.initialTab || 'officiers');
-const currentAnnee = ref(props.selectedAnnee);
-const currentGrade = ref(props.selectedGrade || 'all');
-const searchQuery = ref(props.search);
-const saving = ref(false);
-const hasUnsavedChanges = ref(false);
-
-// Pagination
-const currentPage = ref(1);
-const perPage = ref(25);
-
-const dateImpression = new Date().toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-});
-
-// Données locales réactives
-const localCandidates = ref(JSON.parse(JSON.stringify(props.candidates)));
-
-watch(() => props.candidates, (newVal) => {
-    localCandidates.value = JSON.parse(JSON.stringify(newVal));
-    hasUnsavedChanges.value = false;
-});
-
-/**
- * Grades disponibles selon l'onglet actif
- */
-const activeAvailableGrades = computed(() => {
-    return activeTab.value === 'officiers' ? props.gradesOfficiers : props.gradesSousOfficiers;
-});
-
-// =========================================================================
-// GESTION DE LA TEMPORISATION DU CLASSEMENT (SAISIE PAR COLONNE FLUIDE)
-// =========================================================================
-const DELAY_RECLASSEMENT = 45; // 45 secondes de battement avant réorganisation
-const countdownSeconds = ref(DELAY_RECLASSEMENT);
-const countdownActive = ref(false);
-const sortVersion = ref(0);
-let countdownInterval = null;
-
-const demarrerOuReinitialiserCompteARebours = () => {
-    countdownSeconds.value = DELAY_RECLASSEMENT;
-    countdownActive.value = true;
-
-    if (countdownInterval) {
-        clearInterval(countdownInterval);
-    }
-
-    countdownInterval = setInterval(() => {
-        if (countdownSeconds.value > 1) {
-            countdownSeconds.value--;
-        } else {
-            arreterCompteARebours();
-            recalculerRangsOfficiers();
-            showNotification('info', 'Classement actualisé', 'Le tableau a été réorganisé selon les nouvelles notes saisies.');
-        }
-    }, 1000);
-};
-
-const arreterCompteARebours = () => {
-    if (countdownInterval) {
-        clearInterval(countdownInterval);
-        countdownInterval = null;
-    }
-    countdownActive.value = false;
-    countdownSeconds.value = DELAY_RECLASSEMENT;
-};
-
-const forcerReclassement = () => {
-    arreterCompteARebours();
-    recalculerRangsOfficiers();
-    showNotification('success', 'Classement actualisé', 'Les rangs et l\'ordre des officiers ont été mis à jour.');
-};
-
-// Navigation fluide au clavier dans les colonnes (Touche Entrée / Flèche Bas / Flèche Haut)
-const onCellKeydown = (event, colName) => {
-    if (event.key === 'ArrowDown' || event.key === 'Enter') {
-        event.preventDefault();
-        const inputs = Array.from(document.querySelectorAll(`input[data-col="${colName}"]`));
-        const idx = inputs.indexOf(event.target);
-        if (idx !== -1 && idx < inputs.length - 1) {
-            inputs[idx + 1].focus();
-            inputs[idx + 1].select();
-        }
-    } else if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        const inputs = Array.from(document.querySelectorAll(`input[data-col="${colName}"]`));
-        const idx = inputs.indexOf(event.target);
-        if (idx > 0) {
-            inputs[idx - 1].focus();
-            inputs[idx - 1].select();
-        }
-    }
-};
-
-onUnmounted(() => {
-    if (countdownInterval) {
-        clearInterval(countdownInterval);
-    }
-});
-
-/**
- * Changement d'onglet
- */
-const switchTab = (tab) => {
-    if (countdownActive.value) {
-        forcerReclassement();
-    }
-    activeTab.value = tab;
-    currentGrade.value = 'all';
-    currentPage.value = 1;
-};
-
-/**
- * Calcul instantané de la ligne Officier
- */
-const handleInputChange = (item) => {
-    // 1. Calcul du malus punition (-0.1 par jour)
-    const jours = Math.max(0, parseInt(item.jours_punition, 10) || 0);
-    item.jours_punition = jours;
-    item.malus_punition = Math.round(jours * 0.1 * 100) / 100;
-
-    // 2. Règle limite d'âge
-    if (item.annees_restantes_retraite !== null && item.annees_restantes_retraite !== undefined) {
-        if (item.annees_restantes_retraite <= 1) {
-            item.malus_limite_age = 2.0;
-        } else if (item.annees_restantes_retraite === 2) {
-            item.malus_limite_age = 1.0;
-        } else {
-            item.malus_limite_age = 0.0;
-        }
-    } else {
-        item.malus_limite_age = parseFloat(item.malus_limite_age) || 0;
-    }
-
-    // 3. Normalisation des valeurs numériques
-    const ptsFonction = parseFloat(item.points_fonction_actuelle) || 0;
-    const rendement = parseFloat(item.note_rendement) || 0;
-    const bonus = parseFloat(item.bonus_dernier_emploi) || 0;
-    const diplomes = parseFloat(item.points_diplomes) || 0;
-    const decos = parseFloat(item.points_decorations) || 0;
-    const ancGrade = parseFloat(item.points_anciennete_grade) || 0;
-
-    // 4. Total général (mis à jour immédiatement sur la ligne)
-    const total = rendement + ptsFonction + bonus + diplomes + decos + ancGrade - item.malus_limite_age - item.malus_punition;
-    item.total_points = Math.round(Math.max(0, total) * 100) / 100;
-
-    hasUnsavedChanges.value = true;
-
-    // 5. Ne pas réordonner la table immédiatement !
-    // Lancer ou réinitialiser le compte à rebours de 45 secondes pour laisser l'utilisateur saisir par colonne
-    demarrerOuReinitialiserCompteARebours();
-};
-
-/**
- * Recalcule les rangs des Officiers par grade (par total_points décroissant)
- */
-const recalculerRangsOfficiers = () => {
-    const groups = {};
-    localCandidates.value.filter(c => c.is_officier).forEach(c => {
-        const g = c.grade_actuel || 'Non défini';
-        if (!groups[g]) groups[g] = [];
-        groups[g].push(c);
-    });
-
-    Object.keys(groups).forEach(grade => {
-        groups[grade].sort((a, b) => {
-            if (b.total_points !== a.total_points) {
-                return b.total_points - a.total_points;
-            }
-            if (b.anciennete_grade_annees !== a.anciennete_grade_annees) {
-                return b.anciennete_grade_annees - a.anciennete_grade_annees;
-            }
-            return (a.nom || '').localeCompare(b.nom || '');
-        });
-
-        groups[grade].forEach((candidat, index) => {
-            candidat.rang = index + 1;
-        });
-    });
-
-    sortVersion.value++;
-};
-
-/**
- * Candidats filtrés par l'onglet actif, puis le grade et la recherche
- */
-const tabCandidates = computed(() => {
-    if (activeTab.value === 'officiers') {
-        return localCandidates.value.filter(c => !!c.is_officier);
-    } else {
-        return localCandidates.value.filter(c => !c.is_officier);
-    }
-});
-
-const filteredCandidates = computed(() => {
-    let list = tabCandidates.value;
-
-    if (currentGrade.value && currentGrade.value !== 'all') {
-        list = list.filter(c => (c.grade_actuel || '') === currentGrade.value);
-    }
-
-    if (searchQuery.value) {
-        const q = searchQuery.value.toLowerCase().trim();
-        list = list.filter(c =>
-            (c.nom && c.nom.toLowerCase().includes(q)) ||
-            (c.prenom && c.prenom.toLowerCase().includes(q)) ||
-            (c.matricule && c.matricule.toLowerCase().includes(q)) ||
-            (c.mle_grm && c.mle_grm.toLowerCase().includes(q))
-        );
-    }
-    return list;
-});
-
-/**
- * Pagination
- */
-const totalItems = computed(() => filteredCandidates.value.length);
-const totalPages = computed(() => Math.ceil(totalItems.value / perPage.value) || 1);
-
-const visiblePages = computed(() => {
-    const pages = [];
-    const max = 5;
-    let start = Math.max(1, currentPage.value - Math.floor(max / 2));
-    let end = Math.min(totalPages.value, start + max - 1);
-    if (end - start + 1 < max) {
-        start = Math.max(1, end - max + 1);
-    }
-    for (let i = start; i <= end; i++) {
-        pages.push(i);
-    }
-    return pages;
-});
-
-const paginatedCandidates = computed(() => {
-    if (perPage.value >= 9999) {
-        return filteredCandidates.value;
-    }
-    const start = (currentPage.value - 1) * perPage.value;
-    return filteredCandidates.value.slice(start, start + perPage.value);
-});
-
-const paginationInfo = computed(() => {
-    const total = totalItems.value;
-    if (total === 0) return { from: 0, to: 0, total: 0 };
-    const from = (currentPage.value - 1) * perPage.value + 1;
-    const to = Math.min(currentPage.value * perPage.value, total);
-    return { from, to, total };
-});
-
-/**
- * Regroupement par Grade
- */
-const paginatedGroupedByGrade = computed(() => {
-    // Dépendance réactive explicite pour re-trier lors de l'expiration du décompte ou forçage
-    const _ = sortVersion.value;
-
-    const map = {};
-    paginatedCandidates.value.forEach(c => {
-        const grade = c.grade_actuel || 'Non défini';
-        if (!map[grade]) {
-            map[grade] = [];
-        }
-        map[grade].push(c);
-    });
-
-    Object.keys(map).forEach(grade => {
-        map[grade].sort((a, b) => a.rang - b.rang);
-    });
-
-    return map;
-});
-
-/**
- * Modals & Notifications
- */
-const showImportConfirmModal = ref(false);
-const pendingImportFile = ref(null);
-
-const notification = ref({
-    show: false,
-    type: 'success',
-    title: '',
-    message: ''
-});
-
-const showNotification = (type, title, message) => {
-    notification.value = {
-        show: true,
-        type,
-        title,
-        message
-    };
-};
-
-const closeNotification = () => {
-    notification.value.show = false;
-};
-
-/**
- * Sauvegarde des notes (Officiers)
- */
-const saveNotes = async () => {
-    // S'assurer que le classement est à jour et arrêter le compte à rebours
-    if (countdownActive.value) {
-        arreterCompteARebours();
-    }
-    recalculerRangsOfficiers();
-
-    saving.value = true;
-    try {
-        const itemsToSave = localCandidates.value.filter(c => c.is_officier).map(c => ({
-            militaire_id: c.militaire_id,
-            grade_actuel: c.grade_actuel,
-            grade_cible: c.grade_cible,
-            fonction_actuelle: c.fonction_nom,
-            points_fonction_actuelle: c.points_fonction_actuelle,
-            note_rendement: c.note_rendement,
-            bonus_dernier_emploi: c.bonus_dernier_emploi,
-            points_diplomes: c.points_diplomes,
-            points_decorations: c.points_decorations,
-            points_anciennete_grade: c.points_anciennete_grade,
-            jours_punition: c.jours_punition,
-            annees_restantes_retraite: c.annees_restantes_retraite,
-            malus_limite_age: c.malus_limite_age
-        }));
-
-        const response = await axios.post('/avancements/save', {
-            annee: currentAnnee.value,
-            items: itemsToSave
-        });
-
-        if (response.data?.success) {
-            hasUnsavedChanges.value = false;
-            localCandidates.value.forEach(c => c.est_enregistre = true);
-            showNotification('success', 'Enregistrement réussi', 'Les notes et classements des officiers ont été enregistrés avec succès.');
-        } else {
-            showNotification('error', 'Erreur d\'enregistrement', response.data?.message || 'Une erreur est survenue lors de l\'enregistrement.');
-        }
-    } catch (error) {
-        console.error('Erreur sauvegarde avancements:', error);
-        showNotification('error', 'Erreur d\'enregistrement', 'Impossible d\'enregistrer les notes. Veuillez vérifier les valeurs saisies.');
-    } finally {
-        saving.value = false;
-    }
-};
-
-const exporting = ref(false);
-const exportExcel = async () => {
-    try {
-        exporting.value = true;
-        const params = new URLSearchParams({
-            annee: currentAnnee.value,
-            grade: currentGrade.value,
-            tab: activeTab.value
-        });
-        const url = `/avancements/export?${params.toString()}`;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Erreur lors du téléchargement');
-        const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        const tabName = activeTab.value === 'officiers' ? 'Officiers' : 'Sous_Officiers';
-        a.download = `Tableau_Avancement_${tabName}_${currentAnnee.value}.xlsx`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(blobUrl);
-    } catch (e) {
-        console.error(e);
-        const params = new URLSearchParams({
-            annee: currentAnnee.value,
-            grade: currentGrade.value,
-            tab: activeTab.value
-        });
-        window.open(`/avancements/export?${params.toString()}`, '_blank');
-    } finally {
-        exporting.value = false;
-    }
-};
-
-/**
- * Import Excel via Modal de Confirmation (Officiers)
- */
-const fileInputRef = ref(null);
-const importing = ref(false);
-
-const triggerFileInput = () => {
-    fileInputRef.value?.click();
-};
-
-const onFileSelected = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    pendingImportFile.value = file;
-    showImportConfirmModal.value = true;
-};
-
-const cancelImport = () => {
-    showImportConfirmModal.value = false;
-    pendingImportFile.value = null;
-    if (fileInputRef.value) {
-        fileInputRef.value.value = '';
-    }
-};
-
-const confirmAndExecuteImport = async () => {
-    if (!pendingImportFile.value) return;
-
-    const formData = new FormData();
-    formData.append('file', pendingImportFile.value);
-    formData.append('annee', currentAnnee.value);
-
-    importing.value = true;
-    try {
-        const response = await axios.post('/avancements/import', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
-
-        showImportConfirmModal.value = false;
-        pendingImportFile.value = null;
-        if (fileInputRef.value) fileInputRef.value.value = '';
-
-        if (response.data?.success) {
-            showNotification('success', 'Importation terminée', response.data.message || 'Notes et classements mis à jour avec succès.');
-            router.reload({ preserveScroll: true });
-        } else {
-            showNotification('error', 'Erreur d\'importation', response.data?.message || 'Erreur lors de l\'importation.');
-        }
-    } catch (err) {
-        showImportConfirmModal.value = false;
-        console.error('Erreur import avancements:', err);
-        const msg = err.response?.data?.message || 'Erreur lors de l\'importation du fichier Excel.';
-        showNotification('error', 'Échec de l\'importation', msg);
-    } finally {
-        importing.value = false;
-    }
-};
-
-/**
- * Impression officielle paysage plein écran sans coupure de colonnes
- */
-const printTable = () => {
-    const prevPerPage = perPage.value;
-    perPage.value = 9999; // Affiche tous les candidats sans pagination
-    setTimeout(() => {
-        window.print();
-        setTimeout(() => {
-            perPage.value = prevPerPage;
-        }, 1000);
-    }, 300);
-};
-</script>
 
 <style scoped>
 @media print {

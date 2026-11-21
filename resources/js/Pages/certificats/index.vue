@@ -1,3 +1,135 @@
+<script setup>
+import { ref, reactive, watch } from 'vue';
+import { router } from '@inertiajs/vue3';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import Button from 'primevue/button';
+import InputText from 'primevue/inputtext';
+import Select from 'primevue/select';
+import DataTable from 'primevue/datatable';
+import Column from 'primevue/column';
+import Tag from 'primevue/tag';
+import Badge from 'primevue/badge';
+import Toast from 'primevue/toast';
+import { useToast } from 'primevue/usetoast';
+import debounce from 'lodash/debounce';
+
+const props = defineProps({
+    certificats: {
+        type: Object,
+        required: true
+    }
+});
+
+const toast = useToast();
+const loading = ref(false);
+
+// Options de filtres par niveau
+const niveauxOptions = [
+    { label: 'Tous les niveaux', value: null },
+    { label: 'CAT1', value: 'CAT1' },
+    { label: 'CAT2', value: 'CAT2' },
+    { label: 'CIA', value: 'CIA' },
+    { label: 'BSP', value: 'BSP' },
+    { label: 'BSG', value: 'BSG' },
+    { label: 'BSC', value: 'BSC' },
+    { label: 'CSG', value: 'CSG' }
+];
+
+// État des filtres
+const filters = reactive({
+    search: '',
+    niveau: null
+});
+
+// Déterminer le style du badge selon le niveau
+const getNiveauStyle = (niveau) => {
+    const styles = {
+        'CAT1': { background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', fontWeight: '600' },
+        'CAT2': { background: '#dbeafe', color: '#1d4ed8', border: '1px solid #bfdbfe', fontWeight: '600' },
+        'CIA':  { background: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe', fontWeight: '600' },
+        'BSP':  { background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', fontWeight: '600' },
+        'BSG':  { background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', fontWeight: '600' },
+        'BSC':  { background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', fontWeight: '600' },
+        'CSG':  { background: '#f5f3ff', color: '#6d28d9', border: '1px solid #ddd6fe', fontWeight: '600' }
+    };
+    return styles[niveau] || { background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', fontWeight: '600' };
+};
+
+// Recherche automatique avec debounce
+const debouncedSearch = debounce(() => {
+    loadCertificats(1);
+}, 500);
+
+const onSearchInput = () => {
+    debouncedSearch();
+};
+
+const onFilterChange = () => {
+    loadCertificats(1);
+};
+
+// Watcher pour surveiller les changements de recherche
+watch(() => filters.search, () => {
+    debouncedSearch();
+});
+
+watch(() => filters.niveau, () => {
+    loadCertificats(1);
+});
+
+// Charger les certificats avec les filtres
+const loadCertificats = (page = 1) => {
+    loading.value = true;
+    
+    router.get(route('certificats.index'), {
+        page,
+        search: filters.search,
+        niveau: filters.niveau
+    }, {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            loading.value = false;
+        },
+        onError: (errors) => {
+            loading.value = false;
+            toast.add({
+                severity: 'error',
+                summary: 'Erreur',
+                detail: 'Impossible de charger les certificats',
+                life: 3000
+            });
+        }
+    });
+};
+
+// Réinitialiser les filtres
+const resetFilters = () => {
+    filters.search = '';
+    filters.niveau = null;
+};
+
+// Changement de page via la pagination DataTable
+const onPageChange = (event) => {
+    loadCertificats(event.page + 1);
+};
+
+// Voir les détails d'un certificat
+const viewCertificat = (id) => {
+    router.visit(route('certificats.show', id));
+};
+
+// Créer un nouveau certificat
+const createCertificat = () => {
+    toast.add({
+        severity: 'info',
+        summary: 'Information',
+        detail: 'Fonctionnalité de création à venir',
+        life: 3000
+    });
+};
+</script>
+
 <template>
     <AuthenticatedLayout>
         <template #header>
@@ -165,138 +297,6 @@
         <Toast position="top-right" />
     </AuthenticatedLayout>
 </template>
-
-<script setup>
-import { ref, reactive, watch } from 'vue';
-import { router } from '@inertiajs/vue3';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import Button from 'primevue/button';
-import InputText from 'primevue/inputtext';
-import Select from 'primevue/select';
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
-import Tag from 'primevue/tag';
-import Badge from 'primevue/badge';
-import Toast from 'primevue/toast';
-import { useToast } from 'primevue/usetoast';
-import debounce from 'lodash/debounce';
-
-const props = defineProps({
-    certificats: {
-        type: Object,
-        required: true
-    }
-});
-
-const toast = useToast();
-const loading = ref(false);
-
-// Options de filtres par niveau
-const niveauxOptions = [
-    { label: 'Tous les niveaux', value: null },
-    { label: 'CAT1', value: 'CAT1' },
-    { label: 'CAT2', value: 'CAT2' },
-    { label: 'CIA', value: 'CIA' },
-    { label: 'BSP', value: 'BSP' },
-    { label: 'BSG', value: 'BSG' },
-    { label: 'BSC', value: 'BSC' },
-    { label: 'CSG', value: 'CSG' }
-];
-
-// État des filtres
-const filters = reactive({
-    search: '',
-    niveau: null
-});
-
-// Déterminer le style du badge selon le niveau
-const getNiveauStyle = (niveau) => {
-    const styles = {
-        'CAT1': { background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', fontWeight: '600' },
-        'CAT2': { background: '#dbeafe', color: '#1d4ed8', border: '1px solid #bfdbfe', fontWeight: '600' },
-        'CIA':  { background: '#e0e7ff', color: '#4338ca', border: '1px solid #c7d2fe', fontWeight: '600' },
-        'BSP':  { background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', fontWeight: '600' },
-        'BSG':  { background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', fontWeight: '600' },
-        'BSC':  { background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', fontWeight: '600' },
-        'CSG':  { background: '#f5f3ff', color: '#6d28d9', border: '1px solid #ddd6fe', fontWeight: '600' }
-    };
-    return styles[niveau] || { background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', fontWeight: '600' };
-};
-
-// Recherche automatique avec debounce
-const debouncedSearch = debounce(() => {
-    loadCertificats(1);
-}, 500);
-
-const onSearchInput = () => {
-    debouncedSearch();
-};
-
-const onFilterChange = () => {
-    loadCertificats(1);
-};
-
-// Watcher pour surveiller les changements de recherche
-watch(() => filters.search, () => {
-    debouncedSearch();
-});
-
-watch(() => filters.niveau, () => {
-    loadCertificats(1);
-});
-
-// Charger les certificats avec les filtres
-const loadCertificats = (page = 1) => {
-    loading.value = true;
-    
-    router.get(route('certificats.index'), {
-        page,
-        search: filters.search,
-        niveau: filters.niveau
-    }, {
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: () => {
-            loading.value = false;
-        },
-        onError: (errors) => {
-            loading.value = false;
-            toast.add({
-                severity: 'error',
-                summary: 'Erreur',
-                detail: 'Impossible de charger les certificats',
-                life: 3000
-            });
-        }
-    });
-};
-
-// Réinitialiser les filtres
-const resetFilters = () => {
-    filters.search = '';
-    filters.niveau = null;
-};
-
-// Changement de page via la pagination DataTable
-const onPageChange = (event) => {
-    loadCertificats(event.page + 1);
-};
-
-// Voir les détails d'un certificat
-const viewCertificat = (id) => {
-    router.visit(route('certificats.show', id));
-};
-
-// Créer un nouveau certificat
-const createCertificat = () => {
-    toast.add({
-        severity: 'info',
-        summary: 'Information',
-        detail: 'Fonctionnalité de création à venir',
-        life: 3000
-    });
-};
-</script>
 
 <style scoped>
 :deep(.p-datatable) {

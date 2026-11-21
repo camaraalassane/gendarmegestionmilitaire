@@ -1,3 +1,136 @@
+<script setup>
+import { ref } from 'vue';
+import { router } from '@inertiajs/vue3';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import Card from 'primevue/card';
+import Message from 'primevue/message';
+import Accordion from 'primevue/accordion';
+import AccordionPanel from 'primevue/accordionpanel';
+import AccordionHeader from 'primevue/accordionheader';
+import AccordionContent from 'primevue/accordioncontent';
+import FileUpload from 'primevue/fileupload';
+import Button from 'primevue/button';
+import Divider from 'primevue/divider';
+import Tag from 'primevue/tag';
+import Toast from 'primevue/toast';
+import DataTable from 'primevue/datatable';
+import Column from 'primevue/column';
+import { useToast } from 'primevue/usetoast';
+
+const toast = useToast();
+const uploading = ref(false);
+const file = ref(null);
+const errors = ref({});
+const duplicates = ref([]);
+const duplicateAction = ref('ignore');
+const importSummary = ref(null);
+
+const onFileSelect = (event) => {
+    file.value = event.files[0];
+    errors.value.fichier = null;
+    duplicates.value = [];
+    importSummary.value = null;
+};
+
+const onFileRemove = () => {
+    file.value = null;
+    duplicates.value = [];
+    importSummary.value = null;
+};
+
+const setDuplicateAction = (action) => {
+    duplicateAction.value = action;
+};
+
+const submitForm = () => {
+    if (!file.value) {
+        errors.value.fichier = 'Veuillez sélectionner un fichier';
+        return;
+    }
+
+    uploading.value = true;
+    errors.value = {};
+
+    const formData = new FormData();
+    formData.append('fichier', file.value);
+    formData.append('duplicate_action', duplicateAction.value);
+
+    router.post(route('militaires.import.process'), formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data'
+        },
+        onSuccess: (page) => {
+            uploading.value = false;
+
+            if (page.props.duplicates && page.props.duplicates.length > 0) {
+                duplicates.value = page.props.duplicates;
+                toast.add({
+                    severity: 'warn',
+                    summary: '⚠️ Doublons détectés',
+                    detail: `${page.props.duplicates.length} matricule(s) existent déjà dans la base`,
+                    life: 5000
+                });
+                file.value = null;
+                return;
+            }
+
+            if (page.props.import_summary) {
+                importSummary.value = page.props.import_summary;
+                if (importSummary.value.hasErrors) {
+                    toast.add({
+                        severity: 'error',
+                        summary: '❌ Import terminé avec erreurs',
+                        detail: `${importSummary.value.errors} erreur(s) rencontrée(s)`,
+                        life: 5000
+                    });
+                } else {
+                    toast.add({
+                        severity: 'success',
+                        summary: '✅ Importation réussie',
+                        detail: `${importSummary.value.created} créé(s), ${importSummary.value.updated} mis à jour, ${importSummary.value.skipped} ignoré(s)`,
+                        life: 5000
+                    });
+                }
+            }
+
+            file.value = null;
+            const fileUpload = document.querySelector('.p-fileupload');
+            if (fileUpload) {
+                fileUpload.__vueParentComponent?.reset();
+            }
+
+            if (!importSummary.value?.hasErrors) {
+                setTimeout(() => {
+                    router.visit(route('militaires.index'));
+                }, 3000);
+            }
+        },
+        onError: (err) => {
+            uploading.value = false;
+            errors.value = err;
+            toast.add({
+                severity: 'error',
+                summary: '❌ Erreur',
+                detail: err.fichier || 'Erreur lors de l\'importation',
+                life: 5000
+            });
+        }
+    });
+};
+
+const downloadTemplate = () => {
+    window.location.href = route('militaires.import.template.xlsx');
+};
+
+const downloadTemplateCSV = () => {
+    window.location.href = route('militaires.import.template.csv');
+};
+
+const cancel = () => {
+    router.visit(route('militaires.index'));
+};
+</script>
+
 <template>
     <AuthenticatedLayout>
         <template #header>
@@ -558,139 +691,6 @@
         <Toast position="top-right" />
     </AuthenticatedLayout>
 </template>
-
-<script setup>
-import { ref } from 'vue';
-import { router } from '@inertiajs/vue3';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import Card from 'primevue/card';
-import Message from 'primevue/message';
-import Accordion from 'primevue/accordion';
-import AccordionPanel from 'primevue/accordionpanel';
-import AccordionHeader from 'primevue/accordionheader';
-import AccordionContent from 'primevue/accordioncontent';
-import FileUpload from 'primevue/fileupload';
-import Button from 'primevue/button';
-import Divider from 'primevue/divider';
-import Tag from 'primevue/tag';
-import Toast from 'primevue/toast';
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
-import { useToast } from 'primevue/usetoast';
-
-const toast = useToast();
-const uploading = ref(false);
-const file = ref(null);
-const errors = ref({});
-const duplicates = ref([]);
-const duplicateAction = ref('ignore');
-const importSummary = ref(null);
-
-const onFileSelect = (event) => {
-    file.value = event.files[0];
-    errors.value.fichier = null;
-    duplicates.value = [];
-    importSummary.value = null;
-};
-
-const onFileRemove = () => {
-    file.value = null;
-    duplicates.value = [];
-    importSummary.value = null;
-};
-
-const setDuplicateAction = (action) => {
-    duplicateAction.value = action;
-};
-
-const submitForm = () => {
-    if (!file.value) {
-        errors.value.fichier = 'Veuillez sélectionner un fichier';
-        return;
-    }
-
-    uploading.value = true;
-    errors.value = {};
-
-    const formData = new FormData();
-    formData.append('fichier', file.value);
-    formData.append('duplicate_action', duplicateAction.value);
-
-    router.post(route('militaires.import.process'), formData, {
-        headers: {
-            'Content-Type': 'multipart/form-data'
-        },
-        onSuccess: (page) => {
-            uploading.value = false;
-
-            if (page.props.duplicates && page.props.duplicates.length > 0) {
-                duplicates.value = page.props.duplicates;
-                toast.add({
-                    severity: 'warn',
-                    summary: '⚠️ Doublons détectés',
-                    detail: `${page.props.duplicates.length} matricule(s) existent déjà dans la base`,
-                    life: 5000
-                });
-                file.value = null;
-                return;
-            }
-
-            if (page.props.import_summary) {
-                importSummary.value = page.props.import_summary;
-                if (importSummary.value.hasErrors) {
-                    toast.add({
-                        severity: 'error',
-                        summary: '❌ Import terminé avec erreurs',
-                        detail: `${importSummary.value.errors} erreur(s) rencontrée(s)`,
-                        life: 5000
-                    });
-                } else {
-                    toast.add({
-                        severity: 'success',
-                        summary: '✅ Importation réussie',
-                        detail: `${importSummary.value.created} créé(s), ${importSummary.value.updated} mis à jour, ${importSummary.value.skipped} ignoré(s)`,
-                        life: 5000
-                    });
-                }
-            }
-
-            file.value = null;
-            const fileUpload = document.querySelector('.p-fileupload');
-            if (fileUpload) {
-                fileUpload.__vueParentComponent?.reset();
-            }
-
-            if (!importSummary.value?.hasErrors) {
-                setTimeout(() => {
-                    router.visit(route('militaires.index'));
-                }, 3000);
-            }
-        },
-        onError: (err) => {
-            uploading.value = false;
-            errors.value = err;
-            toast.add({
-                severity: 'error',
-                summary: '❌ Erreur',
-                detail: err.fichier || 'Erreur lors de l\'importation',
-                life: 5000
-            });
-        }
-    });
-};
-
-const downloadTemplate = () => {
-    window.location.href = route('militaires.import.template.xlsx');
-};
-
-const downloadTemplateCSV = () => {
-    window.location.href = route('militaires.import.template.csv');
-};
-
-const cancel = () => {
-    router.visit(route('militaires.index'));
-};
-</script>
 
 <style scoped>
 :deep(.p-card) {

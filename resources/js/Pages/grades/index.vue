@@ -1,3 +1,218 @@
+<script setup>
+import { ref, reactive, watch } from 'vue';
+import { router, useForm } from '@inertiajs/vue3';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import Card from 'primevue/card';
+import Button from 'primevue/button';
+import InputText from 'primevue/inputtext';
+import Select from 'primevue/select';
+import DataTable from 'primevue/datatable';
+import Column from 'primevue/column';
+import Tag from 'primevue/tag';
+import Badge from 'primevue/badge';
+import Toast from 'primevue/toast';
+import Dialog from 'primevue/dialog';
+import InputNumber from 'primevue/inputnumber';
+import Textarea from 'primevue/textarea';
+import { useToast } from 'primevue/usetoast';
+import debounce from 'lodash/debounce';
+
+const props = defineProps({
+    grades: {
+        type: Object,
+        required: true
+    },
+    statistiques: {
+        type: Object,
+        required: true
+    },
+    filters: {
+        type: Object,
+        default: () => ({})
+    },
+    typesGrades: {
+        type: Array,
+        default: () => []
+    }
+});
+
+const toast = useToast();
+const loading = ref(false);
+const showCreateDialog = ref(false);
+const showEditDialog = ref(false);
+const gradeIdToEdit = ref(null);
+
+const editForm = useForm({
+    code_grade: '',
+    nom_grade: '',
+    type_grade: null,
+    ordre: null,
+    description: ''
+});
+
+const form = useForm({
+    code_grade: '',
+    nom_grade: '',
+    type_grade: null,
+    ordre: null,
+    description: ''
+});
+
+const filters = reactive({
+    search: props.filters?.search || '',
+    type: props.filters?.type || null
+});
+
+const debouncedSearch = debounce(() => {
+    loadGrades(1);
+}, 500);
+
+const onSearchInput = () => {
+    debouncedSearch();
+};
+
+const onFilterChange = () => {
+    loadGrades(1);
+};
+
+watch(() => filters.search, () => {
+    debouncedSearch();
+});
+
+watch(() => filters.type, () => {
+    loadGrades(1);
+});
+
+const getTypeStyle = (type) => {
+    const styles = {
+        'Officier général': { background: '#fecaca', color: '#991b1b' },
+        'Officier supérieur': { background: '#fed7aa', color: '#c2410c' },
+        'Officier subalterne': { background: '#bae6fd', color: '#0369a1' },
+        'Sous-officier supérieur': { background: '#7dd3fc', color: '#0369a1' },
+        'Sous-officier subalterne': { background: '#7dd3fc', color: '#0369a1' },
+        'Militaires du rang': { background: '#e5e7eb', color: '#374151' }
+    };
+    return styles[type] || { background: '#bae6fd', color: '#0369a1' };
+};
+
+const loadGrades = (page = 1) => {
+    loading.value = true;
+    router.get(route('grades.index'), {
+        page,
+        search: filters.search,
+        type: filters.type
+    }, {
+        preserveState: true,
+        preserveScroll: true,
+        onSuccess: () => {
+            loading.value = false;
+        },
+        onError: () => {
+            loading.value = false;
+            toast.add({
+                severity: 'error',
+                summary: 'Erreur',
+                detail: 'Impossible de charger les grades',
+                life: 3000
+            });
+        }
+    });
+};
+
+const resetFilters = () => {
+    filters.search = '';
+    filters.type = null;
+};
+
+const onPageChange = (event) => {
+    changePage(event.page + 1);
+};
+
+const changePage = (page) => {
+    if (page >= 1 && page <= props.grades.last_page) {
+        loadGrades(page);
+    }
+};
+
+const viewGrade = (id) => {
+    router.visit(route('grades.show', id));
+};
+
+const createGrade = () => {
+    form.reset();
+    form.clearErrors();
+    showCreateDialog.value = true;
+};
+
+const closeCreateDialog = () => {
+    showCreateDialog.value = false;
+    form.reset();
+};
+
+const submitCreate = () => {
+    form.post(route('grades.store'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            showCreateDialog.value = false;
+            toast.add({
+                severity: 'success',
+                summary: 'Succès',
+                detail: 'Grade créé avec succès',
+                life: 3000
+            });
+        },
+        onError: () => {
+            toast.add({
+                severity: 'error',
+                summary: 'Erreur de validation',
+                detail: 'Veuillez corriger les champs en rouge',
+                life: 5000
+            });
+        }
+    });
+};
+
+const editGrade = (grade) => {
+    gradeIdToEdit.value = grade.id;
+    editForm.code_grade = grade.code_grade;
+    editForm.nom_grade = grade.nom_grade;
+    editForm.type_grade = grade.type_grade;
+    editForm.ordre = grade.ordre;
+    editForm.description = grade.description || '';
+    editForm.clearErrors();
+    showEditDialog.value = true;
+};
+
+const closeEditDialog = () => {
+    showEditDialog.value = false;
+    editForm.reset();
+    gradeIdToEdit.value = null;
+};
+
+const submitEdit = () => {
+    editForm.put(route('grades.update', gradeIdToEdit.value), {
+        preserveScroll: true,
+        onSuccess: () => {
+            showEditDialog.value = false;
+            toast.add({
+                severity: 'success',
+                summary: 'Succès',
+                detail: 'Grade mis à jour avec succès',
+                life: 3000
+            });
+        },
+        onError: () => {
+            toast.add({
+                severity: 'error',
+                summary: 'Erreur de validation',
+                detail: 'Veuillez corriger les champs en rouge',
+                life: 5000
+            });
+        }
+    });
+};
+</script>
+
 <template>
     <AuthenticatedLayout>
         <template #header>
@@ -305,221 +520,6 @@
         <Toast position="top-right" />
     </AuthenticatedLayout>
 </template>
-
-<script setup>
-import { ref, reactive, watch } from 'vue';
-import { router, useForm } from '@inertiajs/vue3';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import Card from 'primevue/card';
-import Button from 'primevue/button';
-import InputText from 'primevue/inputtext';
-import Select from 'primevue/select';
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
-import Tag from 'primevue/tag';
-import Badge from 'primevue/badge';
-import Toast from 'primevue/toast';
-import Dialog from 'primevue/dialog';
-import InputNumber from 'primevue/inputnumber';
-import Textarea from 'primevue/textarea';
-import { useToast } from 'primevue/usetoast';
-import debounce from 'lodash/debounce';
-
-const props = defineProps({
-    grades: {
-        type: Object,
-        required: true
-    },
-    statistiques: {
-        type: Object,
-        required: true
-    },
-    filters: {
-        type: Object,
-        default: () => ({})
-    },
-    typesGrades: {
-        type: Array,
-        default: () => []
-    }
-});
-
-const toast = useToast();
-const loading = ref(false);
-const showCreateDialog = ref(false);
-const showEditDialog = ref(false);
-const gradeIdToEdit = ref(null);
-
-const editForm = useForm({
-    code_grade: '',
-    nom_grade: '',
-    type_grade: null,
-    ordre: null,
-    description: ''
-});
-
-const form = useForm({
-    code_grade: '',
-    nom_grade: '',
-    type_grade: null,
-    ordre: null,
-    description: ''
-});
-
-const filters = reactive({
-    search: props.filters?.search || '',
-    type: props.filters?.type || null
-});
-
-const debouncedSearch = debounce(() => {
-    loadGrades(1);
-}, 500);
-
-const onSearchInput = () => {
-    debouncedSearch();
-};
-
-const onFilterChange = () => {
-    loadGrades(1);
-};
-
-watch(() => filters.search, () => {
-    debouncedSearch();
-});
-
-watch(() => filters.type, () => {
-    loadGrades(1);
-});
-
-const getTypeStyle = (type) => {
-    const styles = {
-        'Officier général': { background: '#fecaca', color: '#991b1b' },
-        'Officier supérieur': { background: '#fed7aa', color: '#c2410c' },
-        'Officier subalterne': { background: '#bae6fd', color: '#0369a1' },
-        'Sous-officier supérieur': { background: '#7dd3fc', color: '#0369a1' },
-        'Sous-officier subalterne': { background: '#7dd3fc', color: '#0369a1' },
-        'Militaires du rang': { background: '#e5e7eb', color: '#374151' }
-    };
-    return styles[type] || { background: '#bae6fd', color: '#0369a1' };
-};
-
-const loadGrades = (page = 1) => {
-    loading.value = true;
-    router.get(route('grades.index'), {
-        page,
-        search: filters.search,
-        type: filters.type
-    }, {
-        preserveState: true,
-        preserveScroll: true,
-        onSuccess: () => {
-            loading.value = false;
-        },
-        onError: () => {
-            loading.value = false;
-            toast.add({
-                severity: 'error',
-                summary: 'Erreur',
-                detail: 'Impossible de charger les grades',
-                life: 3000
-            });
-        }
-    });
-};
-
-const resetFilters = () => {
-    filters.search = '';
-    filters.type = null;
-};
-
-const onPageChange = (event) => {
-    changePage(event.page + 1);
-};
-
-const changePage = (page) => {
-    if (page >= 1 && page <= props.grades.last_page) {
-        loadGrades(page);
-    }
-};
-
-const viewGrade = (id) => {
-    router.visit(route('grades.show', id));
-};
-
-const createGrade = () => {
-    form.reset();
-    form.clearErrors();
-    showCreateDialog.value = true;
-};
-
-const closeCreateDialog = () => {
-    showCreateDialog.value = false;
-    form.reset();
-};
-
-const submitCreate = () => {
-    form.post(route('grades.store'), {
-        preserveScroll: true,
-        onSuccess: () => {
-            showCreateDialog.value = false;
-            toast.add({
-                severity: 'success',
-                summary: 'Succès',
-                detail: 'Grade créé avec succès',
-                life: 3000
-            });
-        },
-        onError: () => {
-            toast.add({
-                severity: 'error',
-                summary: 'Erreur de validation',
-                detail: 'Veuillez corriger les champs en rouge',
-                life: 5000
-            });
-        }
-    });
-};
-
-const editGrade = (grade) => {
-    gradeIdToEdit.value = grade.id;
-    editForm.code_grade = grade.code_grade;
-    editForm.nom_grade = grade.nom_grade;
-    editForm.type_grade = grade.type_grade;
-    editForm.ordre = grade.ordre;
-    editForm.description = grade.description || '';
-    editForm.clearErrors();
-    showEditDialog.value = true;
-};
-
-const closeEditDialog = () => {
-    showEditDialog.value = false;
-    editForm.reset();
-    gradeIdToEdit.value = null;
-};
-
-const submitEdit = () => {
-    editForm.put(route('grades.update', gradeIdToEdit.value), {
-        preserveScroll: true,
-        onSuccess: () => {
-            showEditDialog.value = false;
-            toast.add({
-                severity: 'success',
-                summary: 'Succès',
-                detail: 'Grade mis à jour avec succès',
-                life: 3000
-            });
-        },
-        onError: () => {
-            toast.add({
-                severity: 'error',
-                summary: 'Erreur de validation',
-                detail: 'Veuillez corriger les champs en rouge',
-                life: 5000
-            });
-        }
-    });
-};
-</script>
 
 <style scoped>
 :deep(.p-card) {

@@ -44,7 +44,7 @@ class GradeController extends Controller
                 'militaires as effectif_total',
                 'militaires as effectif_actif' => fn ($q) => $q->whereBetween('statut_code', [1, 4]),
             ])
-            ->orderBy('ordre')
+            ->orderByDesc('ordre')
             ->paginate(20)
             ->withQueryString()
             ->through(fn ($grade) => [

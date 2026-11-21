@@ -1,3 +1,412 @@
+<script setup>
+import { ref, computed } from 'vue';
+import { router } from '@inertiajs/vue3';
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import Button from 'primevue/button';
+import Tag from 'primevue/tag';
+import DataTable from 'primevue/datatable';
+import Column from 'primevue/column';
+import Dialog from 'primevue/dialog';
+import Toast from 'primevue/toast';
+import { useToast } from 'primevue/usetoast';
+
+const props = defineProps({
+    militaire: { type: Object, required: true },
+    affectations: { type: Array, default: () => [] },
+    certificats: { type: Array, default: () => [] },
+    alertes: { type: Array, default: () => [] },
+    contratActif: { type: Object, default: null }
+});
+
+// Helper pour parser les listes JSON ou texte avec dédoublonnage strict
+const parseList = (val) => {
+    if (!val) return [];
+    if (Array.isArray(val)) {
+        const seen = new Set();
+        return val.map(s => String(s).trim()).filter(s => {
+            if (!s || s === '#N/A' || s === 'N/A') return false;
+            const k = s.toLowerCase();
+            if (seen.has(k)) return false;
+            seen.add(k);
+            return true;
+        });
+    }
+    if (typeof val === 'string') {
+        const trimmed = val.trim();
+        if (trimmed === '#N/A' || trimmed === 'N/A' || trimmed === 'null' || trimmed === '' || trimmed === '-') return [];
+        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+            try {
+                const parsed = JSON.parse(trimmed);
+                if (Array.isArray(parsed)) {
+                    return parseList(parsed);
+                }
+            } catch (e) {}
+        }
+        // Découpage intelligent par point-virgule ou retours à la ligne
+        const rawParts = trimmed.split(/[;\n]+/);
+        const seen = new Set();
+        const result = [];
+
+        for (const p of rawParts) {
+            const clean = p.replace(/\s+/g, ' ').replace(/^[-•*]\s*/, '').replace(/,+$/, '').trim();
+            if (!clean || clean === '#N/A' || clean === 'N/A' || clean === '-') continue;
+            const key = clean.toLowerCase();
+            if (!seen.has(key)) {
+                seen.add(key);
+                result.push(clean);
+            }
+        }
+        return result;
+    }
+    return [];
+};
+
+const decorationsList = computed(() => parseList(props.militaire.decorations));
+const diplomesList = computed(() => parseList(props.militaire.diplomes_academiques));
+
+const parsedEngagementOps = computed(() => {
+    const raw = props.militaire?.engagement_ops;
+    if (!raw || raw.trim() === '' || raw.trim() === '0 OPS' || raw.trim() === '1/1/1970' || raw.trim() === '-') {
+        return { count: 0, countText: '0 OPS', theatres: [] };
+    }
+    let explicitCount = null;
+    const match = raw.match(/(\d+)\s*OPS/i);
+    if (match) {
+        explicitCount = parseInt(match[1], 10);
+    }
+    const cleaned = raw.replace(/[-–—]?\s*\d+\s*OPS/i, '').trim();
+    let theatres = [];
+    if (cleaned) {
+        theatres = cleaned
+            .split(/[,;\n]+|(?<=[0-9a-zA-ZÀ-ÿ])\.(?=[0-9a-zA-ZÀ-ÿ])/)
+            .map(t => t.trim())
+            .filter(t => t && t !== '-' && t !== '.');
+    }
+    const count = explicitCount !== null ? explicitCount : theatres.length;
+    return {
+        count,
+        countText: `${count} OPS`,
+        theatres: theatres.length > 0 ? theatres : (count > 0 ? [`${count} Déploiement(s) / Théâtre(s) OPS`] : [])
+    };
+});
+
+const isOtage = computed(() => {
+    if (props.militaire?.is_otage) return true;
+    const pos = (props.militaire?.position_actuelle || '').toLowerCase();
+    const obs = (props.militaire?.observations || '').toLowerCase();
+    return pos.includes('otage') || obs.includes('otage');
+});
+
+// Trier les affectations de la plus récente à la plus ancienne (l'actuelle est toujours la plus récente)
+const sortedAffectations = computed(() => {
+    if (!props.affectations || !props.affectations.length) return [];
+    return [...props.affectations].sort((a, b) => {
+        const dateA = a.date_mutation_raw ? new Date(a.date_mutation_raw).getTime() : 0;
+        const dateB = b.date_mutation_raw ? new Date(b.date_mutation_raw).getTime() : 0;
+        return dateB - dateA;
+    });
+});
+
+const currentAffectation = computed(() => {
+    return sortedAffectations.value[0] || null;
+});
+
+const toast = useToast();
+const deleteDialogVisible = ref(false);
+const certificatModalVisible = ref(false);
+
+const motifCertificat = ref("Constitution d'un Dossier Administratif.");
+const numeroCertificat = ref("3721/2 GRM-SDRH-DAGP.");
+const dateCertificat = ref(new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }));
+const autoriteSignataire = ref("Colonel Moussa Ousmane DAO");
+const titreSignataire = ref("Sous-directeur des Ressources Humaines");
+const decorationSignataire = ref("Chevalier de l'Ordre National");
+
+const escapeHtml = (val) => {
+    if (val === null || val === undefined) return '';
+    return String(val)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+};
+
+const openCertificatPresenceModal = () => {
+    certificatModalVisible.value = true;
+};
+
+const printCertificat = () => {
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(`
+        <!DOCTYPE html>
+        <html lang="fr">
+        <head>
+            <meta charset="utf-8">
+            <title>Certificat de Présence au Corps</title>
+            <style>
+                @page {
+                    size: A4 portrait;
+                    margin: 14mm 20mm 12mm 20mm;
+                }
+                * {
+                    box-sizing: border-box;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+                html, body {
+                    margin: 0;
+                    padding: 0;
+                    background: #ffffff;
+                    color: #000000;
+                    font-family: 'Times New Roman', Times, serif;
+                    font-size: 12pt;
+                    line-height: 1.5;
+                }
+                .certificat-container {
+                    width: 100%;
+                    max-width: 175mm;
+                    margin: 0 auto;
+                    page-break-inside: avoid;
+                    break-inside: avoid;
+                    max-height: 265mm;
+                }
+                .header-flex {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: flex-start;
+                    font-size: 10.5pt;
+                    line-height: 1.35;
+                    margin-bottom: 12mm;
+                }
+                .header-left {
+                    text-align: center;
+                    font-weight: bold;
+                    text-transform: uppercase;
+                }
+                .header-left .stars {
+                    font-size: 9pt;
+                    letter-spacing: 2px;
+                    margin: 2px 0;
+                }
+                .header-left .num-ref {
+                    margin-top: 10px;
+                    text-align: left;
+                    font-family: 'Courier New', monospace;
+                    font-weight: bold;
+                    font-size: 10pt;
+                }
+                .header-right {
+                    text-align: center;
+                    font-weight: bold;
+                    text-transform: uppercase;
+                }
+                .header-right .devise {
+                    font-size: 9.5pt;
+                    font-style: italic;
+                    text-transform: none;
+                    margin-top: 2px;
+                }
+                .header-right .stars {
+                    font-size: 9pt;
+                    letter-spacing: 2px;
+                    margin: 2px 0;
+                }
+                .header-right .date-loc {
+                    margin-top: 10px;
+                    text-align: right;
+                    font-weight: normal;
+                    text-transform: none;
+                    font-size: 10.5pt;
+                }
+                .cert-title {
+                    text-align: center;
+                    margin: 10mm 0 12mm 0;
+                }
+                .cert-title h1 {
+                    font-size: 16pt;
+                    font-weight: 900;
+                    text-transform: uppercase;
+                    text-decoration: underline;
+                    letter-spacing: 0.8px;
+                    margin: 0;
+                }
+                .cert-body {
+                    text-align: justify;
+                    font-size: 12pt;
+                    line-height: 1.75;
+                    text-indent: 10mm;
+                    margin: 8mm 0 8mm 0;
+                }
+                .cert-motif {
+                    font-size: 12pt;
+                    line-height: 1.6;
+                    margin: 8mm 0 10mm 0;
+                }
+                .cert-motif strong {
+                    text-decoration: underline;
+                }
+                .sign-row {
+                    display: flex;
+                    justify-content: flex-end;
+                    margin-top: 8mm;
+                }
+                .sign-box {
+                    width: 80mm;
+                    text-align: center;
+                }
+                .sign-title {
+                    font-weight: bold;
+                    font-size: 11pt;
+                    margin-bottom: 20mm;
+                }
+                .sign-name {
+                    font-weight: bold;
+                    font-size: 11.5pt;
+                    text-decoration: underline;
+                    margin-bottom: 2mm;
+                }
+                .sign-distinction {
+                    font-size: 10pt;
+                    font-style: italic;
+                    color: #222;
+                }
+                .no-print {
+                    display: none !important;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="certificat-container">
+                <div class="header-flex">
+                    <div class="header-left">
+                        <div>Ministère de la Défense et<br>des Anciens Combattants</div>
+                        <div class="stars">***************</div>
+                        <div>Gendarmerie Nationale</div>
+                        <div class="stars">***********</div>
+                        <div>Direction Générale</div>
+                        <div class="num-ref">N° ${escapeHtml(numeroCertificat.value)}</div>
+                    </div>
+                    <div class="header-right">
+                        <div>République du Mali</div>
+                        <div class="devise">Un Peuple – Un But – Une Foi</div>
+                        <div class="stars">***************</div>
+                        <div class="date-loc">Bamako, le <strong>${escapeHtml(dateCertificat.value)}</strong></div>
+                    </div>
+                </div>
+
+                <div class="cert-title">
+                    <h1>Certificat de Présence au Corps</h1>
+                </div>
+
+                <div class="cert-body">
+                    Nous, soussignés, <strong>${escapeHtml(autoriteSignataire.value)}</strong>, 
+                    ${escapeHtml(titreSignataire.value)} de la Gendarmerie Nationale, certifions que l'<strong>${escapeHtml(props.militaire.grade_actuel || '')} ${escapeHtml(props.militaire.prenom || '')} ${escapeHtml(props.militaire.nom || '')}</strong> 
+                    matricule <strong>${escapeHtml(props.militaire.matricule || '')}</strong>${props.militaire.mle_grm ? ' (MLE GRM : ' + escapeHtml(props.militaire.mle_grm) + ')' : ''}, 
+                    est en service à la Gendarmerie nationale.
+                </div>
+
+                <div class="cert-motif">
+                    <strong>MOTIF</strong> : ${escapeHtml(motifCertificat.value)}
+                </div>
+
+                <div class="sign-row">
+                    <div class="sign-box">
+                        <div class="sign-title">Le ${escapeHtml(titreSignataire.value)}</div>
+                        <div class="sign-name">${escapeHtml(autoriteSignataire.value)}</div>
+                        <div class="sign-distinction">${escapeHtml(decorationSignataire.value)}</div>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+    `);
+    doc.close();
+
+    iframe.contentWindow.focus();
+    setTimeout(() => {
+        iframe.contentWindow.print();
+        setTimeout(() => {
+            if (document.body.contains(iframe)) {
+                document.body.removeChild(iframe);
+            }
+        }, 1500);
+    }, 400);
+};
+
+const getStatutStyle = (statut) => {
+    const s = (statut || '').toLowerCase();
+    if (s.includes('actif')) return { background: '#16a34a', color: '#ffffff' };
+    if (s.includes('détach') || s.includes('detach')) return { background: '#0284c7', color: '#ffffff' };
+    if (s.includes('stage') || s.includes('format')) return { background: '#d97706', color: '#ffffff' };
+    if (s.includes('miss')) return { background: '#7c3aed', color: '#ffffff' };
+    if (s.includes('retrait')) return { background: '#64748b', color: '#ffffff' };
+    if (s.includes('d_ser') || s.includes('deser')) return { background: '#dc2626', color: '#ffffff' };
+    if (s.includes('d_c_d') || s.includes('mort')) return { background: '#1e293b', color: '#ffffff' };
+    return { background: '#64748b', color: '#ffffff' };
+};
+
+const getAlerteStyle = (type) => {
+    const styles = {
+        'promotion': { background: '#bae6fd', color: '#0369a1' },
+        'formation': { background: '#fed7aa', color: '#c2410c' },
+        'retraite': { background: '#fecaca', color: '#991b1b' },
+        'contrat': { background: '#dbeafe', color: '#1e40af' }
+    };
+    return styles[type] || { background: '#e5e7eb', color: '#374151' };
+};
+
+const getTypeLabel = (type) => {
+    const labels = {
+        'promotion': 'Promotion',
+        'formation': 'Formation',
+        'retraite': 'Retraite',
+        'contrat': 'Contrat'
+    };
+    return labels[type] || type;
+};
+
+const formatAnciennete = (annees) => {
+    if (!annees && annees !== 0) return '0 an';
+    return `${Math.floor(annees)} ans`;
+};
+
+const editMilitaire = () => {
+    router.visit(route('militaires.edit', props.militaire.id));
+};
+
+const goBack = () => {
+    router.visit(route('militaires.index'));
+};
+
+const confirmDelete = () => {
+    deleteDialogVisible.value = true;
+};
+
+const deleteMilitaire = () => {
+    router.delete(route('militaires.destroy', props.militaire.id), {
+        onSuccess: () => {
+            deleteDialogVisible.value = false;
+            toast.add({ severity: 'success', summary: 'Succès', detail: 'Militaire supprimé avec succès', life: 3000 });
+            router.visit(route('militaires.index'));
+        },
+        onError: () => {
+            toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de supprimer le militaire', life: 3000 });
+        }
+    });
+};
+</script>
+
 <template>
     <AuthenticatedLayout>
         <template #header>
@@ -95,29 +504,38 @@
                                 </p>
 
                                 <!-- TILES STATISTIQUES HERO -->
-                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3 border-t border-sky-700/50">
-                                    <div class="bg-white/10 backdrop-blur-xs rounded-lg p-2.5 text-center">
-                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium">Unité / Escadron</div>
+                                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-3 border-t border-sky-700/50">
+                                    <div class="bg-white/10 backdrop-blur-xs rounded-lg p-2.5 text-center min-w-0">
+                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium truncate">Unité / Escadron</div>
                                         <div class="text-sm font-bold text-white truncate" :title="currentAffectation?.unite || militaire.unite || '-'">
                                             {{ currentAffectation?.unite || militaire.unite || '-' }}
                                         </div>
                                     </div>
-                                    <div class="bg-white/10 backdrop-blur-xs rounded-lg p-2.5 text-center">
-                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium">Région</div>
+                                    <div class="bg-white/10 backdrop-blur-xs rounded-lg p-2.5 text-center min-w-0">
+                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium truncate">Région</div>
                                         <div class="text-sm font-bold text-white truncate" :title="currentAffectation?.region || militaire.region || '-'">
                                             {{ currentAffectation?.region || militaire.region || '-' }}
                                         </div>
                                     </div>
-                                    <div class="bg-white/10 backdrop-blur-xs rounded-lg p-2.5 text-center">
-                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium">Âge</div>
-                                        <div class="text-sm font-bold text-white">
+                                    <div class="bg-white/10 backdrop-blur-xs rounded-lg p-2.5 text-center min-w-0">
+                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium truncate">Âge</div>
+                                        <div class="text-sm font-bold text-white truncate">
                                             {{ militaire.age ? militaire.age + ' ans' : '-' }}
                                         </div>
                                     </div>
-                                    <div class="bg-white/10 backdrop-blur-xs rounded-lg p-2.5 text-center">
-                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium">Ancienneté</div>
-                                        <div class="text-sm font-bold text-white">
+                                    <div class="bg-white/10 backdrop-blur-xs rounded-lg p-2.5 text-center min-w-0">
+                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium truncate">Ancienneté</div>
+                                        <div class="text-sm font-bold text-white truncate">
                                             {{ formatAnciennete(militaire.anciennete) }}
+                                        </div>
+                                    </div>
+                                    <div class="bg-white/15 backdrop-blur-xs rounded-lg p-2.5 text-center min-w-0 border border-amber-300/40 col-span-2 sm:col-span-1 lg:col-span-1 shadow-2xs">
+                                        <div class="text-[11px] uppercase tracking-wider text-amber-200 font-bold flex items-center justify-center gap-1 truncate">
+                                            <i class="pi pi-shield text-[10px] text-amber-300 shrink-0"></i>
+                                            <span>Théâtres OPS</span>
+                                        </div>
+                                        <div class="text-sm font-black text-amber-300 truncate">
+                                            {{ parsedEngagementOps.countText }}
                                         </div>
                                     </div>
                                 </div>
@@ -130,7 +548,7 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                     <!-- CARTE 1 : IDENTIFIANTS & ÉTAT CIVIL -->
-                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 min-w-0">
                         <div class="flex items-center gap-2 pb-3 mb-4 border-b border-slate-100 text-sky-900 font-bold text-base">
                             <i class="pi pi-id-card text-sky-800"></i>
                             <span>Identifiants & État Civil</span>
@@ -184,14 +602,58 @@
                         </div>
                     </div>
 
-                    <!-- CARTE 2A : AFFECTATION & MAILLAGE TERRITORIAL -->
-                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-                        <div class="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
-                            <div class="flex items-center gap-2 text-sky-900 font-bold text-base">
-                                <i class="pi pi-building text-sky-800"></i>
-                                <span>Affectation & Maillage Territorial</span>
+                    <!-- CARTE 2 : MAILLAGE & CARRIÈRE -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 min-w-0">
+                        <div class="flex items-center gap-2 pb-3 mb-4 border-b border-slate-100 text-sky-900 font-bold text-base">
+                            <i class="pi pi-briefcase text-sky-800"></i>
+                            <span>Maillage & Carrière</span>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Date d'entrée en service</span>
+                                <span class="text-sm font-medium text-slate-800">
+                                    {{ militaire.date_entree_service || '-' }}
+                                    <span v-if="militaire.anciennete" class="text-xs text-slate-500">({{ formatAnciennete(militaire.anciennete) }})</span>
+                                </span>
                             </div>
-                            <span class="text-xs text-slate-500 font-medium">
+                            <div>
+                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Date dernière promotion</span>
+                                <span class="text-sm font-medium text-slate-800">
+                                    {{ militaire.date_derniere_promotion || '-' }}
+                                    <span v-if="militaire.anciennete_grade" class="text-xs text-slate-500">({{ formatAnciennete(militaire.anciennete_grade) }})</span>
+                                </span>
+                            </div>
+                            <div>
+                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Origine / École de formation</span>
+                                <span class="text-sm font-medium text-slate-800">{{ militaire.origine_formation || '-' }}</span>
+                            </div>
+                            <div>
+                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Fonction actuelle</span>
+                                <span class="text-sm font-medium text-slate-800">{{ militaire.fonction_actuelle || '-' }}</span>
+                            </div>
+                            <div>
+                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Fonction passée</span>
+                                <span class="text-sm font-medium text-slate-800">{{ militaire.fonction_passee || '-' }}</span>
+                            </div>
+                            <div>
+                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Spécialité</span>
+                                <span class="text-sm font-medium text-slate-800">{{ militaire.specialite || '-' }}</span>
+                            </div>
+                            <div class="sm:col-span-2">
+                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Position administrative</span>
+                                <span class="text-sm font-medium text-slate-800">{{ militaire.position_actuelle || '-' }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CARTE 3A : AFFECTATION & MAILLAGE TERRITORIAL (CARTE DE LA 2ÈME PHOTO) -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 min-w-0">
+                        <div class="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 min-w-0 gap-2">
+                            <div class="flex items-center gap-2 text-sky-900 font-bold text-base min-w-0 truncate">
+                                <i class="pi pi-building text-sky-800 shrink-0"></i>
+                                <span class="truncate">Affectation & Maillage Territorial</span>
+                            </div>
+                            <span class="text-xs text-slate-500 font-medium shrink-0">
                                 {{ affectations && affectations.length ? affectations.length + ' affectation(s)' : '1 affectation' }}
                             </span>
                         </div>
@@ -199,7 +661,7 @@
                         <div v-if="sortedAffectations && sortedAffectations.length" class="space-y-3">
                             <div v-for="(aff, idx) in sortedAffectations" :key="idx"
                                 class="p-4 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition-colors">
-                                <div class="flex items-start gap-3">
+                                <div class="flex items-start gap-3 min-w-0">
                                     <div class="w-8 h-8 rounded-full bg-sky-800 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 shadow-2xs">
                                         {{ idx + 1 }}
                                     </div>
@@ -245,72 +707,72 @@
                         </div>
                     </div>
 
-                    <!-- CARTE 2B : MAILLAGE & CARRIÈRE -->
-                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-                        <div class="flex items-center gap-2 pb-3 mb-4 border-b border-slate-100 text-sky-900 font-bold text-base">
-                            <i class="pi pi-briefcase text-sky-800"></i>
-                            <span>Maillage & Carrière</span>
+                    <!-- CARTE 3B : DÉPLOIEMENTS & THÉÂTRES D'OPÉRATIONS OPS (A CÔTÉ DE LA CARTE DE LA 2ÈME PHOTO) -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 min-w-0 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 min-w-0 gap-2">
+                                <div class="flex items-center gap-2 text-sky-900 font-bold text-base min-w-0 truncate">
+                                    <i class="pi pi-shield text-amber-600 shrink-0"></i>
+                                    <span class="truncate">Théâtres d'Opérations & Déploiements OPS</span>
+                                </div>
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-900 border border-amber-300 shrink-0 shadow-2xs">
+                                    {{ parsedEngagementOps.countText }}
+                                </span>
+                            </div>
+
+                            <!-- Liste des théâtres OPS (OPS 1, OPS 2, OPS 3...) -->
+                            <div v-if="parsedEngagementOps.theatres.length > 0" class="space-y-3">
+                                <div v-for="(th, idx) in parsedEngagementOps.theatres" :key="idx"
+                                    class="p-4 rounded-xl border border-amber-200/80 bg-amber-50/40 hover:bg-amber-50/70 transition-colors">
+                                    <div class="flex items-start gap-3 min-w-0">
+                                        <div class="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 text-white font-black text-xs shrink-0 mt-0.5 shadow-2xs">
+                                            OPS {{ idx + 1 }}
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <span class="font-bold text-slate-900 text-sm leading-snug break-words block">
+                                                {{ th }}
+                                            </span>
+                                            <div class="flex items-center gap-1.5 mt-2 pt-2 border-t border-amber-200/50 text-xs text-amber-900">
+                                                <i class="pi pi-check-circle text-amber-600 text-xs shrink-0"></i>
+                                                <span class="font-medium text-[11px]">Déploiement opérationnel validé</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Si aucun engagement OPS (0 OPS) -->
+                            <div v-else class="p-6 rounded-xl border border-dashed border-slate-200 bg-slate-50/70 text-center">
+                                <div class="w-10 h-10 mx-auto mb-2 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                                    <i class="pi pi-shield text-lg"></i>
+                                </div>
+                                <div class="text-sm font-semibold text-slate-700">Aucun théâtre d'opération renseigné</div>
+                                <div class="text-xs text-slate-500 mt-1">Le militaire n'a participé à aucun théâtre d'opération répertorié (0 OPS).</div>
+                            </div>
                         </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Date d'entrée en service</span>
-                                <span class="text-sm font-medium text-slate-800">
-                                    {{ militaire.date_entree_service || '-' }}
-                                    <span v-if="militaire.anciennete" class="text-xs text-slate-500">({{ formatAnciennete(militaire.anciennete) }})</span>
-                                </span>
-                            </div>
-                            <div>
-                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Date dernière promotion</span>
-                                <span class="text-sm font-medium text-slate-800">
-                                    {{ militaire.date_derniere_promotion || '-' }}
-                                    <span v-if="militaire.anciennete_grade" class="text-xs text-slate-500">({{ formatAnciennete(militaire.anciennete_grade) }})</span>
-                                </span>
-                            </div>
-                            <div>
-                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Origine / École de formation</span>
-                                <span class="text-sm font-medium text-slate-800">{{ militaire.origine_formation || '-' }}</span>
-                            </div>
-                            <div>
-                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Fonction actuelle</span>
-                                <span class="text-sm font-medium text-slate-800">{{ militaire.fonction_actuelle || '-' }}</span>
-                            </div>
-                            <div>
-                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Fonction passée</span>
-                                <span class="text-sm font-medium text-slate-800">{{ militaire.fonction_passee || '-' }}</span>
-                            </div>
-                            <div>
-                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Spécialité</span>
-                                <span class="text-sm font-medium text-slate-800">{{ militaire.specialite || '-' }}</span>
-                            </div>
-                            <div class="sm:col-span-2">
-                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Position administrative</span>
-                                <span class="text-sm font-medium text-slate-800">{{ militaire.position_actuelle || '-' }}</span>
-                            </div>
+
+                        <!-- Pied de carte récapitulatif -->
+                        <div v-if="parsedEngagementOps.theatres.length > 0" class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                            <span>Total déploiements OPS :</span>
+                            <span class="font-bold text-amber-800">{{ parsedEngagementOps.countText }}</span>
                         </div>
                     </div>
 
-                    <!-- CARTE 3 : SANTÉ & ENGAGEMENT OPÉRATIONNEL (OPS) -->
-                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <!-- CARTE 4 : STATUT SANITAIRE & APTITUDE MÉDICALE -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 min-w-0">
                         <div class="flex items-center gap-2 pb-3 mb-4 border-b border-slate-100 text-sky-900 font-bold text-base">
-                            <i class="pi pi-shield text-sky-800"></i>
-                            <span>Aptitude Médicale & Engagement OPS</span>
+                            <i class="pi pi-heart text-sky-800"></i>
+                            <span>Statut Sanitaire & Aptitude Médicale</span>
                         </div>
                         <div class="space-y-4">
                             <div>
-                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Status Sanitaire / Aptitude</span>
-                                <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-sm font-medium text-slate-800">
-                                    <i class="pi pi-heart-fill text-rose-500 mr-2"></i>
-                                    {{ militaire.status_sanitaire || 'Apte au service (par défaut)' }}
+                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Statut Sanitaire / Aptitude</span>
+                                <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-sm font-medium text-slate-800 flex items-center gap-2 min-w-0 overflow-hidden">
+                                    <i class="pi pi-heart-fill text-rose-500 shrink-0"></i>
+                                    <span class="break-words min-w-0 leading-relaxed">{{ militaire.status_sanitaire || 'Apte au service (par défaut)' }}</span>
                                 </div>
                             </div>
-                            <div>
-                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Engagements Opérationnels (OPS)</span>
-                                <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-sm font-medium text-slate-800">
-                                    <i class="pi pi-flag-fill text-amber-500 mr-2"></i>
-                                    {{ militaire.engagement_ops || 'Aucun engagement OPS renseigné' }}
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                                 <div>
                                     <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Antécédent disciplinaire</span>
                                     <Tag :value="militaire.antecedent_disciplinaire ? 'Oui' : 'Non'"
@@ -672,389 +1134,6 @@
         <Toast position="top-right" />
     </AuthenticatedLayout>
 </template>
-
-<script setup>
-import { ref, computed } from 'vue';
-import { router } from '@inertiajs/vue3';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import Button from 'primevue/button';
-import Tag from 'primevue/tag';
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
-import Dialog from 'primevue/dialog';
-import Toast from 'primevue/toast';
-import { useToast } from 'primevue/usetoast';
-
-const props = defineProps({
-    militaire: { type: Object, required: true },
-    affectations: { type: Array, default: () => [] },
-    certificats: { type: Array, default: () => [] },
-    alertes: { type: Array, default: () => [] },
-    contratActif: { type: Object, default: null }
-});
-
-// Helper pour parser les listes JSON ou texte avec dédoublonnage strict
-const parseList = (val) => {
-    if (!val) return [];
-    if (Array.isArray(val)) {
-        const seen = new Set();
-        return val.map(s => String(s).trim()).filter(s => {
-            if (!s || s === '#N/A' || s === 'N/A') return false;
-            const k = s.toLowerCase();
-            if (seen.has(k)) return false;
-            seen.add(k);
-            return true;
-        });
-    }
-    if (typeof val === 'string') {
-        const trimmed = val.trim();
-        if (trimmed === '#N/A' || trimmed === 'N/A' || trimmed === 'null' || trimmed === '' || trimmed === '-') return [];
-        if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-            try {
-                const parsed = JSON.parse(trimmed);
-                if (Array.isArray(parsed)) {
-                    return parseList(parsed);
-                }
-            } catch (e) {}
-        }
-        // Découpage intelligent par point-virgule ou retours à la ligne
-        const rawParts = trimmed.split(/[;\n]+/);
-        const seen = new Set();
-        const result = [];
-
-        for (const p of rawParts) {
-            const clean = p.replace(/\s+/g, ' ').replace(/^[-•*]\s*/, '').replace(/,+$/, '').trim();
-            if (!clean || clean === '#N/A' || clean === 'N/A' || clean === '-') continue;
-            const key = clean.toLowerCase();
-            if (!seen.has(key)) {
-                seen.add(key);
-                result.push(clean);
-            }
-        }
-        return result;
-    }
-    return [];
-};
-
-const decorationsList = computed(() => parseList(props.militaire.decorations));
-const diplomesList = computed(() => parseList(props.militaire.diplomes_academiques));
-
-const isOtage = computed(() => {
-    if (props.militaire?.is_otage) return true;
-    const pos = (props.militaire?.position_actuelle || '').toLowerCase();
-    const obs = (props.militaire?.observations || '').toLowerCase();
-    return pos.includes('otage') || obs.includes('otage');
-});
-
-// Trier les affectations de la plus récente à la plus ancienne (l'actuelle est toujours la plus récente)
-const sortedAffectations = computed(() => {
-    if (!props.affectations || !props.affectations.length) return [];
-    return [...props.affectations].sort((a, b) => {
-        const dateA = a.date_mutation_raw ? new Date(a.date_mutation_raw).getTime() : 0;
-        const dateB = b.date_mutation_raw ? new Date(b.date_mutation_raw).getTime() : 0;
-        return dateB - dateA;
-    });
-});
-
-const currentAffectation = computed(() => {
-    return sortedAffectations.value[0] || null;
-});
-
-const toast = useToast();
-const deleteDialogVisible = ref(false);
-const certificatModalVisible = ref(false);
-
-const motifCertificat = ref("Constitution d'un Dossier Administratif.");
-const numeroCertificat = ref("3721/2 GRM-SDRH-DAGP.");
-const dateCertificat = ref(new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }));
-const autoriteSignataire = ref("Colonel Moussa Ousmane DAO");
-const titreSignataire = ref("Sous-directeur des Ressources Humaines");
-const decorationSignataire = ref("Chevalier de l'Ordre National");
-
-const escapeHtml = (val) => {
-    if (val === null || val === undefined) return '';
-    return String(val)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-};
-
-const openCertificatPresenceModal = () => {
-    certificatModalVisible.value = true;
-};
-
-const printCertificat = () => {
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow.document;
-    doc.open();
-    doc.write(`
-        <!DOCTYPE html>
-        <html lang="fr">
-        <head>
-            <meta charset="utf-8">
-            <title>Certificat de Présence au Corps</title>
-            <style>
-                @page {
-                    size: A4 portrait;
-                    margin: 14mm 20mm 12mm 20mm;
-                }
-                * {
-                    box-sizing: border-box;
-                    -webkit-print-color-adjust: exact;
-                    print-color-adjust: exact;
-                }
-                html, body {
-                    margin: 0;
-                    padding: 0;
-                    background: #ffffff;
-                    color: #000000;
-                    font-family: 'Times New Roman', Times, serif;
-                    font-size: 12pt;
-                    line-height: 1.5;
-                }
-                .certificat-container {
-                    width: 100%;
-                    max-width: 175mm;
-                    margin: 0 auto;
-                    page-break-inside: avoid;
-                    break-inside: avoid;
-                    max-height: 265mm;
-                }
-                .header-flex {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: flex-start;
-                    font-size: 10.5pt;
-                    line-height: 1.35;
-                    margin-bottom: 12mm;
-                }
-                .header-left {
-                    text-align: center;
-                    font-weight: bold;
-                    text-transform: uppercase;
-                }
-                .header-left .stars {
-                    font-size: 9pt;
-                    letter-spacing: 2px;
-                    margin: 2px 0;
-                }
-                .header-left .num-ref {
-                    margin-top: 10px;
-                    text-align: left;
-                    font-family: 'Courier New', monospace;
-                    font-weight: bold;
-                    font-size: 10pt;
-                }
-                .header-right {
-                    text-align: center;
-                    font-weight: bold;
-                    text-transform: uppercase;
-                }
-                .header-right .devise {
-                    font-size: 9.5pt;
-                    font-style: italic;
-                    text-transform: none;
-                    margin-top: 2px;
-                }
-                .header-right .stars {
-                    font-size: 9pt;
-                    letter-spacing: 2px;
-                    margin: 2px 0;
-                }
-                .header-right .date-loc {
-                    margin-top: 10px;
-                    text-align: right;
-                    font-weight: normal;
-                    text-transform: none;
-                    font-size: 10.5pt;
-                }
-                .cert-title {
-                    text-align: center;
-                    margin: 10mm 0 12mm 0;
-                }
-                .cert-title h1 {
-                    font-size: 16pt;
-                    font-weight: 900;
-                    text-transform: uppercase;
-                    text-decoration: underline;
-                    letter-spacing: 0.8px;
-                    margin: 0;
-                }
-                .cert-body {
-                    text-align: justify;
-                    font-size: 12pt;
-                    line-height: 1.75;
-                    text-indent: 10mm;
-                    margin: 8mm 0 8mm 0;
-                }
-                .cert-motif {
-                    font-size: 12pt;
-                    line-height: 1.6;
-                    margin: 8mm 0 10mm 0;
-                }
-                .cert-motif strong {
-                    text-decoration: underline;
-                }
-                .sign-row {
-                    display: flex;
-                    justify-content: flex-end;
-                    margin-top: 8mm;
-                }
-                .sign-box {
-                    width: 80mm;
-                    text-align: center;
-                }
-                .sign-title {
-                    font-weight: bold;
-                    font-size: 11pt;
-                    margin-bottom: 20mm;
-                }
-                .sign-name {
-                    font-weight: bold;
-                    font-size: 11.5pt;
-                    text-decoration: underline;
-                    margin-bottom: 2mm;
-                }
-                .sign-distinction {
-                    font-size: 10pt;
-                    font-style: italic;
-                    color: #222;
-                }
-                .no-print {
-                    display: none !important;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="certificat-container">
-                <div class="header-flex">
-                    <div class="header-left">
-                        <div>Ministère de la Défense et<br>des Anciens Combattants</div>
-                        <div class="stars">***************</div>
-                        <div>Gendarmerie Nationale</div>
-                        <div class="stars">***********</div>
-                        <div>Direction Générale</div>
-                        <div class="num-ref">N° ${escapeHtml(numeroCertificat.value)}</div>
-                    </div>
-                    <div class="header-right">
-                        <div>République du Mali</div>
-                        <div class="devise">Un Peuple – Un But – Une Foi</div>
-                        <div class="stars">***************</div>
-                        <div class="date-loc">Bamako, le <strong>${escapeHtml(dateCertificat.value)}</strong></div>
-                    </div>
-                </div>
-
-                <div class="cert-title">
-                    <h1>Certificat de Présence au Corps</h1>
-                </div>
-
-                <div class="cert-body">
-                    Nous, soussignés, <strong>${escapeHtml(autoriteSignataire.value)}</strong>, 
-                    ${escapeHtml(titreSignataire.value)} de la Gendarmerie Nationale, certifions que l'<strong>${escapeHtml(props.militaire.grade_actuel || '')} ${escapeHtml(props.militaire.prenom || '')} ${escapeHtml(props.militaire.nom || '')}</strong> 
-                    matricule <strong>${escapeHtml(props.militaire.matricule || '')}</strong>${props.militaire.mle_grm ? ' (MLE GRM : ' + escapeHtml(props.militaire.mle_grm) + ')' : ''}, 
-                    est en service à la Gendarmerie nationale.
-                </div>
-
-                <div class="cert-motif">
-                    <strong>MOTIF</strong> : ${escapeHtml(motifCertificat.value)}
-                </div>
-
-                <div class="sign-row">
-                    <div class="sign-box">
-                        <div class="sign-title">Le ${escapeHtml(titreSignataire.value)}</div>
-                        <div class="sign-name">${escapeHtml(autoriteSignataire.value)}</div>
-                        <div class="sign-distinction">${escapeHtml(decorationSignataire.value)}</div>
-                    </div>
-                </div>
-            </div>
-        </body>
-        </html>
-    `);
-    doc.close();
-
-    iframe.contentWindow.focus();
-    setTimeout(() => {
-        iframe.contentWindow.print();
-        setTimeout(() => {
-            if (document.body.contains(iframe)) {
-                document.body.removeChild(iframe);
-            }
-        }, 1500);
-    }, 400);
-};
-
-const getStatutStyle = (statut) => {
-    const s = (statut || '').toLowerCase();
-    if (s.includes('actif')) return { background: '#16a34a', color: '#ffffff' };
-    if (s.includes('détach') || s.includes('detach')) return { background: '#0284c7', color: '#ffffff' };
-    if (s.includes('stage') || s.includes('format')) return { background: '#d97706', color: '#ffffff' };
-    if (s.includes('miss')) return { background: '#7c3aed', color: '#ffffff' };
-    if (s.includes('retrait')) return { background: '#64748b', color: '#ffffff' };
-    if (s.includes('d_ser') || s.includes('deser')) return { background: '#dc2626', color: '#ffffff' };
-    if (s.includes('d_c_d') || s.includes('mort')) return { background: '#1e293b', color: '#ffffff' };
-    return { background: '#64748b', color: '#ffffff' };
-};
-
-const getAlerteStyle = (type) => {
-    const styles = {
-        'promotion': { background: '#bae6fd', color: '#0369a1' },
-        'formation': { background: '#fed7aa', color: '#c2410c' },
-        'retraite': { background: '#fecaca', color: '#991b1b' },
-        'contrat': { background: '#dbeafe', color: '#1e40af' }
-    };
-    return styles[type] || { background: '#e5e7eb', color: '#374151' };
-};
-
-const getTypeLabel = (type) => {
-    const labels = {
-        'promotion': 'Promotion',
-        'formation': 'Formation',
-        'retraite': 'Retraite',
-        'contrat': 'Contrat'
-    };
-    return labels[type] || type;
-};
-
-const formatAnciennete = (annees) => {
-    if (!annees && annees !== 0) return '0 an';
-    return `${Math.floor(annees)} ans`;
-};
-
-const editMilitaire = () => {
-    router.visit(route('militaires.edit', props.militaire.id));
-};
-
-const goBack = () => {
-    router.visit(route('militaires.index'));
-};
-
-const confirmDelete = () => {
-    deleteDialogVisible.value = true;
-};
-
-const deleteMilitaire = () => {
-    router.delete(route('militaires.destroy', props.militaire.id), {
-        onSuccess: () => {
-            deleteDialogVisible.value = false;
-            toast.add({ severity: 'success', summary: 'Succès', detail: 'Militaire supprimé avec succès', life: 3000 });
-            router.visit(route('militaires.index'));
-        },
-        onError: () => {
-            toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de supprimer le militaire', life: 3000 });
-        }
-    });
-};
-</script>
 
 <style scoped>
 :deep(.p-tag) {

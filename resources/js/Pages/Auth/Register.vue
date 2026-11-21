@@ -1,3 +1,27 @@
+<script setup>
+import { ref } from 'vue';
+import { Head, Link, useForm } from '@inertiajs/vue3';
+import Card from 'primevue/card';
+import InputText from 'primevue/inputtext';
+import Button from 'primevue/button';
+
+const form = useForm({
+    name: '',
+    email: '',
+    password: '',
+    password_confirmation: '',
+});
+
+const showPassword = ref(false);
+const showConfirmPassword = ref(false);
+
+const submit = () => {
+    form.post(route('register'), {
+        onFinish: () => form.reset('password', 'password_confirmation'),
+    });
+};
+</script>
+
 <template>
     <div class="min-h-screen py-4 sm:py-6 px-3 sm:px-4 flex flex-col items-center justify-center bg-gradient-to-br from-sky-950 via-sky-900 to-slate-950 relative overflow-y-auto">
         <!-- Formes décoratives animées -->
@@ -163,30 +187,6 @@
         </div>
     </div>
 </template>
-
-<script setup>
-import { ref } from 'vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
-import Card from 'primevue/card';
-import InputText from 'primevue/inputtext';
-import Button from 'primevue/button';
-
-const form = useForm({
-    name: '',
-    email: '',
-    password: '',
-    password_confirmation: '',
-});
-
-const showPassword = ref(false);
-const showConfirmPassword = ref(false);
-
-const submit = () => {
-    form.post(route('register'), {
-        onFinish: () => form.reset('password', 'password_confirmation'),
-    });
-};
-</script>
 
 <style scoped>
 @keyframes fade-in-down {

@@ -1,3 +1,34 @@
+<script setup>
+import { ref } from 'vue';
+import { useForm } from '@inertiajs/vue3';
+import Password from 'primevue/password';
+import Button from 'primevue/button';
+
+const passwordInput = ref(null);
+const currentPasswordInput = ref(null);
+
+const form = useForm({
+    current_password: '',
+    password: '',
+    password_confirmation: '',
+});
+
+const updatePassword = () => {
+    form.put(route('password.update'), {
+        preserveScroll: true,
+        onSuccess: () => form.reset(),
+        onError: (errors) => {
+            if (errors.password) {
+                form.reset('password', 'password_confirmation');
+            }
+            if (errors.current_password) {
+                form.reset('current_password');
+            }
+        },
+    });
+};
+</script>
+
 <template>
     <section>
         <header>
@@ -71,34 +102,3 @@
         </form>
     </section>
 </template>
-
-<script setup>
-import { ref } from 'vue';
-import { useForm } from '@inertiajs/vue3';
-import Password from 'primevue/password';
-import Button from 'primevue/button';
-
-const passwordInput = ref(null);
-const currentPasswordInput = ref(null);
-
-const form = useForm({
-    current_password: '',
-    password: '',
-    password_confirmation: '',
-});
-
-const updatePassword = () => {
-    form.put(route('password.update'), {
-        preserveScroll: true,
-        onSuccess: () => form.reset(),
-        onError: (errors) => {
-            if (errors.password) {
-                form.reset('password', 'password_confirmation');
-            }
-            if (errors.current_password) {
-                form.reset('current_password');
-            }
-        },
-    });
-};
-</script>

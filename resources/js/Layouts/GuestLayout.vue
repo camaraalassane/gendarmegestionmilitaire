@@ -1,3 +1,8 @@
+<script setup>
+import ApplicationLogo from '@/Components/ApplicationLogo.vue';
+import { Link } from '@inertiajs/vue3';
+</script>
+
 <template>
     <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-950 via-sky-900 to-slate-950">
         <!-- Overlay décoratif -->
@@ -33,8 +38,3 @@
         </div>
     </div>
 </template>
-
-<script setup>
-import ApplicationLogo from '@/Components/ApplicationLogo.vue';
-import { Link } from '@inertiajs/vue3';
-</script>

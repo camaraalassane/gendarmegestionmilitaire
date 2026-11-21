@@ -40,6 +40,7 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
         'apli'  => "Cour d'Application",
         'cfcu'  => "Cour des Capitaines / CFCU / CPO",
         'cpo'   => "Cour des Capitaines / CFCU / CPO",
+        'cem'   => "Cour d'État-Major",
         'certificat_etat_major' => "Certificat d'état-major",
         'ecole_guerre' => "École de guerre / Brevet Supérieur de Second Degré",
     ];
@@ -55,6 +56,9 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
     protected array $errorDetails = [];
     protected ?Collection $certificatsCache = null;
     protected ?Collection $gradesCache = null;
+    protected ?Collection $theatresCache = null;
+    protected ?Collection $regionsCache = null;
+    protected ?Collection $unitesCache = null;
 
     public function __construct(string $duplicateAction = 'ignore')
     {
@@ -69,9 +73,14 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
     protected function getCertificatsCache(): Collection
     {
         if ($this->certificatsCache === null) {
-            $this->certificatsCache = Certificat::all()->keyBy(function ($item) {
-                return mb_strtolower(trim($item->nom_certificat));
-            });
+            $cache = collect();
+            foreach (Certificat::all() as $item) {
+                $cache->put(mb_strtolower(trim($item->nom_certificat)), $item);
+                if (!empty($item->niveau_certificat)) {
+                    $cache->put(mb_strtolower(trim($item->niveau_certificat)), $item);
+                }
+            }
+            $this->certificatsCache = $cache;
         }
         return $this->certificatsCache;
     }
@@ -160,6 +169,30 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
         $lowerValue = mb_strtolower($value);
 
         return $grades->get($lowerValue, $value);
+    }
+
+    protected function getTheatresCache(): Collection
+    {
+        if ($this->theatresCache === null) {
+            $this->theatresCache = \App\Models\Theatre::all();
+        }
+        return $this->theatresCache;
+    }
+
+    protected function getRegionsCache(): Collection
+    {
+        if ($this->regionsCache === null) {
+            $this->regionsCache = \App\Models\Region::all();
+        }
+        return $this->regionsCache;
+    }
+
+    protected function getUnitesCache(): Collection
+    {
+        if ($this->unitesCache === null) {
+            $this->unitesCache = \App\Models\Unite::all();
+        }
+        return $this->unitesCache;
     }
 
     public function prepareForValidation($data, $index)
@@ -457,8 +490,111 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
         if (!isset($normalized['observations']) || trim((string)$normalized['observations']) === '') {
             $normalized['observations'] = $normalized['obs'] ?? null;
         }
+        // Aliases pour theatre
+        if (!isset($normalized['theatre']) || trim((string)$normalized['theatre']) === '') {
+            $normalized['theatre'] = $normalized['theatres'] ?? $normalized['theatre_operations'] ?? $normalized['theatre_ops'] ?? $normalized['operation'] ?? null;
+        }
+        // Aliases pour est_blesse_guerre
+        if (!isset($normalized['est_blesse_guerre']) || trim((string)$normalized['est_blesse_guerre']) === '') {
+            $normalized['est_blesse_guerre'] = $normalized['blesse_guerre'] ?? $normalized['blesse'] ?? null;
+        }
+        // Aliases pour circonstances_blessure
+        if (!isset($normalized['circonstances_blessure']) || trim((string)$normalized['circonstances_blessure']) === '') {
+            $normalized['circonstances_blessure'] = $normalized['circonstance_blessure'] ?? $normalized['circonstances'] ?? $normalized['circonstance'] ?? null;
+        }
+        // Aliases pour date_blessure
+        if (!isset($normalized['date_blessure']) || trim((string)$normalized['date_blessure']) === '') {
+            $normalized['date_blessure'] = $normalized['date_de_blessure'] ?? null;
+        }
 
         return $normalized;
+    }
+
+    protected function resolveOperationalAndTerritorial(Militaire $militaire, array $row): void
+    {
+        // 1. Région
+        if (!empty($row['region'])) {
+            $regStr = mb_strtolower(trim((string)$row['region']));
+            $reg = $this->getRegionsCache()->first(function ($r) use ($regStr) {
+                return mb_strtolower($r->code) === $regStr
+                    || mb_strtolower($r->nom) === $regStr
+                    || mb_stripos(mb_strtolower($r->nom), $regStr) !== false;
+            });
+            if ($reg) {
+                $militaire->region_id = $reg->id;
+                $militaire->region = $reg->nom;
+            } else {
+                $militaire->region = trim((string)$row['region']);
+            }
+        }
+
+        // 2. Unité
+        if (!empty($row['unite'])) {
+            $unitStr = mb_strtolower(trim((string)$row['unite']));
+            $unite = $this->getUnitesCache()->first(function ($u) use ($unitStr) {
+                return mb_strtolower($u->nom) === $unitStr
+                    || ($u->code && mb_strtolower($u->code) === $unitStr)
+                    || mb_stripos(mb_strtolower($u->nom), $unitStr) !== false;
+            });
+            if ($unite) {
+                $militaire->unite_id = $unite->id;
+                $militaire->unite = $unite->nom;
+                if (empty($militaire->region_id) && $unite->region_id) {
+                    $militaire->region_id = $unite->region_id;
+                    $reg = $this->getRegionsCache()->firstWhere('id', $unite->region_id);
+                    if ($reg) $militaire->region = $reg->nom;
+                }
+            } else {
+                $militaire->unite = trim((string)$row['unite']);
+            }
+        }
+
+        // 3. Théâtre d'opérations
+        if (!empty($row['theatre'])) {
+            $thStr = mb_strtolower(trim((string)$row['theatre']));
+            $theatre = $this->getTheatresCache()->first(function ($t) use ($thStr) {
+                return mb_strtolower($t->code) === $thStr
+                    || mb_strtolower($t->nom) === $thStr
+                    || mb_stripos(mb_strtolower($t->nom), $thStr) !== false;
+            });
+            if ($theatre) {
+                $militaire->theatre_id = $theatre->id;
+            }
+        }
+
+        // 4. Blessé de guerre
+        if (isset($row['est_blesse_guerre'])) {
+            $militaire->est_blesse_guerre = $this->parseBool($row['est_blesse_guerre']) ? 1 : 0;
+        }
+    }
+
+    protected function handleBlessureRegistre(Militaire $militaire, array $row): void
+    {
+        if ($militaire->est_blesse_guerre) {
+            $dateBlessure = $this->parseDate($row['date_blessure'] ?? null) ?? now()->toDateString();
+            $circonstances = !empty($row['circonstances_blessure']) 
+                ? trim((string)$row['circonstances_blessure']) 
+                : 'Blessure subie au combat en opération';
+
+            \App\Models\RegistreOperationnel::updateOrCreate(
+                [
+                    'militaire_id' => $militaire->id,
+                    'type_registre_code' => \App\Models\RegistreOperationnel::TYPE_BLESSE,
+                ],
+                [
+                    'matricule' => $militaire->matricule,
+                    'mle_grm' => $militaire->mle_grm,
+                    'nom' => $militaire->nom,
+                    'prenom' => $militaire->prenom,
+                    'grade_ordre' => $militaire->grade_ordre ?? 0,
+                    'grade_texte' => $militaire->grade_actuel,
+                    'region_id' => $militaire->region_id,
+                    'unite_id' => $militaire->unite_id,
+                    'date_evenement' => $dateBlessure,
+                    'circonstances' => $circonstances,
+                ]
+            );
+        }
     }
 
     protected function createMilitaire(array $rawRow): Militaire
@@ -507,7 +643,9 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
         $militaire->reference_decision = !empty($row['reference_decision']) ? trim((string)$row['reference_decision']) : null;
         $militaire->unite_transfert = !empty($row['unite_transfert']) ? trim((string)$row['unite_transfert']) : null;
         $militaire->motif_transfert = !empty($row['motif_transfert']) ? trim((string)$row['motif_transfert']) : null;
+        $this->resolveOperationalAndTerritorial($militaire, $row);
         $militaire->save();
+        $this->handleBlessureRegistre($militaire, $row);
 
         return $militaire;
     }
@@ -572,9 +710,12 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
         if (!empty($row['unite_transfert'])) $militaire->unite_transfert = trim((string)$row['unite_transfert']);
         if (!empty($row['motif_transfert'])) $militaire->motif_transfert = trim((string)$row['motif_transfert']);
 
+        $this->resolveOperationalAndTerritorial($militaire, $row);
+
         if ($militaire->isDirty()) {
             $militaire->save();
         }
+        $this->handleBlessureRegistre($militaire, $row);
 
         return $militaire;
     }
@@ -594,7 +735,8 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
                 continue;
             }
 
-            $certificat = $certificatsCache->get(mb_strtolower(trim($nomCertificat)));
+            $certificat = $certificatsCache->get(mb_strtolower(trim($nomCertificat)))
+                ?? $certificatsCache->get(mb_strtolower(trim($key)));
             if (!$certificat) {
                 continue;
             }
@@ -704,6 +846,7 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
         return [
             // Informations personnelles
             'matricule',
+            'mle_grm',
             'nom',
             'prenom',
             'date_naissance',
@@ -720,10 +863,17 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
             'date_derniere_promotion',
             'specialite',
             'statut',
-            // Fonctions et positions
+            // Maillage territorial & Déploiement opérationnel
+            'region',
+            'unite',
+            'theatre',
             'position_actuelle',
             'fonction_passee',
             'fonction_actuelle',
+            // Statut sanitaire de guerre
+            'est_blesse_guerre',
+            'circonstances_blessure',
+            'date_blessure',
             // Permis et justice
             'a_permis_conduire',
             'antecedent_judiciaire',
@@ -771,6 +921,7 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
         return [
             // Informations personnelles
             'MAT-001',
+            '12345',
             'DUPONT',
             'Jean',
             '15/03/1990',
@@ -787,10 +938,17 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
             '15/06/2020',
             'Infanterie',
             'actif',
-            // Fonctions et positions
-            'Compagnie Alpha',
-            'Chef de section',
-            'Adjoint compagnie',
+            // Maillage territorial & Déploiement opérationnel
+            'Région de Mopti',
+            'Brigade Territoriale de Sévaré',
+            'TH-CTR',
+            'En activité',
+            'Chef de poste',
+            'Chef de patrouille',
+            // Statut sanitaire de guerre
+            '1',
+            'Blessé par éclat lors d\'une embuscade',
+            '15/04/2024',
             // Permis et justice
             '1',
             '0',

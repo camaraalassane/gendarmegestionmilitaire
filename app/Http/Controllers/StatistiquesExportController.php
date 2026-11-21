@@ -31,58 +31,71 @@ class StatistiquesExportController extends Controller
         $nbUnites = (int) $regionsExport->sum(fn ($r) => count($r['unites']));
         $nbOp = (int) $regionsExport->sum(fn ($r) => collect($r['unites'])->where('operationnelle', true)->count());
         $effectifTotal = $avecHors('actifs') + $avecHors('detaches') + $avecHors('missions') + $avecHors('stages');
+        $totalFemmes = $somme('femmes');
+        $totalHommes = max(0, $effectifTotal - $totalFemmes);
 
         // --- Feuille 1 : synthèse ---
         $synthese = [
-            ['Périmètre', $portee],
-            ['Effectif en activité', $effectifTotal],
-            ['   dont actifs', $avecHors('actifs')],
-            ['   dont détachés', $avecHors('detaches')],
-            ['   dont en mission', $avecHors('missions')],
-            ['   dont en stage / formation', $avecHors('stages')],
-            ['Absents (congé, mission, stage, formation)', $somme('absents')],
-            ['Présents', $effectifTotal - $somme('absents')],
-            ['Femmes', $somme('femmes')],
-            ['Unités', $nbUnites],
-            ['Unités opérationnelles', $nbOp],
-            ['Hors effectif : radiés', $avecHors('radies')],
-            ["Hors effectif : retraites {$annee}", $avecHors('retraites')],
-            ['Hors effectif : déserteurs', $avecHors('deserteurs')],
-            ["Hors effectif : décédés {$annee}", $avecHors('decedes')],
+            ['Périmètre géographique', $portee],
+            ['Effectif total en activité', $effectifTotal],
+            ['Militaires en service actif (au poste)', $avecHors('actifs')],
+            ['Militaires en détachement', $avecHors('detaches')],
+            ['Militaires en mission opérationnelle', $avecHors('missions')],
+            ['Militaires en stage / formation', $avecHors('stages')],
+            ['Militaires présents au service', $effectifTotal - $somme('absents')],
+            ['Militaires absents (congé, mission, stage)', $somme('absents')],
+            ['Effectif masculin (Hommes)', $totalHommes],
+            ['Effectif féminin (Femmes)', $totalFemmes],
+            ['Nombre total d\'unités', $nbUnites],
+            ['Unités opérationnelles actives', $nbOp],
+            ['Personnels radiés des cadres', $avecHors('radies')],
+            ["Départs à la retraite {$annee}", $avecHors('retraites')],
+            ['Militaires déclarés déserteurs', $avecHors('deserteurs')],
+            ["Militaires décédés en {$annee}", $avecHors('decedes')],
         ];
         if (!$filtre) {
-            $synthese[] = ['Militaires non rattachés à une région/unité', (int) ($d['stats']['non_rattaches'] ?? 0)];
+            $synthese[] = ['Militaires en attente d\'affectation régionale', (int) ($d['stats']['non_rattaches'] ?? 0)];
         }
 
         // --- Feuille 2 : régions ---
         $lignesRegions = $regionsExport->map(function ($r) use ($effectifTotal) {
             $ops = collect($r['unites'])->where('operationnelle', true)->count();
+            $femmes = (int) ($r['femmes'] ?? 0);
+            $hommes = max(0, (int) $r['effectif'] - $femmes);
 
             return [
                 $r['code'], $r['nom'], $r['chef_lieu'] ?? '',
                 $r['effectif'],
                 $effectifTotal > 0 ? round($r['effectif'] / $effectifTotal * 100, 1) : 0,
-                $r['effectif'] - $r['absents'], $r['absents'], $r['femmes'],
+                $r['effectif'] - $r['absents'], $r['absents'],
+                $hommes, $femmes,
                 $r['actifs'], $r['detaches'], $r['missions'], $r['stages'],
                 count($r['unites']), $ops,
                 $r['radies'], $r['retraites'], $r['deserteurs'], $r['decedes'],
             ];
         })->values()->all();
 
-        $totalRegions = ['', 'TOTAL', '', 0, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        $totalRegions = ['', 'TOTAL', '', 0, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         foreach ($lignesRegions as $l) {
-            foreach ([3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17] as $i) {
+            foreach ([3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as $i) {
                 $totalRegions[$i] += $l[$i];
             }
         }
         if (!$filtre && !empty($hr)) {
-            $nr = ['', 'Non rattachés', '', (int) $hr['actifs'] + (int) $hr['detaches'] + (int) $hr['missions'] + (int) $hr['stages'],
-                0, 0, 0, 0, (int) $hr['actifs'], (int) $hr['detaches'], (int) $hr['missions'], (int) $hr['stages'], 0, 0,
-                (int) $hr['radies'], (int) $hr['retraites'], (int) $hr['deserteurs'], (int) $hr['decedes']];
-            $nr[5] = $nr[3];
-            $nr[4] = $effectifTotal > 0 ? round($nr[3] / $effectifTotal * 100, 1) : 0;
+            $nrActifs = (int) $hr['actifs'] + (int) $hr['detaches'] + (int) $hr['missions'] + (int) $hr['stages'];
+            $nrFemmes = (int) ($hr['femmes'] ?? 0);
+            $nrHommes = max(0, $nrActifs - $nrFemmes);
+            $nr = [
+                '', 'Non rattachés', '', $nrActifs,
+                $effectifTotal > 0 ? round($nrActifs / $effectifTotal * 100, 1) : 0,
+                $nrActifs, 0,
+                $nrHommes, $nrFemmes,
+                (int) $hr['actifs'], (int) $hr['detaches'], (int) $hr['missions'], (int) $hr['stages'],
+                0, 0,
+                (int) $hr['radies'], (int) $hr['retraites'], (int) $hr['deserteurs'], (int) $hr['decedes']
+            ];
             $lignesRegions[] = $nr;
-            foreach ([3, 5, 8, 9, 10, 11, 14, 15, 16, 17] as $i) {
+            foreach ([3, 5, 7, 8, 9, 10, 11, 12, 15, 16, 17, 18] as $i) {
                 $totalRegions[$i] += $nr[$i];
             }
             $totalRegions[4] = 100;
@@ -103,8 +116,8 @@ class StatistiquesExportController extends Controller
         $feuilles = [
             ['titre' => 'Synthèse', 'intitule' => "Carte opérationnelle : synthèse ({$portee})", 'entetes' => ['Indicateur', 'Valeur'], 'lignes' => $synthese, 'colonnes_nombres' => [2]],
             ['titre' => 'Régions', 'intitule' => 'Carte opérationnelle : effectifs par région',
-                'entetes' => ['Code', 'Région', 'Chef-lieu', 'Effectif', '% du total', 'Présents', 'Absents', 'Femmes', 'Actifs', 'Détachés', 'En mission', 'En stage', 'Unités', 'Unités opérationnelles', 'Radiés', "Retraites {$annee}", 'Déserteurs', "Décédés {$annee}"],
-                'lignes' => $lignesRegions, 'total' => $totalRegions, 'colonnes_nombres' => [4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]],
+                'entetes' => ['Code', 'Région', 'Chef-lieu', 'Effectif', '% du total', 'Présents', 'Absents', 'Hommes', 'Femmes', 'Actifs', 'Détachés', 'En mission', 'En stage', 'Unités', 'Unités opérationnelles', 'Radiés', "Retraites {$annee}", 'Déserteurs', "Décédés {$annee}"],
+                'lignes' => $lignesRegions, 'total' => $totalRegions, 'colonnes_nombres' => [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]],
             ['titre' => 'Unités', 'intitule' => 'Carte opérationnelle : militaires par unité',
                 'entetes' => ['Région', 'Unité', 'Type', 'Ville', 'Opérationnelle', 'Effectif', 'Latitude', 'Longitude'],
                 'lignes' => $lignesUnites, 'colonnes_nombres' => [6]],
@@ -137,16 +150,16 @@ class StatistiquesExportController extends Controller
         };
 
         $synthese = [
-            ['Effectif en activité', (int) ($s['militaires_actifs'] ?? 0)],
-            ['   dont actifs', (int) ($s['actifs_stricts'] ?? 0)],
-            ['   dont détachés', (int) ($s['detaches'] ?? 0)],
-            ['   dont en mission', (int) ($s['missions'] ?? 0)],
-            ['   dont en stage / formation', (int) ($s['stages'] ?? 0)],
-            ["Retraites {$annee}", (int) ($s['retraites_n'] ?? 0)],
-            ["Proposables à l'avancement {$annee}", (int) ($s['proposables_n'] ?? 0)],
-            ["Décédés {$annee}", (int) ($s['decedes_cette_annee'] ?? 0)],
-            ['Déserteurs', (int) ($s['deserteurs'] ?? 0)],
-            ['Radiés', (int) ($s['radies'] ?? 0)],
+            ['Effectif total en activité', (int) ($s['militaires_actifs'] ?? 0)],
+            ['Militaires en service actif (au poste)', (int) ($s['actifs_stricts'] ?? 0)],
+            ['Militaires en détachement', (int) ($s['detaches'] ?? 0)],
+            ['Militaires en mission opérationnelle', (int) ($s['missions'] ?? 0)],
+            ['Militaires en stage / formation', (int) ($s['stages'] ?? 0)],
+            ["Départs à la retraite {$annee}", (int) ($s['retraites_n'] ?? 0)],
+            ["Militaires éligibles à l'avancement {$annee}", (int) ($s['proposables_n'] ?? 0)],
+            ["Militaires décédés en {$annee}", (int) ($s['decedes_cette_annee'] ?? 0)],
+            ['Militaires déclarés déserteurs', (int) ($s['deserteurs'] ?? 0)],
+            ['Personnels radiés des cadres', (int) ($s['radies'] ?? 0)],
         ];
 
         $feuilles = [

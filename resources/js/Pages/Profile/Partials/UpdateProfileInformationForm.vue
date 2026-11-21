@@ -1,3 +1,25 @@
+<script setup>
+import { useForm, usePage, Link } from '@inertiajs/vue3';
+import InputText from 'primevue/inputtext';
+import Button from 'primevue/button';
+
+defineProps({
+    mustVerifyEmail: {
+        type: Boolean,
+    },
+    status: {
+        type: String,
+    },
+});
+
+const user = usePage().props.auth.user;
+
+const form = useForm({
+    name: user.name,
+    email: user.email,
+});
+</script>
+
 <template>
     <section>
         <header>
@@ -54,25 +76,3 @@
         </form>
     </section>
 </template>
-
-<script setup>
-import { useForm, usePage, Link } from '@inertiajs/vue3';
-import InputText from 'primevue/inputtext';
-import Button from 'primevue/button';
-
-defineProps({
-    mustVerifyEmail: {
-        type: Boolean,
-    },
-    status: {
-        type: String,
-    },
-});
-
-const user = usePage().props.auth.user;
-
-const form = useForm({
-    name: user.name,
-    email: user.email,
-});
-</script>

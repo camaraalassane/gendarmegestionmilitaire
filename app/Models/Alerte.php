@@ -19,7 +19,7 @@ class Alerte extends Model
 
     protected $casts = [
         'date_echeance' => 'date',
-        'est_vue' => 'boolean',
+        'est_vue' => 'integer',
     ];
 
     public function militaire()

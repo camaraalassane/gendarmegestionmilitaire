@@ -13,6 +13,7 @@ use App\Http\Controllers\CertificatDocumentController;
 use App\Http\Controllers\MilitairesImportController;
 use App\Http\Controllers\ConfigurationController;
 use App\Http\Controllers\CarteController;
+use App\Http\Controllers\PriseArmeController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -46,6 +47,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
     // Carte opérationnelle & Déploiement
     Route::get('/carte', [CarteController::class, 'index'])->name('carte.index');
     Route::get('/carte/militaires-statut', [CarteController::class, 'militairesStatut'])->name('carte.militaires-statut');
+    Route::patch('/carte/unites/{unite}/coordonnees', [CarteController::class, 'updateCoordinates'])->name('carte.unites.coordinates');
+    Route::patch('/carte/theatres/{theatre}/coordonnees', [CarteController::class, 'updateTheatreCoordinates'])->name('carte.theatres.coordinates');
     Route::get('/carte/export', [\App\Http\Controllers\StatistiquesExportController::class, 'carte'])->name('carte.export');
     Route::get('/carte/export-statut', [\App\Http\Controllers\StatistiquesExportController::class, 'exportStatut'])->name('carte.export-statut');
     Route::get('/dashboard/export-statistiques', [\App\Http\Controllers\StatistiquesExportController::class, 'dashboard'])->name('dashboard.export-statistiques');
@@ -82,6 +85,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
     // Militaires
     Route::get('/militaires/export', [MilitaireController::class, 'export'])->name('militaires.export');
     Route::get('/militaires/export/template', [MilitaireController::class, 'exportTemplate'])->name('militaires.export.template');
+    Route::get('/militaires/search-selection', [MilitaireController::class, 'searchSelection'])->name('militaires.search-selection');
+    Route::post('/militaires/affectation-collective', [MilitaireController::class, 'bulkAssign'])->name('militaires.bulk-assign');
     Route::get('/militaires/import/form', [MilitairesImportController::class, 'showForm'])->name('militaires.import');
     Route::post('/militaires/import/process', [MilitairesImportController::class, 'process'])->name('militaires.import.process');
     Route::get('/militaires/import/template/xlsx', [MilitairesImportController::class, 'downloadTemplateXlsx'])->name('militaires.import.template.xlsx');
@@ -118,6 +123,20 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::post('/configurations/positions', [ConfigurationController::class, 'storePosition'])->name('configurations.positions.store');
     Route::put('/configurations/positions/{position}', [ConfigurationController::class, 'updatePosition'])->name('configurations.positions.update');
     Route::delete('/configurations/positions/{position}', [ConfigurationController::class, 'destroyPosition'])->name('configurations.positions.destroy');
+
+    Route::post('/configurations/theatres', [ConfigurationController::class, 'storeTheatre'])->name('configurations.theatres.store');
+    Route::put('/configurations/theatres/{theatre}', [ConfigurationController::class, 'updateTheatre'])->name('configurations.theatres.update');
+    Route::delete('/configurations/theatres/{theatre}', [ConfigurationController::class, 'destroyTheatre'])->name('configurations.theatres.destroy');
+
+    // Situation de Prise d'Armes (SPA) & Registres Opérationnels (100% Base de données)
+    Route::get('/prise-armes', [PriseArmeController::class, 'index'])->name('prise-armes.index');
+    Route::get('/prise-armes/export', [PriseArmeController::class, 'export'])->name('prise-armes.export');
+    Route::post('/prise-armes/registres', [PriseArmeController::class, 'storeRegistre'])->name('prise-armes.registres.store');
+    Route::put('/prise-armes/registres/{registre}', [PriseArmeController::class, 'updateRegistre'])->name('prise-armes.registres.update');
+    Route::delete('/prise-armes/registres/{registre}', [PriseArmeController::class, 'destroyRegistre'])->name('prise-armes.registres.destroy');
+    Route::post('/prise-armes/organismes', [PriseArmeController::class, 'storeOrganisme'])->name('prise-armes.organismes.store');
+    Route::put('/prise-armes/organismes/{organisme}', [PriseArmeController::class, 'updateOrganisme'])->name('prise-armes.organismes.update');
+    Route::delete('/prise-armes/organismes/{organisme}', [PriseArmeController::class, 'destroyOrganisme'])->name('prise-armes.organismes.destroy');
 });
 
 // Routes réservées au Super Administrateur

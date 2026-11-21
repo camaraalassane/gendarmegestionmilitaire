@@ -1,76 +1,3 @@
-<template>
-    <div class="min-h-screen bg-gray-100 w-full max-w-full">
-        <Sidebar v-model:is-open="sidebarOpen" :is-mobile="isMobile" @close-mobile="closeMobileMenu" />
-
-        <div
-            :class="['transition-all duration-300 print:!ml-0 print:!p-0 print:!w-full min-w-0 max-w-full', !isMobile && sidebarOpen ? 'lg:ml-64' : (!isMobile ? 'lg:ml-20' : '')]">
-
-            <header class="bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 shadow-md z-10 border-b border-sky-600/30 print:hidden">
-                <div class="flex justify-between items-center px-3 sm:px-4 py-2.5 sm:py-3 gap-2">
-                    <button @click="toggleSidebarMobile" class="lg:hidden text-white p-1 hover:bg-white/10 rounded-lg shrink-0" aria-label="Menu">
-                        <i class="pi pi-bars text-xl"></i>
-                    </button>
-
-                    <div class="lg:hidden flex-1 text-center min-w-0 px-1 overflow-hidden">
-                        <slot name="header">
-                            <h1 class="text-base font-semibold text-white truncate">{{ title }}</h1>
-                        </slot>
-                    </div>
-
-                    <div class="hidden lg:block flex-1 min-w-0 pr-4">
-                        <slot name="header">
-                            <h1 class="text-xl font-semibold text-white truncate">{{ title }}</h1>
-                        </slot>
-                    </div>
-
-                    <div class="flex items-center gap-2 sm:gap-4 shrink-0">
-                        
-
-                        <button v-if="$page.props.auth.user.role !== 1" @click="showNotifications" class="relative text-white hover:text-sky-200"
-                            title="Alertes">
-                            <i class="pi pi-bell text-xl"></i>
-                            <span v-if="alertesCount > 0"
-                                class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                                {{ alertesCount > 9 ? '9+' : alertesCount }}
-                            </span>
-                        </button>
-
-                        <div class="relative" ref="userMenuRef">
-                            <button @click="toggleUserMenu"
-                                class="flex items-center gap-2 text-white hover:text-sky-200">
-                                <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                                    <i class="pi pi-user"></i>
-                                </div>
-                                <span class="text-sm hidden md:inline">{{ userName }}</span>
-                                <i class="pi pi-chevron-down text-xs hidden md:inline"></i>
-                            </button>
-                            <div v-if="userMenuOpen"
-                                class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-20 border border-gray-200">
-                                <Link :href="route('profile.edit')"
-                                    class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                    <i class="pi pi-user mr-2"></i> Mon profil
-                                </Link>
-                                <Link :href="route('configurations.index')"
-                                    class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                    <i class="pi pi-cog mr-2 text-sky-800"></i> Configuration
-                                </Link>
-                                <button @click="logout"
-                                    class="flex items-center w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100">
-                                    <i class="pi pi-sign-out mr-2"></i> Déconnexion
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            <main class="p-2.5 sm:p-4 print:p-0 print:m-0 min-w-0 max-w-full overflow-x-clip">
-                <slot />
-            </main>
-        </div>
-    </div>
-</template>
-
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
@@ -149,6 +76,79 @@ onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside);
 });
 </script>
+
+<template>
+    <div class="min-h-screen bg-gray-100 w-full max-w-full">
+        <Sidebar v-model:is-open="sidebarOpen" :is-mobile="isMobile" @close-mobile="closeMobileMenu" />
+
+        <div
+            :class="['transition-all duration-300 print:!ml-0 print:!p-0 print:!w-full min-w-0 max-w-full', !isMobile && sidebarOpen ? 'lg:ml-64' : (!isMobile ? 'lg:ml-20' : '')]">
+
+            <header class="bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 shadow-md z-10 border-b border-sky-600/30 print:hidden">
+                <div class="flex justify-between items-center px-3 sm:px-4 py-2.5 sm:py-3 gap-2">
+                    <button @click="toggleSidebarMobile" class="lg:hidden text-white p-1 hover:bg-white/10 rounded-lg shrink-0" aria-label="Menu">
+                        <i class="pi pi-bars text-xl"></i>
+                    </button>
+
+                    <div class="lg:hidden flex-1 text-center min-w-0 px-1 overflow-hidden">
+                        <slot name="header">
+                            <h1 class="text-base font-semibold text-white truncate">{{ title }}</h1>
+                        </slot>
+                    </div>
+
+                    <div class="hidden lg:block flex-1 min-w-0 pr-4">
+                        <slot name="header">
+                            <h1 class="text-xl font-semibold text-white truncate">{{ title }}</h1>
+                        </slot>
+                    </div>
+
+                    <div class="flex items-center gap-2 sm:gap-4 shrink-0">
+                        
+
+                        <button v-if="$page.props.auth.user.role !== 1" @click="showNotifications" class="relative text-white hover:text-sky-200"
+                            title="Alertes">
+                            <i class="pi pi-bell text-xl"></i>
+                            <span v-if="alertesCount > 0"
+                                class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                                {{ alertesCount > 9 ? '9+' : alertesCount }}
+                            </span>
+                        </button>
+
+                        <div class="relative" ref="userMenuRef">
+                            <button @click="toggleUserMenu"
+                                class="flex items-center gap-2 text-white hover:text-sky-200">
+                                <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                                    <i class="pi pi-user"></i>
+                                </div>
+                                <span class="text-sm hidden md:inline">{{ userName }}</span>
+                                <i class="pi pi-chevron-down text-xs hidden md:inline"></i>
+                            </button>
+                            <div v-if="userMenuOpen"
+                                class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-20 border border-gray-200">
+                                <Link :href="route('profile.edit')"
+                                    class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="pi pi-user mr-2"></i> Mon profil
+                                </Link>
+                                <Link :href="route('configurations.index')"
+                                    class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="pi pi-cog mr-2 text-sky-800"></i> Configuration
+                                </Link>
+                                <button @click="logout"
+                                    class="flex items-center w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100">
+                                    <i class="pi pi-sign-out mr-2"></i> Déconnexion
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <main class="p-2.5 sm:p-4 print:p-0 print:m-0 min-w-0 max-w-full overflow-x-clip">
+                <slot />
+            </main>
+        </div>
+    </div>
+</template>
 
 <style scoped>
 .transition-all {

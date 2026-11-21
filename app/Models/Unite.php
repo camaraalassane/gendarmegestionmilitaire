@@ -25,7 +25,7 @@ class Unite extends Model
     ];
 
     protected $casts = [
-        'est_operationnelle' => 'boolean',
+        'est_operationnelle' => 'integer',
         'latitude' => 'float',
         'longitude' => 'float',
     ];

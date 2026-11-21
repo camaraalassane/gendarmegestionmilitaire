@@ -1,3 +1,12 @@
+<script setup>
+import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import { Head, Link } from '@inertiajs/vue3';
+
+defineProps({
+    logs: Object,
+});
+</script>
+
 <template>
     <AuthenticatedLayout>
         <template #header>
@@ -67,12 +76,3 @@
         </div>
     </AuthenticatedLayout>
 </template>
-
-<script setup>
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
-
-defineProps({
-    logs: Object,
-});
-</script>

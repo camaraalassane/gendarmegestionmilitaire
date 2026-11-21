@@ -1,3 +1,38 @@
+<script setup>
+import { ref } from 'vue';
+import { Head, Link, useForm } from '@inertiajs/vue3';
+import Card from 'primevue/card';
+import InputText from 'primevue/inputtext';
+import Button from 'primevue/button';
+import Checkbox from 'primevue/checkbox';
+import Message from 'primevue/message';
+
+defineProps({
+    canResetPassword: {
+        type: Boolean,
+        default: false,
+    },
+    status: {
+        type: String,
+        default: null,
+    },
+});
+
+const form = useForm({
+    email: '',
+    password: '',
+    remember: false,
+});
+
+const showPassword = ref(false);
+
+const submit = () => {
+    form.post(route('login'), {
+        onFinish: () => form.reset('password'),
+    });
+};
+</script>
+
 <template>
     <div class="h-screen flex items-center justify-center bg-gradient-to-br from-sky-950 via-sky-900 to-slate-950 relative overflow-hidden">
         <!-- Formes décoratives animées -->
@@ -124,41 +159,6 @@
         </div>
     </div>
 </template>
-
-<script setup>
-import { ref } from 'vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
-import Card from 'primevue/card';
-import InputText from 'primevue/inputtext';
-import Button from 'primevue/button';
-import Checkbox from 'primevue/checkbox';
-import Message from 'primevue/message';
-
-defineProps({
-    canResetPassword: {
-        type: Boolean,
-        default: false,
-    },
-    status: {
-        type: String,
-        default: null,
-    },
-});
-
-const form = useForm({
-    email: '',
-    password: '',
-    remember: false,
-});
-
-const showPassword = ref(false);
-
-const submit = () => {
-    form.post(route('login'), {
-        onFinish: () => form.reset('password'),
-    });
-};
-</script>
 
 <style scoped>
 @keyframes fade-in-down {

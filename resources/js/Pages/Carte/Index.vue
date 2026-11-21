@@ -1,1409 +1,21 @@
-<template>
-    <AuthenticatedLayout>
-        <Head title="Carte Opérationnelle du Mali" />
-
-        <template #header>
-            <div class="flex items-center justify-between gap-3">
-                <div class="flex items-center gap-2">
-                    <div class="w-7 h-7 rounded-lg bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300">
-                        <i class="pi pi-map text-sm"></i>
-                    </div>
-                    <div>
-                        <h1 class="text-base font-bold text-white leading-tight">
-                            Carte Opérationnelle du Mali
-                        </h1>
-                        <p class="text-[10px] text-sky-200">
-                            {{ regions.length }} régions • Maillage territorial souverain
-                        </p>
-                    </div>
-                </div>
-                <div class="hidden sm:flex items-center gap-2 text-[11px] text-sky-100 bg-sky-900/40 border border-sky-600/30 px-2.5 py-1 rounded-md">
-                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span>Situation au {{ stats.generated_at || 'ce jour' }}</span>
-                </div>
-                <a
-                    :href="route('carte.export', sel ? { region: sel } : {})"
-                    class="flex items-center gap-1.5 text-[11px] font-semibold text-white bg-emerald-600 hover:bg-emerald-500 border border-emerald-400/50 px-2.5 py-1 rounded-md shadow-sm whitespace-nowrap transition-colors"
-                    :title="sel ? 'Exporter les statistiques de cette région en Excel' : 'Exporter les statistiques de la carte en Excel'"
-                >
-                    <i class="pi pi-file-excel text-xs"></i>
-                    <span>{{ sel ? 'Exporter la région' : 'Exporter Excel' }}</span>
-                </a>
-            </div>
-        </template>
-
-        <!-- Container principal fixé dans le viewport (zéro défilement externe de page) -->
-        <div class="min-h-[calc(100vh-4.75rem)] flex flex-col gap-2 overflow-y-auto lg:overflow-hidden -m-1 sm:-m-2">
-            <!-- 1. Chiffres clés (KPIs) CLAIRS / BLANCS (comme demandé : "pas les autres cards") -->
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 flex-none">
-                <div
-                    v-for="k in kpis"
-                    :key="k.label"
-                    class="bg-white rounded-lg border border-slate-200/90 px-3 py-1.5 shadow-xs flex items-center justify-between gap-2"
-                >
-                    <div class="min-w-0">
-                        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500 truncate">
-                            {{ k.label }}
-                        </div>
-                        <div class="text-[10px] text-slate-400 truncate">
-                            {{ k.hint }}
-                        </div>
-                    </div>
-                    <div class="text-lg sm:text-xl font-extrabold text-slate-900 tabular-nums leading-none flex-none">
-                        {{ k.value }}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Répartition de l'effectif en activité + éléments hors effectif sur UNE SEULE LIGNE COMPACTE -->
-            <div class="flex items-center justify-between gap-2 px-3 py-1 rounded-lg border border-slate-200/90 bg-white text-[11px] shadow-2xs flex-none whitespace-nowrap overflow-x-auto custom-scrollbar">
-                <!-- En activité -->
-                <div class="flex items-center gap-2 flex-none">
-                    <span class="font-bold uppercase tracking-wider text-[10px] text-sky-800 flex items-center gap-1 flex-none">
-                        <i class="pi pi-shield text-[10px]"></i>
-                        <span>En activité :</span>
-                    </span>
-                    <span v-for="h in repartition" :key="h.label" class="inline-flex items-center gap-1 flex-none">
-                        <span class="w-1.5 h-1.5 rounded-full flex-none" :style="{ backgroundColor: h.color }"></span>
-                        <span class="text-slate-500">{{ h.label }} :</span>
-                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(h.value) }}</strong>
-                    </span>
-                </div>
-
-                <!-- Séparateur vertical discret -->
-                <div class="h-3.5 w-px bg-slate-200 flex-none mx-1"></div>
-
-                <!-- Hors effectif (comptabilisés strictement à part) -->
-                <div class="flex items-center gap-2 flex-none">
-                    <span class="font-bold uppercase tracking-wider text-[10px] text-rose-800 flex items-center gap-1 flex-none">
-                        <i class="pi pi-info-circle text-[10px]"></i>
-                        <span>Hors effectif :</span>
-                    </span>
-                    <span v-for="h in horsEffectif" :key="h.label" class="inline-flex items-center gap-1 flex-none">
-                        <span class="w-1.5 h-1.5 rounded-full flex-none" :style="{ backgroundColor: h.color }"></span>
-                        <span class="text-slate-500">{{ h.label }} :</span>
-                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(h.value) }}</strong>
-                    </span>
-                </div>
-            </div>
-
-            <!-- Alerte non rattachés si existants avec accès direct aux recrues pour correction -->
-            <div
-                v-if="stats.non_rattaches > 0"
-                class="rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-xs px-3 py-2 flex flex-wrap items-center justify-between gap-2 flex-none shadow-xs"
-            >
-                <div class="flex items-center gap-2">
-                    <span class="w-6 h-6 rounded-full bg-amber-200 text-amber-800 flex items-center justify-center shrink-0">
-                        <i class="pi pi-exclamation-triangle text-xs"></i>
-                    </span>
-                    <div>
-                        <div class="font-bold text-slate-900">
-                            {{ fmt(stats.non_rattaches) }} recrues en attente d'affectation
-                        </div>
-                        <div class="text-[11px] text-amber-800">
-                            Ces militaires sont enregistrés sans région ni unité d'affectation.
-                        </div>
-                    </div>
-                </div>
-                <div class="flex items-center gap-2">
-                    <button
-                        type="button"
-                        @click="showNonRattachesModal = true"
-                        class="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-                        title="Voir la liste détaillée des recrues pour leur assigner une région et unité"
-                    >
-                        <i class="pi pi-users text-xs"></i>
-                        <span>Consulter & Corriger ({{ fmt(stats.non_rattaches) }})</span>
-                    </button>
-                    <Link
-                        :href="route('militaires.index', { non_rattaches: 1 })"
-                        class="px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-md font-semibold text-xs flex items-center gap-1.5 transition-colors"
-                        title="Ouvrir dans l'annuaire complet"
-                    >
-                        <i class="pi pi-external-link text-[10px]"></i>
-                        <span>Dans l'annuaire</span>
-                    </Link>
-                </div>
-            </div>
-
-            <!-- 2. Zone principale : Cadre blanc standard, SEUL LE CANEVAS DE LA CARTE EST EN BLEU ARDOISE (#16212e) -->
-            <div
-                ref="carteZoneRef"
-                class="flex-1 min-h-0 grid grid-rows-1 gap-2 items-stretch transition-all duration-200"
-                :class="[
-                    isFullscreen
-                        ? 'fixed inset-0 z-50 p-2 sm:p-3 bg-slate-100 w-screen h-screen ' + (showSidePanelInFullscreen ? 'lg:grid-cols-[1fr_295px] xl:grid-cols-[1fr_310px]' : 'grid-cols-1')
-                        : 'lg:grid-cols-[1fr_295px] xl:grid-cols-[1fr_310px]'
-                ]"
-            >
-                <!-- PANNEAU CARTE (Cadre blanc standard, en-tête clair, et uniquement l'endroit de la carte en fond sombre #16212e) -->
-                <div class="bg-white rounded-lg border border-slate-200 p-2 min-w-0 flex flex-col h-full max-h-full overflow-hidden shadow-sm">
-                    <!-- En-tête de la carte CLAIR (comme demandé : "même l'en-tête faut laisser") -->
-                    <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5 flex-none">
-                        <div class="flex items-center gap-1.5 flex-wrap">
-                            <template v-if="sel">
-                                <button
-                                    class="chip bg-sky-900 text-white border-sky-900 hover:bg-sky-800 flex items-center gap-1.5 font-bold shadow-xs text-xs px-2.5 py-1"
-                                    @click="retour"
-                                >
-                                    <i class="pi pi-arrow-left text-[11px]"></i>
-                                    <span>← Afficher tout le Mali</span>
-                                </button>
-                                <span class="text-xs font-bold px-2 py-0.5 rounded-full border border-slate-200 bg-slate-100 text-slate-800 flex items-center gap-1.5">
-                                    <span class="w-2 h-2 rounded-full bg-sky-600"></span>
-                                    <span>{{ selRegion?.nom }}</span>
-                                    <span class="text-slate-500 font-normal">({{ selRegion?.unites.length }} unités)</span>
-                                </span>
-                            </template>
-                            <template v-else>
-                                <button
-                                    v-for="(m, key) in METRICS"
-                                    :key="key"
-                                    class="chip"
-                                    :aria-pressed="metric === key"
-                                    @click="metric = key"
-                                >
-                                    {{ m.label }}
-                                </button>
-                            </template>
-                        </div>
-
-                        <!-- Menu déroulant pour sélectionner directement une région -->
-                        <div class="flex items-center gap-1.5">
-                            <select
-                                :value="sel || ''"
-                                @change="onSelectRegionDropdown($event.target.value)"
-                                class="text-xs border border-slate-200 rounded-lg px-2 py-0.5 bg-white text-slate-700 focus:outline-none focus:border-sky-500 font-medium"
-                                aria-label="Choisir une région"
-                            >
-                                <option value="">Tout le Mali (20 régions)</option>
-                                <option v-for="r in regions" :key="r.code" :value="r.code">
-                                    {{ r.code }} - {{ r.nom }}
-                                </option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- En mode plein écran : bande récapitulative compacte de la situation opérationnelle -->
-                    <div
-                        v-if="isFullscreen"
-                        class="flex items-center justify-between gap-2 px-2.5 py-1 mb-1.5 bg-slate-50 rounded-md border border-slate-200 text-xs text-slate-700 flex-none"
-                    >
-                        <div class="flex items-center gap-3 overflow-x-auto">
-                            <span class="font-bold text-slate-900 flex items-center gap-1">
-                                <i class="pi pi-shield text-sky-800 text-xs"></i>
-                                <span>Situation opérationnelle :</span>
-                            </span>
-                            <span v-for="k in kpis" :key="k.label" class="inline-flex items-center gap-1 whitespace-nowrap">
-                                <span class="text-slate-500">{{ k.label }} :</span>
-                                <strong class="text-slate-900">{{ k.value }}</strong>
-                                <span class="text-slate-300">•</span>
-                            </span>
-                        </div>
-                        <div class="text-[11px] text-slate-400 whitespace-nowrap hidden sm:block">
-                            Touche <kbd class="px-1.5 py-0.5 bg-white border border-slate-300 rounded font-mono text-[10px] text-slate-700 shadow-2xs">Échap</kbd> ou bouton pour quitter
-                        </div>
-                    </div>
-
-                    <!-- UNIQUEMENT CET ENDROIT : LE CANEVAS DE LA CARTE EN BLEU ARDOISE ADOUCI (#16212E) -->
-                    <div
-                        class="flex-1 min-h-[380px] lg:min-h-[430px] xl:min-h-[460px] w-full h-full relative flex items-center justify-center overflow-hidden bg-[#16212e] rounded-lg border border-[#263446] p-1 select-none"
-                        :class="{ '!cursor-grabbing': isDragging, 'cursor-grab': true }"
-                        @mousedown="onMouseDown($event)"
-                        @wheel="onWheel($event)"
-                        @touchstart="onTouchStart($event)"
-                        @touchmove="onTouchMove($event)"
-                        @touchend="onTouchEnd($event)"
-                        @dblclick="onDblClick($event)"
-                    >
-                        <!-- Boutons d'action rapide en haut à droite sur le canevas tactique -->
-                        <div class="absolute top-2 right-2 z-20 flex items-center gap-1.5 pointer-events-auto">
-                            <button
-                                v-if="sel"
-                                type="button"
-                                @click="retour"
-                                class="bg-[#0e1621]/90 hover:bg-[#1a2636] text-white border border-slate-700/80 px-2.5 py-1 rounded-md shadow-md text-xs flex items-center gap-1.5 transition pointer-events-auto font-medium cursor-pointer"
-                                title="Retour à la vue complète du Mali"
-                            >
-                                <i class="pi pi-arrow-left text-[10px] text-sky-300"></i>
-                                <span class="hidden sm:inline">Tout le Mali</span>
-                            </button>
-                            <button
-                                v-if="isFullscreen"
-                                type="button"
-                                @click="showSidePanelInFullscreen = !showSidePanelInFullscreen"
-                                class="bg-[#0e1621]/90 hover:bg-[#1a2636] text-white border border-slate-700/80 px-2.5 py-1 rounded-md shadow-md text-xs flex items-center gap-1.5 transition pointer-events-auto font-medium cursor-pointer"
-                                :title="showSidePanelInFullscreen ? 'Masquer le volet latéral' : 'Afficher le volet latéral'"
-                            >
-                                <i :class="showSidePanelInFullscreen ? 'pi pi-eye-slash text-slate-300' : 'pi pi-list text-sky-300'" class="text-xs"></i>
-                                <span class="hidden sm:inline">{{ showSidePanelInFullscreen ? 'Masquer volet' : 'Volet détails' }}</span>
-                            </button>
-                            <button
-                                type="button"
-                                @click="toggleFullscreen"
-                                class="bg-[#0e1621]/90 hover:bg-[#1a2636] text-white border border-slate-700/80 px-2.5 py-1 rounded-md shadow-md text-xs flex items-center gap-1.5 transition pointer-events-auto font-semibold cursor-pointer"
-                                :title="isFullscreen ? 'Quitter le mode plein écran (Échap)' : 'Afficher la carte en plein écran'"
-                            >
-                                <i :class="isFullscreen ? 'pi pi-window-minimize text-amber-300' : 'pi pi-window-maximize text-sky-300'" class="text-xs"></i>
-                                <span class="hidden sm:inline">{{ isFullscreen ? 'Réduire' : 'Plein écran' }}</span>
-                            </button>
-                        </div>
-
-                        <!-- Contrôles interactifs de Zoom (+ / % / - / Recentrer) en bas à droite -->
-                        <div class="absolute bottom-3 right-3 z-20 flex flex-col items-center bg-[#0e1621]/90 backdrop-blur border border-slate-700/80 rounded-lg shadow-xl overflow-hidden select-none pointer-events-auto">
-                            <button
-                                type="button"
-                                @click.stop="zoomIn"
-                                class="w-8 h-8 flex items-center justify-center text-white hover:bg-slate-700/60 active:bg-slate-700 transition cursor-pointer"
-                                title="Zoomer (+)"
-                                aria-label="Zoomer"
-                            >
-                                <i class="pi pi-plus text-xs"></i>
-                            </button>
-                            <div class="w-5 h-px bg-slate-700/80"></div>
-                            <button
-                                type="button"
-                                @click.stop="resetZoom"
-                                class="px-1.5 py-0.5 text-[10px] font-mono font-bold text-sky-400 hover:bg-slate-700/60 active:bg-slate-700 transition cursor-pointer"
-                                title="Réinitialiser le zoom (100%)"
-                            >
-                                {{ Math.round(userZoom * 100) }}%
-                            </button>
-                            <div class="w-5 h-px bg-slate-700/80"></div>
-                            <button
-                                type="button"
-                                @click.stop="zoomOut"
-                                class="w-8 h-8 flex items-center justify-center text-white hover:bg-slate-700/60 active:bg-slate-700 transition cursor-pointer"
-                                title="Dézoomer (-)"
-                                aria-label="Dézoomer"
-                            >
-                                <i class="pi pi-minus text-xs"></i>
-                            </button>
-                            <div class="w-5 h-px bg-slate-700/80"></div>
-                            <button
-                                type="button"
-                                @click.stop="resetZoom"
-                                class="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-700/60 active:bg-slate-700 transition cursor-pointer"
-                                title="Recentrer la carte"
-                                aria-label="Recentrer"
-                            >
-                                <i class="pi pi-compass text-xs"></i>
-                            </button>
-                        </div>
-
-                        <!-- En vue nationale : HUD de survol d'une région -->
-                        <transition name="fade">
-                            <div
-                                v-if="!sel && hoveredInfo"
-                                class="absolute top-2 left-2 z-20 bg-[#0e1621]/95 backdrop-blur text-white px-2.5 py-1 rounded-md shadow-lg text-xs pointer-events-none flex items-center gap-2 border border-slate-700"
-                            >
-                                <span class="w-2 h-2 rounded-full flex-none bg-sky-400"></span>
-                                <div class="flex items-center gap-1.5">
-                                    <span class="font-bold text-white">{{ hoveredInfo.title }}</span>
-                                    <span class="text-slate-400">•</span>
-                                    <span class="text-sky-300 font-medium">{{ hoveredInfo.subtitle }}</span>
-                                    <span v-if="hoveredInfo.extra" class="text-slate-400 text-[10px]">({{ hoveredInfo.extra }})</span>
-                                </div>
-                            </div>
-                        </transition>
-
-                        <!-- En vue régionale : En-tête de région, Filtres et Recherche sur la carte -->
-                        <div
-                            v-if="sel && selRegion"
-                            class="absolute top-2 left-2 z-20 flex flex-col gap-1.5 pointer-events-auto max-w-[85%] sm:max-w-md"
-                        >
-                            <!-- Ligne 1 : Titre et effectif de la région -->
-                            <div class="flex items-center gap-1.5 flex-wrap">
-                                <button
-                                    type="button"
-                                    @click="retour"
-                                    class="px-2 py-0.5 rounded text-xs font-bold bg-[#090e17]/95 hover:bg-[#1a2636] text-white border border-slate-700/80 shadow-md flex items-center gap-1 transition cursor-pointer"
-                                    title="Revenir à la vue complète du Mali"
-                                >
-                                    <i class="pi pi-arrow-left text-[10px] text-sky-400"></i>
-                                    <span>Tout le Mali</span>
-                                </button>
-                                <span class="px-2 py-0.5 rounded text-xs font-black bg-[#090e17]/95 border border-sky-500/50 text-white shadow-md flex items-center gap-1.5">
-                                    <span class="px-1.5 py-0.2 rounded text-[10px] bg-sky-500/30 text-sky-300 font-mono">{{ selRegion.code }}</span>
-                                    <span>{{ selRegion.code === 'R1' ? 'BAMAKO (HQ)' : selRegion.nom.toUpperCase() }}</span>
-                                    <span class="text-sky-400 font-bold">• {{ fmt(selRegion.effectif) }} militaires</span>
-                                </span>
-                            </div>
-
-                            <!-- Ligne 2 : Filtres d'affichage & recherche -->
-                            <div class="flex items-center gap-1.5 flex-wrap">
-                                <div class="inline-flex rounded shadow-md bg-[#090e17]/95 p-0.5 border border-slate-700/80 text-[11px]">
-                                    <button
-                                        type="button"
-                                        @click="parcelFilterType = 'with_eff'"
-                                        class="px-2 py-0.5 rounded transition flex items-center gap-1 cursor-pointer"
-                                        :class="parcelFilterType === 'with_eff' ? 'bg-red-600 text-white font-bold' : 'text-slate-400 hover:text-white'"
-                                        title="Unités avec effectif > 0 (Style Carte de France)"
-                                    >
-                                        <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
-                                        <span>Avec effectif ({{ countWithEff }})</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        @click="parcelFilterType = 'all'"
-                                        class="px-2 py-0.5 rounded transition cursor-pointer"
-                                        :class="parcelFilterType === 'all' ? 'bg-sky-600 text-white font-bold' : 'text-slate-400 hover:text-white'"
-                                    >
-                                        Toutes ({{ selRegion.unites.length }})
-                                    </button>
-                                    <button
-                                        type="button"
-                                        @click="parcelFilterType = 'zero_eff'"
-                                        class="px-2 py-0.5 rounded transition flex items-center gap-1 cursor-pointer"
-                                        :class="parcelFilterType === 'zero_eff' ? 'bg-slate-700 text-white font-bold' : 'text-slate-400 hover:text-white'"
-                                        title="Unités sans effectif (0)"
-                                    >
-                                        <span>Sans effectif ({{ countZeroEff }})</span>
-                                    </button>
-                                </div>
-
-                                <div class="relative w-36 sm:w-44">
-                                    <input
-                                        v-model="parcelSearchInput"
-                                        type="text"
-                                        placeholder="Filtrer brigade..."
-                                        class="w-full text-[11px] py-0.5 pl-5 pr-5 rounded border border-slate-700/80 bg-[#090e17]/95 text-white placeholder-slate-400 focus:outline-none focus:border-sky-400 shadow-md"
-                                    />
-                                    <i class="pi pi-search absolute left-1.5 top-1.5 text-[10px] text-slate-400"></i>
-                                    <button
-                                        v-if="parcelSearchInput"
-                                        @click="parcelSearchInput = ''; parcelSearchQuery = ''"
-                                        class="absolute right-1.5 top-1 text-slate-400 hover:text-white text-[10px] cursor-pointer"
-                                    >
-                                        <i class="pi pi-times"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- En vue régionale : HUD flottant d'infobulle au survol d'une unité -->
-                        <transition name="fade">
-                            <div
-                                v-if="sel && hoveredUnitObj"
-                                class="absolute bottom-12 left-2 z-20 bg-[#0e1621]/95 backdrop-blur text-white px-3 py-1.5 rounded-md shadow-xl text-xs pointer-events-none flex items-center gap-2 border border-slate-700"
-                            >
-                                <span
-                                    class="w-2.5 h-2.5 rounded-full flex-none"
-                                    :style="{ background: hoveredUnitObj.effectif > 0 ? '#ef4444' : '#64748b' }"
-                                ></span>
-                                <div class="flex items-center gap-2">
-                                    <span class="font-extrabold text-white text-xs sm:text-[13px]">{{ hoveredUnitObj.nom }}</span>
-                                    <span class="text-slate-400">•</span>
-                                    <span class="text-amber-300 font-bold">{{ hoveredUnitObj.effectif }} gendarme(s)</span>
-                                    <span v-if="hoveredUnitObj.ville" class="text-slate-400 text-[11px]">📍 {{ hoveredUnitObj.ville }}</span>
-                                    <span
-                                        v-if="!hoveredUnitObj.lat || !hoveredUnitObj.lon"
-                                        class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-600/50"
-                                    >
-                                        Position approximative (sans GPS)
-                                    </span>
-                                    <span
-                                        class="px-1.5 py-0.2 rounded text-[10px] font-bold"
-                                        :class="hoveredUnitObj.operationnelle ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-500/40' : 'bg-amber-900/60 text-amber-300 border border-amber-500/40'"
-                                    >
-                                        {{ hoveredUnitObj.operationnelle ? 'Opérationnelle' : 'En réserve' }}
-                                    </span>
-                                </div>
-                            </div>
-                        </transition>
-
-                        <svg
-                            ref="svgRef"
-                            :viewBox="viewBox.join(' ')"
-                            class="w-full h-full max-h-full block select-none pointer-events-auto"
-                            preserveAspectRatio="xMidYMid meet"
-                            role="img"
-                            aria-label="Carte du Mali par région"
-                        >
-                            <defs>
-                                <filter id="pin-shadow" x="-30%" y="-30%" width="160%" height="160%">
-                                    <feDropShadow dx="0" dy="0.8" stdDeviation="0.8" flood-opacity="0.5" flood-color="#000000" />
-                                </filter>
-                                <filter id="badge-glow" x="-20%" y="-20%" width="140%" height="140%">
-                                    <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-opacity="0.75" flood-color="#000000" />
-                                </filter>
-                                <clipPath id="region-clip-shape">
-                                    <path v-if="sel && selRegion" :d="pathD(selRegion)" />
-                                </clipPath>
-                            </defs>
-
-                            <!-- Vue nationale : Tracés des régions SVG quand !sel (Mali entier) -->
-                            <template v-if="!sel">
-                                <template v-for="r in regions" :key="r.code">
-                                    <path
-                                        v-if="SHAPES[r.code] && r.code !== 'R1'"
-                                        :d="pathD(r)"
-                                        class="reg"
-                                        :class="{
-                                            hovered: hoveredCode === r.code
-                                        }"
-                                        :style="{
-                                            fill: fillFor(r),
-                                            stroke: '#16212e',
-                                            strokeWidth: 1.2 * zoom
-                                        }"
-                                        @click="handleRegionClick(r.code)"
-                                        @mouseenter="onHoverRegion(r)"
-                                        @mouseleave="onLeaveHover"
-                                    />
-                                </template>
-
-                                <!-- Vue nationale : BADGES TACTIQUES HAUTE VISIBILITÉ DES RÉGIONS & CHIFFRES CLAIRS -->
-                                <!-- 1. Régions avec effectif > 0 (hors Bamako) : Badges tactiques contrastés avec chiffre agrandi -->
-                                <template v-for="r in regions" :key="'badge-' + r.code">
-                                    <g
-                                        v-if="SHAPES[r.code] && r.code !== 'R1' && valueOf(r) > 0"
-                                        class="tactical-badge pointer-events-none"
-                                        :transform="`translate(${SHAPES[r.code].cx}, ${SHAPES[r.code].cy})`"
-                                    >
-                                        <!-- Boîtier sombre avec bordure cyan lumineuse et ombre portée -->
-                                        <rect
-                                            :x="-badgeWidth(r) / 2"
-                                            y="-11"
-                                            :width="badgeWidth(r)"
-                                            height="22"
-                                            rx="5"
-                                            ry="5"
-                                            fill="#090e17"
-                                            stroke="#38bdf8"
-                                            stroke-width="1.4"
-                                            filter="url(#badge-glow)"
-                                        />
-                                        <!-- Ligne 1 : Nom de la région en majuscules cyan pastel -->
-                                        <text
-                                            x="0"
-                                            y="-2"
-                                            text-anchor="middle"
-                                            class="tactical-badge-nom"
-                                        >
-                                            {{ shortName(r.nom).toUpperCase() }}
-                                        </text>
-                                        <!-- Ligne 2 : CHIFFRE GRAND ET EXTRA-VISIBLE (BLANC ÉCLATANT) -->
-                                        <text
-                                            x="0"
-                                            y="8"
-                                            text-anchor="middle"
-                                            class="tactical-badge-val"
-                                        >
-                                            {{ fmt(valueOf(r)) }}
-                                        </text>
-                                    </g>
-                                </template>
-
-                                <!-- 2. Régions avec effectif == 0 : Libellé discret mais propre (aucun flou) -->
-                                <template v-for="r in regions" :key="'zero-' + r.code">
-                                    <g
-                                        v-if="SHAPES[r.code] && r.code !== 'R1' && valueOf(r) === 0"
-                                        class="lbl-zero pointer-events-none"
-                                        :transform="`translate(${SHAPES[r.code].cx}, ${SHAPES[r.code].cy})`"
-                                    >
-                                        <text x="0" y="-2" text-anchor="middle" class="lbl-zero-nm">
-                                            {{ shortName(r.nom) }}
-                                        </text>
-                                        <text x="0" y="8" text-anchor="middle" class="lbl-zero-num">
-                                            0
-                                        </text>
-                                    </g>
-                                </template>
-
-                                <!-- 3. District de Bamako (R1) : Grand badge HQ avec ligne guide lumineuse sans chevauchement -->
-                                <template v-for="r in regions.filter(x => x.code === 'R1' && SHAPES.R1)" :key="'b'">
-                                    <!-- Point d'ancrage central Bamako avec impulsion lumineuse -->
-                                    <circle
-                                        class="reg cursor-pointer"
-                                        :cx="SHAPES.R1.cx"
-                                        :cy="SHAPES.R1.cy"
-                                        r="6"
-                                        fill="#38bdf8"
-                                        stroke="#ffffff"
-                                        stroke-width="1.8"
-                                        filter="url(#badge-glow)"
-                                        @click="handleRegionClick('R1')"
-                                        @mouseenter="onHoverRegion(r)"
-                                        @mouseleave="onLeaveHover"
-                                    />
-                                    <circle
-                                        :cx="SHAPES.R1.cx"
-                                        :cy="SHAPES.R1.cy"
-                                        r="2.5"
-                                        fill="#ffffff"
-                                        class="pointer-events-none"
-                                    />
-                                    <!-- Ligne guide tactique vers l'ouest dégagé -->
-                                    <line
-                                        class="lead pointer-events-none"
-                                        :x1="SHAPES.R1.cx"
-                                        :y1="SHAPES.R1.cy"
-                                        :x2="SHAPES.R1.cx - 45"
-                                        :y2="SHAPES.R1.cy + 22"
-                                        stroke="#38bdf8"
-                                        stroke-width="1.5"
-                                        stroke-dasharray="3,2"
-                                    />
-                                    <!-- Grand badge tactique Bamako -->
-                                    <g
-                                        class="pointer-events-none"
-                                        :transform="`translate(${SHAPES.R1.cx - 45}, ${SHAPES.R1.cy + 22})`"
-                                    >
-                                        <rect
-                                            x="-38"
-                                            y="-12"
-                                            width="76"
-                                            height="24"
-                                            rx="6"
-                                            ry="6"
-                                            fill="#082f49"
-                                            stroke="#38bdf8"
-                                            stroke-width="1.8"
-                                            filter="url(#badge-glow)"
-                                        />
-                                        <text x="0" y="-2" text-anchor="middle" class="tactical-bamako-nom">
-                                            ★ BAMAKO (HQ)
-                                        </text>
-                                        <text x="0" y="8" text-anchor="middle" class="tactical-bamako-val">
-                                            {{ fmt(valueOf(r)) }}
-                                        </text>
-                                    </g>
-                                </template>
-                            </template>
-
-                            <!-- Vue régionale : OPTION 1 - RÉGION DÉCOUPÉE EN PARCELLES GÉOGRAPHIQUES TRACÉES (STYLE CARTE DE FRANCE) -->
-                            <template v-else>
-                                <!-- 1. Fond neutre de la région -->
-                                <path
-                                    v-if="selRegion"
-                                    :d="pathD(selRegion)"
-                                    fill="#f8fafc"
-                                    stroke="#0f172a"
-                                    :stroke-width="0.35 * rUnit"
-                                />
-
-                                <!-- 2. Découpage en parcelles Voronoi clipsé à la forme exacte de la région -->
-                                <g clip-path="url(#region-clip-shape)">
-                                    <template v-for="p in regionalParcels" :key="'parcel-' + p.unit.id">
-                                        <path
-                                            v-if="p.path && isUnitVisible(p.unit)"
-                                            :d="p.path"
-                                            :fill="parcelFill(p.unit)"
-                                            stroke="#0f172a"
-                                            :stroke-width="0.22 * rUnit"
-                                            stroke-linejoin="round"
-                                            class="cursor-pointer transition-colors duration-150 hover:brightness-110"
-                                            @click="handleUnitClick(p.unit.id)"
-                                            @mouseenter="onHoverUnitParcel(p.unit)"
-                                            @mouseleave="onLeaveHover"
-                                        />
-                                    </template>
-                                </g>
-
-                                <!-- Message si 0 unité visible dans la région -->
-                                <g v-if="selRegion && countUnitesVisibles === 0" class="pointer-events-none select-none">
-                                    <text
-                                        :x="selRegion.code === 'R1' ? 163 : (SHAPES[selRegion.code]?.cx || 300)"
-                                        :y="selRegion.code === 'R1' ? 495 : (SHAPES[selRegion.code]?.cy || 300)"
-                                        text-anchor="middle"
-                                        dominant-baseline="central"
-                                        :style="{
-                                            fontSize: 2.2 * rUnit + 'px',
-                                            fill: '#64748b',
-                                            fontWeight: 700
-                                        }"
-                                    >
-                                        {{ parcelSearchQuery ? 'Aucune unité correspondante' : 'Aucune unité géolocalisée' }}
-                                    </text>
-                                </g>
-
-                                <!-- 3. Contour de la parcelle sélectionnée -->
-                                <template v-if="selParcel && isUnitVisible(selParcel.unit) && selParcel.path">
-                                    <path
-                                        :d="selParcel.path"
-                                        clip-path="url(#region-clip-shape)"
-                                        fill="none"
-                                        stroke="#0284c7"
-                                        :stroke-width="0.5 * rUnit"
-                                        class="pointer-events-none"
-                                    />
-                                </template>
-
-                                <!-- 4. Bordure extérieure nette de la région en noir épais -->
-                                <path
-                                    v-if="selRegion"
-                                    :d="pathD(selRegion)"
-                                    fill="none"
-                                    stroke="#0f172a"
-                                    :stroke-width="0.35 * rUnit"
-                                    class="pointer-events-none"
-                                />
-
-                                <!-- 5. Disques proportionnels Jacques Bertin (halo & cercles style Carte de France) -->
-                                <template v-for="p in regionalParcels" :key="'marker-' + p.unit.id">
-                                    <g
-                                        v-if="isUnitVisible(p.unit)"
-                                        class="cursor-pointer"
-                                        @click="handleUnitClick(p.unit.id)"
-                                        @mouseenter="onHoverUnitParcel(p.unit)"
-                                        @mouseleave="onLeaveHover"
-                                    >
-                                        <!-- Halo cyan si unité sélectionnée -->
-                                        <circle
-                                            v-if="selUnit === p.unit.id && parcelCircleR(p.unit) > 0"
-                                            :cx="p.cx"
-                                            :cy="p.cy"
-                                            :r="parcelCircleR(p.unit) + 1.2 * rUnit"
-                                            fill="none"
-                                            stroke="#0284c7"
-                                            :stroke-width="0.5 * rUnit"
-                                            class="animate-pulse"
-                                        />
-
-                                        <!-- Double contour noir épais pour les unités majeures (Top quantile 5) -->
-                                        <circle
-                                            v-if="p.unit.effectif > 0 && p.unit.effectif >= quantileThresholds[3] && parcelCircleR(p.unit) > 0"
-                                            :cx="p.cx"
-                                            :cy="p.cy"
-                                            :r="parcelCircleR(p.unit) + 0.65 * rUnit"
-                                            fill="none"
-                                            stroke="#000000"
-                                            :stroke-width="0.4 * rUnit"
-                                        />
-
-                                        <!-- Cercle proportionnel rouge Jacques Bertin avec contour noir prononcé (pointillé si position approx.) -->
-                                        <circle
-                                            v-if="parcelCircleR(p.unit) > 0"
-                                            :cx="p.cx"
-                                            :cy="p.cy"
-                                            :r="parcelCircleR(p.unit)"
-                                            fill="#ef4444"
-                                            :stroke="selUnit === p.unit.id ? '#0284c7' : '#000000'"
-                                            :stroke-width="(selUnit === p.unit.id ? 0.55 : 0.35) * rUnit"
-                                            :stroke-dasharray="(!p.unit.lat || !p.unit.lon) ? `${1.2 * rUnit} ${0.9 * rUnit}` : undefined"
-                                            filter="url(#pin-shadow)"
-                                        />
-                                    </g>
-                                </template>
-
-                                <!-- 6. Chiffres des effectifs au premier plan (toujours au-dessus des cercles, ultra-lisibles) -->
-                                <template v-for="p in regionalParcels" :key="'text-' + p.unit.id">
-                                    <g
-                                        v-if="isUnitVisible(p.unit)"
-                                        class="pointer-events-none select-none"
-                                    >
-                                        <!-- Chiffre de l'effectif au centre du cercle proportionnel (grand, noir, gras 900) -->
-                                        <text
-                                            v-if="p.unit.effectif > 0 && parcelCircleFontSize(p.unit) > 0"
-                                            :x="p.cx"
-                                            :y="p.cy"
-                                            text-anchor="middle"
-                                            dominant-baseline="central"
-                                            :font-size="parcelCircleFontSize(p.unit) + 'px'"
-                                            font-weight="900"
-                                            fill="#000000"
-                                            style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"
-                                        >
-                                            {{ p.unit.effectif }}
-                                        </text>
-
-                                        <!-- Libellé de l'unité : UNIQUEMENT pour les régions aérées (<= 6 unités) ou au survol/clic -->
-                                        <text
-                                            v-if="shouldShowParcelLabel(p)"
-                                            class="font-bold"
-                                            text-anchor="middle"
-                                            :x="p.cx"
-                                            :y="p.cy + parcelCircleR(p.unit) + 2.2 * rUnit"
-                                            :style="{
-                                                fontSize: (selUnit === p.unit.id ? 2.0 : 1.6) * rUnit + 'px',
-                                                fill: '#0f172a',
-                                                stroke: '#ffffff',
-                                                strokeWidth: 0.6 * rUnit + 'px',
-                                                paintOrder: 'stroke fill',
-                                                fontWeight: 800
-                                            }"
-                                        >
-                                            {{ shortUnitName(p.unit.nom) }}
-                                        </text>
-                                    </g>
-                                </template>
-                            </template>
-                        </svg>
-                    </div>
-
-                    <!-- Barre de sélection rapide de régions au bas de la carte (accès en 1 clic) CLAIRE -->
-                    <div class="flex items-center gap-1 overflow-x-auto py-1 px-1 mt-1 bg-slate-50/90 rounded-md border border-slate-200 text-[11px] flex-none custom-scrollbar">
-                        <button
-                            class="px-2 py-0.5 rounded font-semibold transition-all flex items-center gap-1 flex-none"
-                            :class="!sel ? 'bg-sky-900 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'"
-                            @click="retour"
-                            title="Afficher la carte complète du Mali"
-                        >
-                            <span>🌐 Tout le Mali</span>
-                        </button>
-                        <div class="h-3 w-px bg-slate-300 flex-none mx-0.5"></div>
-                        <button
-                            v-for="r in regions"
-                            :key="r.code"
-                            class="px-1.5 py-0.5 rounded font-medium transition-all flex items-center gap-1 flex-none"
-                            :class="sel === r.code ? 'bg-sky-900 text-white shadow-xs font-bold' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'"
-                            @click="choisir(r.code)"
-                            :title="r.nom + ' (' + r.unites.length + ' unités)'"
-                        >
-                            <span
-                                class="w-2 h-2 rounded-full flex-none"
-                                :style="{ background: fillFor(r) }"
-                            ></span>
-                            <span>{{ r.code }}</span>
-                            <span class="text-[10px] opacity-75 tabular-nums">({{ r.effectif }})</span>
-                        </button>
-                    </div>
-
-                    <!-- Légende opérationnelle au bas de la carte -->
-                    <div class="flex flex-wrap items-center justify-between gap-2 mt-1 text-[11px] text-slate-500 flex-none">
-                        <template v-if="sel">
-                            <div class="flex items-center gap-2.5 flex-wrap">
-                                <!-- Règle 1 : Cercle effectif -->
-                                <span class="flex items-center gap-1.5 font-semibold text-slate-800">
-                                    <span class="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-red-500 border border-black text-[8px] font-black text-black">N</span>
-                                    <span>Cercle rouge : Effectif de l'unité</span>
-                                </span>
-
-                                <span class="text-slate-300">•</span>
-
-                                <!-- Règle 2 : Niveaux d'effectif avec chiffres précis sans jargon mathématique -->
-                                <span class="flex items-center gap-1 font-medium text-slate-700">
-                                    <span class="text-slate-500 font-semibold mr-0.5">Niveau :</span>
-                                    <span class="inline-flex items-center gap-0.5" title="Unité à 0 effectif">
-                                        <span class="inline-block w-2.5 h-2.5 rounded-xs bg-slate-200 border border-slate-700"></span> 0
-                                    </span>
-                                    <span class="inline-flex items-center gap-0.5" :title="'Faible effectif : 1 à ' + Math.max(1, Math.round(quantileThresholds[0])) + ' militaire(s)'">
-                                        <span class="inline-block w-2.5 h-2.5 rounded-xs bg-yellow-200 border border-slate-700 ml-1"></span>
-                                        Faible (≤ {{ Math.max(1, Math.round(quantileThresholds[0])) }})
-                                    </span>
-                                    <span class="inline-flex items-center gap-0.5" title="Effectif modéré">
-                                        <span class="inline-block w-2.5 h-2.5 rounded-xs bg-amber-400 border border-slate-700 ml-1"></span>
-                                        Moyen
-                                    </span>
-                                    <span class="inline-flex items-center gap-0.5" title="Effectif important">
-                                        <span class="inline-block w-2.5 h-2.5 rounded-xs bg-orange-500 border border-slate-700 ml-1"></span>
-                                        Élevé
-                                    </span>
-                                    <span class="inline-flex items-center gap-0.5" :title="'Fort effectif : à partir de ' + Math.round(quantileThresholds[3]) + ' militaires'">
-                                        <span class="inline-block w-2.5 h-2.5 rounded-xs bg-red-600 border border-slate-700 ml-1"></span>
-                                        Très élevé (≥ {{ Math.round(quantileThresholds[3]) }})
-                                    </span>
-                                </span>
-
-                                <span class="text-slate-300">•</span>
-
-                                <!-- Règle 3 : Secteurs géographiques -->
-                                <span class="flex items-center font-medium text-slate-600" title="Zone de compétence géographique assignée à chaque unité">
-                                    Secteurs des unités
-                                </span>
-
-                                <span class="text-slate-300">•</span>
-
-                                <!-- Règle 4 : Unités sans GPS -->
-                                <span class="flex items-center gap-1 font-medium text-slate-600" title="Unité sans coordonnées GPS : position estimée au chef-lieu de sa région">
-                                    <svg width="12" height="12" class="inline-block shrink-0"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#64748b" stroke-width="1.2" stroke-dasharray="2 1.5"/></svg>
-                                    <span>Pointillé : Sans GPS (au chef-lieu)</span>
-                                </span>
-                            </div>
-
-                            <span class="text-slate-600 font-bold tabular-nums">
-                                {{ countUnitesVisibles }} unité(s) cartographiée(s)
-                            </span>
-                        </template>
-                        <template v-else>
-                            <div class="flex items-center gap-2">
-                                <span class="font-medium text-slate-700">20 Régions militaires cartographiées</span>
-                                <span class="text-slate-300">•</span>
-                                <span class="text-slate-500">Cliquez sur une région pour isoler ses brigades</span>
-                            </div>
-                            <span class="text-[10px] text-slate-400">Total : {{ tot(x => x.unites.length) }} unités répertoriées</span>
-                        </template>
-                    </div>
-                </div>
-
-                <!-- PANNEAU DROIT CLAIR / BLANC (même niveau et alignement que la carte) -->
-                <div
-                    v-show="!isFullscreen || showSidePanelInFullscreen"
-                    class="bg-white rounded-lg border border-slate-200 p-2 min-w-0 flex flex-col h-full max-h-full overflow-hidden shadow-sm text-slate-900 transition-all"
-                >
-                    <!-- Entête du panneau -->
-                    <div class="flex items-center justify-between gap-2 flex-none">
-                        <div class="min-w-0">
-                            <h2 class="text-sm font-bold text-slate-900 truncate">
-                                {{ sel ? selRegion.nom : 'Vue Nationale (Mali)' }}
-                            </h2>
-                            <p v-if="sel && selRegion.chef_lieu" class="text-[11px] text-slate-500 truncate">
-                                Chef-lieu : {{ selRegion.chef_lieu }}
-                            </p>
-                        </div>
-                        <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex-none">
-                            {{ sel ? selRegion.unites.length + ' unités' : regions.length + ' régions' }}
-                        </span>
-                    </div>
-
-                    <!-- Grille métriques compacte claire -->
-                    <div class="grid grid-cols-3 gap-1 my-1 p-1 border border-slate-200/70 flex-none bg-slate-50/90 rounded text-center">
-                        <div v-for="d in detail" :key="d.label" class="min-w-0 px-0.5">
-                            <div class="text-[9px] text-slate-500 truncate leading-tight">{{ d.label }}</div>
-                            <div class="text-xs font-bold text-slate-900 tabular-nums truncate">
-                                {{ d.value }}
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Onglets de bascule : Liste vs Détail Effectif -->
-                    <div class="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-medium my-1 flex-none">
-                        <button
-                            type="button"
-                            @click="sidebarTab = 'liste'"
-                            class="flex-1 py-0.5 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer text-[11px]"
-                            :class="sidebarTab === 'liste' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'"
-                        >
-                            <i class="pi pi-list text-[10px]"></i>
-                            <span>{{ sel ? 'Unités (' + selRegion.unites.length + ')' : 'Régions (' + regions.length + ')' }}</span>
-                        </button>
-                        <button
-                            type="button"
-                            @click="sidebarTab = 'effectif'"
-                            class="flex-1 py-0.5 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer text-[11px]"
-                            :class="sidebarTab === 'effectif' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'"
-                        >
-                            <i class="pi pi-chart-pie text-[10px]"></i>
-                            <span>Détail Effectif</span>
-                        </button>
-                    </div>
-
-                    <!-- VUE 1 : LISTE D'UNITÉS / RÉGIONS (DÉFAUT - PLEINE HAUTEUR FLUIDE & SCROLLABLE) -->
-                    <template v-if="sidebarTab === 'liste'">
-                        <!-- Titre de liste + Barre de recherche instantanée -->
-                        <div class="flex items-center justify-between gap-1.5 mb-1 flex-none">
-                            <h3 class="text-xs font-bold text-slate-900 truncate">
-                                {{ sel ? 'Unités de la région' : 'Classement : ' + METRICS[metric].label }}
-                            </h3>
-                            <div class="relative w-36 sm:w-40">
-                                <input
-                                    v-model="searchInput"
-                                    type="text"
-                                    :placeholder="sel ? 'Filtrer brigades...' : 'Filtrer régions...'"
-                                    class="w-full text-[11px] py-0.5 pl-5 pr-5 rounded border border-slate-200 bg-white placeholder-slate-400 focus:outline-none focus:border-sky-500"
-                                />
-                                <i class="pi pi-search absolute left-1.5 top-1.5 text-[9px] text-slate-400"></i>
-                                <button
-                                    v-if="searchInput"
-                                    @click="searchInput = ''; searchQuery = ''"
-                                    class="absolute right-1 top-1 text-slate-400 hover:text-slate-600 text-[10px]"
-                                    title="Effacer"
-                                >
-                                    <i class="pi pi-times"></i>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- LISTE DÉROULANTE INTERNE (HAUTEUR FIXE ALIGNÉE SUR LA CARTE - SCROLL INTERNE) -->
-                        <div class="flex-1 min-h-0 max-h-[380px] lg:max-h-[410px] xl:max-h-[440px] overflow-y-auto pr-1 custom-scrollbar overscroll-contain">
-                            <ul v-if="lignesFiltrees.length > 0" class="rank">
-                                <li v-for="row in lignesFiltrees" :key="row.key">
-                                    <button
-                                        :class="{ sel: row.active }"
-                                        @click="row.click"
-                                        :title="sel ? row.nom : 'Cliquer pour isoler ' + row.nom"
-                                    >
-                                        <span class="n">
-                                            <i
-                                                v-if="sel"
-                                                class="dot"
-                                                :style="{ background: row.op ? '#10b981' : '#f59e0b' }"
-                                            ></i>
-                                            <i
-                                                v-else
-                                                class="dot"
-                                                :style="{ background: fillFor(row.rawRegion) }"
-                                            ></i>
-                                            <span class="truncate text-slate-700 font-medium">{{ row.nom }}</span>
-                                            <small v-if="row.horsCarte" class="ml-1 text-amber-700 text-[9px]" title="Pas de coordonnées GPS">
-                                                (sans GPS)
-                                            </small>
-                                        </span>
-                                        <span class="t">
-                                            <i :style="{ width: Math.max(3, row.pct) + '%', background: sel ? '#0284c7' : '#1d4f91' }"></i>
-                                        </span>
-                                        <span class="v text-slate-900 font-bold">
-                                            {{ fmt(row.value) }}{{ sel ? '' : METRICS[metric].unit }}
-                                        </span>
-                                    </button>
-                                </li>
-                            </ul>
-                            <div v-else class="py-6 text-center text-xs text-slate-400">
-                                Aucun élément pour « {{ searchInput }} »
-                            </div>
-                        </div>
-                    </template>
-
-                    <!-- VUE 2 : DÉTAIL DE L'EFFECTIF (AFFICHÉ QUAND ON CLIQUE SUR L'ONGLET) -->
-                    <template v-else>
-                        <div class="flex-1 min-h-0 max-h-[380px] lg:max-h-[410px] xl:max-h-[440px] overflow-y-auto pr-1 space-y-2 custom-scrollbar text-xs overscroll-contain">
-                            <!-- En activité -->
-                            <div class="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70 space-y-2">
-                                <div class="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
-                                    <span class="flex items-center gap-1.5">
-                                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-                                        <span>En activité ({{ fmt(sel ? selRegion.effectif : (tot(r => r.effectif) + (stats.non_rattaches || 0))) }})</span>
-                                    </span>
-                                    <span class="text-[9px] text-slate-400 font-normal">{{ sel ? 'Somme = Effectif' : `${fmt(tot(r => r.effectif))} en région • ${fmt(stats.non_rattaches || 0)} en attente` }}</span>
-                                </div>
-                                <div class="grid grid-cols-2 gap-1.5 text-xs">
-                                    <button
-                                        type="button"
-                                        @click="ouvrirModalStatut('actifs')"
-                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-sky-500 hover:bg-sky-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
-                                        title="Voir la liste nominative des militaires actifs au poste et exporter en Excel"
-                                    >
-                                        <span class="text-slate-600 group-hover:text-sky-900 flex items-center gap-1">
-                                            <span>Actifs au poste</span>
-                                            <i class="pi pi-arrow-up-right text-[9px] text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
-                                        </span>
-                                        <strong class="text-slate-900 group-hover:text-sky-900 tabular-nums font-bold">{{ fmt(valStat('actifs')) }}</strong>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        @click="ouvrirModalStatut('detaches')"
-                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-sky-500 hover:bg-sky-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
-                                        title="Voir la liste nominative des militaires détachés et exporter en Excel"
-                                    >
-                                        <span class="text-slate-600 group-hover:text-sky-900 flex items-center gap-1">
-                                            <span>Détachés</span>
-                                            <i class="pi pi-arrow-up-right text-[9px] text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
-                                        </span>
-                                        <strong class="text-slate-900 group-hover:text-sky-900 tabular-nums font-bold">{{ fmt(valStat('detaches')) }}</strong>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        @click="ouvrirModalStatut('missions')"
-                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-sky-500 hover:bg-sky-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
-                                        title="Voir la liste nominative des militaires en mission et exporter en Excel"
-                                    >
-                                        <span class="text-slate-600 group-hover:text-sky-900 flex items-center gap-1">
-                                            <span>En mission</span>
-                                            <i class="pi pi-arrow-up-right text-[9px] text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
-                                        </span>
-                                        <strong class="text-slate-900 group-hover:text-sky-900 tabular-nums font-bold">{{ fmt(valStat('missions')) }}</strong>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        @click="ouvrirModalStatut('stages')"
-                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-sky-500 hover:bg-sky-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
-                                        title="Voir la liste nominative des militaires en stage et exporter en Excel"
-                                    >
-                                        <span class="text-slate-600 group-hover:text-sky-900 flex items-center gap-1">
-                                            <span>En stage</span>
-                                            <i class="pi pi-arrow-up-right text-[9px] text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
-                                        </span>
-                                        <strong class="text-slate-900 group-hover:text-sky-900 tabular-nums font-bold">{{ fmt(valStat('stages')) }}</strong>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Hors effectif -->
-                            <div class="p-2.5 rounded-lg border border-rose-200/80 bg-rose-50/40 space-y-2">
-                                <div class="text-[11px] font-bold uppercase tracking-wider text-rose-800 flex items-center justify-between">
-                                    <span class="flex items-center gap-1.5">
-                                        <span class="w-2 h-2 rounded-full bg-rose-500"></span>
-                                        <span>Hors effectif (à part)</span>
-                                    </span>
-                                    <span class="text-[9px] text-rose-500 font-normal">Non comptés dans total</span>
-                                </div>
-                                <div class="grid grid-cols-2 gap-1.5 text-xs">
-                                    <button
-                                        type="button"
-                                        @click="ouvrirModalStatut('radies')"
-                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-rose-400 hover:bg-rose-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
-                                        title="Voir la liste nominative des radiés et exporter en Excel"
-                                    >
-                                        <span class="text-slate-600 group-hover:text-rose-900 flex items-center gap-1">
-                                            <span>Radiés</span>
-                                            <i class="pi pi-arrow-up-right text-[9px] text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
-                                        </span>
-                                        <strong class="text-slate-900 group-hover:text-rose-900 tabular-nums font-bold">{{ fmt(valStat('radies')) }}</strong>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        @click="ouvrirModalStatut('retraites')"
-                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-purple-400 hover:bg-purple-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
-                                        title="Voir la liste nominative des départs à la retraite et exporter en Excel"
-                                    >
-                                        <span class="text-slate-600 group-hover:text-purple-900 flex items-center gap-1">
-                                            <span>Retraites {{ props.stats.annee ?? new Date().getFullYear() }}</span>
-                                            <i class="pi pi-arrow-up-right text-[9px] text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
-                                        </span>
-                                        <strong class="text-slate-900 group-hover:text-purple-900 tabular-nums font-bold">{{ fmt(valStat('retraites')) }}</strong>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        @click="ouvrirModalStatut('deserteurs')"
-                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-amber-400 hover:bg-amber-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
-                                        title="Voir la liste nominative des déserteurs et exporter en Excel"
-                                    >
-                                        <span class="text-slate-600 group-hover:text-amber-900 flex items-center gap-1">
-                                            <span>Déserteurs</span>
-                                            <i class="pi pi-arrow-up-right text-[9px] text-amber-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
-                                        </span>
-                                        <strong class="text-slate-900 group-hover:text-amber-900 tabular-nums font-bold">{{ fmt(valStat('deserteurs')) }}</strong>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        @click="ouvrirModalStatut('decedes')"
-                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-rose-400 hover:bg-rose-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
-                                        title="Voir la liste nominative des décédés et exporter en Excel"
-                                    >
-                                        <span class="text-slate-600 group-hover:text-rose-900 flex items-center gap-1">
-                                            <span>Décédés {{ props.stats.annee ?? new Date().getFullYear() }}</span>
-                                            <i class="pi pi-arrow-up-right text-[9px] text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
-                                        </span>
-                                        <strong class="text-slate-900 group-hover:text-rose-900 tabular-nums font-bold">{{ fmt(valStat('decedes')) }}</strong>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Astuce visuelle d'interactivité -->
-                            <div class="px-2.5 py-1.5 rounded-lg bg-sky-50/80 border border-sky-200/70 text-[10.5px] text-sky-900 flex items-center gap-2">
-                                <i class="pi pi-info-circle text-sky-600 text-xs shrink-0"></i>
-                                <span>Cliquez sur un statut pour afficher la liste nominative et l'exporter en Excel.</span>
-                            </div>
-                        </div>
-                    </template>
-
-                    <!-- Guide d'interaction en bas (aligné au bas du panneau) -->
-                    <p class="text-[10px] text-slate-400 mt-auto pt-1 border-t border-slate-100 flex-none truncate">
-                        {{ sel
-                            ? 'Cliquez sur une unité pour la cibler sur la carte.'
-                            : 'Cliquez sur une région pour zoomer et afficher ses unités.' }}
-                    </p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Modal: Recrues en attente d'affectation (Sans région / unité) -->
-        <Dialog
-            v-model:visible="showNonRattachesModal"
-            modal
-            :header="`Recrues en attente d'affectation (${props.stats.non_rattaches} sans région/unité)`"
-            :style="{ width: '920px', maxWidth: '96vw' }"
-            class="p-fluid"
-        >
-            <div class="space-y-3">
-                <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 flex items-start gap-2.5">
-                    <i class="pi pi-info-circle text-amber-600 text-base mt-0.5 shrink-0"></i>
-                    <div>
-                        <div class="font-bold text-amber-950">
-                            {{ props.stats.non_rattaches }} recrues actives sans affectation territoriale
-                        </div>
-                        <p class="text-amber-800 mt-0.5">
-                            Ces soldats sont actifs dans l'effectif mais n'ont pas encore été affectés à une région militaire ni à une unité. Cliquez sur <strong>« Affecter »</strong> pour leur assigner une région et une unité.
-                        </p>
-                    </div>
-                </div>
-
-                <!-- Barre de recherche rapide + action globale -->
-                <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
-                    <div class="relative flex-1 min-w-[220px]">
-                        <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
-                        <input
-                            v-model="searchRecrues"
-                            type="text"
-                            placeholder="Rechercher par nom, prénom, matricule, MLE GRM..."
-                            class="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-800"
-                        />
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs font-semibold text-slate-500">
-                            {{ nonRattachesFiltres.length }} sur {{ props.stats.non_rattaches }}
-                        </span>
-                        <Link
-                            :href="route('militaires.index', { non_rattaches: 1 })"
-                            class="px-2.5 py-1.5 bg-sky-900 hover:bg-sky-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors"
-                        >
-                            <i class="pi pi-external-link text-xs"></i>
-                            <span>Ouvrir dans l'Annuaire</span>
-                        </Link>
-                    </div>
-                </div>
-
-                <!-- Liste des recrues (Tableau responsive) -->
-                <div class="max-h-[58vh] overflow-y-auto border border-slate-200 rounded-lg custom-scrollbar">
-                    <table class="w-full text-left text-xs border-collapse">
-                        <thead class="bg-slate-100 text-slate-700 sticky top-0 z-10 border-b border-slate-200">
-                            <tr>
-                                <th class="p-2.5 font-bold">Matricule / MLE</th>
-                                <th class="p-2.5 font-bold">Nom & Prénom</th>
-                                <th class="p-2.5 font-bold">Grade</th>
-                                <th class="p-2.5 font-bold">Statut / Position</th>
-                                <th class="p-2.5 font-bold text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100">
-                            <tr
-                                v-for="m in nonRattachesFiltres"
-                                :key="m.id"
-                                class="hover:bg-sky-50/50 transition-colors"
-                            >
-                                <td class="p-2.5 font-mono text-[11px] font-semibold text-slate-800">
-                                    <div>FAMA: {{ m.matricule || 'N/A' }}</div>
-                                    <div class="text-[10px] text-slate-500">GRM: {{ m.mle_grm || 'N/A' }}</div>
-                                </td>
-                                <td class="p-2.5 font-bold text-slate-900">
-                                    {{ m.nom }} {{ m.prenom }}
-                                </td>
-                                <td class="p-2.5">
-                                    <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-semibold text-[11px] border border-slate-200">
-                                        {{ m.grade_actuel || 'Soldat 2' }}
-                                    </span>
-                                </td>
-                                <td class="p-2.5">
-                                    <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-[10px]">
-                                        {{ m.position_actuelle || m.statut || 'En attente' }}
-                                    </span>
-                                </td>
-                                <td class="p-2.5 text-right whitespace-nowrap">
-                                    <div class="inline-flex items-center gap-1.5 justify-end">
-                                        <Link
-                                            :href="route('militaires.edit', m.id)"
-                                            class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold text-[11px] flex items-center gap-1 shadow-xs transition-colors"
-                                            title="Affecter une région et une unité à cette recrue"
-                                        >
-                                            <i class="pi pi-pencil text-[10px]"></i>
-                                            <span>Affecter</span>
-                                        </Link>
-                                        <Link
-                                            :href="route('militaires.show', m.id)"
-                                            class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded font-semibold text-[11px] flex items-center gap-1 transition-colors"
-                                            title="Voir la fiche détaillée"
-                                        >
-                                            <i class="pi pi-eye text-[10px]"></i>
-                                        </Link>
-                                    </div>
-                                </td>
-                            </tr>
-                            <tr v-if="nonRattachesFiltres.length === 0">
-                                <td colspan="6" class="p-6 text-center text-slate-500">
-                                    Aucune recrue trouvée pour cette recherche.
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <template #footer>
-                <div class="flex items-center justify-between w-full pt-2 border-t border-slate-200">
-                    <span class="text-xs text-slate-500">
-                        Total recrues en attente : <strong>{{ props.stats.non_rattaches }}</strong>
-                    </span>
-                    <button
-                        type="button"
-                        @click="showNonRattachesModal = false"
-                        class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg text-xs font-semibold cursor-pointer"
-                    >
-                        Fermer
-                    </button>
-                </div>
-            </template>
-        </Dialog>
-
-        <!-- Modal: Détail des Militaires par Statut & Export Excel -->
-        <Dialog
-            v-model:visible="showStatutModal"
-            modal
-            :header="`${statutModalTitre} (${statutModalTotal})`"
-            :style="{ width: '1050px', maxWidth: '96vw' }"
-            class="p-fluid"
-        >
-            <div class="space-y-3">
-                <!-- En-tête info avec badge périmètre & bouton Export Excel -->
-                <div class="bg-sky-50 border border-sky-200 rounded-lg p-3 text-xs text-sky-950 flex flex-wrap items-center justify-between gap-3">
-                    <div class="flex items-center gap-2.5">
-                        <div class="w-8 h-8 rounded-full bg-sky-600 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
-                            <i class="pi pi-users text-sm"></i>
-                        </div>
-                        <div>
-                            <div class="font-bold text-sky-900 text-sm flex items-center gap-2">
-                                <span>{{ statutModalTitre }}</span>
-                                <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-sky-200/80 text-sky-800">
-                                    {{ statutModalPerimetre }}
-                                </span>
-                            </div>
-                            <p class="text-sky-700 text-[11px] mt-0.5">
-                                Liste nominative détaillée des personnels enregistrés sous cette catégorie.
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Bouton Exporter en Excel -->
-                    <button
-                        type="button"
-                        @click="exporterStatutExcel"
-                        :disabled="loadingStatutModal || statutModalTotal === 0"
-                        class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
-                        title="Télécharger cette liste au format Excel (.xlsx)"
-                    >
-                        <i class="pi pi-file-excel text-sm"></i>
-                        <span>Exporter en Excel (.xlsx)</span>
-                    </button>
-                </div>
-
-                <!-- Avertissement si affichage tronqué (> 200 lignes pour préserver les performances du navigateur) -->
-                <div v-if="statutModalIsLimited" class="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-950 flex items-center justify-between gap-2">
-                    <div class="flex items-center gap-2">
-                        <i class="pi pi-info-circle text-amber-600 text-sm shrink-0"></i>
-                        <span>Affichage limité aux <strong>200</strong> premiers personnels pour préserver la fluidité (total : <strong>{{ statutModalTotal }}</strong>).</span>
-                    </div>
-                    <button
-                        type="button"
-                        @click="exporterStatutExcel"
-                        class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold text-[11px] shrink-0 cursor-pointer flex items-center gap-1 shadow-2xs"
-                    >
-                        <i class="pi pi-download text-[10px]"></i>
-                        <span>Télécharger les {{ statutModalTotal }} en Excel</span>
-                    </button>
-                </div>
-
-                <!-- Barre de recherche rapide -->
-                <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
-                    <div class="relative flex-1 min-w-[240px]">
-                        <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
-                        <input
-                            v-model="searchStatutModal"
-                            type="text"
-                            placeholder="Filtrer par nom, prénom, matricule, grade, unité, région..."
-                            class="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-800"
-                        />
-                    </div>
-                    <div class="text-xs font-semibold text-slate-500">
-                        Affichage : <strong class="text-slate-800">{{ statutMilitairesFiltres.length }}</strong> sur {{ statutModalMilitaires.length }}
-                    </div>
-                </div>
-
-                <!-- Indicateur de chargement -->
-                <div v-if="loadingStatutModal" class="py-16 text-center text-slate-500 space-y-2">
-                    <i class="pi pi-spin pi-spinner text-3xl text-sky-600"></i>
-                    <p class="text-xs font-medium">Chargement des données en cours...</p>
-                </div>
-
-                <!-- Tableau nominatif responsive -->
-                <div v-else class="max-h-[58vh] overflow-y-auto border border-slate-200 rounded-lg custom-scrollbar">
-                    <table class="w-full text-left text-xs border-collapse">
-                        <thead class="bg-slate-100 text-slate-700 sticky top-0 z-10 border-b border-slate-200">
-                            <tr>
-                                <th class="p-2.5 font-bold">N°</th>
-                                <th class="p-2.5 font-bold">Matricule / MLE</th>
-                                <th class="p-2.5 font-bold">Nom & Prénom</th>
-                                <th class="p-2.5 font-bold">Grade</th>
-                                <th class="p-2.5 font-bold">Région & Unité</th>
-                                <th class="p-2.5 font-bold">Statut / Position</th>
-                                <th v-if="statutModalType === 'retraites'" class="p-2.5 font-bold">Date retraite</th>
-                                <th class="p-2.5 font-bold text-right">Fiche</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100">
-                            <tr
-                                v-for="(m, idx) in statutMilitairesFiltres"
-                                :key="m.id"
-                                class="hover:bg-sky-50/50 transition-colors"
-                            >
-                                <td class="p-2.5 font-mono text-slate-400 text-[11px]">
-                                    {{ idx + 1 }}
-                                </td>
-                                <td class="p-2.5 font-mono text-[11px] font-semibold text-slate-800 whitespace-nowrap">
-                                    <div>FAMA: {{ m.matricule || 'N/A' }}</div>
-                                    <div class="text-[10px] text-slate-500">GRM: {{ m.mle_grm || 'N/A' }}</div>
-                                </td>
-                                <td class="p-2.5 font-bold text-slate-900 whitespace-nowrap">
-                                    {{ m.nom }} {{ m.prenom }}
-                                </td>
-                                <td class="p-2.5">
-                                    <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-semibold text-[11px] border border-slate-200 whitespace-nowrap">
-                                        {{ m.grade || 'Soldat 2' }}
-                                    </span>
-                                </td>
-                                <td class="p-2.5 text-slate-700">
-                                    <div class="font-medium text-slate-800">{{ m.unite_nom || 'Sans unité' }}</div>
-                                    <div class="text-[10px] text-slate-500">{{ m.region_nom || 'Non rattaché' }}</div>
-                                </td>
-                                <td class="p-2.5">
-                                    <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px] border border-slate-200 whitespace-nowrap">
-                                        {{ m.position || m.statut || 'En attente' }}
-                                    </span>
-                                </td>
-                                <td v-if="statutModalType === 'retraites'" class="p-2.5 font-mono font-semibold text-rose-700 whitespace-nowrap">
-                                    {{ m.date_retraite || '-' }}
-                                </td>
-                                <td class="p-2.5 text-right whitespace-nowrap">
-                                    <Link
-                                        :href="route('militaires.show', m.id)"
-                                        target="_blank"
-                                        class="px-2 py-1 bg-slate-100 hover:bg-sky-100 hover:text-sky-800 text-slate-700 border border-slate-300 rounded font-semibold text-[11px] inline-flex items-center gap-1 transition-colors"
-                                        title="Voir la fiche détaillée du militaire"
-                                    >
-                                        <i class="pi pi-eye text-[10px]"></i>
-                                        <span>Fiche</span>
-                                    </Link>
-                                </td>
-                            </tr>
-                            <tr v-if="statutMilitairesFiltres.length === 0">
-                                <td :colspan="statutModalType === 'retraites' ? 8 : 7" class="p-8 text-center text-slate-400 text-xs">
-                                    <i class="pi pi-inbox text-2xl text-slate-300 mb-1 block"></i>
-                                    Aucun militaire trouvé pour ce critère.
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <template #footer>
-                <div class="flex items-center justify-between w-full pt-2 border-t border-slate-200">
-                    <span class="text-xs text-slate-500">
-                        Total effectif : <strong>{{ statutModalTotal }}</strong> militaire(s)
-                    </span>
-                    <div class="flex items-center gap-2">
-                        <button
-                            type="button"
-                            @click="exporterStatutExcel"
-                            :disabled="statutModalTotal === 0"
-                            class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
-                        >
-                            <i class="pi pi-file-excel"></i>
-                            <span>Télécharger Excel</span>
-                        </button>
-                        <button
-                            type="button"
-                            @click="showStatutModal = false"
-                            class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg text-xs font-semibold cursor-pointer"
-                        >
-                            Fermer
-                        </button>
-                    </div>
-                </div>
-            </template>
-        </Dialog>
-    </AuthenticatedLayout>
-</template>
-
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import Dialog from 'primevue/dialog';
+import Toast from 'primevue/toast';
+import { useToast } from 'primevue/usetoast';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { MALI_VIEW, REGION_SHAPES as SHAPES, project } from './maliRegions.js';
-import { Delaunay } from 'd3-delaunay';
+import { getCerclesByRegion } from './maliCercles.js';
+import { downloadExport } from '@/Utils/exportHelper';
+
+const toast = useToast();
+const exportingCarte = ref(false);
+const exportingStatutExcel = ref(false);
 
 const props = defineProps({
     regions: { type: Array, default: () => [] },
+    theatres: { type: Array, default: () => [] },
     non_rattaches_liste: { type: Array, default: () => [] },
     stats: { type: Object, default: () => ({ non_rattaches: 0, generated_at: '', annee: new Date().getFullYear(), hors_region: {} }) },
     regionInitiale: { type: String, default: null },
@@ -1487,12 +99,33 @@ const ouvrirModalStatut = async (type) => {
     }
 };
 
-const exporterStatutExcel = () => {
+const exportCarte = async () => {
+    const url = route('carte.export', sel.value ? { region: sel.value } : {});
+    const regionNom = sel.value ? `region_${sel.value}` : 'global';
+    await downloadExport(url, {
+        defaultFilename: `statistiques_carte_${regionNom}_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        toast,
+        onStart: () => { exportingCarte.value = true; },
+        onFinish: () => { exportingCarte.value = false; },
+        loadingMessage: 'Génération du fichier Excel de la carte... Veuillez patienter.',
+        successMessage: 'Statistiques de la carte téléchargées avec succès !'
+    });
+};
+
+const exporterStatutExcel = async () => {
     const params = new URLSearchParams({ type: statutModalType.value });
     if (sel.value) {
         params.append('region', sel.value);
     }
-    window.location.href = `/carte/export-statut?${params.toString()}`;
+    const url = `/carte/export-statut?${params.toString()}`;
+    await downloadExport(url, {
+        defaultFilename: `militaires_${statutModalType.value}_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        toast,
+        onStart: () => { exportingStatutExcel.value = true; },
+        onFinish: () => { exportingStatutExcel.value = false; },
+        loadingMessage: `Exportation de la liste (${statutModalType.value})...`,
+        successMessage: 'Liste nominative téléchargée avec succès !'
+    });
 };
 
 const toggleFullscreen = async () => {
@@ -1716,7 +349,257 @@ const toggleUnit = (id) => {
 
 const handleRegionClick = (code) => {
     if (hasDragged.value) return;
+    if (carteMode.value === 'theatres') {
+        const ths = regionToTheatreMap.value[code] || [];
+        if (ths.length > 0) {
+            selTheatre.value = selTheatre.value === ths[0].code ? null : ths[0].code;
+        }
+        return;
+    }
     choisir(code);
+};
+
+// ==========================================
+// THÉÂTRES D'OPÉRATIONS & EMPRISE GÉOGRAPHIQUE
+// ==========================================
+const carteMode = ref('territoire'); // 'territoire' | 'theatres'
+const selTheatre = ref(null);        // code du théâtre sélectionné (ex: 'TH-CTR') ou null
+const hoveredTheatre = ref(null);    // code du théâtre survolé
+const searchTheatreMilitaire = ref('');
+
+const switchCarteMode = (mode) => {
+    carteMode.value = mode;
+    if (mode === 'theatres') {
+        sel.value = null; // Sortir de la vue régionale pour voir l'emprise des théâtres
+    } else {
+        selTheatre.value = null;
+    }
+};
+
+const selTheatreObj = computed(() => {
+    if (!selTheatre.value) return null;
+    return props.theatres.find(th => th.code === selTheatre.value) || null;
+});
+
+// Modal de consultation complète de la liste des militaires du théâtre
+const showTheatreMilitairesModal = ref(false);
+const theatreMilitaireCategorieFilter = ref('tous'); // 'tous' | 'officiers' | 'sous_officiers' | 'mdr' | 'blesses'
+
+const ouvrirModalMilitairesTheatre = (cat = 'tous') => {
+    theatreMilitaireCategorieFilter.value = cat;
+    searchTheatreMilitaire.value = '';
+    showTheatreMilitairesModal.value = true;
+};
+
+// Tri strict du grade le plus élevé au plus petit (ordre DESC)
+const theatreMilitairesTriesEtFiltres = computed(() => {
+    const th = selTheatreObj.value;
+    if (!th || !th.militaires) return [];
+
+    let list = [...th.militaires];
+
+    // Tri hiérarchique décroissant : grade le plus élevé en premier
+    list.sort((a, b) => {
+        const diff = (b.grade_ordre || 0) - (a.grade_ordre || 0);
+        if (diff !== 0) return diff;
+        return (a.nom || '').localeCompare(b.nom || '');
+    });
+
+    // Filtre par catégorie hiérarchique
+    if (theatreMilitaireCategorieFilter.value === 'officiers') {
+        list = list.filter(m => (m.grade_ordre || 0) >= 11);
+    } else if (theatreMilitaireCategorieFilter.value === 'sous_officiers') {
+        list = list.filter(m => (m.grade_ordre || 0) >= 5 && (m.grade_ordre || 0) <= 10);
+    } else if (theatreMilitaireCategorieFilter.value === 'mdr') {
+        list = list.filter(m => (m.grade_ordre || 0) <= 4);
+    } else if (theatreMilitaireCategorieFilter.value === 'blesses') {
+        list = list.filter(m => m.est_blesse_guerre);
+    }
+
+    // Filtre recherche textuelle
+    if (searchTheatreMilitaire.value && searchTheatreMilitaire.value.trim()) {
+        const q = searchTheatreMilitaire.value.toLowerCase().trim();
+        list = list.filter(m =>
+            (m.nom && m.nom.toLowerCase().includes(q)) ||
+            (m.prenom && m.prenom.toLowerCase().includes(q)) ||
+            (m.matricule && String(m.matricule).toLowerCase().includes(q)) ||
+            (m.mle_grm && String(m.mle_grm).toLowerCase().includes(q)) ||
+            (m.grade && m.grade.toLowerCase().includes(q)) ||
+            (m.unite_nom && m.unite_nom.toLowerCase().includes(q)) ||
+            (m.region_nom && m.region_nom.toLowerCase().includes(q)) ||
+            (m.circonstance_blessure && m.circonstance_blessure.toLowerCase().includes(q))
+        );
+    }
+
+    return list;
+});
+
+const theatreStatsHierarchiques = computed(() => {
+    const th = selTheatreObj.value;
+    if (!th || !th.militaires) return { officiers: 0, sousOfficiers: 0, mdr: 0, blesses: 0 };
+    return {
+        officiers: th.militaires.filter(m => (m.grade_ordre || 0) >= 11).length,
+        sousOfficiers: th.militaires.filter(m => (m.grade_ordre || 0) >= 5 && (m.grade_ordre || 0) <= 10).length,
+        mdr: th.militaires.filter(m => (m.grade_ordre || 0) <= 4).length,
+        blesses: th.militaires.filter(m => m.est_blesse_guerre).length,
+    };
+});
+
+const gradeBadgeStyle = (ordre) => {
+    if (!ordre) return 'bg-slate-100 text-slate-700 border-slate-300';
+    if (ordre >= 17) return 'bg-purple-100 text-purple-900 border-purple-300'; // Officiers Généraux & Colonels
+    if (ordre >= 11) return 'bg-sky-100 text-sky-900 border-sky-300';       // Officiers Subalternes & Supérieurs
+    if (ordre >= 5) return 'bg-emerald-100 text-emerald-900 border-emerald-300'; // Sous-officiers
+    return 'bg-slate-100 text-slate-700 border-slate-300';                    // Militaires du rang
+};
+
+const theatreBadgeWidth = (th) => {
+    const title = `${th.code} • ${(th.pc_lieu || 'PC').toUpperCase()}`;
+    return Math.max(90, Math.min(145, title.length * 6.5 + 24));
+};
+
+const theatreMilitairesFiltres = computed(() => theatreMilitairesTriesEtFiltres.value);
+
+const regionToTheatreMap = computed(() => {
+    const map = {};
+    for (const th of props.theatres) {
+        if (Array.isArray(th.regions_codes)) {
+            for (const rc of th.regions_codes) {
+                if (!map[rc]) map[rc] = [];
+                map[rc].push(th);
+            }
+        }
+    }
+    return map;
+});
+
+const getTheatreFill = (regionCode) => {
+    const ths = regionToTheatreMap.value[regionCode] || [];
+    if (ths.length === 0) {
+        return selTheatre.value ? '#0f172a' : '#16212e';
+    }
+
+    if (selTheatre.value) {
+        const match = ths.find(t => t.code === selTheatre.value);
+        if (match) {
+            return `color-mix(in srgb, ${match.couleur} 52%, #0f172a)`;
+        }
+        return '#0f172a';
+    }
+
+    if (hoveredTheatre.value) {
+        const match = ths.find(t => t.code === hoveredTheatre.value);
+        if (match) {
+            return `color-mix(in srgb, ${match.couleur} 50%, #0f172a)`;
+        }
+    }
+
+    const mainTh = ths[0];
+    return `color-mix(in srgb, ${mainTh.couleur} 32%, #141e2b)`;
+};
+
+const getTheatreStroke = (regionCode) => {
+    const ths = regionToTheatreMap.value[regionCode] || [];
+    if (ths.length === 0) return '#1e293b';
+
+    if (selTheatre.value) {
+        const match = ths.find(t => t.code === selTheatre.value);
+        if (match) return match.couleur;
+        return '#1e293b';
+    }
+
+    if (hoveredTheatre.value) {
+        const match = ths.find(t => t.code === hoveredTheatre.value);
+        if (match) return match.couleur;
+    }
+
+    return ths[0].couleur;
+};
+
+const projectedTheatres = computed(() => {
+    return props.theatres.map(th => {
+        if (th.lat === null || th.lon === null || isNaN(Number(th.lat)) || isNaN(Number(th.lon))) return { ...th, pt: null };
+        const pt = project(Number(th.lat), Number(th.lon));
+        return { ...th, pt };
+    });
+});
+
+// Modal pour modifier les coordonnées GPS du PC
+const showEditTheatreCoordsModal = ref(false);
+const savingTheatreCoords = ref(false);
+const selectedRegionForPCModal = ref('');
+const editTheatreCoordsForm = ref({
+    theatre: null,
+    latitude: null,
+    longitude: null,
+    pc_lieu: '',
+});
+
+const onSelectRegionForPCModal = (code) => {
+    if (!code) return;
+    const reg = props.regions.find(r => r.code === code);
+    if (reg) {
+        editTheatreCoordsForm.value.pc_lieu = reg.chef_lieu || reg.nom.replace(/^(Région de |Région du |District de )/, '');
+        if (reg.latitude !== null && reg.latitude !== undefined) {
+            editTheatreCoordsForm.value.latitude = Number(reg.latitude);
+        }
+        if (reg.longitude !== null && reg.longitude !== undefined) {
+            editTheatreCoordsForm.value.longitude = Number(reg.longitude);
+        }
+    }
+};
+
+const ouvrirEditTheatreCoordsModal = (th) => {
+    if (!th) return;
+    const matchedReg = props.regions.find(r =>
+        (th.regions_codes && th.regions_codes.includes(r.code)) ||
+        (th.pc_lieu && (
+            (r.chef_lieu && r.chef_lieu.toLowerCase().includes(th.pc_lieu.toLowerCase())) ||
+            (th.pc_lieu.toLowerCase().includes((r.chef_lieu || '').toLowerCase()))
+        ))
+    );
+    selectedRegionForPCModal.value = matchedReg ? matchedReg.code : '';
+    editTheatreCoordsForm.value = {
+        theatre: th,
+        latitude: th.lat,
+        longitude: th.lon,
+        pc_lieu: th.pc_lieu || '',
+    };
+    showEditTheatreCoordsModal.value = true;
+};
+
+const saveTheatreCoords = () => {
+    const th = editTheatreCoordsForm.value.theatre;
+    if (!th) return;
+
+    savingTheatreCoords.value = true;
+    router.patch(route('carte.theatres.coordinates', th.id), {
+        latitude: editTheatreCoordsForm.value.latitude,
+        longitude: editTheatreCoordsForm.value.longitude,
+        pc_lieu: editTheatreCoordsForm.value.pc_lieu,
+    }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showEditTheatreCoordsModal.value = false;
+            toast.add({
+                severity: 'success',
+                summary: 'Coordonnées actualisées',
+                detail: `Les coordonnées GPS du PC « ${th.nom} » ont été mises à jour.`,
+                life: 3000,
+            });
+        },
+        onError: () => {
+            toast.add({
+                severity: 'error',
+                summary: 'Erreur',
+                detail: 'Vérifiez la validité des coordonnées décimales (ex: 14.5333 / -4.1000).',
+                life: 4000,
+            });
+        },
+        onFinish: () => {
+            savingTheatreCoords.value = false;
+        },
+    });
 };
 
 const handleUnitClick = (id) => {
@@ -2039,7 +922,6 @@ const regionalParcels = computed(() => {
         }
         return [{
             unit: u,
-            path: `M ${minX - 10} ${minY - 10} H ${maxX + 10} V ${maxY + 10} H ${minX - 10} Z`,
             cx: pX,
             cy: pY
         }];
@@ -2095,12 +977,10 @@ const regionalParcels = computed(() => {
             }
         } else {
             // Position de repli stable et déterministe basée sur le rang fixe de l'unité dans sa région
-            // L'unité reste strictement au même endroit même lors d'un filtrage ou d'une recherche
-            // Regroupées autour du chef-lieu de la région (sinon centre du tracé), sur un petit cercle
             const sansGps = allRegionUnits.filter(u => !(u.lat !== null && u.lon !== null && !isNaN(Number(u.lat)) && !isNaN(Number(u.lon))));
             const rg = sansGps.findIndex(u => u.id === p.unit.id);
             const stableSeed = rg >= 0 ? rg : (p.unit.id % 50);
-            const k = sel.value === 'R1' ? 4.0 : 1.0;   // Bamako est tracée agrandie 4 fois
+            const k = sel.value === 'R1' ? 4.0 : 1.0;
 
             let ox = cx, oy = cy;
             const rgn = selRegion.value;
@@ -2130,59 +1010,24 @@ const regionalParcels = computed(() => {
         points.push([x, y]);
     }
 
-    const pad = Math.max(pw, ph) * 0.25;
-    const bounds = [minX - pad, minY - pad, maxX + pad, maxY + pad];
-
-    // Lloyd relaxation modérée (1 passe pondérée) pour équilibrer les frontières territoriales
-    // tout en maintenant l'ancrage sur la position géographique réelle (80% GPS, 20% Centroïde)
-    if (n <= 150) {
-        try {
-            const v = Delaunay.from(points).voronoi(bounds);
-            const newPoints = [];
-            for (let i = 0; i < n; i++) {
-                const poly = v.cellPolygon(i);
-                if (poly && poly.length > 2) {
-                    let sx = 0, sy = 0;
-                    const len = poly.length - 1;
-                    for (let k = 0; k < len; k++) {
-                        sx += poly[k][0];
-                        sy += poly[k][1];
-                    }
-                    const px = sx / len;
-                    const py = sy / len;
-                    const targetX = points[i][0] * 0.8 + px * 0.2;
-                    const targetY = points[i][1] * 0.8 + py * 0.2;
-                    if (isPointInRings(targetX, targetY, rings)) {
-                        newPoints.push([targetX, targetY]);
-                    } else {
-                        newPoints.push(points[i]);
-                    }
-                } else {
-                    newPoints.push(points[i]);
-                }
-            }
-            points = newPoints;
-        } catch (e) {
-            // Continuer sans relaxation en cas d'exception
-        }
-    }
-
-    // Séparation anti-collision : SEULEMENT si n <= 150 (évite pénalité O(n²) sur grandes volumétries)
-    if (n > 5 && n <= 150) {
-        for (let pass = 0; pass < 2; pass++) {
+    // Séparation anti-collision : empêche les cercles d'unités de se chevaucher
+    // tout en maintenant l'ancrage fidèle sur leurs coordonnées GPS dans leurs cercles
+    if (n > 1 && n <= 250) {
+        for (let pass = 0; pass < 3; pass++) {
             for (let i = 0; i < n; i++) {
                 for (let j = i + 1; j < n; j++) {
-                    const rI = parcelCircleR(units[i]);
-                    const rJ = parcelCircleR(units[j]);
-                    if (rI === 0 && rJ === 0) continue;
-                    const targetDist = rI + rJ + 0.6;
+                    const rI = parcelCircleR(units[i]) || 3.0;
+                    const rJ = parcelCircleR(units[j]) || 3.0;
+                    const targetDist = rI + rJ + 1.2;
                     const dx = points[j][0] - points[i][0];
                     const dy = points[j][1] - points[i][1];
                     const dist = Math.hypot(dx, dy);
-                    if (dist > 0 && dist < targetDist) {
-                        const overlap = (targetDist - dist) * 0.5;
-                        const nx = (dx / dist) * overlap;
-                        const ny = (dy / dist) * overlap;
+                    if (dist < targetDist) {
+                        const effectiveDist = dist > 0.001 ? dist : 0.001;
+                        const overlap = (targetDist - effectiveDist) * 0.5;
+                        const angle = dist > 0.001 ? Math.atan2(dy, dx) : ((i + j) * 1.618);
+                        const nx = Math.cos(angle) * overlap;
+                        const ny = Math.sin(angle) * overlap;
                         const nxI = points[i][0] - nx, nyI = points[i][1] - ny;
                         const nxJ = points[j][0] + nx, nyJ = points[j][1] + ny;
                         if (isPointInRings(nxI, nyI, rings)) { points[i][0] = nxI; points[i][1] = nyI; }
@@ -2193,33 +1038,43 @@ const regionalParcels = computed(() => {
         }
     }
 
-    try {
-        const finalV = Delaunay.from(points).voronoi(bounds);
-        return units.map((u, i) => {
-            const cellPath = finalV.renderCell(i);
-            const path = (cellPath && cellPath.length > 5) ? cellPath : '';
-            return {
-                unit: u,
-                path,
-                cx: points[i][0],
-                cy: points[i][1]
-            };
-        });
-    } catch (e) {
-        console.warn('Voronoi calculation fallback:', e);
-        return units.map((u, i) => ({
-            unit: u,
-            path: '',
-            cx: points[i] ? points[i][0] : cx,
-            cy: points[i] ? points[i][1] : cy
-        }));
-    }
+    return units.map((u, i) => ({
+        unit: u,
+        cx: points[i] ? points[i][0] : cx,
+        cy: points[i] ? points[i][1] : cy
+    }));
 });
 
 const selParcel = computed(() => {
     if (!selUnit.value) return null;
     return (regionalParcels.value || []).find(p => p.unit.id === selUnit.value);
 });
+
+// Cercles officiels de la région sélectionnée
+const activeCercles = computed(() => {
+    if (!sel.value) return [];
+    return getCerclesByRegion(sel.value);
+});
+
+const cerclePathD = (cercle) => {
+    if (cercle.code === 'Bamako' && sel.value === 'R1') {
+        return 'M181.6 472.5L177.4 462.3L164.6 473.3L156.9 473.3L152.7 480.1L145.9 475.9L139.1 492.9L135.7 507.3L142.5 512.4L145.9 504.8L153.6 507.3L164.6 526L182.4 531.1L183.3 504.8L190.1 497.1L190.1 485.2L187.6 477.6L181.6 472.5Z';
+    }
+    return cercle.d || '';
+};
+
+const cercleCenter = (cercle) => {
+    if (cercle.code === 'Bamako' && sel.value === 'R1') {
+        return { x: 164.6, y: 495.4 };
+    }
+    return { x: cercle.cx, y: cercle.cy };
+};
+
+const unitTextColor = (unit) => {
+    const eff = Number(unit?.effectif) || 0;
+    const q = quantileThresholds.value || [1, 2, 3, 4];
+    return eff >= (q[3] || 4) ? '#ffffff' : '#0f172a';
+};
 
 // Effectif maximum parmi TOUTES les unités de la région (échelle stable indépendante des filtres de recherche)
 const maxRegionalEff = computed(() => {
@@ -2444,7 +1299,7 @@ const detail = computed(() => {
     return [
         { label: 'Total Unités', value: r.unites.length },
         { label: 'Part nationale', value: (total ? (r.effectif / total) * 100 : 0).toFixed(1).replace('.', ',') + ' %' },
-        { label: 'Femmes', value: fmt(r.femmes) },
+        { label: 'Hommes · Femmes', value: `${fmt(r.effectif - r.femmes)} · ${fmt(r.femmes)}` },
         { label: 'Présents', value: fmt(r.effectif - r.absents) },
         { label: 'Absents', value: fmt(r.absents) },
         { label: 'Unités op.', value: `${opCount(r)} / ${r.unites.length}` },
@@ -2461,6 +1316,7 @@ const lignes = computed(() => {
             op: u.operationnelle,
             horsCarte: u.lat === null || u.lon === null,
             active: selUnit.value === u.id,
+            rawUnit: u,
             click: () => toggleUnit(u.id),
         }));
         if (r.sans_unite > 0) {
@@ -2495,6 +1351,65 @@ const lignes = computed(() => {
     return rows.map((x) => ({ ...x, pct: (x.value / hi) * 100 }));
 });
 
+const selectedUnitObj = computed(() => {
+    if (!selUnit.value || !selRegion.value) return null;
+    return (selRegion.value.unites || []).find(u => u.id === selUnit.value) || null;
+});
+
+// ---------- Modal d'édition des coordonnées géographiques (GPS) ----------
+const showEditCoordsModal = ref(false);
+const editingUnit = ref(null);
+const coordsForm = ref({
+    latitude: '',
+    longitude: '',
+    ville: '',
+    region_id: null,
+});
+const coordsErrors = ref({});
+const savingCoords = ref(false);
+
+const openEditCoords = (u) => {
+    if (!u) return;
+    editingUnit.value = u;
+    coordsForm.value = {
+        latitude: u.lat !== null && u.lat !== undefined ? String(u.lat) : '',
+        longitude: u.lon !== null && u.lon !== undefined ? String(u.lon) : '',
+        ville: u.ville || '',
+        region_id: u.region_id || (selRegion.value?.id ?? null),
+    };
+    coordsErrors.value = {};
+    showEditCoordsModal.value = true;
+};
+
+const saveCoords = () => {
+    if (!editingUnit.value) return;
+    savingCoords.value = true;
+    coordsErrors.value = {};
+
+    router.patch(route('carte.unites.coordinates', editingUnit.value.id), {
+        latitude: coordsForm.value.latitude !== '' ? Number(coordsForm.value.latitude) : null,
+        longitude: coordsForm.value.longitude !== '' ? Number(coordsForm.value.longitude) : null,
+        ville: coordsForm.value.ville,
+        region_id: coordsForm.value.region_id,
+    }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            savingCoords.value = false;
+            showEditCoordsModal.value = false;
+            toast.add({
+                severity: 'success',
+                summary: 'Coordonnées enregistrées',
+                detail: `L'implantation de « ${editingUnit.value.nom} » a été actualisée.`,
+                life: 4000,
+            });
+        },
+        onError: (err) => {
+            savingCoords.value = false;
+            coordsErrors.value = err;
+        },
+    });
+};
+
 const lignesFiltrees = computed(() => {
     const q = searchQuery.value.trim().toLowerCase();
     if (!q) return lignes.value;
@@ -2504,6 +1419,2409 @@ const lignesFiltrees = computed(() => {
     });
 });
 </script>
+
+<template>
+    <AuthenticatedLayout>
+        <Head title="Carte Opérationnelle/SPA" />
+        <Toast position="top-right" />
+
+        <template #header>
+            <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-lg bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300">
+                        <i class="pi pi-map text-sm"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-base font-bold text-white leading-tight">
+                            Carte Opérationnelle/SPA
+                        </h1>
+                        <p class="text-[10px] text-sky-200">
+                            {{ regions.length }} régions • Maillage territorial souverain
+                        </p>
+                    </div>
+                </div>
+                <div class="hidden sm:flex items-center gap-2 text-[11px] text-sky-100 bg-sky-900/40 border border-sky-600/30 px-2.5 py-1 rounded-md">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>Situation au {{ stats.generated_at || 'ce jour' }}</span>
+                </div>
+            </div>
+        </template>
+
+        <!-- Container principal fixé dans le viewport (zéro défilement externe de page) -->
+        <div class="min-h-[calc(100vh-4.75rem)] flex flex-col gap-2 overflow-y-auto lg:overflow-hidden -m-1 sm:-m-2">
+            <!-- 1. Chiffres clés (KPIs) CLAIRS / BLANCS (comme demandé : "pas les autres cards") -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 flex-none">
+                <div
+                    v-for="k in kpis"
+                    :key="k.label"
+                    class="bg-white rounded-lg border border-slate-200/90 px-3 py-1.5 shadow-xs flex items-center justify-between gap-2"
+                >
+                    <div class="min-w-0">
+                        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500 truncate">
+                            {{ k.label }}
+                        </div>
+                        <div class="text-[10px] text-slate-400 truncate">
+                            {{ k.hint }}
+                        </div>
+                    </div>
+                    <div class="text-lg sm:text-xl font-extrabold text-slate-900 tabular-nums leading-none flex-none">
+                        {{ k.value }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Répartition de l'effectif en activité + éléments hors effectif sur UNE SEULE LIGNE COMPACTE -->
+            <div class="flex items-center justify-between gap-2 px-3 py-1 rounded-lg border border-slate-200/90 bg-white text-[11px] shadow-2xs flex-none whitespace-nowrap overflow-x-auto custom-scrollbar">
+                <!-- En activité -->
+                <div class="flex items-center gap-2 flex-none">
+                    <span class="font-bold uppercase tracking-wider text-[10px] text-sky-800 flex items-center gap-1 flex-none">
+                        <i class="pi pi-shield text-[10px]"></i>
+                        <span>En activité :</span>
+                    </span>
+                    <span v-for="h in repartition" :key="h.label" class="inline-flex items-center gap-1 flex-none">
+                        <span class="w-1.5 h-1.5 rounded-full flex-none" :style="{ backgroundColor: h.color }"></span>
+                        <span class="text-slate-500">{{ h.label }} :</span>
+                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(h.value) }}</strong>
+                    </span>
+                </div>
+
+                <!-- Séparateur vertical discret -->
+                <div class="h-3.5 w-px bg-slate-200 flex-none mx-1"></div>
+
+                <!-- Hors effectif (comptabilisés strictement à part) -->
+                <div class="flex items-center gap-2 flex-none">
+                    <span class="font-bold uppercase tracking-wider text-[10px] text-rose-800 flex items-center gap-1 flex-none">
+                        <i class="pi pi-info-circle text-[10px]"></i>
+                        <span>Hors effectif :</span>
+                    </span>
+                    <span v-for="h in horsEffectif" :key="h.label" class="inline-flex items-center gap-1 flex-none">
+                        <span class="w-1.5 h-1.5 rounded-full flex-none" :style="{ backgroundColor: h.color }"></span>
+                        <span class="text-slate-500">{{ h.label }} :</span>
+                        <strong class="text-slate-900 tabular-nums font-bold">{{ fmt(h.value) }}</strong>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Alerte non rattachés si existants avec accès direct aux recrues pour correction -->
+            <div
+                v-if="stats.non_rattaches > 0"
+                class="rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-xs px-3 py-2 flex flex-wrap items-center justify-between gap-2 flex-none shadow-xs"
+            >
+                <div class="flex items-center gap-2">
+                    <span class="w-6 h-6 rounded-full bg-amber-200 text-amber-800 flex items-center justify-center shrink-0">
+                        <i class="pi pi-exclamation-triangle text-xs"></i>
+                    </span>
+                    <div>
+                        <div class="font-bold text-slate-900">
+                            {{ fmt(stats.non_rattaches) }} recrues en attente d'affectation
+                        </div>
+                        <div class="text-[11px] text-amber-800">
+                            Ces militaires sont enregistrés sans région ni unité d'affectation.
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        @click="showNonRattachesModal = true"
+                        class="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                        title="Voir la liste détaillée des recrues pour leur assigner une région et unité"
+                    >
+                        <i class="pi pi-users text-xs"></i>
+                        <span>Consulter & Corriger ({{ fmt(stats.non_rattaches) }})</span>
+                    </button>
+                    <Link
+                        :href="route('militaires.index', { non_rattaches: 1 })"
+                        class="px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-md font-semibold text-xs flex items-center gap-1.5 transition-colors"
+                        title="Ouvrir dans l'annuaire complet"
+                    >
+                        <i class="pi pi-external-link text-[10px]"></i>
+                        <span>Dans l'annuaire</span>
+                    </Link>
+                </div>
+            </div>
+
+            <!-- 2. Zone principale : Cadre blanc standard, SEUL LE CANEVAS DE LA CARTE EST EN BLEU ARDOISE (#16212e) -->
+            <div
+                ref="carteZoneRef"
+                class="flex-1 min-h-0 grid grid-rows-1 gap-2 items-stretch transition-all duration-200"
+                :class="[
+                    isFullscreen
+                        ? 'fixed inset-0 z-50 p-2 sm:p-3 bg-slate-100 w-screen h-screen ' + (showSidePanelInFullscreen ? 'lg:grid-cols-[1fr_295px] xl:grid-cols-[1fr_310px]' : 'grid-cols-1')
+                        : 'lg:grid-cols-[1fr_295px] xl:grid-cols-[1fr_310px]'
+                ]"
+            >
+                <!-- PANNEAU CARTE (Cadre blanc standard, en-tête clair, et uniquement l'endroit de la carte en fond sombre #16212e) -->
+                <div class="bg-white rounded-lg border border-slate-200 p-2 min-w-0 flex flex-col h-full max-h-full overflow-hidden shadow-sm">
+                    <!-- En-tête de la carte CLAIR : BASCULE MODE MAILLAGE vs THÉÂTRES -->
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5 flex-none">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <!-- Sélecteur de Mode : Maillage Territorial vs Théâtres d'Opérations -->
+                            <div class="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                <button
+                                    type="button"
+                                    @click="switchCarteMode('territoire')"
+                                    :class="[
+                                        'px-2 py-0.5 text-xs font-bold rounded-md transition flex items-center gap-1.5 cursor-pointer',
+                                        carteMode === 'territoire'
+                                            ? 'bg-white text-sky-900 shadow-xs border border-slate-200/80'
+                                            : 'text-slate-600 hover:text-slate-900'
+                                    ]"
+                                >
+                                    <i class="pi pi-map text-[11px]"></i>
+                                    <span>Maillage Territorial</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    @click="switchCarteMode('theatres')"
+                                    :class="[
+                                        'px-2 py-0.5 text-xs font-bold rounded-md transition flex items-center gap-1.5 cursor-pointer',
+                                        carteMode === 'theatres'
+                                            ? 'bg-white text-orange-800 shadow-xs border border-slate-200/80'
+                                            : 'text-slate-600 hover:text-slate-900'
+                                    ]"
+                                >
+                                    <i class="pi pi-flag text-orange-600 text-[11px]"></i>
+                                    <span>Théâtres d'Opérations ({{ theatres.length }})</span>
+                                </button>
+                            </div>
+
+                            <!-- CONTROLES DU MODE TERRITOIRE -->
+                            <template v-if="carteMode === 'territoire'">
+                                <template v-if="sel">
+                                    <button
+                                        class="chip bg-sky-900 text-white border-sky-900 hover:bg-sky-800 flex items-center gap-1.5 font-bold shadow-xs text-xs px-2.5 py-1"
+                                        @click="retour"
+                                    >
+                                        <i class="pi pi-arrow-left text-[11px]"></i>
+                                        <span>← Afficher tout le Mali</span>
+                                    </button>
+                                    <span class="text-xs font-bold px-2 py-0.5 rounded-full border border-slate-200 bg-slate-100 text-slate-800 flex items-center gap-1.5">
+                                        <span class="w-2 h-2 rounded-full bg-sky-600"></span>
+                                        <span>{{ selRegion?.nom }}</span>
+                                        <span class="text-slate-500 font-normal">({{ selRegion?.unites.length }} unités)</span>
+                                    </span>
+                                </template>
+                                <template v-else>
+                                    <button
+                                        v-for="(m, key) in METRICS"
+                                        :key="key"
+                                        class="chip"
+                                        :aria-pressed="metric === key"
+                                        @click="metric = key"
+                                    >
+                                        {{ m.label }}
+                                    </button>
+                                </template>
+                            </template>
+
+                            <!-- CONTROLES DU MODE THÉÂTRES -->
+                            <template v-else>
+                                <template v-if="selTheatre">
+                                    <button
+                                        class="chip bg-orange-700 text-white border-orange-700 hover:bg-orange-800 flex items-center gap-1.5 font-bold shadow-xs text-xs px-2.5 py-1 cursor-pointer"
+                                        @click="selTheatre = null"
+                                    >
+                                        <i class="pi pi-arrow-left text-[11px]"></i>
+                                        <span>← Tous les théâtres</span>
+                                    </button>
+                                    <span class="text-xs font-bold px-2 py-0.5 rounded-full border border-slate-200 bg-orange-50 text-orange-900 flex items-center gap-1.5">
+                                        <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ backgroundColor: selTheatreObj?.couleur }"></span>
+                                        <span>{{ selTheatreObj?.nom }}</span>
+                                        <span class="text-orange-700 font-semibold">({{ selTheatreObj?.effectif }} militaires)</span>
+                                    </span>
+                                </template>
+                                <template v-else>
+                                    <span class="text-xs text-slate-500 font-medium hidden sm:inline">
+                                        Emprises opérationnelles des {{ theatres.length }} théâtres FAMa / Gendarmerie
+                                    </span>
+                                </template>
+                            </template>
+                        </div>
+
+                        <!-- Menu déroulant selon le mode -->
+                        <div class="flex items-center gap-1.5">
+                            <select
+                                v-if="carteMode === 'territoire'"
+                                :value="sel || ''"
+                                @change="onSelectRegionDropdown($event.target.value)"
+                                class="text-xs border border-slate-200 rounded-lg px-2 py-0.5 bg-white text-slate-700 focus:outline-none focus:border-sky-500 font-medium"
+                                aria-label="Choisir une région"
+                            >
+                                <option value="">Tout le Mali (20 régions)</option>
+                                <option v-for="r in regions" :key="r.code" :value="r.code">
+                                    {{ r.code }} - {{ r.nom }}
+                                </option>
+                            </select>
+
+                            <select
+                                v-else
+                                :value="selTheatre || ''"
+                                @change="selTheatre = $event.target.value || null"
+                                class="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-700 focus:outline-none focus:border-orange-500 font-semibold"
+                                aria-label="Choisir un théâtre"
+                            >
+                                <option value="">Tous les théâtres ({{ theatres.length }})</option>
+                                <option v-for="th in theatres" :key="th.code" :value="th.code">
+                                    {{ th.code }} - {{ th.nom }}
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- En mode plein écran : bande récapitulative compacte de la situation opérationnelle -->
+                    <div
+                        v-if="isFullscreen"
+                        class="flex items-center justify-between gap-2 px-2.5 py-1 mb-1.5 bg-slate-50 rounded-md border border-slate-200 text-xs text-slate-700 flex-none"
+                    >
+                        <div class="flex items-center gap-3 overflow-x-auto">
+                            <span class="font-bold text-slate-900 flex items-center gap-1">
+                                <i class="pi pi-shield text-sky-800 text-xs"></i>
+                                <span>Situation opérationnelle :</span>
+                            </span>
+                            <span v-for="k in kpis" :key="k.label" class="inline-flex items-center gap-1 whitespace-nowrap">
+                                <span class="text-slate-500">{{ k.label }} :</span>
+                                <strong class="text-slate-900">{{ k.value }}</strong>
+                                <span class="text-slate-300">•</span>
+                            </span>
+                        </div>
+                        <div class="text-[11px] text-slate-400 whitespace-nowrap hidden sm:block">
+                            Touche <kbd class="px-1.5 py-0.5 bg-white border border-slate-300 rounded font-mono text-[10px] text-slate-700 shadow-2xs">Échap</kbd> ou bouton pour quitter
+                        </div>
+                    </div>
+
+                    <!-- UNIQUEMENT CET ENDROIT : LE CANEVAS DE LA CARTE EN BLEU ARDOISE ADOUCI (#16212E) -->
+                    <div
+                        class="flex-1 min-h-[380px] lg:min-h-[430px] xl:min-h-[460px] w-full h-full relative flex items-center justify-center overflow-hidden bg-[#16212e] rounded-lg border border-[#263446] p-1 select-none"
+                        :class="{ '!cursor-grabbing': isDragging, 'cursor-grab': true }"
+                        @mousedown="onMouseDown($event)"
+                        @wheel="onWheel($event)"
+                        @touchstart="onTouchStart($event)"
+                        @touchmove="onTouchMove($event)"
+                        @touchend="onTouchEnd($event)"
+                        @dblclick="onDblClick($event)"
+                    >
+                        <!-- Boutons d'action rapide en haut à droite sur le canevas tactique -->
+                        <div class="absolute top-2 right-2 z-20 flex items-center gap-1.5 pointer-events-auto">
+                            <button
+                                v-if="sel"
+                                type="button"
+                                @click="retour"
+                                class="bg-[#0e1621]/90 hover:bg-[#1a2636] text-white border border-slate-700/80 px-2.5 py-1 rounded-md shadow-md text-xs flex items-center gap-1.5 transition pointer-events-auto font-medium cursor-pointer"
+                                title="Retour à la vue complète du Mali"
+                            >
+                                <i class="pi pi-arrow-left text-[10px] text-sky-300"></i>
+                                <span class="hidden sm:inline">Tout le Mali</span>
+                            </button>
+                            <button
+                                v-if="isFullscreen"
+                                type="button"
+                                @click="showSidePanelInFullscreen = !showSidePanelInFullscreen"
+                                class="bg-[#0e1621]/90 hover:bg-[#1a2636] text-white border border-slate-700/80 px-2.5 py-1 rounded-md shadow-md text-xs flex items-center gap-1.5 transition pointer-events-auto font-medium cursor-pointer"
+                                :title="showSidePanelInFullscreen ? 'Masquer le volet latéral' : 'Afficher le volet latéral'"
+                            >
+                                <i :class="showSidePanelInFullscreen ? 'pi pi-eye-slash text-slate-300' : 'pi pi-list text-sky-300'" class="text-xs"></i>
+                                <span class="hidden sm:inline">{{ showSidePanelInFullscreen ? 'Masquer volet' : 'Volet détails' }}</span>
+                            </button>
+                            <button
+                                type="button"
+                                @click="toggleFullscreen"
+                                class="bg-[#0e1621]/90 hover:bg-[#1a2636] text-white border border-slate-700/80 px-2.5 py-1 rounded-md shadow-md text-xs flex items-center gap-1.5 transition pointer-events-auto font-semibold cursor-pointer"
+                                :title="isFullscreen ? 'Quitter le mode plein écran (Échap)' : 'Afficher la carte en plein écran'"
+                            >
+                                <i :class="isFullscreen ? 'pi pi-window-minimize text-amber-300' : 'pi pi-window-maximize text-sky-300'" class="text-xs"></i>
+                                <span class="hidden sm:inline">{{ isFullscreen ? 'Réduire' : 'Plein écran' }}</span>
+                            </button>
+                        </div>
+
+                        <!-- Contrôles interactifs de Zoom (+ / % / - / Recentrer) en bas à droite -->
+                        <div class="absolute bottom-3 right-3 z-20 flex flex-col items-center bg-[#0e1621]/90 backdrop-blur border border-slate-700/80 rounded-lg shadow-xl overflow-hidden select-none pointer-events-auto">
+                            <button
+                                type="button"
+                                @click.stop="zoomIn"
+                                class="w-8 h-8 flex items-center justify-center text-white hover:bg-slate-700/60 active:bg-slate-700 transition cursor-pointer"
+                                title="Zoomer (+)"
+                                aria-label="Zoomer"
+                            >
+                                <i class="pi pi-plus text-xs"></i>
+                            </button>
+                            <div class="w-5 h-px bg-slate-700/80"></div>
+                            <button
+                                type="button"
+                                @click.stop="resetZoom"
+                                class="px-1.5 py-0.5 text-[10px] font-mono font-bold text-sky-400 hover:bg-slate-700/60 active:bg-slate-700 transition cursor-pointer"
+                                title="Réinitialiser le zoom (100%)"
+                            >
+                                {{ Math.round(userZoom * 100) }}%
+                            </button>
+                            <div class="w-5 h-px bg-slate-700/80"></div>
+                            <button
+                                type="button"
+                                @click.stop="zoomOut"
+                                class="w-8 h-8 flex items-center justify-center text-white hover:bg-slate-700/60 active:bg-slate-700 transition cursor-pointer"
+                                title="Dézoomer (-)"
+                                aria-label="Dézoomer"
+                            >
+                                <i class="pi pi-minus text-xs"></i>
+                            </button>
+                            <div class="w-5 h-px bg-slate-700/80"></div>
+                            <button
+                                type="button"
+                                @click.stop="resetZoom"
+                                class="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-700/60 active:bg-slate-700 transition cursor-pointer"
+                                title="Recentrer la carte"
+                                aria-label="Recentrer"
+                            >
+                                <i class="pi pi-compass text-xs"></i>
+                            </button>
+                        </div>
+
+                        <!-- En vue nationale : HUD de survol d'une région -->
+                        <transition name="fade">
+                            <div
+                                v-if="!sel && hoveredInfo"
+                                class="absolute top-2 left-2 z-20 bg-[#0e1621]/95 backdrop-blur text-white px-2.5 py-1 rounded-md shadow-lg text-xs pointer-events-none flex items-center gap-2 border border-slate-700"
+                            >
+                                <span class="w-2 h-2 rounded-full flex-none bg-sky-400"></span>
+                                <div class="flex items-center gap-1.5">
+                                    <span class="font-bold text-white">{{ hoveredInfo.title }}</span>
+                                    <span class="text-slate-400">•</span>
+                                    <span class="text-sky-300 font-medium">{{ hoveredInfo.subtitle }}</span>
+                                    <span v-if="hoveredInfo.extra" class="text-slate-400 text-[10px]">({{ hoveredInfo.extra }})</span>
+                                </div>
+                            </div>
+                        </transition>
+
+                        <!-- En vue régionale : En-tête de région, Filtres et Recherche sur la carte -->
+                        <div
+                            v-if="sel && selRegion"
+                            class="absolute top-2 left-2 z-20 flex flex-col gap-1.5 pointer-events-auto max-w-[85%] sm:max-w-md"
+                        >
+                            <!-- Ligne 1 : Titre et effectif de la région -->
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <button
+                                    type="button"
+                                    @click="retour"
+                                    class="px-2 py-0.5 rounded text-xs font-bold bg-[#090e17]/95 hover:bg-[#1a2636] text-white border border-slate-700/80 shadow-md flex items-center gap-1 transition cursor-pointer"
+                                    title="Revenir à la vue complète du Mali"
+                                >
+                                    <i class="pi pi-arrow-left text-[10px] text-sky-400"></i>
+                                    <span>Tout le Mali</span>
+                                </button>
+                                <span class="px-2 py-0.5 rounded text-xs font-black bg-[#090e17]/95 border border-sky-500/50 text-white shadow-md flex items-center gap-1.5">
+                                    <span class="px-1.5 py-0.2 rounded text-[10px] bg-sky-500/30 text-sky-300 font-mono">{{ selRegion.code }}</span>
+                                    <span>{{ selRegion.code === 'R1' ? 'BAMAKO (HQ)' : selRegion.nom.toUpperCase() }}</span>
+                                    <span class="text-sky-400 font-bold">• {{ fmt(selRegion.effectif) }} militaires</span>
+                                </span>
+                            </div>
+
+                            <!-- Ligne 2 : Filtres d'affichage & recherche -->
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <div class="inline-flex rounded shadow-md bg-[#090e17]/95 p-0.5 border border-slate-700/80 text-[11px]">
+                                    <button
+                                        type="button"
+                                        @click="parcelFilterType = 'with_eff'"
+                                        class="px-2 py-0.5 rounded transition flex items-center gap-1 cursor-pointer"
+                                        :class="parcelFilterType === 'with_eff' ? 'bg-red-600 text-white font-bold' : 'text-slate-400 hover:text-white'"
+                                        title="Unités avec effectif > 0 (Style Carte de France)"
+                                    >
+                                        <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
+                                        <span>Avec effectif ({{ countWithEff }})</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="parcelFilterType = 'all'"
+                                        class="px-2 py-0.5 rounded transition cursor-pointer"
+                                        :class="parcelFilterType === 'all' ? 'bg-sky-600 text-white font-bold' : 'text-slate-400 hover:text-white'"
+                                    >
+                                        Toutes ({{ selRegion.unites.length }})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="parcelFilterType = 'zero_eff'"
+                                        class="px-2 py-0.5 rounded transition flex items-center gap-1 cursor-pointer"
+                                        :class="parcelFilterType === 'zero_eff' ? 'bg-slate-700 text-white font-bold' : 'text-slate-400 hover:text-white'"
+                                        title="Unités sans effectif (0)"
+                                    >
+                                        <span>Sans effectif ({{ countZeroEff }})</span>
+                                    </button>
+                                </div>
+
+                                <div class="relative w-36 sm:w-44">
+                                    <input
+                                        v-model="parcelSearchInput"
+                                        type="text"
+                                        placeholder="Filtrer brigade..."
+                                        class="w-full text-[11px] py-0.5 pl-5 pr-5 rounded border border-slate-700/80 bg-[#090e17]/95 text-white placeholder-slate-400 focus:outline-none focus:border-sky-400 shadow-md"
+                                    />
+                                    <i class="pi pi-search absolute left-1.5 top-1.5 text-[10px] text-slate-400"></i>
+                                    <button
+                                        v-if="parcelSearchInput"
+                                        @click="parcelSearchInput = ''; parcelSearchQuery = ''"
+                                        class="absolute right-1.5 top-1 text-slate-400 hover:text-white text-[10px] cursor-pointer"
+                                    >
+                                        <i class="pi pi-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- En vue régionale : HUD flottant d'infobulle au survol d'une unité -->
+                        <transition name="fade">
+                            <div
+                                v-if="sel && hoveredUnitObj"
+                                class="absolute bottom-12 left-2 z-20 bg-[#0e1621]/95 backdrop-blur text-white px-3 py-1.5 rounded-md shadow-xl text-xs pointer-events-none flex items-center gap-2 border border-slate-700"
+                            >
+                                <span
+                                    class="w-2.5 h-2.5 rounded-full flex-none"
+                                    :style="{ background: hoveredUnitObj.effectif > 0 ? '#ef4444' : '#64748b' }"
+                                ></span>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-extrabold text-white text-xs sm:text-[13px]">{{ hoveredUnitObj.nom }}</span>
+                                    <span class="text-slate-400">•</span>
+                                    <span class="text-amber-300 font-bold">{{ hoveredUnitObj.effectif }} gendarme(s)</span>
+                                    <span v-if="hoveredUnitObj.ville" class="text-slate-400 text-[11px]">📍 {{ hoveredUnitObj.ville }}</span>
+                                    <span
+                                        v-if="!hoveredUnitObj.lat || !hoveredUnitObj.lon"
+                                        class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-600/50"
+                                    >
+                                        Position approximative (sans GPS)
+                                    </span>
+                                    <span
+                                        class="px-1.5 py-0.2 rounded text-[10px] font-bold"
+                                        :class="hoveredUnitObj.operationnelle ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-500/40' : 'bg-amber-900/60 text-amber-300 border border-amber-500/40'"
+                                    >
+                                        {{ hoveredUnitObj.operationnelle ? 'Opérationnelle' : 'En réserve' }}
+                                    </span>
+                                </div>
+                            </div>
+                        </transition>
+
+                        <svg
+                            ref="svgRef"
+                            :viewBox="viewBox.join(' ')"
+                            class="w-full h-full max-h-full block select-none pointer-events-auto"
+                            preserveAspectRatio="xMidYMid meet"
+                            role="img"
+                            aria-label="Carte du Mali par région"
+                        >
+                            <defs>
+                                <filter id="pin-shadow" x="-30%" y="-30%" width="160%" height="160%">
+                                    <feDropShadow dx="0" dy="0.8" stdDeviation="0.8" flood-opacity="0.5" flood-color="#000000" />
+                                </filter>
+                                <filter id="badge-glow" x="-20%" y="-20%" width="140%" height="140%">
+                                    <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-opacity="0.75" flood-color="#000000" />
+                                </filter>
+                                <clipPath id="region-clip-shape">
+                                    <path v-if="sel && selRegion" :d="pathD(selRegion)" />
+                                </clipPath>
+                            </defs>
+
+                            <!-- Vue nationale : Tracés des régions SVG quand !sel (Mali entier) -->
+                            <template v-if="!sel">
+                                <template v-for="r in regions" :key="r.code">
+                                    <path
+                                        v-if="SHAPES[r.code] && r.code !== 'R1'"
+                                        :d="pathD(r)"
+                                        class="reg"
+                                        :class="{
+                                            hovered: hoveredCode === r.code
+                                        }"
+                                        :style="{
+                                            fill: carteMode === 'theatres' ? getTheatreFill(r.code) : fillFor(r),
+                                            stroke: carteMode === 'theatres' ? getTheatreStroke(r.code) : '#16212e',
+                                            strokeWidth: carteMode === 'theatres' ? (selTheatre && (regionToTheatreMap[r.code] || []).some(t => t.code === selTheatre) ? 2.8 * zoom : 1.4 * zoom) : 1.2 * zoom
+                                        }"
+                                        @click="handleRegionClick(r.code)"
+                                        @mouseenter="carteMode === 'theatres' ? (hoveredCode = r.code, hoveredTheatre = (regionToTheatreMap[r.code] || [])[0]?.code) : onHoverRegion(r)"
+                                        @mouseleave="carteMode === 'theatres' ? (hoveredCode = null, hoveredTheatre = null) : onLeaveHover()"
+                                    />
+                                </template>
+
+                                <!-- MODE THÉÂTRES : COMMAND POSTS (PC) & GRANDS BADGES TACTIQUES IDENTIQUES AU MAILLAGE TERRITORIAL -->
+                                <template v-if="carteMode === 'theatres'">
+                                    <template v-for="th in projectedTheatres" :key="'pc-' + th.code">
+                                        <g
+                                            v-if="th.pt"
+                                            :transform="`translate(${th.pt.x}, ${th.pt.y})`"
+                                            class="cursor-pointer"
+                                            @click.stop="selTheatre = selTheatre === th.code ? null : th.code"
+                                            @mouseenter="hoveredTheatre = th.code; hoveredCode = null"
+                                            @mouseleave="hoveredTheatre = null"
+                                        >
+                                            <!-- Rayonnement tactique du PC -->
+                                            <circle
+                                                r="18"
+                                                :fill="th.couleur"
+                                                fill-opacity="0.22"
+                                                :stroke="th.couleur"
+                                                stroke-width="1.2"
+                                                stroke-dasharray="3 2"
+                                            />
+                                            <!-- Point de Commandement (PC) -->
+                                            <circle
+                                                r="9"
+                                                :fill="th.couleur"
+                                                stroke="#ffffff"
+                                                stroke-width="2"
+                                                filter="url(#badge-glow)"
+                                            />
+                                            <text
+                                                x="0"
+                                                y="3.5"
+                                                text-anchor="middle"
+                                                font-size="9"
+                                                font-weight="bold"
+                                                fill="#ffffff"
+                                                class="pointer-events-none select-none"
+                                            >
+                                                ★
+                                            </text>
+
+                                            <!-- GRAND BADGE TACTIQUE IDENTIQUE AU MAILLAGE TERRITORIAL AVEC GRAND CHIFFRE GLOBAL -->
+                                            <g :transform="`translate(0, 20)`" class="pointer-events-none select-none">
+                                                <rect
+                                                    :x="-theatreBadgeWidth(th) / 2"
+                                                    y="-11"
+                                                    :width="theatreBadgeWidth(th)"
+                                                    height="23"
+                                                    rx="5"
+                                                    ry="5"
+                                                    fill="#090e17"
+                                                    :stroke="selTheatre === th.code ? '#ffffff' : th.couleur"
+                                                    :stroke-width="selTheatre === th.code ? 2.2 : 1.5"
+                                                    filter="url(#badge-glow)"
+                                                />
+                                                <!-- Ligne 1 : Code et lieu du PC en majuscules -->
+                                                <text
+                                                    x="0"
+                                                    y="-2"
+                                                    text-anchor="middle"
+                                                    class="tactical-badge-nom"
+                                                    :fill="th.couleur"
+                                                >
+                                                    {{ th.code }} • {{ (th.pc_lieu || 'PC').toUpperCase() }}
+                                                </text>
+                                                <!-- Ligne 2 : CHIFFRE GRAND ET EXTRA-VISIBLE (BLANC ÉCLATANT) -->
+                                                <text
+                                                    x="0"
+                                                    y="8"
+                                                    text-anchor="middle"
+                                                    class="tactical-badge-val"
+                                                >
+                                                    {{ fmt(th.effectif) }}
+                                                </text>
+                                            </g>
+                                        </g>
+                                    </template>
+                                </template>
+
+                                <!-- Vue nationale MAILLAGE TERRITORIAL : BADGES TACTIQUES HAUTE VISIBILITÉ DES RÉGIONS & CHIFFRES CLAIRS -->
+                                <template v-if="carteMode !== 'theatres'">
+                                    <!-- 1. Régions avec effectif > 0 (hors Bamako) : Badges tactiques contrastés avec chiffre agrandi -->
+                                    <template v-for="r in regions" :key="'badge-' + r.code">
+                                        <g
+                                            v-if="SHAPES[r.code] && r.code !== 'R1' && valueOf(r) > 0"
+                                            class="tactical-badge pointer-events-none"
+                                            :transform="`translate(${SHAPES[r.code].cx}, ${SHAPES[r.code].cy})`"
+                                        >
+                                            <!-- Boîtier sombre avec bordure cyan lumineuse et ombre portée -->
+                                            <rect
+                                                :x="-badgeWidth(r) / 2"
+                                                y="-11"
+                                                :width="badgeWidth(r)"
+                                                height="22"
+                                                rx="5"
+                                                ry="5"
+                                                fill="#090e17"
+                                                stroke="#38bdf8"
+                                                stroke-width="1.4"
+                                                filter="url(#badge-glow)"
+                                            />
+                                            <!-- Ligne 1 : Nom de la région en majuscules cyan pastel -->
+                                            <text
+                                                x="0"
+                                                y="-2"
+                                                text-anchor="middle"
+                                                class="tactical-badge-nom"
+                                            >
+                                                {{ shortName(r.nom).toUpperCase() }}
+                                            </text>
+                                            <!-- Ligne 2 : CHIFFRE GRAND ET EXTRA-VISIBLE (BLANC ÉCLATANT) -->
+                                            <text
+                                                x="0"
+                                                y="8"
+                                                text-anchor="middle"
+                                                class="tactical-badge-val"
+                                            >
+                                                {{ fmt(valueOf(r)) }}
+                                            </text>
+                                        </g>
+                                    </template>
+
+                                    <!-- 2. Régions avec effectif == 0 : Libellé discret mais propre (aucun flou) -->
+                                    <template v-for="r in regions" :key="'zero-' + r.code">
+                                        <g
+                                            v-if="SHAPES[r.code] && r.code !== 'R1' && valueOf(r) === 0"
+                                            class="lbl-zero pointer-events-none"
+                                            :transform="`translate(${SHAPES[r.code].cx}, ${SHAPES[r.code].cy})`"
+                                        >
+                                            <text x="0" y="-2" text-anchor="middle" class="lbl-zero-nm">
+                                                {{ shortName(r.nom) }}
+                                            </text>
+                                            <text x="0" y="8" text-anchor="middle" class="lbl-zero-num">
+                                                0
+                                            </text>
+                                        </g>
+                                    </template>
+
+                                    <!-- 3. District de Bamako (R1) : Grand badge HQ avec ligne guide lumineuse sans chevauchement -->
+                                    <template v-for="r in regions.filter(x => x.code === 'R1' && SHAPES.R1)" :key="'b'">
+                                        <!-- Point d'ancrage central Bamako avec impulsion lumineuse -->
+                                        <circle
+                                            class="reg cursor-pointer"
+                                            :cx="SHAPES.R1.cx"
+                                            :cy="SHAPES.R1.cy"
+                                            r="6"
+                                            fill="#38bdf8"
+                                            stroke="#ffffff"
+                                            stroke-width="1.8"
+                                            filter="url(#badge-glow)"
+                                            @click="handleRegionClick('R1')"
+                                            @mouseenter="onHoverRegion(r)"
+                                            @mouseleave="onLeaveHover"
+                                        />
+                                        <circle
+                                            :cx="SHAPES.R1.cx"
+                                            :cy="SHAPES.R1.cy"
+                                            r="2.5"
+                                            fill="#ffffff"
+                                            class="pointer-events-none"
+                                        />
+                                        <!-- Ligne guide tactique vers l'ouest dégagé -->
+                                        <line
+                                            class="lead pointer-events-none"
+                                            :x1="SHAPES.R1.cx"
+                                            :y1="SHAPES.R1.cy"
+                                            :x2="SHAPES.R1.cx - 45"
+                                            :y2="SHAPES.R1.cy + 22"
+                                            stroke="#38bdf8"
+                                            stroke-width="1.5"
+                                            stroke-dasharray="3,2"
+                                        />
+                                        <!-- Grand badge tactique Bamako -->
+                                        <g
+                                            class="pointer-events-none"
+                                            :transform="`translate(${SHAPES.R1.cx - 45}, ${SHAPES.R1.cy + 22})`"
+                                        >
+                                            <rect
+                                                x="-38"
+                                                y="-12"
+                                                width="76"
+                                                height="24"
+                                                rx="6"
+                                                ry="6"
+                                                fill="#082f49"
+                                                stroke="#38bdf8"
+                                                stroke-width="1.8"
+                                                filter="url(#badge-glow)"
+                                            />
+                                            <text x="0" y="-2" text-anchor="middle" class="tactical-bamako-nom">
+                                                ★ BAMAKO (HQ)
+                                            </text>
+                                            <text x="0" y="8" text-anchor="middle" class="tactical-bamako-val">
+                                                {{ fmt(valueOf(r)) }}
+                                            </text>
+                                        </g>
+                                    </template>
+                                </template>
+                            </template>
+
+                            <!-- Vue régionale : OPTION 1 - RÉGION DÉCOUPÉE EN PARCELLES GÉOGRAPHIQUES TRACÉES (STYLE CARTE DE FRANCE) -->
+                            <template v-else>
+                                <!-- 1. Fond neutre de la région -->
+                                <path
+                                    v-if="selRegion"
+                                    :d="pathD(selRegion)"
+                                    fill="#f8fafc"
+                                    stroke="#0f172a"
+                                    :stroke-width="0.35 * rUnit"
+                                />
+
+                                <!-- 2. Vrai découpage officiel des Cercles de la région -->
+                                <g v-if="activeCercles.length > 0" clip-path="url(#region-clip-shape)">
+                                    <template v-for="cercle in activeCercles" :key="'cercle-' + cercle.code">
+                                        <!-- Délimitation géographique du cercle -->
+                                        <path
+                                            :d="cerclePathD(cercle)"
+                                            fill="#ffffff"
+                                            stroke="#94a3b8"
+                                            :stroke-width="0.32 * rUnit"
+                                            stroke-dasharray="3,1.5"
+                                            stroke-linejoin="round"
+                                            class="transition-colors duration-150 hover:fill-slate-50"
+                                        />
+                                        <!-- Nom officiel du cercle -->
+                                        <text
+                                            :x="cercleCenter(cercle).x"
+                                            :y="cercleCenter(cercle).y"
+                                            text-anchor="middle"
+                                            dominant-baseline="central"
+                                            class="select-none pointer-events-none"
+                                            :style="{
+                                                fontSize: (cercle.code === 'Segou' ? 1.6 : 2.0) * rUnit + 'px',
+                                                fill: '#94a3b8',
+                                                fontWeight: 700,
+                                                letterSpacing: '0.05em',
+                                                textTransform: 'uppercase'
+                                            }"
+                                        >
+                                            {{ cercle.nom }}
+                                        </text>
+                                    </template>
+                                </g>
+
+                                <!-- Message si 0 unité visible dans la région -->
+                                <g v-if="selRegion && countUnitesVisibles === 0" class="pointer-events-none select-none">
+                                    <text
+                                        :x="selRegion.code === 'R1' ? 163 : (SHAPES[selRegion.code]?.cx || 300)"
+                                        :y="selRegion.code === 'R1' ? 495 : (SHAPES[selRegion.code]?.cy || 300)"
+                                        text-anchor="middle"
+                                        dominant-baseline="central"
+                                        :style="{
+                                            fontSize: 2.2 * rUnit + 'px',
+                                            fill: '#64748b',
+                                            fontWeight: 700
+                                        }"
+                                    >
+                                        {{ parcelSearchQuery ? 'Aucune unité correspondante' : 'Aucune unité géolocalisée' }}
+                                    </text>
+                                </g>
+
+                                <!-- 3. Bordure extérieure nette de la région en trait sombre -->
+                                <path
+                                    v-if="selRegion"
+                                    :d="pathD(selRegion)"
+                                    fill="none"
+                                    stroke="#0f172a"
+                                    :stroke-width="0.35 * rUnit"
+                                    class="pointer-events-none"
+                                />
+
+                                <!-- 5. Disques proportionnels Jacques Bertin (halo & cercles style Carte de France) -->
+                                <template v-for="p in regionalParcels" :key="'marker-' + p.unit.id">
+                                    <g
+                                        v-if="isUnitVisible(p.unit)"
+                                        class="cursor-pointer"
+                                        @click="handleUnitClick(p.unit.id)"
+                                        @mouseenter="onHoverUnitParcel(p.unit)"
+                                        @mouseleave="onLeaveHover"
+                                    >
+                                        <!-- Halo cyan si unité sélectionnée -->
+                                        <circle
+                                            v-if="selUnit === p.unit.id && parcelCircleR(p.unit) > 0"
+                                            :cx="p.cx"
+                                            :cy="p.cy"
+                                            :r="parcelCircleR(p.unit) + 1.2 * rUnit"
+                                            fill="none"
+                                            stroke="#0284c7"
+                                            :stroke-width="0.5 * rUnit"
+                                            class="animate-pulse"
+                                        />
+
+                                        <!-- Double contour noir épais pour les unités majeures (Top quantile 5) -->
+                                        <circle
+                                            v-if="p.unit.effectif > 0 && p.unit.effectif >= quantileThresholds[3] && parcelCircleR(p.unit) > 0"
+                                            :cx="p.cx"
+                                            :cy="p.cy"
+                                            :r="parcelCircleR(p.unit) + 0.65 * rUnit"
+                                            fill="none"
+                                            stroke="#000000"
+                                            :stroke-width="0.4 * rUnit"
+                                        />
+
+                                        <!-- Cercle proportionnel avec couleur selon effectif (pointillé si position approx.) -->
+                                        <circle
+                                            v-if="parcelCircleR(p.unit) > 0"
+                                            :cx="p.cx"
+                                            :cy="p.cy"
+                                            :r="parcelCircleR(p.unit)"
+                                            :fill="parcelFill(p.unit)"
+                                            :stroke="selUnit === p.unit.id ? '#0284c7' : '#0f172a'"
+                                            :stroke-width="(selUnit === p.unit.id ? 0.6 : 0.35) * rUnit"
+                                            :stroke-dasharray="(!p.unit.lat || !p.unit.lon) ? `${1.2 * rUnit} ${0.9 * rUnit}` : undefined"
+                                            filter="url(#pin-shadow)"
+                                        />
+                                    </g>
+                                </template>
+
+                                <!-- 6. Chiffres des effectifs au premier plan (toujours au-dessus des cercles, ultra-lisibles) -->
+                                <template v-for="p in regionalParcels" :key="'text-' + p.unit.id">
+                                    <g
+                                        v-if="isUnitVisible(p.unit)"
+                                        class="pointer-events-none select-none"
+                                    >
+                                        <!-- Chiffre de l'effectif au centre du cercle proportionnel -->
+                                        <text
+                                            v-if="p.unit.effectif > 0 && parcelCircleFontSize(p.unit) > 0"
+                                            :x="p.cx"
+                                            :y="p.cy"
+                                            text-anchor="middle"
+                                            dominant-baseline="central"
+                                            :font-size="parcelCircleFontSize(p.unit) + 'px'"
+                                            font-weight="900"
+                                            :fill="unitTextColor(p.unit)"
+                                            style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"
+                                        >
+                                            {{ p.unit.effectif }}
+                                        </text>
+
+                                        <!-- Libellé de l'unité : UNIQUEMENT pour les régions aérées (<= 6 unités) ou au survol/clic -->
+                                        <text
+                                            v-if="shouldShowParcelLabel(p)"
+                                            class="font-bold"
+                                            text-anchor="middle"
+                                            :x="p.cx"
+                                            :y="p.cy + parcelCircleR(p.unit) + 2.2 * rUnit"
+                                            :style="{
+                                                fontSize: (selUnit === p.unit.id ? 2.0 : 1.6) * rUnit + 'px',
+                                                fill: '#0f172a',
+                                                stroke: '#ffffff',
+                                                strokeWidth: 0.6 * rUnit + 'px',
+                                                paintOrder: 'stroke fill',
+                                                fontWeight: 800
+                                            }"
+                                        >
+                                            {{ shortUnitName(p.unit.nom) }}
+                                        </text>
+                                    </g>
+                                </template>
+                            </template>
+                        </svg>
+                    </div>
+
+                    <!-- Barre de sélection rapide au bas de la carte (accès en 1 clic) CLAIRE -->
+                    <div v-if="carteMode === 'theatres'" class="flex items-center gap-1 overflow-x-auto py-1 px-1 mt-1 bg-slate-50/90 rounded-md border border-slate-200 text-[11px] flex-none custom-scrollbar">
+                        <button
+                            class="px-2 py-0.5 rounded font-semibold transition-all flex items-center gap-1 flex-none cursor-pointer"
+                            :class="!selTheatre ? 'bg-orange-800 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'"
+                            @click="selTheatre = null"
+                            title="Afficher tous les théâtres"
+                        >
+                            <span>⚔️ Tous les Théâtres</span>
+                        </button>
+                        <div class="h-3 w-px bg-slate-300 flex-none mx-0.5"></div>
+                        <button
+                            v-for="th in theatres"
+                            :key="th.code"
+                            class="px-2 py-0.5 rounded font-medium transition-all flex items-center gap-1 flex-none cursor-pointer"
+                            :class="selTheatre === th.code ? 'bg-orange-800 text-white shadow-xs font-bold' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'"
+                            @click="selTheatre = selTheatre === th.code ? null : th.code"
+                            :title="th.nom + ' (PC ' + (th.pc_lieu || 'N/A') + ')'"
+                        >
+                            <span
+                                class="w-2.5 h-2.5 rounded-full flex-none"
+                                :style="{ background: th.couleur }"
+                            ></span>
+                            <span class="font-mono font-bold">{{ th.code }}</span>
+                            <span class="text-[10px] opacity-80 tabular-nums">({{ th.effectif }})</span>
+                        </button>
+                    </div>
+
+                    <div v-else class="flex items-center gap-1 overflow-x-auto py-1 px-1 mt-1 bg-slate-50/90 rounded-md border border-slate-200 text-[11px] flex-none custom-scrollbar">
+                        <button
+                            class="px-2 py-0.5 rounded font-semibold transition-all flex items-center gap-1 flex-none cursor-pointer"
+                            :class="!sel ? 'bg-sky-900 text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'"
+                            @click="retour"
+                            title="Afficher la carte complète du Mali"
+                        >
+                            <span>🌐 Tout le Mali</span>
+                        </button>
+                        <div class="h-3 w-px bg-slate-300 flex-none mx-0.5"></div>
+                        <button
+                            v-for="r in regions"
+                            :key="r.code"
+                            class="px-1.5 py-0.5 rounded font-medium transition-all flex items-center gap-1 flex-none cursor-pointer"
+                            :class="sel === r.code ? 'bg-sky-900 text-white shadow-xs font-bold' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'"
+                            @click="choisir(r.code)"
+                            :title="r.nom + ' (' + r.unites.length + ' unités)'"
+                        >
+                            <span
+                                class="w-2 h-2 rounded-full flex-none"
+                                :style="{ background: fillFor(r) }"
+                            ></span>
+                            <span>{{ r.code }}</span>
+                            <span class="text-[10px] opacity-75 tabular-nums">({{ r.effectif }})</span>
+                        </button>
+                    </div>
+
+                    <!-- Légende opérationnelle au bas de la carte -->
+                    <div class="flex flex-wrap items-center justify-between gap-2 mt-1 text-[11px] text-slate-500 flex-none">
+                        <template v-if="carteMode === 'theatres'">
+                            <div class="flex items-center gap-2">
+                                <span class="font-medium text-slate-700">Dispositif des Théâtres d'Opérations & Emprises territoriales</span>
+                                <span class="text-slate-300">•</span>
+                                <span class="text-slate-500">Cliquez sur un théâtre ou une région sous emprise pour consulter les militaires déployés</span>
+                            </div>
+                            <span class="text-[10px] text-slate-400">Total : {{ theatres.reduce((s, t) => s + (t.effectif || 0), 0) }} militaires déployés au front</span>
+                        </template>
+                        <template v-else-if="sel">
+                            <div class="flex items-center gap-2.5 flex-wrap">
+                                <!-- Règle 1 : Cercle effectif -->
+                                <span class="flex items-center gap-1.5 font-semibold text-slate-800">
+                                    <span class="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-red-500 border border-black text-[8px] font-black text-black">N</span>
+                                    <span>Disque : Effectif de l'unité</span>
+                                </span>
+
+                                <span class="text-slate-300">•</span>
+
+                                <!-- Règle 2 : Niveaux d'effectif avec chiffres précis sans jargon mathématique -->
+                                <span class="flex items-center gap-1 font-medium text-slate-700">
+                                    <span class="text-slate-500 font-semibold mr-0.5">Niveau :</span>
+                                    <span class="inline-flex items-center gap-0.5" title="Unité à 0 effectif">
+                                        <span class="inline-block w-2.5 h-2.5 rounded-xs bg-slate-200 border border-slate-700"></span> 0
+                                    </span>
+                                    <span class="inline-flex items-center gap-0.5" :title="'Faible effectif : 1 à ' + Math.max(1, Math.round(quantileThresholds[0])) + ' militaire(s)'">
+                                        <span class="inline-block w-2.5 h-2.5 rounded-xs bg-yellow-200 border border-slate-700 ml-1"></span>
+                                        Faible (≤ {{ Math.max(1, Math.round(quantileThresholds[0])) }})
+                                    </span>
+                                    <span class="inline-flex items-center gap-0.5" title="Effectif modéré">
+                                        <span class="inline-block w-2.5 h-2.5 rounded-xs bg-amber-400 border border-slate-700 ml-1"></span>
+                                        Moyen
+                                    </span>
+                                    <span class="inline-flex items-center gap-0.5" title="Effectif important">
+                                        <span class="inline-block w-2.5 h-2.5 rounded-xs bg-orange-500 border border-slate-700 ml-1"></span>
+                                        Élevé
+                                    </span>
+                                    <span class="inline-flex items-center gap-0.5" :title="'Fort effectif : à partir de ' + Math.round(quantileThresholds[3]) + ' militaires'">
+                                        <span class="inline-block w-2.5 h-2.5 rounded-xs bg-red-600 border border-slate-700 ml-1"></span>
+                                        Très élevé (≥ {{ Math.round(quantileThresholds[3]) }})
+                                    </span>
+                                </span>
+
+                                <span class="text-slate-300">•</span>
+
+                                <!-- Règle 3 : Découpage des cercles -->
+                                <span class="flex items-center font-medium text-slate-600" title="Découpage officiel en cercles administratifs">
+                                    Découpage des cercles administratifs
+                                </span>
+
+                                <span class="text-slate-300">•</span>
+
+                                <!-- Règle 4 : Unités sans GPS -->
+                                <span class="flex items-center gap-1 font-medium text-slate-600" title="Unité sans coordonnées GPS : position estimée au chef-lieu de sa région">
+                                    <svg width="12" height="12" class="inline-block shrink-0"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#64748b" stroke-width="1.2" stroke-dasharray="2 1.5"/></svg>
+                                    <span>Pointillé : Sans GPS (au chef-lieu)</span>
+                                </span>
+                            </div>
+
+                            <span class="text-slate-600 font-bold tabular-nums">
+                                {{ countUnitesVisibles }} unité(s) cartographiée(s)
+                            </span>
+                        </template>
+                        <template v-else>
+                            <div class="flex items-center gap-2">
+                                <span class="font-medium text-slate-700">20 Régions militaires cartographiées</span>
+                                <span class="text-slate-300">•</span>
+                                <span class="text-slate-500">Cliquez sur une région pour isoler ses brigades</span>
+                            </div>
+                            <span class="text-[10px] text-slate-400">Total : {{ tot(x => x.unites.length) }} unités répertoriées</span>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- PANNEAU DROIT CLAIR / BLANC (même niveau et alignement que la carte) -->
+                <div
+                    v-show="!isFullscreen || showSidePanelInFullscreen"
+                    class="bg-white rounded-lg border border-slate-200 p-2 min-w-0 flex flex-col h-full max-h-full overflow-hidden shadow-sm text-slate-900 transition-all"
+                >
+                    <!-- VOLET EN MODE THÉÂTRES D'OPÉRATIONS -->
+                    <template v-if="carteMode === 'theatres'">
+                        <!-- 1. VUE D'ENSEMBLE (Aucun théâtre sélectionné) -->
+                        <template v-if="!selTheatre">
+                            <!-- En-tête -->
+                            <div class="flex items-center justify-between gap-2 flex-none pb-1.5 border-b border-slate-200">
+                                <div>
+                                    <h2 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                                        <i class="pi pi-flag text-orange-600 text-xs"></i>
+                                        <span>Théâtres d'Opérations</span>
+                                    </h2>
+                                    <p class="text-[10px] text-slate-500">
+                                        Dispositif opérationnel FAMa / Gendarmerie
+                                    </p>
+                                </div>
+                                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 border border-orange-200 flex-none">
+                                    {{ theatres.length }} théâtres
+                                </span>
+                            </div>
+
+                            <!-- Grille métriques globale théâtres -->
+                            <div class="grid grid-cols-3 gap-1 my-1.5 p-1 border border-slate-200/70 flex-none bg-orange-50/50 rounded text-center">
+                                <div class="min-w-0 px-0.5">
+                                    <div class="text-[9px] text-slate-500 font-semibold truncate leading-tight uppercase">Engagés</div>
+                                    <div class="text-xs font-bold text-slate-900 tabular-nums">
+                                        {{ theatres.reduce((s, t) => s + (t.effectif || 0), 0) }}
+                                    </div>
+                                </div>
+                                <div class="min-w-0 px-0.5">
+                                    <div class="text-[9px] text-slate-500 font-semibold truncate leading-tight uppercase">Actifs front</div>
+                                    <div class="text-xs font-bold text-emerald-700 tabular-nums">
+                                        {{ theatres.reduce((s, t) => s + (t.actifs || 0), 0) }}
+                                    </div>
+                                </div>
+                                <div class="min-w-0 px-0.5">
+                                    <div class="text-[9px] text-slate-500 font-semibold truncate leading-tight uppercase">Blessés guerre</div>
+                                    <div class="text-xs font-bold text-rose-700 tabular-nums">
+                                        {{ theatres.reduce((s, t) => s + (t.blesses || 0), 0) }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Liste des Théâtres -->
+                            <div class="flex-1 overflow-y-auto space-y-2 pr-0.5 custom-scrollbar min-h-0">
+                                <div
+                                    v-for="th in theatres"
+                                    :key="th.id"
+                                    @click="selTheatre = th.code"
+                                    class="p-2.5 rounded-lg border transition cursor-pointer hover:shadow-xs group"
+                                    :class="selTheatre === th.code ? 'border-orange-500 bg-orange-50/60 ring-1 ring-orange-400' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80'"
+                                >
+                                    <div class="flex items-center justify-between gap-1 mb-1">
+                                        <div class="flex items-center gap-1.5">
+                                            <span
+                                                class="w-3 h-3 rounded-full shrink-0 border border-black/20"
+                                                :style="{ backgroundColor: th.couleur }"
+                                            ></span>
+                                            <span class="font-bold text-xs font-mono text-slate-900 group-hover:text-orange-800">{{ th.code }}</span>
+                                        </div>
+                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                                            {{ th.effectif }} gendarme(s)
+                                        </span>
+                                    </div>
+
+                                    <div class="text-xs font-bold text-slate-800 leading-snug line-clamp-1">{{ th.nom }}</div>
+
+                                    <div class="flex items-center justify-between gap-1 text-[11px] text-slate-600 mt-1">
+                                        <span class="flex items-center gap-1 truncate">
+                                            <i class="pi pi-map-marker text-orange-600 text-[10px]"></i>
+                                            <span>PC : {{ th.pc_lieu || 'Non spécifié' }}</span>
+                                        </span>
+                                        <span class="text-[10px] font-semibold text-sky-700 group-hover:underline flex items-center gap-0.5">
+                                            <span>Détails</span>
+                                            <i class="pi pi-chevron-right text-[8px]"></i>
+                                        </span>
+                                    </div>
+
+                                    <!-- Emprise (Régions) -->
+                                    <div class="flex flex-wrap gap-1 mt-2">
+                                        <span
+                                            v-for="rc in th.regions_codes"
+                                            :key="rc"
+                                            class="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-slate-100 text-slate-700 border border-slate-200"
+                                        >
+                                            {{ rc }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <p class="text-[10px] text-slate-400 mt-auto pt-1 border-t border-slate-100 flex-none truncate">
+                                Cliquez sur un théâtre ou une région pour afficher son effectif engagé.
+                            </p>
+                        </template>
+
+                        <!-- 2. VUE DÉTAILLÉE DU THÉÂTRE SÉLECTIONNÉ -->
+                        <template v-else-if="selTheatreObj">
+                            <!-- En-tête avec bouton retour et bouton modifier GPS -->
+                            <div class="flex items-center justify-between gap-1.5 pb-1.5 border-b border-slate-200 flex-none">
+                                <button
+                                    type="button"
+                                    @click="selTheatre = null"
+                                    class="inline-flex items-center gap-1 text-xs text-sky-800 hover:text-sky-950 font-bold hover:underline cursor-pointer"
+                                >
+                                    <i class="pi pi-arrow-left text-[10px]"></i>
+                                    <span>Tous les théâtres</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    @click="ouvrirEditTheatreCoordsModal(selTheatreObj)"
+                                    class="inline-flex items-center gap-1 text-[10px] font-semibold text-orange-800 bg-orange-50 hover:bg-orange-100 border border-orange-200 px-2 py-0.5 rounded transition cursor-pointer"
+                                    title="Modifier l'emplacement GPS du PC sur la carte"
+                                >
+                                    <i class="pi pi-map-marker text-[9px]"></i>
+                                    <span>Modifier GPS PC</span>
+                                </button>
+                            </div>
+
+                            <!-- Fiche récapitulative du Théâtre -->
+                            <div class="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70 my-1.5 flex-none">
+                                <div class="flex items-center justify-between gap-1 mb-1">
+                                    <div class="flex items-center gap-1.5">
+                                        <span
+                                            class="w-3.5 h-3.5 rounded-full shrink-0 border border-black/20"
+                                            :style="{ backgroundColor: selTheatreObj.couleur }"
+                                        ></span>
+                                        <span class="font-mono font-bold text-xs text-slate-900">{{ selTheatreObj.code }}</span>
+                                    </div>
+                                    <span
+                                        class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
+                                        :class="selTheatreObj.statut === 'actif' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-700 border border-slate-300'"
+                                    >
+                                        {{ selTheatreObj.statut }}
+                                    </span>
+                                </div>
+                                <div class="text-xs font-bold text-slate-900 leading-snug">{{ selTheatreObj.nom }}</div>
+                                <div class="text-[11px] text-slate-600 mt-1 flex items-center justify-between gap-1">
+                                    <span class="flex items-center gap-1 truncate">
+                                        <i class="pi pi-compass text-orange-600 text-[10px]"></i>
+                                        <span>PC : <strong>{{ selTheatreObj.pc_lieu || 'Non renseigné' }}</strong></span>
+                                    </span>
+                                    <span v-if="selTheatreObj.lat && selTheatreObj.lon" class="text-slate-400 font-mono text-[10px] shrink-0">
+                                        {{ Number(selTheatreObj.lat).toFixed(3) }}, {{ Number(selTheatreObj.lon).toFixed(3) }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- 1. BLOC SYNTHÉTIQUE CLIQUABLE D'EFFECTIF GLOBAL -->
+                            <div
+                                @click="ouvrirModalMilitairesTheatre('tous')"
+                                class="p-3 bg-linear-to-br from-orange-50 via-amber-50 to-orange-100/70 hover:from-orange-100 hover:to-amber-100 border border-orange-200 hover:border-orange-300 rounded-xl cursor-pointer transition shadow-xs group mb-2.5 flex-none"
+                                title="Cliquer pour afficher la liste nominative ordonnée par grade"
+                            >
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-[10px] font-bold uppercase tracking-wider text-orange-900 flex items-center gap-1.5">
+                                        <i class="pi pi-users text-orange-600"></i>
+                                        <span>Effectif Total Déployé</span>
+                                    </span>
+                                    <span class="text-[9.5px] font-bold text-orange-800 bg-white/90 group-hover:bg-white px-2 py-0.5 rounded-full border border-orange-200 flex items-center gap-1 shadow-2xs">
+                                        <span>Voir la liste</span>
+                                        <i class="pi pi-arrow-up-right text-[8px]"></i>
+                                    </span>
+                                </div>
+                                <div class="flex items-baseline gap-2">
+                                    <div class="text-3xl font-black text-slate-900 tabular-nums">
+                                        {{ fmt(selTheatreObj.effectif) }}
+                                    </div>
+                                    <div class="text-xs font-semibold text-slate-600">
+                                        gendarme(s) engagé(s)
+                                    </div>
+                                </div>
+                                <div class="text-[10px] text-orange-800/90 mt-1 flex items-center gap-1 font-medium">
+                                    <i class="pi pi-info-circle text-[10px] text-orange-600"></i>
+                                    <span>Cliquer pour ouvrir la liste complète (du plus haut au plus petit grade)</span>
+                                </div>
+                            </div>
+
+                            <!-- 2. VENTILATION HIÉRARCHIQUE CLIQUABLE (OFFICIERS / SOUS-OFF / MDR / BLESSÉS) -->
+                            <div class="grid grid-cols-2 gap-1.5 mb-2.5 flex-none">
+                                <!-- Officiers -->
+                                <button
+                                    type="button"
+                                    @click="ouvrirModalMilitairesTheatre('officiers')"
+                                    class="p-2 rounded-lg border border-slate-200 bg-white hover:border-sky-300 hover:bg-sky-50/50 transition cursor-pointer text-left flex items-center justify-between group shadow-2xs"
+                                >
+                                    <div>
+                                        <div class="text-[9.5px] font-bold text-slate-500 uppercase tracking-wide group-hover:text-sky-800">Officiers</div>
+                                        <div class="text-sm font-black text-slate-900 tabular-nums">
+                                            {{ theatreStatsHierarchiques.officiers }}
+                                        </div>
+                                    </div>
+                                    <div class="w-7 h-7 rounded-md bg-sky-100 text-sky-800 flex items-center justify-center text-xs">
+                                        <i class="pi pi-star-fill text-[11px]"></i>
+                                    </div>
+                                </button>
+
+                                <!-- Sous-officiers -->
+                                <button
+                                    type="button"
+                                    @click="ouvrirModalMilitairesTheatre('sous_officiers')"
+                                    class="p-2 rounded-lg border border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/50 transition cursor-pointer text-left flex items-center justify-between group shadow-2xs"
+                                >
+                                    <div>
+                                        <div class="text-[9.5px] font-bold text-slate-500 uppercase tracking-wide group-hover:text-emerald-800">Sous-Officiers</div>
+                                        <div class="text-sm font-black text-slate-900 tabular-nums">
+                                            {{ theatreStatsHierarchiques.sousOfficiers }}
+                                        </div>
+                                    </div>
+                                    <div class="w-7 h-7 rounded-md bg-emerald-100 text-emerald-800 flex items-center justify-center text-xs">
+                                        <i class="pi pi-shield text-[11px]"></i>
+                                    </div>
+                                </button>
+
+                                <!-- Militaires du Rang -->
+                                <button
+                                    type="button"
+                                    @click="ouvrirModalMilitairesTheatre('mdr')"
+                                    class="p-2 rounded-lg border border-slate-200 bg-white hover:border-slate-400 hover:bg-slate-50 transition cursor-pointer text-left flex items-center justify-between group shadow-2xs"
+                                >
+                                    <div>
+                                        <div class="text-[9.5px] font-bold text-slate-500 uppercase tracking-wide group-hover:text-slate-800">Militaires du Rang</div>
+                                        <div class="text-sm font-black text-slate-900 tabular-nums">
+                                            {{ theatreStatsHierarchiques.mdr }}
+                                        </div>
+                                    </div>
+                                    <div class="w-7 h-7 rounded-md bg-slate-100 text-slate-700 flex items-center justify-center text-xs">
+                                        <i class="pi pi-user text-[11px]"></i>
+                                    </div>
+                                </button>
+
+                                <!-- Blessés de Guerre -->
+                                <button
+                                    type="button"
+                                    @click="ouvrirModalMilitairesTheatre('blesses')"
+                                    class="p-2 rounded-lg border transition cursor-pointer text-left flex items-center justify-between group shadow-2xs"
+                                    :class="selTheatreObj.blesses > 0 ? 'border-rose-200 bg-rose-50/70 hover:bg-rose-100/70 hover:border-rose-300' : 'border-slate-200 bg-white hover:bg-slate-50'"
+                                >
+                                    <div>
+                                        <div class="text-[9.5px] font-bold uppercase tracking-wide" :class="selTheatreObj.blesses > 0 ? 'text-rose-700' : 'text-slate-500'">Blessés Guerre</div>
+                                        <div class="text-sm font-black tabular-nums" :class="selTheatreObj.blesses > 0 ? 'text-rose-800' : 'text-slate-900'">
+                                            {{ selTheatreObj.blesses }}
+                                        </div>
+                                    </div>
+                                    <div class="w-7 h-7 rounded-md flex items-center justify-center text-xs" :class="selTheatreObj.blesses > 0 ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600'">
+                                        <i class="pi pi-heart-fill text-[11px]"></i>
+                                    </div>
+                                </button>
+                            </div>
+
+                            <!-- 3. ÉTAT OPÉRATIONNEL AU COMBAT -->
+                            <div class="p-2 bg-slate-50 rounded-lg border border-slate-200 mb-2.5 flex items-center justify-between text-xs flex-none">
+                                <span class="text-slate-600 text-[11px] font-medium flex items-center gap-1.5">
+                                    <i class="pi pi-check-circle text-emerald-600 text-[11px]"></i>
+                                    <span>Actifs au front & opérationnels :</span>
+                                </span>
+                                <span class="font-extrabold text-emerald-800 font-mono text-xs">
+                                    {{ selTheatreObj.actifs }} / {{ selTheatreObj.effectif }}
+                                </span>
+                            </div>
+
+                            <!-- 4. EMPRISE GÉOGRAPHIQUE -->
+                            <div class="mb-2.5 flex-none">
+                                <div class="text-[10px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                                    <i class="pi pi-map text-[9px] text-sky-600"></i>
+                                    <span>Emprise géographique ({{ selTheatreObj.regions_codes?.length || 0 }} régions) :</span>
+                                </div>
+                                <div class="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                                    <span
+                                        v-for="rc in selTheatreObj.regions_codes"
+                                        :key="rc"
+                                        class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-50 text-sky-800 border border-sky-200"
+                                    >
+                                        {{ rc }} ({{ regions.find(r => r.code === rc)?.nom.replace(/^(Région de |Région du |District de )/, '') || rc }})
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- 5. ORDRE DE MISSION / DESCRIPTION -->
+                            <div v-if="selTheatreObj.description" class="p-2 rounded-lg bg-white border border-slate-200 text-xs text-slate-600 mb-3 flex-none">
+                                <div class="text-[9.5px] font-bold uppercase text-slate-400 mb-0.5">Ordre de mission / Emprise</div>
+                                <p class="text-[11px] leading-relaxed text-slate-700 italic">
+                                    « {{ selTheatreObj.description }} »
+                                </p>
+                            </div>
+
+                            <!-- 6. GRAND BOUTON D'ACCÈS NOMINATIF HIÉRARCHISÉ -->
+                            <button
+                                type="button"
+                                @click="ouvrirModalMilitairesTheatre('tous')"
+                                class="w-full mt-auto py-2.5 px-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition cursor-pointer flex-none"
+                            >
+                                <i class="pi pi-list text-xs"></i>
+                                <span>Revue nominale par grade ({{ selTheatreObj.effectif }})</span>
+                            </button>
+                        </template>
+                    </template>
+
+                    <!-- VOLET EN MODE MAILLAGE TERRITORIAL (STANDARD) -->
+                    <template v-else>
+                    <!-- Entête du panneau -->
+                    <div class="flex items-center justify-between gap-2 flex-none">
+                        <div class="min-w-0">
+                            <h2 class="text-sm font-bold text-slate-900 truncate">
+                                {{ sel ? selRegion.nom : 'Vue Nationale (Mali)' }}
+                            </h2>
+                            <div class="flex items-center gap-2 mt-0.5">
+                                <span class="text-[11px] text-slate-500 truncate">
+                                    {{ sel ? (selRegion.chef_lieu ? 'Chef-lieu : ' + selRegion.chef_lieu : 'Région') : 'Tout le Mali' }}
+                                </span>
+                                <button
+                                    type="button"
+                                    @click="exportCarte"
+                                    :disabled="exportingCarte"
+                                    class="inline-flex items-center gap-1 text-[10px] font-semibold text-white bg-emerald-600 hover:bg-emerald-500 border border-emerald-500 px-1.5 py-0.5 rounded shadow-xs whitespace-nowrap transition-colors cursor-pointer disabled:opacity-50"
+                                    :title="sel ? 'Exporter les statistiques de cette région en Excel' : 'Exporter les statistiques de la carte en Excel'"
+                                >
+                                    <i :class="exportingCarte ? 'pi pi-spin pi-spinner text-[9px]' : 'pi pi-file-excel text-[9px]'"></i>
+                                    <span>{{ exportingCarte ? '...' : (sel ? 'Exporter' : 'Exporter') }}</span>
+                                </button>
+                            </div>
+                        </div>
+                        <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex-none">
+                            {{ sel ? selRegion.unites.length + ' unités' : regions.length + ' régions' }}
+                        </span>
+                    </div>
+
+                    <!-- Grille métriques compacte claire -->
+                    <div class="grid grid-cols-3 gap-1 my-1 p-1 border border-slate-200/70 flex-none bg-slate-50/90 rounded text-center">
+                        <div v-for="d in detail" :key="d.label" class="min-w-0 px-0.5">
+                            <div class="text-[9px] text-slate-500 truncate leading-tight">{{ d.label }}</div>
+                            <div class="text-xs font-bold text-slate-900 tabular-nums truncate">
+                                {{ d.value }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Onglets de bascule : Liste vs Détail Effectif -->
+                    <div class="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-medium my-1 flex-none">
+                        <button
+                            type="button"
+                            @click="sidebarTab = 'liste'"
+                            class="flex-1 py-0.5 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer text-[11px]"
+                            :class="sidebarTab === 'liste' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                        >
+                            <i class="pi pi-list text-[10px]"></i>
+                            <span>{{ sel ? 'Unités (' + selRegion.unites.length + ')' : 'Régions (' + regions.length + ')' }}</span>
+                        </button>
+                        <button
+                            type="button"
+                            @click="sidebarTab = 'effectif'"
+                            class="flex-1 py-0.5 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer text-[11px]"
+                            :class="sidebarTab === 'effectif' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                        >
+                            <i class="pi pi-chart-pie text-[10px]"></i>
+                            <span>Détail Effectif</span>
+                        </button>
+                    </div>
+
+                    <!-- VUE 1 : LISTE D'UNITÉS / RÉGIONS (DÉFAUT - PLEINE HAUTEUR FLUIDE & SCROLLABLE) -->
+                    <template v-if="sidebarTab === 'liste'">
+                        <!-- Titre de liste + Barre de recherche instantanée -->
+                        <div class="flex items-center justify-between gap-1.5 mb-1 flex-none">
+                            <h3 class="text-xs font-bold text-slate-900 truncate">
+                                {{ sel ? 'Unités de la région' : 'Classement : ' + METRICS[metric].label }}
+                            </h3>
+                            <div class="relative w-36 sm:w-40">
+                                <input
+                                    v-model="searchInput"
+                                    type="text"
+                                    :placeholder="sel ? 'Filtrer brigades...' : 'Filtrer régions...'"
+                                    class="w-full text-[11px] py-0.5 pl-5 pr-5 rounded border border-slate-200 bg-white placeholder-slate-400 focus:outline-none focus:border-sky-500"
+                                />
+                                <i class="pi pi-search absolute left-1.5 top-1.5 text-[9px] text-slate-400"></i>
+                                <button
+                                    v-if="searchInput"
+                                    @click="searchInput = ''; searchQuery = ''"
+                                    class="absolute right-1 top-1 text-slate-400 hover:text-slate-600 text-[10px]"
+                                    title="Effacer"
+                                >
+                                    <i class="pi pi-times"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- LISTE DÉROULANTE INTERNE (HAUTEUR FIXE ALIGNÉE SUR LA CARTE - SCROLL INTERNE) -->
+                        <div class="flex-1 min-h-0 max-h-[380px] lg:max-h-[410px] xl:max-h-[440px] overflow-y-auto pr-1 custom-scrollbar overscroll-contain">
+                            <!-- Fiche résumé de l'unité sélectionnée avec bouton de modification directe -->
+                            <div
+                                v-if="sel && selectedUnitObj"
+                                class="p-2 mb-2 rounded-lg bg-sky-50/90 border border-sky-200 text-xs flex items-center justify-between gap-2 shadow-2xs"
+                            >
+                                <div class="min-w-0">
+                                    <div class="font-bold text-sky-950 truncate flex items-center gap-1.5">
+                                        <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: parcelFill(selectedUnitObj) }"></span>
+                                        <span class="truncate">{{ selectedUnitObj.nom }}</span>
+                                    </div>
+                                    <div class="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                                        <span v-if="selectedUnitObj.ville" class="font-medium text-slate-700">📍 {{ selectedUnitObj.ville }}</span>
+                                        <span v-if="selectedUnitObj.lat && selectedUnitObj.lon" class="font-mono text-slate-500">
+                                            ({{ Number(selectedUnitObj.lat).toFixed(4) }}, {{ Number(selectedUnitObj.lon).toFixed(4) }})
+                                        </span>
+                                        <span v-else class="text-amber-700 font-medium">⚠️ Sans coordonnées GPS</span>
+                                        <span class="text-slate-300">•</span>
+                                        <span class="font-bold text-sky-800">{{ selectedUnitObj.effectif }} gendarme(s)</span>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    @click="openEditCoords(selectedUnitObj)"
+                                    class="px-2 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded text-[11px] font-bold flex items-center gap-1 cursor-pointer shrink-0 shadow-xs transition-colors"
+                                    title="Modifier l'implantation géographique et les coordonnées GPS de cette unité"
+                                >
+                                    <i class="pi pi-pencil text-[9px]"></i>
+                                    <span>Modifier GPS</span>
+                                </button>
+                            </div>
+
+                            <ul v-if="lignesFiltrees.length > 0" class="rank">
+                                <li v-for="row in lignesFiltrees" :key="row.key" class="flex items-center gap-1 group/row">
+                                    <button
+                                        :class="{ sel: row.active }"
+                                        @click="row.click"
+                                        class="flex-1 min-w-0"
+                                        :title="sel ? row.nom : 'Cliquer pour isoler ' + row.nom"
+                                    >
+                                        <span class="n">
+                                            <i
+                                                v-if="sel"
+                                                class="dot"
+                                                :style="{ background: row.op ? '#10b981' : '#f59e0b' }"
+                                            ></i>
+                                            <i
+                                                v-else
+                                                class="dot"
+                                                :style="{ background: fillFor(row.rawRegion) }"
+                                            ></i>
+                                            <span class="truncate text-slate-700 font-medium">{{ row.nom }}</span>
+                                            <small v-if="row.horsCarte" class="ml-1 text-amber-700 text-[9px]" title="Pas de coordonnées GPS">
+                                                (sans GPS)
+                                            </small>
+                                        </span>
+                                        <span class="t">
+                                            <i :style="{ width: Math.max(3, row.pct) + '%', background: sel ? '#0284c7' : '#1d4f91' }"></i>
+                                        </span>
+                                        <span class="v text-slate-900 font-bold">
+                                            {{ fmt(row.value) }}{{ sel ? '' : METRICS[metric].unit }}
+                                        </span>
+                                    </button>
+                                    <button
+                                        v-if="sel && row.rawUnit"
+                                        type="button"
+                                        @click.stop="openEditCoords(row.rawUnit)"
+                                        class="p-1 rounded text-slate-400 hover:text-sky-700 hover:bg-sky-50 transition cursor-pointer flex-none"
+                                        title="Modifier les coordonnées géographiques (GPS) de cette unité"
+                                    >
+                                        <i class="pi pi-map-marker text-[11px]"></i>
+                                    </button>
+                                </li>
+                            </ul>
+                            <div v-else class="py-6 text-center text-xs text-slate-400">
+                                Aucun élément pour « {{ searchInput }} »
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- VUE 2 : DÉTAIL DE L'EFFECTIF (AFFICHÉ QUAND ON CLIQUE SUR L'ONGLET) -->
+                    <template v-else>
+                        <div class="flex-1 min-h-0 max-h-[380px] lg:max-h-[410px] xl:max-h-[440px] overflow-y-auto pr-1 space-y-2 custom-scrollbar text-xs overscroll-contain">
+                            <!-- En activité -->
+                            <div class="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70 space-y-2">
+                                <div class="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
+                                    <span class="flex items-center gap-1.5">
+                                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                        <span>En activité ({{ fmt(sel ? selRegion.effectif : (tot(r => r.effectif) + (stats.non_rattaches || 0))) }})</span>
+                                    </span>
+                                    <span class="text-[9px] text-slate-400 font-normal">{{ sel ? 'Somme = Effectif' : `${fmt(tot(r => r.effectif))} en région • ${fmt(stats.non_rattaches || 0)} en attente` }}</span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-1.5 text-xs">
+                                    <button
+                                        type="button"
+                                        @click="ouvrirModalStatut('actifs')"
+                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-sky-500 hover:bg-sky-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
+                                        title="Voir la liste nominative des militaires actifs au poste et exporter en Excel"
+                                    >
+                                        <span class="text-slate-600 group-hover:text-sky-900 flex items-center gap-1">
+                                            <span>Actifs au poste</span>
+                                            <i class="pi pi-arrow-up-right text-[9px] text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                        </span>
+                                        <strong class="text-slate-900 group-hover:text-sky-900 tabular-nums font-bold">{{ fmt(valStat('actifs')) }}</strong>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="ouvrirModalStatut('detaches')"
+                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-sky-500 hover:bg-sky-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
+                                        title="Voir la liste nominative des militaires détachés et exporter en Excel"
+                                    >
+                                        <span class="text-slate-600 group-hover:text-sky-900 flex items-center gap-1">
+                                            <span>Détachés</span>
+                                            <i class="pi pi-arrow-up-right text-[9px] text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                        </span>
+                                        <strong class="text-slate-900 group-hover:text-sky-900 tabular-nums font-bold">{{ fmt(valStat('detaches')) }}</strong>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="ouvrirModalStatut('missions')"
+                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-sky-500 hover:bg-sky-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
+                                        title="Voir la liste nominative des militaires en mission et exporter en Excel"
+                                    >
+                                        <span class="text-slate-600 group-hover:text-sky-900 flex items-center gap-1">
+                                            <span>En mission</span>
+                                            <i class="pi pi-arrow-up-right text-[9px] text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                        </span>
+                                        <strong class="text-slate-900 group-hover:text-sky-900 tabular-nums font-bold">{{ fmt(valStat('missions')) }}</strong>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="ouvrirModalStatut('stages')"
+                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-sky-500 hover:bg-sky-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
+                                        title="Voir la liste nominative des militaires en stage et exporter en Excel"
+                                    >
+                                        <span class="text-slate-600 group-hover:text-sky-900 flex items-center gap-1">
+                                            <span>En stage</span>
+                                            <i class="pi pi-arrow-up-right text-[9px] text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                        </span>
+                                        <strong class="text-slate-900 group-hover:text-sky-900 tabular-nums font-bold">{{ fmt(valStat('stages')) }}</strong>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Hors effectif -->
+                            <div class="p-2.5 rounded-lg border border-rose-200/80 bg-rose-50/40 space-y-2">
+                                <div class="text-[11px] font-bold uppercase tracking-wider text-rose-800 flex items-center justify-between">
+                                    <span class="flex items-center gap-1.5">
+                                        <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+                                        <span>Hors effectif (à part)</span>
+                                    </span>
+                                    <span class="text-[9px] text-rose-500 font-normal">Non comptés dans total</span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-1.5 text-xs">
+                                    <button
+                                        type="button"
+                                        @click="ouvrirModalStatut('radies')"
+                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-rose-400 hover:bg-rose-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
+                                        title="Voir la liste nominative des radiés et exporter en Excel"
+                                    >
+                                        <span class="text-slate-600 group-hover:text-rose-900 flex items-center gap-1">
+                                            <span>Radiés</span>
+                                            <i class="pi pi-arrow-up-right text-[9px] text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                        </span>
+                                        <strong class="text-slate-900 group-hover:text-rose-900 tabular-nums font-bold">{{ fmt(valStat('radies')) }}</strong>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="ouvrirModalStatut('retraites')"
+                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-purple-400 hover:bg-purple-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
+                                        title="Voir la liste nominative des départs à la retraite et exporter en Excel"
+                                    >
+                                        <span class="text-slate-600 group-hover:text-purple-900 flex items-center gap-1">
+                                            <span>Retraites {{ props.stats.annee ?? new Date().getFullYear() }}</span>
+                                            <i class="pi pi-arrow-up-right text-[9px] text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                        </span>
+                                        <strong class="text-slate-900 group-hover:text-purple-900 tabular-nums font-bold">{{ fmt(valStat('retraites')) }}</strong>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="ouvrirModalStatut('deserteurs')"
+                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-amber-400 hover:bg-amber-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
+                                        title="Voir la liste nominative des déserteurs et exporter en Excel"
+                                    >
+                                        <span class="text-slate-600 group-hover:text-amber-900 flex items-center gap-1">
+                                            <span>Déserteurs</span>
+                                            <i class="pi pi-arrow-up-right text-[9px] text-amber-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                        </span>
+                                        <strong class="text-slate-900 group-hover:text-amber-900 tabular-nums font-bold">{{ fmt(valStat('deserteurs')) }}</strong>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="ouvrirModalStatut('decedes')"
+                                        class="flex items-center justify-between p-2 rounded bg-white border border-slate-200/80 hover:border-rose-400 hover:bg-rose-50/50 hover:shadow-2xs transition-all text-left cursor-pointer group"
+                                        title="Voir la liste nominative des décédés et exporter en Excel"
+                                    >
+                                        <span class="text-slate-600 group-hover:text-rose-900 flex items-center gap-1">
+                                            <span>Décédés {{ props.stats.annee ?? new Date().getFullYear() }}</span>
+                                            <i class="pi pi-arrow-up-right text-[9px] text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                        </span>
+                                        <strong class="text-slate-900 group-hover:text-rose-900 tabular-nums font-bold">{{ fmt(valStat('decedes')) }}</strong>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Astuce visuelle d'interactivité -->
+                            <div class="px-2.5 py-1.5 rounded-lg bg-sky-50/80 border border-sky-200/70 text-[10.5px] text-sky-900 flex items-center gap-2">
+                                <i class="pi pi-info-circle text-sky-600 text-xs shrink-0"></i>
+                                <span>Cliquez sur un statut pour afficher la liste nominative et l'exporter en Excel.</span>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Guide d'interaction en bas (aligné au bas du panneau) -->
+                    <p class="text-[10px] text-slate-400 mt-auto pt-1 border-t border-slate-100 flex-none truncate">
+                        {{ sel
+                            ? 'Cliquez sur une unité pour la cibler sur la carte.'
+                            : 'Cliquez sur une région pour zoomer et afficher ses unités.' }}
+                    </p>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal: Recrues en attente d'affectation (Sans région / unité) -->
+        <Dialog
+            v-model:visible="showNonRattachesModal"
+            modal
+            :header="`Recrues en attente d'affectation (${props.stats.non_rattaches} sans région/unité)`"
+            :style="{ width: '920px', maxWidth: '96vw' }"
+            class="p-fluid"
+        >
+            <div class="space-y-3">
+                <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 flex items-start gap-2.5">
+                    <i class="pi pi-info-circle text-amber-600 text-base mt-0.5 shrink-0"></i>
+                    <div>
+                        <div class="font-bold text-amber-950">
+                            {{ props.stats.non_rattaches }} recrues actives sans affectation territoriale
+                        </div>
+                        <p class="text-amber-800 mt-0.5">
+                            Ces soldats sont actifs dans l'effectif mais n'ont pas encore été affectés à une région militaire ni à une unité. Cliquez sur <strong>« Affecter »</strong> pour leur assigner une région et une unité.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Barre de recherche rapide + action globale -->
+                <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    <div class="relative flex-1 min-w-[220px]">
+                        <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                        <input
+                            v-model="searchRecrues"
+                            type="text"
+                            placeholder="Rechercher par nom, prénom, matricule, MLE GRM..."
+                            class="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-800"
+                        />
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-semibold text-slate-500">
+                            {{ nonRattachesFiltres.length }} sur {{ props.stats.non_rattaches }}
+                        </span>
+                        <Link
+                            :href="route('militaires.index', { non_rattaches: 1 })"
+                            class="px-2.5 py-1.5 bg-sky-900 hover:bg-sky-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-colors"
+                        >
+                            <i class="pi pi-external-link text-xs"></i>
+                            <span>Ouvrir dans l'Annuaire</span>
+                        </Link>
+                    </div>
+                </div>
+
+                <!-- Liste des recrues (Tableau responsive) -->
+                <div class="max-h-[58vh] overflow-y-auto border border-slate-200 rounded-lg custom-scrollbar">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead class="bg-slate-100 text-slate-700 sticky top-0 z-10 border-b border-slate-200">
+                            <tr>
+                                <th class="p-2.5 font-bold">Matricule / MLE</th>
+                                <th class="p-2.5 font-bold">Nom & Prénom</th>
+                                <th class="p-2.5 font-bold">Grade</th>
+                                <th class="p-2.5 font-bold">Statut / Position</th>
+                                <th class="p-2.5 font-bold text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <tr
+                                v-for="m in nonRattachesFiltres"
+                                :key="m.id"
+                                class="hover:bg-sky-50/50 transition-colors"
+                            >
+                                <td class="p-2.5 font-mono text-[11px] font-semibold text-slate-800">
+                                    <div>FAMA: {{ m.matricule || 'N/A' }}</div>
+                                    <div class="text-[10px] text-slate-500">GRM: {{ m.mle_grm || 'N/A' }}</div>
+                                </td>
+                                <td class="p-2.5 font-bold text-slate-900">
+                                    {{ m.nom }} {{ m.prenom }}
+                                </td>
+                                <td class="p-2.5">
+                                    <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-semibold text-[11px] border border-slate-200">
+                                        {{ m.grade_actuel || 'Soldat 2' }}
+                                    </span>
+                                </td>
+                                <td class="p-2.5">
+                                    <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-[10px]">
+                                        {{ m.position_actuelle || m.statut || 'En attente' }}
+                                    </span>
+                                </td>
+                                <td class="p-2.5 text-right whitespace-nowrap">
+                                    <div class="inline-flex items-center gap-1.5 justify-end">
+                                        <Link
+                                            :href="route('militaires.edit', m.id)"
+                                            class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold text-[11px] flex items-center gap-1 shadow-xs transition-colors"
+                                            title="Affecter une région et une unité à cette recrue"
+                                        >
+                                            <i class="pi pi-pencil text-[10px]"></i>
+                                            <span>Affecter</span>
+                                        </Link>
+                                        <Link
+                                            :href="route('militaires.show', m.id)"
+                                            class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded font-semibold text-[11px] flex items-center gap-1 transition-colors"
+                                            title="Voir la fiche détaillée"
+                                        >
+                                            <i class="pi pi-eye text-[10px]"></i>
+                                        </Link>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr v-if="nonRattachesFiltres.length === 0">
+                                <td colspan="6" class="p-6 text-center text-slate-500">
+                                    Aucune recrue trouvée pour cette recherche.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <template #footer>
+                <div class="flex items-center justify-between w-full pt-2 border-t border-slate-200">
+                    <span class="text-xs text-slate-500">
+                        Total recrues en attente : <strong>{{ props.stats.non_rattaches }}</strong>
+                    </span>
+                    <button
+                        type="button"
+                        @click="showNonRattachesModal = false"
+                        class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg text-xs font-semibold cursor-pointer"
+                    >
+                        Fermer
+                    </button>
+                </div>
+            </template>
+        </Dialog>
+
+        <!-- Modal: Détail des Militaires par Statut & Export Excel -->
+        <Dialog
+            v-model:visible="showStatutModal"
+            modal
+            :header="`${statutModalTitre} (${statutModalTotal})`"
+            :style="{ width: '1050px', maxWidth: '96vw' }"
+            class="p-fluid"
+        >
+            <div class="space-y-3">
+                <!-- En-tête info avec badge périmètre & bouton Export Excel -->
+                <div class="bg-sky-50 border border-sky-200 rounded-lg p-3 text-xs text-sky-950 flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-full bg-sky-600 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+                            <i class="pi pi-users text-sm"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-sky-900 text-sm flex items-center gap-2">
+                                <span>{{ statutModalTitre }}</span>
+                                <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-sky-200/80 text-sky-800">
+                                    {{ statutModalPerimetre }}
+                                </span>
+                            </div>
+                            <p class="text-sky-700 text-[11px] mt-0.5">
+                                Liste nominative détaillée des personnels enregistrés sous cette catégorie.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Bouton Exporter en Excel -->
+                    <button
+                        type="button"
+                        @click="exporterStatutExcel"
+                        :disabled="loadingStatutModal || statutModalTotal === 0"
+                        class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                        title="Télécharger cette liste au format Excel (.xlsx)"
+                    >
+                        <i class="pi pi-file-excel text-sm"></i>
+                        <span>Exporter en Excel (.xlsx)</span>
+                    </button>
+                </div>
+
+                <!-- Avertissement si affichage tronqué (> 200 lignes pour préserver les performances du navigateur) -->
+                <div v-if="statutModalIsLimited" class="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-950 flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                        <i class="pi pi-info-circle text-amber-600 text-sm shrink-0"></i>
+                        <span>Affichage limité aux <strong>200</strong> premiers personnels pour préserver la fluidité (total : <strong>{{ statutModalTotal }}</strong>).</span>
+                    </div>
+                    <button
+                        type="button"
+                        @click="exporterStatutExcel"
+                        class="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold text-[11px] shrink-0 cursor-pointer flex items-center gap-1 shadow-2xs"
+                    >
+                        <i class="pi pi-download text-[10px]"></i>
+                        <span>Télécharger les {{ statutModalTotal }} en Excel</span>
+                    </button>
+                </div>
+
+                <!-- Barre de recherche rapide -->
+                <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    <div class="relative flex-1 min-w-[240px]">
+                        <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                        <input
+                            v-model="searchStatutModal"
+                            type="text"
+                            placeholder="Filtrer par nom, prénom, matricule, grade, unité, région..."
+                            class="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-800"
+                        />
+                    </div>
+                    <div class="text-xs font-semibold text-slate-500">
+                        Affichage : <strong class="text-slate-800">{{ statutMilitairesFiltres.length }}</strong> sur {{ statutModalMilitaires.length }}
+                    </div>
+                </div>
+
+                <!-- Indicateur de chargement -->
+                <div v-if="loadingStatutModal" class="py-16 text-center text-slate-500 space-y-2">
+                    <i class="pi pi-spin pi-spinner text-3xl text-sky-600"></i>
+                    <p class="text-xs font-medium">Chargement des données en cours...</p>
+                </div>
+
+                <!-- Tableau nominatif responsive -->
+                <div v-else class="max-h-[58vh] overflow-y-auto border border-slate-200 rounded-lg custom-scrollbar">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead class="bg-slate-100 text-slate-700 sticky top-0 z-10 border-b border-slate-200">
+                            <tr>
+                                <th class="p-2.5 font-bold">N°</th>
+                                <th class="p-2.5 font-bold">Matricule / MLE</th>
+                                <th class="p-2.5 font-bold">Nom & Prénom</th>
+                                <th class="p-2.5 font-bold">Grade</th>
+                                <th class="p-2.5 font-bold">Région & Unité</th>
+                                <th class="p-2.5 font-bold">Statut / Position</th>
+                                <th v-if="statutModalType === 'retraites'" class="p-2.5 font-bold">Date retraite</th>
+                                <th class="p-2.5 font-bold text-right">Fiche</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <tr
+                                v-for="(m, idx) in statutMilitairesFiltres"
+                                :key="m.id"
+                                class="hover:bg-sky-50/50 transition-colors"
+                            >
+                                <td class="p-2.5 font-mono text-slate-400 text-[11px]">
+                                    {{ idx + 1 }}
+                                </td>
+                                <td class="p-2.5 font-mono text-[11px] font-semibold text-slate-800 whitespace-nowrap">
+                                    <div>FAMA: {{ m.matricule || 'N/A' }}</div>
+                                    <div class="text-[10px] text-slate-500">GRM: {{ m.mle_grm || 'N/A' }}</div>
+                                </td>
+                                <td class="p-2.5 font-bold text-slate-900 whitespace-nowrap">
+                                    {{ m.nom }} {{ m.prenom }}
+                                </td>
+                                <td class="p-2.5">
+                                    <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-semibold text-[11px] border border-slate-200 whitespace-nowrap">
+                                        {{ m.grade || 'Soldat 2' }}
+                                    </span>
+                                </td>
+                                <td class="p-2.5 text-slate-700">
+                                    <div class="font-medium text-slate-800">{{ m.unite_nom || 'Sans unité' }}</div>
+                                    <div class="text-[10px] text-slate-500">{{ m.region_nom || 'Non rattaché' }}</div>
+                                </td>
+                                <td class="p-2.5">
+                                    <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold text-[10px] border border-slate-200 whitespace-nowrap">
+                                        {{ m.position || m.statut || 'En attente' }}
+                                    </span>
+                                </td>
+                                <td v-if="statutModalType === 'retraites'" class="p-2.5 font-mono font-semibold text-rose-700 whitespace-nowrap">
+                                    {{ m.date_retraite || '-' }}
+                                </td>
+                                <td class="p-2.5 text-right whitespace-nowrap">
+                                    <Link
+                                        :href="route('militaires.show', m.id)"
+                                        class="px-2 py-1 bg-slate-100 hover:bg-sky-100 hover:text-sky-800 text-slate-700 border border-slate-300 rounded font-semibold text-[11px] inline-flex items-center gap-1 transition-colors"
+                                        title="Voir la fiche détaillée du militaire"
+                                    >
+                                        <i class="pi pi-id-card text-[10px]"></i>
+                                        <span>Fiche</span>
+                                    </Link>
+                                </td>
+                            </tr>
+                            <tr v-if="statutMilitairesFiltres.length === 0">
+                                <td :colspan="statutModalType === 'retraites' ? 8 : 7" class="p-8 text-center text-slate-400 text-xs">
+                                    <i class="pi pi-inbox text-2xl text-slate-300 mb-1 block"></i>
+                                    Aucun militaire trouvé pour ce critère.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <template #footer>
+                <div class="flex items-center justify-between w-full pt-2 border-t border-slate-200">
+                    <span class="text-xs text-slate-500">
+                        Total effectif : <strong>{{ statutModalTotal }}</strong> militaire(s)
+                    </span>
+                    <div class="flex items-center gap-2">
+                        <button
+                            type="button"
+                            @click="exporterStatutExcel"
+                            :disabled="statutModalTotal === 0"
+                            class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                            <i class="pi pi-file-excel"></i>
+                            <span>Télécharger Excel</span>
+                        </button>
+                        <button
+                            type="button"
+                            @click="showStatutModal = false"
+                            class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg text-xs font-semibold cursor-pointer"
+                        >
+                            Fermer
+                        </button>
+                    </div>
+                </div>
+            </template>
+        </Dialog>
+
+        <!-- Modal: Modifier l'implantation géographique et coordonnées GPS d'une unité -->
+        <Dialog
+            v-model:visible="showEditCoordsModal"
+            modal
+            :header="`📍 Implantation géographique & Coordonnées GPS`"
+            :style="{ width: '560px', maxWidth: '95vw' }"
+            class="p-fluid"
+        >
+            <form @submit.prevent="saveCoords" class="space-y-3.5 pt-1">
+                <!-- En-tête de l'unité éditée -->
+                <div v-if="editingUnit" class="p-3 rounded-lg bg-sky-50/80 border border-sky-200 flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <div class="text-[10px] font-bold uppercase tracking-wider text-sky-800">Unité sélectionnée</div>
+                        <div class="font-extrabold text-slate-900 text-sm truncate">{{ editingUnit.nom }}</div>
+                        <div class="text-[11px] text-slate-500 mt-0.5">
+                            Région : <strong class="text-slate-800">{{ editingUnit.region_nom || selRegion?.nom || 'N/A' }}</strong>
+                            <span v-if="editingUnit.effectif !== undefined" class="ml-1">• {{ editingUnit.effectif }} militaires</span>
+                        </div>
+                    </div>
+                    <span
+                        class="px-2 py-0.5 rounded text-[10px] font-bold whitespace-nowrap"
+                        :class="editingUnit.operationnelle ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-800 border border-amber-300'"
+                    >
+                        {{ editingUnit.operationnelle ? 'Opérationnelle' : 'En réserve' }}
+                    </span>
+                </div>
+
+                <!-- Alerte d'erreur éventuelle renvoyée par le serveur (ex: coordonnées hors région) -->
+                <div v-if="coordsErrors.latitude || coordsErrors.longitude" class="p-2.5 rounded-lg bg-rose-50 border border-rose-300 text-xs text-rose-800 flex items-start gap-2">
+                    <i class="pi pi-exclamation-triangle text-rose-600 mt-0.5 shrink-0"></i>
+                    <div>
+                        <div class="font-bold">Contrôle territorial :</div>
+                        <p>{{ coordsErrors.latitude || coordsErrors.longitude }}</p>
+                    </div>
+                </div>
+
+                <!-- Champ 1 : Région de rattachement -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">
+                        Région de rattachement
+                    </label>
+                    <select
+                        v-model="coordsForm.region_id"
+                        class="w-full text-xs py-1.5 px-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                        required
+                    >
+                        <option v-for="r in regions" :key="r.id" :value="r.id">
+                            {{ r.code }} - {{ r.nom }}
+                        </option>
+                    </select>
+                </div>
+
+                <!-- Champ 2 : Ville / Localité / Implantation -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">
+                        Ville / Localité d'implantation
+                    </label>
+                    <input
+                        v-model="coordsForm.ville"
+                        type="text"
+                        placeholder="Ex: Ségou, Bla, Pelengana, Niono..."
+                        class="w-full text-xs py-1.5 px-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    />
+                </div>
+
+                <!-- Champs 3 & 4 : Latitude et Longitude GPS (décimaux) -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                            <span>Latitude (Nord)</span>
+                            <span class="text-[10px] text-slate-400 font-mono">-90 à 90</span>
+                        </label>
+                        <input
+                            v-model="coordsForm.latitude"
+                            type="text"
+                            placeholder="Ex: 13.4333"
+                            class="w-full text-xs py-1.5 px-2.5 font-mono rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                            :class="{ '!border-rose-500 !bg-rose-50/50': coordsErrors.latitude }"
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                            <span>Longitude (Ouest / Est)</span>
+                            <span class="text-[10px] text-slate-400 font-mono">-180 à 180</span>
+                        </label>
+                        <input
+                            v-model="coordsForm.longitude"
+                            type="text"
+                            placeholder="Ex: -6.2667"
+                            class="w-full text-xs py-1.5 px-2.5 font-mono rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                            :class="{ '!border-rose-500 !bg-rose-50/50': coordsErrors.longitude }"
+                        />
+                    </div>
+                </div>
+
+                <!-- Conseil d'utilisation -->
+                <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-600 space-y-1">
+                    <div class="font-semibold text-slate-800 flex items-center gap-1.5">
+                        <i class="pi pi-compass text-sky-600"></i>
+                        <span>Positionnement dans les Cercles officiels</span>
+                    </div>
+                    <p class="text-slate-500 leading-relaxed">
+                        Les coordonnées GPS déterminent l'ancrage géographique exact de l'unité au sein de son cercle de rattachement. Dès validation, la carte actualise la position de la brigade en temps réel.
+                    </p>
+                </div>
+
+                <!-- Actions du footer -->
+                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+                    <button
+                        type="button"
+                        @click="showEditCoordsModal = false"
+                        class="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+                    >
+                        Annuler
+                    </button>
+                    <button
+                        type="submit"
+                        :disabled="savingCoords"
+                        class="px-4 py-1.5 bg-sky-700 hover:bg-sky-800 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                    >
+                        <i v-if="savingCoords" class="pi pi-spin pi-spinner text-xs"></i>
+                        <i v-else class="pi pi-check text-xs"></i>
+                        <span>{{ savingCoords ? 'Enregistrement...' : 'Enregistrer les coordonnées' }}</span>
+                    </button>
+                </div>
+            </form>
+        </Dialog>
+
+        <!-- Modal: Revue nominale des effectifs d'un Théâtre d'Opérations (Trié du plus haut grade au plus petit) -->
+        <Dialog
+            v-model:visible="showTheatreMilitairesModal"
+            modal
+            :header="`Forces projetées • ${selTheatreObj?.nom || 'Théâtre'} (${selTheatreObj?.code || ''})`"
+            :style="{ width: '920px', maxWidth: '96vw' }"
+            class="p-fluid"
+        >
+            <div class="space-y-4 pt-1">
+                <!-- En-tête récapitulatif du théâtre -->
+                <div v-if="selTheatreObj" class="p-3.5 rounded-xl bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm border border-slate-800">
+                    <div class="flex items-center gap-3">
+                        <span
+                            class="w-4 h-4 rounded-full border-2 border-white shrink-0"
+                            :style="{ backgroundColor: selTheatreObj.couleur }"
+                        ></span>
+                        <div>
+                            <div class="text-sm font-black text-white flex items-center gap-2">
+                                <span>{{ selTheatreObj.nom }}</span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                                    {{ selTheatreObj.code }}
+                                </span>
+                            </div>
+                            <div class="text-xs text-slate-400 mt-0.5 flex flex-wrap items-center gap-2">
+                                <span>PC : <strong class="text-slate-200">{{ selTheatreObj.pc_lieu || 'Non renseigné' }}</strong></span>
+                                <span>•</span>
+                                <span>Emprise : <strong class="text-slate-200">{{ selTheatreObj.regions_codes?.join(', ') || 'Nationale' }}</strong></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 sm:border-l sm:border-slate-800 sm:pl-4">
+                        <div class="text-right">
+                            <div class="text-[10px] uppercase font-bold text-slate-400">Total Projeté</div>
+                            <div class="text-2xl font-black text-orange-400 font-mono">{{ selTheatreObj.effectif }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Barre d'outils : Filtres statutaires & Recherche textuelle -->
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                    <!-- Onglets de filtres hiérarchiques -->
+                    <div class="flex flex-wrap items-center gap-1 text-xs">
+                        <button
+                            type="button"
+                            @click="theatreMilitaireCategorieFilter = 'tous'"
+                            class="px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer text-xs"
+                            :class="theatreMilitaireCategorieFilter === 'tous' ? 'bg-orange-600 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'"
+                        >
+                            Tous ({{ selTheatreObj?.effectif || 0 }})
+                        </button>
+                        <button
+                            type="button"
+                            @click="theatreMilitaireCategorieFilter = 'officiers'"
+                            class="px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer text-xs flex items-center gap-1"
+                            :class="theatreMilitaireCategorieFilter === 'officiers' ? 'bg-sky-700 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'"
+                        >
+                            <i class="pi pi-star-fill text-[10px]"></i>
+                            <span>Officiers ({{ theatreStatsHierarchiques.officiers }})</span>
+                        </button>
+                        <button
+                            type="button"
+                            @click="theatreMilitaireCategorieFilter = 'sous_officiers'"
+                            class="px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer text-xs flex items-center gap-1"
+                            :class="theatreMilitaireCategorieFilter === 'sous_officiers' ? 'bg-emerald-700 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'"
+                        >
+                            <i class="pi pi-shield text-[10px]"></i>
+                            <span>Sous-Officiers ({{ theatreStatsHierarchiques.sousOfficiers }})</span>
+                        </button>
+                        <button
+                            type="button"
+                            @click="theatreMilitaireCategorieFilter = 'mdr'"
+                            class="px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer text-xs flex items-center gap-1"
+                            :class="theatreMilitaireCategorieFilter === 'mdr' ? 'bg-slate-700 text-white shadow-xs' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'"
+                        >
+                            <i class="pi pi-user text-[10px]"></i>
+                            <span>MDR ({{ theatreStatsHierarchiques.mdr }})</span>
+                        </button>
+                        <button
+                            type="button"
+                            @click="theatreMilitaireCategorieFilter = 'blesses'"
+                            class="px-2.5 py-1 rounded-lg font-bold transition cursor-pointer text-xs flex items-center gap-1"
+                            :class="theatreMilitaireCategorieFilter === 'blesses' ? 'bg-rose-700 text-white shadow-xs' : 'bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100'"
+                        >
+                            <i class="pi pi-heart-fill text-[10px]"></i>
+                            <span>Blessés Guerre ({{ theatreStatsHierarchiques.blesses }})</span>
+                        </button>
+                    </div>
+
+                    <!-- Champ recherche -->
+                    <div class="relative w-full md:w-60">
+                        <input
+                            v-model="searchTheatreMilitaire"
+                            type="text"
+                            placeholder="Rechercher nom, grade, matricule..."
+                            class="w-full text-xs py-1.5 pl-8 pr-2.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        />
+                        <i class="pi pi-search absolute left-2.5 top-2 text-xs text-slate-400"></i>
+                    </div>
+                </div>
+
+                <!-- Indication d'ordonnancement -->
+                <div class="flex items-center justify-between text-[11px] text-slate-500 px-1">
+                    <span class="flex items-center gap-1.5 font-medium">
+                        <i class="pi pi-sort-amount-down text-orange-600"></i>
+                        <span>Liste classée <strong>par ordre hiérarchique décroissant</strong> (du plus haut grade au soldat).</span>
+                    </span>
+                    <span class="font-mono text-slate-600">
+                        {{ theatreMilitairesTriesEtFiltres.length }} gendarme(s) listé(s)
+                    </span>
+                </div>
+
+                <!-- Table nominative -->
+                <div class="max-h-[52vh] overflow-y-auto border border-slate-200 rounded-xl custom-scrollbar bg-white">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="sticky top-0 bg-slate-100/95 backdrop-blur-xs text-slate-700 font-bold border-b border-slate-200 uppercase text-[10px] tracking-wider z-10">
+                            <tr>
+                                <th class="p-2.5 pl-3">Grade & Identité</th>
+                                <th class="p-2.5">Matricule / Mle</th>
+                                <th class="p-2.5">Unité & Région d'origine</th>
+                                <th class="p-2.5">Statut Opérationnel / Circonstance</th>
+                                <th class="p-2.5 pr-3 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <tr
+                                v-for="m in theatreMilitairesTriesEtFiltres"
+                                :key="m.id"
+                                class="hover:bg-orange-50/40 transition"
+                                :class="m.est_blesse_guerre ? 'bg-rose-50/30' : ''"
+                            >
+                                <!-- Grade & Nom -->
+                                <td class="p-2.5 pl-3">
+                                    <div class="flex items-center gap-2">
+                                        <span
+                                            class="px-2 py-0.5 rounded text-[10.5px] font-bold border shrink-0"
+                                            :class="gradeBadgeStyle(m.grade_ordre)"
+                                        >
+                                            {{ m.grade }}
+                                        </span>
+                                        <div>
+                                            <div class="font-bold text-slate-900 leading-tight">
+                                                {{ m.nom }} {{ m.prenom }}
+                                            </div>
+                                            <div class="text-[10.5px] text-slate-400 capitalize">
+                                                {{ (m.categorie_statutaire || '').toLowerCase().replace(/_/g, ' ') }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+
+                                <!-- Matricule -->
+                                <td class="p-2.5 font-mono text-slate-600 font-semibold text-[11px]">
+                                    {{ m.matricule || m.mle_grm || 'Sans matricule' }}
+                                </td>
+
+                                <!-- Unité & Région -->
+                                <td class="p-2.5">
+                                    <div class="font-semibold text-slate-800 text-[11px] truncate max-w-[220px]" :title="m.unite_nom">
+                                        {{ m.unite_nom }}
+                                    </div>
+                                    <div class="text-[10.5px] text-slate-500">
+                                        {{ m.region_nom }}
+                                    </div>
+                                </td>
+
+                                <!-- Statut & Circonstance de blessure -->
+                                <td class="p-2.5">
+                                    <div v-if="m.est_blesse_guerre" class="space-y-0.5">
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                                            <i class="pi pi-exclamation-triangle text-[9px]"></i>
+                                            <span>Blessé de guerre au combat</span>
+                                        </span>
+                                        <div v-if="m.circonstance_blessure" class="text-[11px] text-rose-900 font-medium italic leading-snug">
+                                            « {{ m.circonstance_blessure }} »
+                                        </div>
+                                        <div v-if="m.nature_pathologie" class="text-[10px] text-slate-600">
+                                            Pathologie : {{ m.nature_pathologie }}
+                                        </div>
+                                        <div v-if="m.date_blessure" class="text-[10px] text-slate-400 font-mono">
+                                            Date : {{ m.date_blessure }}
+                                        </div>
+                                    </div>
+                                    <div v-else>
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                            <i class="pi pi-check text-[9px]"></i>
+                                            <span>Opérationnel actif</span>
+                                        </span>
+                                    </div>
+                                </td>
+
+                                <!-- Action : Consulter Fiche -->
+                                <td class="p-2.5 pr-3 text-right">
+                                    <Link
+                                        :href="route('militaires.show', m.id)"
+                                        class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-sky-800 hover:text-sky-950 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-md transition shadow-2xs"
+                                        title="Ouvrir la fiche individuelle"
+                                    >
+                                        <i class="pi pi-id-card text-[10px]"></i>
+                                        <span>Fiche</span>
+                                    </Link>
+                                </td>
+                            </tr>
+
+                            <tr v-if="theatreMilitairesTriesEtFiltres.length === 0">
+                                <td colspan="5" class="py-10 text-center text-slate-400 italic text-xs">
+                                    Aucun militaire ne correspond à ces critères sur ce théâtre d'opérations.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Footer de la modale -->
+                <div class="flex items-center justify-between pt-2 border-t border-slate-200">
+                    <div class="text-[11px] text-slate-500">
+                        Total des effectifs déployés : <strong class="text-slate-800">{{ selTheatreObj?.effectif || 0 }}</strong> personnels
+                    </div>
+                    <button
+                        type="button"
+                        @click="showTheatreMilitairesModal = false"
+                        class="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer transition"
+                    >
+                        Fermer
+                    </button>
+                </div>
+            </div>
+        </Dialog>
+
+        <!-- Modal: Modifier les coordonnées GPS du Poste de Commandement (PC) d'un Théâtre d'Opérations -->
+        <Dialog
+            v-model:visible="showEditTheatreCoordsModal"
+            modal
+            :header="`📍 Coordonnées GPS du PC • ${editTheatreCoordsForm.theatre?.nom || ''}`"
+            :style="{ width: '500px', maxWidth: '95vw' }"
+            class="p-fluid"
+        >
+            <div class="space-y-3.5 pt-1">
+                <div v-if="editTheatreCoordsForm.theatre" class="p-3 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <div class="text-[10px] font-bold uppercase tracking-wider text-orange-800">Théâtre d'opérations</div>
+                        <div class="font-extrabold text-slate-900 text-sm truncate">{{ editTheatreCoordsForm.theatre.nom }}</div>
+                        <div class="text-[11px] text-slate-600 mt-0.5 font-mono">
+                            Code : <strong>{{ editTheatreCoordsForm.theatre.code }}</strong>
+                            <span class="ml-2 font-sans">• {{ editTheatreCoordsForm.theatre.effectif }} gendarme(s) engagé(s)</span>
+                        </div>
+                    </div>
+                    <span
+                        class="w-4 h-4 rounded-full border border-black/20 shrink-0"
+                        :style="{ backgroundColor: editTheatreCoordsForm.theatre.couleur }"
+                    ></span>
+                </div>
+
+                <!-- Sélection de la région pour coordonnées par défaut -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                        <span><i class="pi pi-map text-orange-600 mr-1"></i>Région d'ancrage (Coordonnées par défaut)</span>
+                        <span class="text-[10px] text-orange-700 font-normal">Pré-remplissage</span>
+                    </label>
+                    <select
+                        v-model="selectedRegionForPCModal"
+                        @change="onSelectRegionForPCModal(selectedRegionForPCModal)"
+                        class="w-full text-xs py-2 px-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500 font-medium"
+                    >
+                        <option value="">-- Choisir une région d'ancrage --</option>
+                        <option v-for="r in regions" :key="r.code" :value="r.code">
+                            [{{ r.code }}] {{ r.nom }} (Chef-lieu : {{ r.chef_lieu || 'Non renseigné' }})
+                        </option>
+                    </select>
+                    <span class="text-[10px] text-slate-500 block mt-1">
+                        Sélectionnez une région pour insérer automatiquement son chef-lieu et ses coordonnées GPS par défaut avant d'ajuster.
+                    </span>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">
+                        Lieu / Localité d'implantation du Poste de Commandement (PC)
+                    </label>
+                    <input
+                        v-model="editTheatreCoordsForm.pc_lieu"
+                        type="text"
+                        placeholder="Ex: Sévaré, Gao, Sikasso, Tombouctou..."
+                        class="w-full text-xs py-1.5 px-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                            <span>Latitude GPS (Nord)</span>
+                            <span class="text-[10px] text-slate-400 font-mono">WGS84</span>
+                        </label>
+                        <input
+                            v-model="editTheatreCoordsForm.latitude"
+                            type="number"
+                            step="0.000001"
+                            placeholder="Ex: 14.5333"
+                            class="w-full text-xs py-1.5 px-2.5 font-mono rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                            <span>Longitude GPS</span>
+                            <span class="text-[10px] text-slate-400 font-mono">WGS84</span>
+                        </label>
+                        <input
+                            v-model="editTheatreCoordsForm.longitude"
+                            type="number"
+                            step="0.000001"
+                            placeholder="Ex: -4.1000"
+                            class="w-full text-xs py-1.5 px-2.5 font-mono rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        />
+                    </div>
+                </div>
+
+                <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-600 space-y-1">
+                    <div class="font-semibold text-slate-800 flex items-center gap-1.5">
+                        <i class="pi pi-compass text-orange-600"></i>
+                        <span>Ancrage géographique du Poste de Commandement</span>
+                    </div>
+                    <p class="text-slate-500 leading-relaxed">
+                        Ces coordonnées décimales positionnent le marqueur tactique du PC de ce théâtre d'opérations sur la carte opérationnelle.
+                    </p>
+                </div>
+
+                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+                    <button
+                        type="button"
+                        @click="showEditTheatreCoordsModal = false"
+                        class="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+                    >
+                        Annuler
+                    </button>
+                    <button
+                        type="button"
+                        @click="saveTheatreCoords"
+                        :disabled="savingTheatreCoords"
+                        class="px-4 py-1.5 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                    >
+                        <i v-if="savingTheatreCoords" class="pi pi-spin pi-spinner text-xs"></i>
+                        <i v-else class="pi pi-check text-xs"></i>
+                        <span>{{ savingTheatreCoords ? 'Enregistrement...' : 'Enregistrer les coordonnées' }}</span>
+                    </button>
+                </div>
+            </div>
+        </Dialog>
+    </AuthenticatedLayout>
+</template>
 
 <style scoped>
 .chip {
