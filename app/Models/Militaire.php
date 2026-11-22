@@ -303,7 +303,13 @@ class Militaire extends Model
             str_contains($sanitaireLower, 'convalesc') ||
             str_contains($sanitaireLower, 'réform') ||
             str_contains($sanitaireLower, 'reform') ||
-            str_contains($sanitaireLower, 'patholog')
+            str_contains($sanitaireLower, 'patholog') ||
+            str_contains($sanitaireLower, 'arret') ||
+            str_contains($sanitaireLower, 'arrêt') ||
+            str_contains($sanitaireLower, 'diabèt') ||
+            str_contains($sanitaireLower, 'diabet') ||
+            str_contains($sanitaireLower, 'certificat') ||
+            str_contains($sanitaireLower, 'trouble')
         )) {
             $data = [
                 'type_registre_code' => RegistreOperationnel::TYPE_GRAND_MALADE,

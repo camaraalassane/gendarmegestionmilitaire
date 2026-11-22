@@ -59,6 +59,7 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
     protected ?Collection $theatresCache = null;
     protected ?Collection $regionsCache = null;
     protected ?Collection $unitesCache = null;
+    protected ?string $detectedDateFormat = null;
 
     public function __construct(string $duplicateAction = 'ignore')
     {
@@ -202,6 +203,26 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
 
     public function collection(Collection $rows)
     {
+        // Détection automatique du format de date (ex: m/d/Y vs d/m/Y)
+        if ($this->detectedDateFormat === null) {
+            foreach ($rows as $r) {
+                $arr = is_array($r) ? $r : (method_exists($r, 'toArray') ? $r->toArray() : (array)$r);
+                foreach ($arr as $val) {
+                    if (is_string($val) && preg_match('#^(\d{1,2})[/-](\d{1,2})[/-]\d{4}#', trim($val), $m)) {
+                        $p1 = (int)$m[1];
+                        $p2 = (int)$m[2];
+                        if ($p2 > 12 && $p1 <= 12) {
+                            $this->detectedDateFormat = 'm/d/Y';
+                            break 2;
+                        } elseif ($p1 > 12 && $p2 <= 12) {
+                            $this->detectedDateFormat = 'd/m/Y';
+                            break 2;
+                        }
+                    }
+                }
+            }
+        }
+
         $normalizedRows = $rows->map(function ($r) {
             $arr = is_array($r) ? $r : $r->toArray();
             return $this->normalizeRow($arr);
@@ -330,17 +351,25 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
             $value = $matches[1];
         }
 
-        try {
-            if (preg_match('#^\d{1,2}/\d{1,2}/\d{4}$#', $value)) {
-                return Carbon::createFromFormat('d/m/Y', $value)->startOfDay();
-            }
-        } catch (\Throwable $e) {}
+        if (preg_match('#^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$#', $value, $matches)) {
+            $p1 = (int)$matches[1];
+            $p2 = (int)$matches[2];
+            $year = (int)$matches[3];
 
-        try {
-            if (preg_match('#^\d{1,2}-\d{1,2}-\d{4}$#', $value)) {
-                return Carbon::createFromFormat('d-m-Y', $value)->startOfDay();
+            // Si p2 > 12 et p1 <= 12, c'est obligatoirement m/d/Y (format US / Excel export)
+            if ($p2 > 12 && $p1 <= 12 && $p2 <= 31) {
+                return Carbon::createFromDate($year, $p1, $p2)->startOfDay();
             }
-        } catch (\Throwable $e) {}
+            // Si p1 > 12 et p2 <= 12, c'est obligatoirement d/m/Y (format FR standard)
+            if ($p1 > 12 && $p2 <= 12 && $p1 <= 31) {
+                return Carbon::createFromDate($year, $p2, $p1)->startOfDay();
+            }
+            // Si les deux sont <= 12 :
+            if ($this->detectedDateFormat === 'm/d/Y') {
+                return Carbon::createFromDate($year, $p1, $p2)->startOfDay();
+            }
+            return Carbon::createFromDate($year, $p2, $p1)->startOfDay();
+        }
 
         try {
             return Carbon::parse($value)->startOfDay();
@@ -507,45 +536,200 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
             $normalized['date_blessure'] = $normalized['date_de_blessure'] ?? null;
         }
 
+        // Aliases pour fonction
+        if (!isset($normalized['fonction_actuelle']) || trim((string)$normalized['fonction_actuelle']) === '') {
+            $normalized['fonction_actuelle'] = $normalized['fonction'] ?? $normalized['fonctions'] ?? null;
+        }
+        // Aliases pour position
+        if (!isset($normalized['position_actuelle']) || trim((string)$normalized['position_actuelle']) === '') {
+            $normalized['position_actuelle'] = $normalized['position'] ?? $normalized['positions'] ?? null;
+        }
+        // Aliases pour diplomes_academiques
+        if (!isset($normalized['diplomes_academiques']) || trim((string)$normalized['diplomes_academiques']) === '') {
+            $compil = trim((string)($normalized['diplomes_compil'] ?? ''));
+            $source = trim((string)($normalized['diplomes_source'] ?? ''));
+            if (str_starts_with($compil, '=')) $compil = '';
+            if (str_starts_with($source, '=')) $source = '';
+            if (!empty($compil) && !empty($source) && $compil !== $source) {
+                $normalized['diplomes_academiques'] = $compil . ' | ' . $source;
+            } else {
+                $normalized['diplomes_academiques'] = $source ?: ($compil ?: ($normalized['diplomes'] ?? $normalized['diplome'] ?? null));
+            }
+        }
+        // Traitement intelligent engagement_ops
+        $rawOps = trim((string)($normalized['ops'] ?? ''));
+        $rawEng = trim((string)($normalized['engagement'] ?? ''));
+        if (in_array(mb_strtolower($rawOps), ['0', '0 ops', 'none', 'null', '-', ''])) $rawOps = '';
+        if (in_array(mb_strtolower($rawEng), ['0', 'none', 'null', '-', ''])) $rawEng = '';
+
+        if (!empty($rawOps) && !empty($rawEng)) {
+            if (mb_stripos($rawEng, $rawOps) !== false) {
+                $normalized['engagement_ops'] = $rawEng;
+            } elseif (mb_stripos($rawOps, $rawEng) !== false) {
+                $normalized['engagement_ops'] = $rawOps;
+            } else {
+                $normalized['engagement_ops'] = $rawOps . ', ' . $rawEng;
+            }
+        } elseif (!empty($rawOps)) {
+            $normalized['engagement_ops'] = $rawOps;
+        } elseif (!empty($rawEng)) {
+            $normalized['engagement_ops'] = $rawEng;
+        }
+
+        // Nettoyage status_sanitaire
+        if (!empty($normalized['status_sanitaire'])) {
+            $sanitaireClean = preg_replace('/\s+/', ' ', trim((string)$normalized['status_sanitaire']));
+            $sanitaireLower = mb_strtolower($sanitaireClean);
+            if (in_array($sanitaireLower, ['#n/a', 'nan', 'null', 'none', '-', '', 'apte', 'bon', 'ras', 'apte médical', 'apte medical'])) {
+                $normalized['status_sanitaire'] = 'Apte';
+            } else {
+                $normalized['status_sanitaire'] = $sanitaireClean;
+                if (str_contains($sanitaireLower, 'bless')) {
+                    $normalized['est_blesse_guerre'] = 1;
+                }
+            }
+        } else {
+            $normalized['status_sanitaire'] = 'Apte';
+        }
+
+        // Nettoyage decorations
+        if (!empty($normalized['decorations'])) {
+            $normalized['decorations'] = preg_replace('/\s+/', ' ', trim((string)$normalized['decorations']));
+            $normalized['decorations'] = trim($normalized['decorations'], " ,\t\n\r\0\x0B");
+        }
+
+        // Aliases pour date d'entrée en service (EG = Élève Gendarme, G-A = Gendarme Adjoint)
+        if (!isset($normalized['date_entree_service']) || trim((string)$normalized['date_entree_service']) === '') {
+            $normalized['date_entree_service'] = $normalized['eg'] ?? $normalized['g_a'] ?? $normalized['date_recrutement'] ?? null;
+        }
+
+        // Résolution date dernière promotion depuis les colonnes de grades
+        if (!isset($normalized['date_derniere_promotion']) || trim((string)$normalized['date_derniere_promotion']) === '') {
+            $gradeKey = mb_strtolower(trim((string)($normalized['grade_actuel'] ?? '')));
+            if (!empty($normalized[$gradeKey])) {
+                $normalized['date_derniere_promotion'] = $normalized[$gradeKey];
+            } else {
+                foreach (['acm', 'adc', 'adj', 'mdc', 'mdl', 'eg'] as $gk) {
+                    if (!empty($normalized[$gk])) {
+                        $normalized['date_derniere_promotion'] = $normalized[$gk];
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Parsing des colonnes certificats (CIA, BA1, BA2, CTA2, OPJ)
+        foreach (['cia', 'ba1', 'ba2', 'cat1', 'cat2', 'cta2', 'ct2', 'bmp1', 'bmp2'] as $certKey) {
+            if (!empty($normalized[$certKey])) {
+                $certVal = trim((string)$normalized[$certKey]);
+                $certLower = mb_strtolower($certVal);
+                if (!in_array($certLower, ['0', 'non', 'false', '-', 'none', 'null', ''])) {
+                    $targetKey = $certKey === 'cta2' ? 'ct2' : $certKey;
+                    $normalized['a_fait_' . $targetKey] = 1;
+                    if (preg_match('/\b(19\d{2}|20\d{2})\b/', $certVal, $ym)) {
+                        $normalized['date_obtention_' . $targetKey] = $ym[1] . '-01-01';
+                    }
+                }
+            }
+        }
+
         return $normalized;
+    }
+
+    protected function normalizeStringForMatch(string $str): string
+    {
+        $str = mb_strtolower($str);
+        if (function_exists('iconv')) {
+            $converted = @iconv('UTF-8', 'ASCII//TRANSLIT', $str);
+            if ($converted !== false) {
+                $str = $converted;
+            }
+        }
+        $str = preg_replace('/\b(de|la|du|des|d|le|l)\b/i', '', $str);
+        $str = preg_replace('/[^a-z0-9]/', '', $str);
+        return trim($str);
     }
 
     protected function resolveOperationalAndTerritorial(Militaire $militaire, array $row): void
     {
         // 1. Région
         if (!empty($row['region'])) {
-            $regStr = mb_strtolower(trim((string)$row['region']));
+            $regRaw = trim((string)$row['region']);
+            $regStr = mb_strtolower($regRaw);
+
+            // Direct exact match sur code ou nom
             $reg = $this->getRegionsCache()->first(function ($r) use ($regStr) {
-                return mb_strtolower($r->code) === $regStr
-                    || mb_strtolower($r->nom) === $regStr
-                    || mb_stripos(mb_strtolower($r->nom), $regStr) !== false;
+                return mb_strtolower($r->code) === $regStr || mb_strtolower($r->nom) === $regStr;
             });
+
+            // Regex: REGION N°X -> RX
+            if (!$reg && preg_match('/region\s*(?:n°|no|numéro|num|#)?\s*(\d+)/i', $regRaw, $m)) {
+                $reg = $this->getRegionsCache()->firstWhere('code', 'R' . $m[1]);
+            }
+
+            // Structures centrales basées à Bamako (DGGN, CDURM, SIJ)
+            if (!$reg && in_array(strtoupper($regRaw), ['DGGN', 'CDURM', 'SIJ', 'BAMAKO', 'DISTRICT'])) {
+                $reg = $this->getRegionsCache()->firstWhere('code', 'R1');
+            }
+
+            // Fallback recherche sous-chaîne
+            if (!$reg) {
+                $reg = $this->getRegionsCache()->first(function ($r) use ($regStr) {
+                    return mb_stripos(mb_strtolower($r->nom), $regStr) !== false;
+                });
+            }
+
             if ($reg) {
                 $militaire->region_id = $reg->id;
                 $militaire->region = $reg->nom;
             } else {
-                $militaire->region = trim((string)$row['region']);
+                $militaire->region = $regRaw;
             }
         }
 
         // 2. Unité
         if (!empty($row['unite'])) {
-            $unitStr = mb_strtolower(trim((string)$row['unite']));
+            $unitRaw = trim((string)$row['unite']);
+            $unitStr = mb_strtolower($unitRaw);
+
+            // 1er niveau: Match exact sur nom ou code
             $unite = $this->getUnitesCache()->first(function ($u) use ($unitStr) {
-                return mb_strtolower($u->nom) === $unitStr
-                    || ($u->code && mb_strtolower($u->code) === $unitStr)
-                    || mb_stripos(mb_strtolower($u->nom), $unitStr) !== false;
+                return mb_strtolower($u->nom) === $unitStr || ($u->code && mb_strtolower($u->code) === $unitStr);
             });
+
+            // 2ème niveau: Match normalisé (sans stop-words "de", "la", ponctuation)
+            if (!$unite) {
+                $normTarget = $this->normalizeStringForMatch($unitRaw);
+                $unite = $this->getUnitesCache()->first(function ($u) use ($normTarget) {
+                    return $this->normalizeStringForMatch($u->nom) === $normTarget
+                        || ($u->code && $this->normalizeStringForMatch($u->code) === $normTarget);
+                });
+            }
+
+            // 3ème niveau: Match sous-chaîne priorisant la région du militaire
+            if (!$unite) {
+                $candidates = $this->getUnitesCache()->filter(function ($u) use ($unitStr) {
+                    return mb_stripos(mb_strtolower($u->nom), $unitStr) !== false
+                        || mb_stripos($unitStr, mb_strtolower($u->nom)) !== false;
+                });
+
+                if ($militaire->region_id) {
+                    $unite = $candidates->firstWhere('region_id', $militaire->region_id) ?? $candidates->first();
+                } else {
+                    $unite = $candidates->first();
+                }
+            }
+
             if ($unite) {
                 $militaire->unite_id = $unite->id;
                 $militaire->unite = $unite->nom;
-                if (empty($militaire->region_id) && $unite->region_id) {
+                if ($unite->region_id) {
                     $militaire->region_id = $unite->region_id;
                     $reg = $this->getRegionsCache()->firstWhere('id', $unite->region_id);
                     if ($reg) $militaire->region = $reg->nom;
                 }
             } else {
-                $militaire->unite = trim((string)$row['unite']);
+                $militaire->unite = $unitRaw;
             }
         }
 
