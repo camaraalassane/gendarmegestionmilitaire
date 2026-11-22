@@ -354,6 +354,10 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
         }
 
         $value = trim((string) $value);
+        $value = preg_replace('#/{2,}#', '/', $value);
+        if (preg_match('#^(\d{1,2})/(\d{4})$#', $value, $matches)) {
+            $value = '01/' . str_pad($matches[1], 2, '0', STR_PAD_LEFT) . '/' . $matches[2];
+        }
 
         // Extraire uniquement la partie date si elle est suivie de texte (ex: "03/04/1967 à Bamako")
         if (preg_match('#^(\d{1,2}[/-]\d{1,2}[/-]\d{4})#', $value, $matches)) {
@@ -497,7 +501,12 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
         }
         // Aliases pour date_naissance (ex: DATE DE NAISSANCE, naissance)
         if (!isset($normalized['date_naissance']) || trim((string)$normalized['date_naissance']) === '') {
-            $normalized['date_naissance'] = $normalized['date_de_naissance'] ?? $normalized['naissance'] ?? null;
+            $normalized['date_naissance'] = $normalized['date_de_naissance'] 
+                ?? $normalized['naissance'] 
+                ?? $normalized['date_naiss'] 
+                ?? $normalized['d_naissance'] 
+                ?? $normalized['datenaissance'] 
+                ?? null;
         }
         // Aliases pour date_mutation
         if (!isset($normalized['date_mutation']) || trim((string)$normalized['date_mutation']) === '') {
@@ -594,7 +603,7 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
             $reg = mb_strtolower(trim((string)($normalized['region'] ?? '')));
             $san = mb_strtolower(trim((string)($normalized['status_sanitaire'] ?? '')));
 
-            $isReintegre = str_contains($pos, 'réintégr') || str_contains($pos, 'reintegr');
+            $isReintegre = preg_match('/r[eéè]int[eéè]gr/iu', $pos) || preg_match('/r[eéè]int[eéè]gr/iu', $san);
 
             if (!$isReintegre && (str_contains($pos, 'desert') || str_contains($pos, 'désert') || str_contains($pos, 'dessertion') || str_contains($san, 'desert') || str_contains($san, 'désert'))) {
                 $normalized['statut'] = 'déserteur';
@@ -651,7 +660,7 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
                 $normalized['status_sanitaire'] = 'Apte';
             } else {
                 $normalized['status_sanitaire'] = $sanitaireClean;
-                if (str_contains($sanitaireLower, 'bless')) {
+                if (preg_match('/bl[eéè]ss/iu', $sanitaireLower) || str_contains($sanitaireLower, 'amput')) {
                     $normalized['est_blesse_guerre'] = 1;
                 }
             }

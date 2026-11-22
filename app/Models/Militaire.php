@@ -367,10 +367,10 @@ class Militaire extends Model
         }
 
         // 4. Cas DÉSERTEUR
-        if ($this->statut === 'déserteur' || ($this->statut_code === 6) || (
+        $isReintegre = preg_match('/r[eéè]int[eéè]gr/iu', $positionLower);
+        if (!$isReintegre && ($this->statut === 'déserteur' || ($this->statut_code === 6) || (
             (str_contains($positionLower, 'désert') || str_contains($positionLower, 'desert') || str_contains($positionLower, 'dessertion'))
-            && !str_contains($positionLower, 'réintégr') && !str_contains($positionLower, 'reintegr')
-        )) {
+        ))) {
             $data = [
                 'type_registre_code' => RegistreOperationnel::TYPE_DESERTEUR,
                 'militaire_id' => $this->id,
