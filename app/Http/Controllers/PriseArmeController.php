@@ -93,10 +93,6 @@ class PriseArmeController extends Controller
 
         $registres = $registresQuery->get();
 
-        $militairesLookup = Militaire::whereNull('deleted_at')
-            ->orderBy('nom')
-            ->get(['id', 'matricule', 'nom', 'prenom', 'grade_id', 'region_id', 'unite_id', 'unite']);
-
         $unites = Unite::orderBy('nom')->get(['id', 'nom', 'code', 'region_id']);
 
         return Inertia::render('PriseArmes/Index', [
@@ -108,7 +104,7 @@ class PriseArmeController extends Controller
             'matrice' => $matrice,
             'regionsSituation' => $regionsSituation,
             'registres' => $registres,
-            'militairesLookup' => $militairesLookup,
+            'militairesLookup' => [], // Allégé : recherche dynamique asynchrone via lookup-militaire (évite de transférer 6 700 objets à chaque visite)
             'filters' => $request->only([
                 'type_registre_code',
                 'region_id',
@@ -118,6 +114,28 @@ class PriseArmeController extends Controller
                 'search',
             ]),
         ]);
+    }
+
+    /**
+     * Recherche dynamique de militaire pour auto-complétion du formulaire des registres (SPA).
+     */
+    public function lookupMilitaire(Request $request)
+    {
+        $search = trim($request->get('matricule') ?? $request->get('search') ?? '');
+        if (strlen($search) < 2) {
+            return response()->json([]);
+        }
+
+        $results = Militaire::whereNull('deleted_at')
+            ->where(function ($q) use ($search) {
+                $q->where('matricule', 'ilike', "{$search}%")
+                  ->orWhere('nom', 'ilike', "%{$search}%")
+                  ->orWhere('prenom', 'ilike', "%{$search}%");
+            })
+            ->limit(15)
+            ->get(['id', 'matricule', 'nom', 'prenom', 'grade_id', 'grade_actuel', 'region_id', 'unite_id', 'unite']);
+
+        return response()->json($results);
     }
 
     // ==========================================

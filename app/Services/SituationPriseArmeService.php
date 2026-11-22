@@ -7,6 +7,7 @@ use App\Models\OrganismeDetachement;
 use App\Models\Region;
 use App\Models\RegistreOperationnel;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class SituationPriseArmeService
 {
@@ -87,163 +88,164 @@ class SituationPriseArmeService
     /**
      * Calcule dynamiquement la matrice SPA (17 grades x 48 organismes x Sexe H/D)
      * directement à partir des données réelles de la table `militaires`.
-     * Requête 100% numérique et groupée via les index B-Tree.
+     * Requête 100% numérique et groupée via les index B-Tree (mise en cache).
      */
     public function calculerMatriceDynamique(): array
     {
-        $organismes = OrganismeDetachement::where('est_actif', 1)->orderBy('ordre')->get();
-        $orgIdToCode = $organismes->pluck('code', 'id')->toArray();
+        $v = Militaire::getCacheVersion();
+        return Cache::remember("v{$v}:spa:matrice_dynamique", 1800, function () {
+            $organismes = OrganismeDetachement::where('est_actif', 1)->orderBy('ordre')->get();
+            $orgIdToCode = $organismes->pluck('code', 'id')->toArray();
 
-        // Initialisation de la structure de la matrice (17 lignes de grades)
-        $matrice = [];
-        foreach (self::SPA_GRADES_ORDRE as $gradeLabel) {
-            $matrice[$gradeLabel] = [];
-            foreach ($organismes as $org) {
-                $matrice[$gradeLabel][$org->code] = ['h' => 0, 'd' => 0];
+            // Initialisation de la structure de la matrice (17 lignes de grades)
+            $matrice = [];
+            foreach (self::SPA_GRADES_ORDRE as $gradeLabel) {
+                $matrice[$gradeLabel] = [];
+                foreach ($organismes as $org) {
+                    $matrice[$gradeLabel][$org->code] = ['h' => 0, 'd' => 0];
+                }
             }
-        }
 
-        // Agrégation SQL purement numérique
-        $grmId = $organismes->firstWhere('code', 'GRM')?->id ?? 1;
+            // Agrégation SQL purement numérique
+            $grmId = $organismes->firstWhere('code', 'GRM')?->id ?? 1;
 
-        $counts = DB::table('militaires')
-            ->select(
-                'grade_id',
-                DB::raw("COALESCE(organisme_detachement_id, {$grmId}) as org_id"),
-                'sexe_code',
-                DB::raw('count(*) as total')
-            )
-            ->whereIn('statut_code', [1, 2, 3, 4]) // Actif, Détaché, Mission, Stage
-            ->whereNull('deleted_at')
-            ->groupBy('grade_id', DB::raw("COALESCE(organisme_detachement_id, {$grmId})"), 'sexe_code')
-            ->get();
+            $counts = DB::table('militaires')
+                ->select(
+                    'grade_id',
+                    DB::raw("COALESCE(organisme_detachement_id, {$grmId}) as org_id"),
+                    'sexe_code',
+                    DB::raw('count(*) as total')
+                )
+                ->whereIn('statut_code', [1, 2, 3, 4]) // Actif, Détaché, Mission, Stage
+                ->whereNull('deleted_at')
+                ->groupBy('grade_id', DB::raw("COALESCE(organisme_detachement_id, {$grmId})"), 'sexe_code')
+                ->get();
 
-        foreach ($counts as $row) {
-            $spaCode = self::GRADE_ID_TO_SPA[(int) $row->grade_id] ?? 'GA';
-            $orgCode = $orgIdToCode[(int) $row->org_id] ?? 'GRM';
-            $genderKey = ((int) $row->sexe_code === 2) ? 'd' : 'h';
+            foreach ($counts as $row) {
+                $spaCode = self::GRADE_ID_TO_SPA[(int) $row->grade_id] ?? 'GA';
+                $orgCode = $orgIdToCode[(int) $row->org_id] ?? 'GRM';
+                $genderKey = ((int) $row->sexe_code === 2) ? 'd' : 'h';
 
-            if (isset($matrice[$spaCode][$orgCode][$genderKey])) {
-                $matrice[$spaCode][$orgCode][$genderKey] += (int) $row->total;
+                if (isset($matrice[$spaCode][$orgCode][$genderKey])) {
+                    $matrice[$spaCode][$orgCode][$genderKey] += (int) $row->total;
+                }
             }
-        }
 
-        // Calcul des totaux par ligne (H, D, TOTAL)
-        foreach ($matrice as $gradeLabel => &$rowLigne) {
-            $rowTotH = 0;
-            $rowTotD = 0;
-            foreach ($organismes as $org) {
-                $rowTotH += (int) ($rowLigne[$org->code]['h'] ?? 0);
-                $rowTotD += (int) ($rowLigne[$org->code]['d'] ?? 0);
+            // Calcul des totaux par ligne (H, D, TOTAL)
+            foreach ($matrice as $gradeLabel => &$rowLigne) {
+                $rowTotH = 0;
+                $rowTotD = 0;
+                foreach ($organismes as $org) {
+                    $rowTotH += (int) ($rowLigne[$org->code]['h'] ?? 0);
+                    $rowTotD += (int) ($rowLigne[$org->code]['d'] ?? 0);
+                }
+                $rowLigne['total_h'] = $rowTotH;
+                $rowLigne['total_d'] = $rowTotD;
+                $rowLigne['total'] = $rowTotH + $rowTotD;
             }
-            $rowLigne['total_h'] = $rowTotH;
-            $rowLigne['total_d'] = $rowTotD;
-            $rowLigne['total'] = $rowTotH + $rowTotD;
-        }
-        unset($rowLigne);
+            unset($rowLigne);
 
-        return $matrice;
+            return $matrice;
+        });
     }
 
     /**
      * Calcule dynamiquement la situation pour les 20 régions (19 Régions + 1 District de Bamako)
-     * à partir des données réelles de la table `militaires`.
+     * à partir des données réelles de la table `militaires` (mise en cache).
      */
     public function calculerRegionsDynamique(): array
     {
-        $regions = Region::orderBy('ordre')->get();
-        $regionIdToCode = $regions->pluck('code', 'id')->toArray();
+        $v = Militaire::getCacheVersion();
+        return Cache::remember("v{$v}:spa:regions_dynamique", 1800, function () {
+            $regions = Region::orderBy('ordre')->get();
+            $regionIdToCode = $regions->pluck('code', 'id')->toArray();
 
-        $regionsData = [];
-        foreach ($regions as $r) {
-            $regionsData[$r->code] = [
-                'id' => $r->id,
-                'nom' => $r->nom,
-                'code' => $r->code,
-                'total' => 0,
-            ];
-            foreach (self::REGION_GRADES_COLS as $col) {
-                $regionsData[$r->code][$col] = 0;
+            $regionsData = [];
+            foreach ($regions as $r) {
+                $regionsData[$r->code] = [
+                    'id' => $r->id,
+                    'nom' => $r->nom,
+                    'code' => $r->code,
+                    'total' => 0,
+                ];
+                foreach (self::REGION_GRADES_COLS as $col) {
+                    $regionsData[$r->code][$col] = 0;
+                }
             }
-        }
 
-        $counts = DB::table('militaires')
-            ->select(
-                DB::raw('COALESCE(region_id, 1) as reg_id'),
-                'grade_id',
-                DB::raw('count(*) as total')
-            )
-            ->whereIn('statut_code', [1, 2, 3, 4])
-            ->whereNull('deleted_at')
-            ->groupBy(DB::raw('COALESCE(region_id, 1)'), 'grade_id')
-            ->get();
+            $counts = DB::table('militaires')
+                ->select(
+                    DB::raw('COALESCE(region_id, 1) as reg_id'),
+                    'grade_id',
+                    DB::raw('count(*) as total')
+                )
+                ->whereIn('statut_code', [1, 2, 3, 4])
+                ->whereNull('deleted_at')
+                ->groupBy(DB::raw('COALESCE(region_id, 1)'), 'grade_id')
+                ->get();
 
-        foreach ($counts as $row) {
-            $regCode = $regionIdToCode[(int) $row->reg_id] ?? 'R1';
-            $col = self::GRADE_ID_TO_REGION_COL[(int) $row->grade_id] ?? 'MDL';
-            $tot = (int) $row->total;
+            foreach ($counts as $row) {
+                $regCode = $regionIdToCode[(int) $row->reg_id] ?? 'R1';
+                $col = self::GRADE_ID_TO_REGION_COL[(int) $row->grade_id] ?? 'MDL';
+                $tot = (int) $row->total;
 
-            if (isset($regionsData[$regCode])) {
-                $regionsData[$regCode][$col] += $tot;
-                $regionsData[$regCode]['total'] += $tot;
+                if (isset($regionsData[$regCode])) {
+                    $regionsData[$regCode][$col] += $tot;
+                    $regionsData[$regCode]['total'] += $tot;
+                }
             }
-        }
 
-        return $regionsData;
+            return $regionsData;
+        });
     }
 
     /**
-     * Calcule les statistiques globales en temps réel à partir de la base de données.
+     * Calcule les statistiques globales en temps réel à partir de la base de données (mise en cache).
      */
     public function calculerStatsGlobales(): array
     {
-        $organismesCount = OrganismeDetachement::where('est_actif', 1)->count();
-        $regionsCount = Region::count();
+        $v = Militaire::getCacheVersion();
+        return Cache::remember("v{$v}:spa:stats_globales", 1800, function () {
+            $organismesCount = OrganismeDetachement::where('est_actif', 1)->count();
+            $regionsCount = Region::count();
 
-        $totalSpa = DB::table('militaires')
-            ->whereIn('statut_code', [1, 2, 3, 4])
-            ->whereNull('deleted_at')
-            ->count();
+            $grmId = OrganismeDetachement::where('code', 'GRM')->value('id') ?? 1;
 
-        $totalHommes = DB::table('militaires')
-            ->whereIn('statut_code', [1, 2, 3, 4])
-            ->where(function ($q) {
-                $q->where('sexe_code', 1)->orWhereNull('sexe_code');
-            })
-            ->whereNull('deleted_at')
-            ->count();
+            $mStats = DB::table('militaires')
+                ->selectRaw("
+                    COUNT(CASE WHEN statut_code IN (1, 2, 3, 4) THEN 1 END) as total_spa,
+                    COUNT(CASE WHEN statut_code IN (1, 2, 3, 4) AND (sexe_code = 1 OR sexe_code IS NULL) THEN 1 END) as total_hommes,
+                    COUNT(CASE WHEN statut_code IN (1, 2, 3, 4) AND sexe_code = 2 THEN 1 END) as total_dames,
+                    COUNT(CASE WHEN statut_code IN (1, 2, 3, 4) AND (
+                        (organisme_detachement_id IS NOT NULL AND organisme_detachement_id != {$grmId})
+                        OR position_actuelle ILIKE '%détachement%'
+                        OR position_id = 26
+                    ) THEN 1 END) as total_detaches
+                ")
+                ->whereNull('deleted_at')
+                ->first();
 
-        $totalDames = DB::table('militaires')
-            ->whereIn('statut_code', [1, 2, 3, 4])
-            ->where('sexe_code', 2)
-            ->whereNull('deleted_at')
-            ->count();
+            $regCounts = RegistreOperationnel::selectRaw("
+                COUNT(CASE WHEN type_registre_code = " . RegistreOperationnel::TYPE_BLESSE . " THEN 1 END) as blesses,
+                COUNT(CASE WHEN type_registre_code = " . RegistreOperationnel::TYPE_DISPARU . " THEN 1 END) as disparus,
+                COUNT(CASE WHEN type_registre_code = " . RegistreOperationnel::TYPE_GRAND_MALADE . " THEN 1 END) as grands_malades,
+                COUNT(CASE WHEN type_registre_code = " . RegistreOperationnel::TYPE_DECEDE . " THEN 1 END) as decedes,
+                COUNT(CASE WHEN type_registre_code = " . RegistreOperationnel::TYPE_DESERTEUR . " THEN 1 END) as deserteurs
+            ")->first();
 
-        $grmId = OrganismeDetachement::where('code', 'GRM')->value('id') ?? 1;
-        $totalDetaches = DB::table('militaires')
-            ->whereIn('statut_code', [1, 2, 3, 4])
-            ->where(function ($q) use ($grmId) {
-                $q->where(function ($sq) use ($grmId) {
-                    $sq->whereNotNull('organisme_detachement_id')
-                       ->where('organisme_detachement_id', '!=', $grmId);
-                })->orWhere('position_actuelle', 'ilike', '%détachement%')
-                  ->orWhere('position_id', 26);
-            })
-            ->whereNull('deleted_at')
-            ->count();
-
-        return [
-            'total_spa' => $totalSpa,
-            'total_hommes' => $totalHommes,
-            'total_dames' => $totalDames,
-            'total_detaches' => $totalDetaches,
-            'total_blesses' => RegistreOperationnel::where('type_registre_code', RegistreOperationnel::TYPE_BLESSE)->count(),
-            'total_disparus' => RegistreOperationnel::where('type_registre_code', RegistreOperationnel::TYPE_DISPARU)->count(),
-            'total_grands_malades' => RegistreOperationnel::where('type_registre_code', RegistreOperationnel::TYPE_GRAND_MALADE)->count(),
-            'total_decedes' => RegistreOperationnel::where('type_registre_code', RegistreOperationnel::TYPE_DECEDE)->count(),
-            'total_deserteurs' => RegistreOperationnel::where('type_registre_code', RegistreOperationnel::TYPE_DESERTEUR)->count(),
-            'total_organismes' => $organismesCount,
-            'total_regions' => $regionsCount,
-        ];
+            return [
+                'total_spa' => (int) ($mStats->total_spa ?? 0),
+                'total_hommes' => (int) ($mStats->total_hommes ?? 0),
+                'total_dames' => (int) ($mStats->total_dames ?? 0),
+                'total_detaches' => (int) ($mStats->total_detaches ?? 0),
+                'total_blesses' => (int) ($regCounts->blesses ?? 0),
+                'total_disparus' => (int) ($regCounts->disparus ?? 0),
+                'total_grands_malades' => (int) ($regCounts->grands_malades ?? 0),
+                'total_decedes' => (int) ($regCounts->decedes ?? 0),
+                'total_deserteurs' => (int) ($regCounts->deserteurs ?? 0),
+                'total_organismes' => $organismesCount,
+                'total_regions' => $regionsCount,
+            ];
+        });
     }
 }

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import NavLink from './NavLink.vue';
 
@@ -22,6 +22,31 @@ const alertesCount = computed(() => page.props.alertesCount || 0);
 // Logo Gendarmerie
 const logoExists = ref(true);
 const logoUrl = ref('/images/logo-gendarmerie-officiel.png?v=2026');
+
+// Suivi de navigation en cours pour retour visuel immédiat (évite le sentiment de "double-clic")
+const pendingHref = ref(null);
+let removeStartListener = null;
+let removeFinishListener = null;
+
+onMounted(() => {
+    removeStartListener = router.on('start', (event) => {
+        try {
+            const url = new URL(event.detail.visit.url, window.location.origin);
+            pendingHref.value = url.pathname;
+        } catch {
+            pendingHref.value = null;
+        }
+    });
+
+    removeFinishListener = router.on('finish', () => {
+        pendingHref.value = null;
+    });
+});
+
+onUnmounted(() => {
+    if (typeof removeStartListener === 'function') removeStartListener();
+    if (typeof removeFinishListener === 'function') removeFinishListener();
+});
 
 const toggleSidebar = () => {
     emit('update:isOpen', !props.isOpen);
@@ -61,7 +86,11 @@ const menuItems = computed(() => {
 });
 
 const isActive = (href) => {
-    return window.location.pathname === href || window.location.pathname.startsWith(href + '/');
+    if (pendingHref.value) {
+        return pendingHref.value === href || pendingHref.value.startsWith(href + '/');
+    }
+    const currentPath = (page.url || '').split('?')[0];
+    return currentPath === href || currentPath.startsWith(href + '/');
 };
 
 const logout = () => {
@@ -114,8 +143,9 @@ const logout = () => {
                             <template #default>
                                 <div class="flex items-center justify-between w-full px-2.5 py-1.5">
                                     <div class="flex items-center">
-                                        <!-- Icône toujours visible -->
-                                        <i :class="item.icon + ' text-lg w-5 shrink-0'"></i>
+                                        <!-- Icône toujours visible (indicateur de chargement immédiat au clic) -->
+                                        <i v-if="pendingHref === item.href" class="pi pi-spin pi-spinner text-lg w-5 shrink-0 text-cyan-200"></i>
+                                        <i v-else :class="item.icon + ' text-lg w-5 shrink-0'"></i>
 
                                         <!-- Texte : visible sur mobile ou quand menu ouvert -->
                                         <span v-if="isMobile || isOpen" class="ml-2.5 whitespace-nowrap text-sm">

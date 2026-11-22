@@ -34,6 +34,12 @@ class StatistiquesExportController extends Controller
         $totalFemmes = $somme('femmes');
         $totalHommes = max(0, $effectifTotal - $totalFemmes);
 
+        $regCounts = \App\Models\RegistreOperationnel::selectRaw("
+            COUNT(CASE WHEN type_registre_code = " . \App\Models\RegistreOperationnel::TYPE_BLESSE . " THEN 1 END) as blesses,
+            COUNT(CASE WHEN type_registre_code = " . \App\Models\RegistreOperationnel::TYPE_GRAND_MALADE . " THEN 1 END) as grands_malades,
+            COUNT(CASE WHEN type_registre_code = " . \App\Models\RegistreOperationnel::TYPE_DISPARU . " THEN 1 END) as disparus
+        ")->first();
+
         // --- Feuille 1 : synthèse ---
         $synthese = [
             ['Périmètre géographique', $portee],
@@ -52,6 +58,9 @@ class StatistiquesExportController extends Controller
             ["Départs à la retraite {$annee}", $avecHors('retraites')],
             ['Militaires déclarés déserteurs', $avecHors('deserteurs')],
             ["Militaires décédés en {$annee}", $avecHors('decedes')],
+            ['Blessés de guerre / OPEX (Registre Opérationnel)', (int) ($regCounts->blesses ?? 0)],
+            ['Grands malades / Non mobilisables (Santé)', (int) ($regCounts->grands_malades ?? 0)],
+            ['Portés disparus et otages (Suivi)', (int) ($regCounts->disparus ?? 0)],
         ];
         if (!$filtre) {
             $synthese[] = ['Militaires en attente d\'affectation régionale', (int) ($d['stats']['non_rattaches'] ?? 0)];
@@ -160,6 +169,9 @@ class StatistiquesExportController extends Controller
             ["Militaires décédés en {$annee}", (int) ($s['decedes_cette_annee'] ?? 0)],
             ['Militaires déclarés déserteurs', (int) ($s['deserteurs'] ?? 0)],
             ['Personnels radiés des cadres', (int) ($s['radies'] ?? 0)],
+            ['Blessés de guerre / OPEX (Registre Opérationnel)', (int) ($s['total_blesses'] ?? 0)],
+            ['Grands malades / Non mobilisables (Santé)', (int) ($s['total_grands_malades'] ?? 0)],
+            ['Portés disparus et otages (Suivi)', (int) ($s['total_disparus'] ?? 0)],
         ];
 
         $feuilles = [

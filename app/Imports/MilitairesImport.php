@@ -15,8 +15,9 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 
-class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, SkipsEmptyRows, SkipsOnFailure, WithChunkReading
+class MilitairesImport implements WithMultipleSheets, ToCollection, WithHeadingRow, WithValidation, SkipsEmptyRows, SkipsOnFailure, WithChunkReading
 {
     use SkipsFailures;
 
@@ -46,6 +47,8 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
     ];
 
     protected string $duplicateAction;
+    protected ?string $targetSheet = null;
+    protected array $boldMatricules = [];
     protected array $summary = [
         'created' => 0,
         'updated' => 0,
@@ -62,14 +65,110 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
     protected ?Collection $organismesDetachementCache = null;
     protected ?string $detectedDateFormat = null;
 
-    public function __construct(string $duplicateAction = 'ignore')
+    protected ?array $gradesMap = null;
+    protected ?array $regionsByName = null;
+    protected ?array $regionsByCode = null;
+    protected ?array $regionsByNorm = null;
+    protected ?array $unitesByName = null;
+    protected ?array $unitesByNorm = null;
+    protected ?array $unitesByCode = null;
+    protected ?int $grmOrgId = null;
+    protected ?int $bamakoRegionId = null;
+
+    public function __construct(string $duplicateAction = 'ignore', ?string $targetSheet = null, array $boldMatricules = [])
     {
         $this->duplicateAction = $duplicateAction;
+        $this->targetSheet = $targetSheet;
+        $this->boldMatricules = $boldMatricules;
+    }
+
+    public function sheets(): array
+    {
+        if (!empty($this->targetSheet)) {
+            return [
+                $this->targetSheet => $this,
+            ];
+        }
+        return [
+            0 => $this,
+        ];
     }
 
     public function chunkSize(): int
     {
-        return 500;
+        return 1000;
+    }
+
+    protected function initializeCaches(): void
+    {
+        if ($this->gradesMap !== null) {
+            return;
+        }
+
+        // 1. Grades map
+        $this->gradesMap = [];
+        $grades = \App\Models\Grade::all();
+        foreach ($grades as $g) {
+            $this->gradesMap[mb_strtolower(trim($g->nom_grade))] = $g;
+            if ($g->code_grade) {
+                $this->gradesMap[mb_strtolower(trim($g->code_grade))] = $g;
+            }
+        }
+        $aliases = [
+            '2°cl' => 'Soldat 2', '2cl' => 'Soldat 2', '2e cl' => 'Soldat 2', 'soldat 2' => 'Soldat 2',
+            '1°cl' => 'Soldat 1', '1cl' => 'Soldat 1', '1e cl' => 'Soldat 1', 'soldat 1' => 'Soldat 1',
+            'cpl' => 'Caporal', 'cpl-chef' => 'Caporal-chef', 'cpl chef' => 'Caporal-chef',
+            'sgt' => 'Sergent', 'mdl' => 'Sergent', 'marechal des logis' => 'Sergent',
+            'sch' => 'Sergent-Chef', 'mdc' => 'Sergent-Chef', 'marechal des logis-chef' => 'Sergent-Chef',
+            'adj' => 'Adjudant', 'adc' => 'Adjudant-Chef', 'adjudant chef' => 'Adjudant-Chef',
+            'acm' => 'Adjudant-Chef major', 'adjudant chef major' => 'Adjudant-Chef major',
+            'slt' => 'Sous-lieutenant', 'ltn' => 'Lieutenant', 'cne' => 'Capitaine',
+            'ces' => 'Commandant', 'cdt' => 'Commandant', 'chef d escadron' => 'Commandant',
+            'lcl' => 'Lieutenant-colonel', 'col' => 'Colonel', 'clm' => 'Colonel-Major',
+            'gdb' => 'Général de brigade', 'gbr' => 'Général de brigade',
+            'gdd' => 'Général de division', 'gdv' => 'Général de division',
+            'gca' => 'Général de corps d\'armée', 'gar' => 'Général d\'armée',
+            'eg' => 'Eleve Sous Officier d\'Active', 'g-a' => 'Soldat 1', 'esoa' => 'Eleve Sous Officier d\'Active',
+            'asp' => 'Aspirant', 'eoa' => 'Eleve Officier d\'Active', 'eoa2' => 'Élève Officier d\'Active',
+        ];
+        foreach ($aliases as $k => $v) {
+            $mapped = $this->gradesMap[mb_strtolower($v)] ?? null;
+            if ($mapped && !isset($this->gradesMap[mb_strtolower($k)])) {
+                $this->gradesMap[mb_strtolower($k)] = $mapped;
+            }
+        }
+
+        // 2. Regions maps
+        $regions = \App\Models\Region::all();
+        $this->regionsByName = [];
+        $this->regionsByCode = [];
+        $this->regionsByNorm = [];
+        foreach ($regions as $r) {
+            $this->regionsByCode[strtoupper(trim($r->code))] = $r;
+            $this->regionsByName[mb_strtolower(trim($r->nom))] = $r;
+            $norm = $this->normalizeStringForMatch($r->nom);
+            $this->regionsByNorm[$norm] = $r;
+            if ($r->code === 'R1') {
+                $this->bamakoRegionId = $r->id;
+            }
+        }
+
+        // 3. Unites maps
+        $unites = \App\Models\Unite::all();
+        $this->unitesByName = [];
+        $this->unitesByNorm = [];
+        $this->unitesByCode = [];
+        foreach ($unites as $u) {
+            $this->unitesByName[mb_strtolower(trim($u->nom))] = $u;
+            if ($u->code) {
+                $this->unitesByCode[mb_strtolower(trim($u->code))] = $u;
+            }
+            $norm = $this->normalizeStringForMatch($u->nom);
+            $this->unitesByNorm[$norm] = $u;
+        }
+
+        // 4. GRM Org
+        $this->grmOrgId = \App\Models\OrganismeDetachement::where('code', 'GRM')->value('id') ?? 1;
     }
 
     protected function getCertificatsCache(): Collection
@@ -212,6 +311,8 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
 
     public function collection(Collection $rows)
     {
+        $this->initializeCaches();
+
         // Détection automatique du format de date (ex: m/d/Y vs d/m/Y)
         if ($this->detectedDateFormat === null) {
             foreach ($rows as $r) {
@@ -253,10 +354,13 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
             ? Militaire::whereIn('matricule', $matricules)->get()->keyBy('matricule')
             : collect();
 
+        $recordsToUpsert = [];
+        $recordsByMatricule = [];
         $pivotRowsToUpsert = [];
+        $registresToUpsert = [];
         $now = now()->toDateTimeString();
 
-        DB::transaction(function () use ($normalizedRows, $existingMilitaires, &$pivotRowsToUpsert, $now) {
+        DB::transaction(function () use ($normalizedRows, $existingMilitaires, &$recordsToUpsert, &$recordsByMatricule, &$pivotRowsToUpsert, &$registresToUpsert, $now) {
             foreach ($normalizedRows as $index => $row) {
                 try {
                     $matricule = trim((string)($row['matricule'] ?? ''));
@@ -268,9 +372,8 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
 
                     if ($existing) {
                         if ($this->duplicateAction === 'update') {
-                            $militaire = $this->updateMilitaire($existing, $row);
+                            $militaire = $this->populateMilitaireInstance(clone $existing, $row, $index);
                             $this->summary['updated']++;
-                            $this->collectCertificatesForMilitaire($militaire, $row, $pivotRowsToUpsert, $now);
                         } else {
                             $this->summary['skipped']++;
                             $this->duplicates[] = [
@@ -279,13 +382,19 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
                                 'prenom' => $row['prenom'] ?? '',
                                 'action' => 'Ignoré'
                             ];
+                            continue;
                         }
-                        continue;
+                    } else {
+                        $militaire = $this->populateMilitaireInstance(new Militaire(), $row, $index);
+                        $this->summary['created']++;
                     }
 
-                    $militaire = $this->createMilitaire($row);
-                    $this->summary['created']++;
-                    $this->collectCertificatesForMilitaire($militaire, $row, $pivotRowsToUpsert, $now);
+                    $record = $this->buildUpsertRecord($militaire, $now);
+                    $recordsToUpsert[] = $record;
+                    $recordsByMatricule[$matricule] = true;
+
+                    $this->collectCertificatesForMatricule($matricule, $row, $pivotRowsToUpsert, $now);
+                    $this->collectBlessureRegistreForMatricule($militaire, $row, $registresToUpsert, $now);
 
                 } catch (\Throwable $e) {
                     $this->summary['errors']++;
@@ -301,35 +410,356 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
                 }
             }
 
-            // Insertion / mise à jour globale ultra-rapide des certificats pivot pour le lot (1 seule requête SQL bulk upsert)
-            if (!empty($pivotRowsToUpsert)) {
-                // Dédupliquer par (militaire_id, certificat_id) dans le lot
-                $uniquePivot = [];
-                foreach ($pivotRowsToUpsert as $item) {
-                    $key = $item['militaire_id'] . '_' . $item['certificat_id'];
-                    $uniquePivot[$key] = $item;
-                }
+            // Insertion / mise à jour globale ultra-rapide des militaires (1 seule requête SQL bulk upsert)
+            if (!empty($recordsToUpsert)) {
+                $updateColumns = array_keys($recordsToUpsert[0]);
+                $updateColumns = array_diff($updateColumns, ['id', 'matricule', 'created_at']);
 
-                DB::table('certificat_militaire')->upsert(
-                    array_values($uniquePivot),
-                    ['militaire_id', 'certificat_id'],
-                    ['date_obtention', 'updated_at']
+                DB::table('militaires')->upsert(
+                    $recordsToUpsert,
+                    ['matricule'],
+                    $updateColumns
                 );
             }
-        });
 
-        // Génération des alertes après l'enregistrement des certificats
-        try {
-            $controller = new \App\Http\Controllers\MilitaireController();
-            $militairesToVerify = Militaire::with('certificats')->whereIn('matricule', $matricules)->get();
-            foreach ($militairesToVerify as $m) {
-                $controller->verifierAlertes($m);
+            // Insertion / mise à jour globale ultra-rapide des certificats pivot pour le lot (1 seule requête SQL bulk upsert)
+            if (!empty($pivotRowsToUpsert)) {
+                $mIdMap = Militaire::whereIn('matricule', array_keys($recordsByMatricule))->pluck('id', 'matricule');
+                $uniquePivot = [];
+                foreach ($pivotRowsToUpsert as $item) {
+                    $mId = $mIdMap[$item['matricule']] ?? null;
+                    if ($mId) {
+                        $key = $mId . '_' . $item['certificat_id'];
+                        $uniquePivot[$key] = [
+                            'militaire_id' => $mId,
+                            'certificat_id' => $item['certificat_id'],
+                            'date_obtention' => $item['date_obtention'],
+                            'created_at' => $now,
+                            'updated_at' => $now,
+                        ];
+                    }
+                }
+
+                if (!empty($uniquePivot)) {
+                    DB::table('certificat_militaire')->upsert(
+                        array_values($uniquePivot),
+                        ['militaire_id', 'certificat_id'],
+                        ['date_obtention', 'updated_at']
+                    );
+                }
             }
-            \App\Models\Militaire::incrementCacheVersion();
-        } catch (\Throwable $e) {
-            Log::error('Erreur lors de la génération des alertes après import: ' . $e->getMessage());
+
+            // Insertion / mise à jour globale des registres opérationnels (blessés de guerre, etc.)
+            if (!empty($registresToUpsert)) {
+                $mIdMap = Militaire::whereIn('matricule', array_keys($recordsByMatricule))->pluck('id', 'matricule');
+                $uniqueOps = [];
+                $affectedMIds = [];
+                foreach ($registresToUpsert as $item) {
+                    $mId = $mIdMap[$item['matricule']] ?? null;
+                    if ($mId) {
+                        $item['militaire_id'] = $mId;
+                        $key = $mId . '_' . $item['type_registre_code'];
+                        $uniqueOps[$key] = $item;
+                        $affectedMIds[] = $mId;
+                    }
+                }
+                if (!empty($uniqueOps)) {
+                    $typesToReplace = array_unique(array_column($uniqueOps, 'type_registre_code'));
+                    \App\Models\RegistreOperationnel::whereIn('militaire_id', $affectedMIds)
+                        ->whereIn('type_registre_code', $typesToReplace)
+                        ->delete();
+                    DB::table('registres_operationnels')->insert(array_values($uniqueOps));
+                }
+            }
+        });
+    }
+
+    protected function populateMilitaireInstance(Militaire $m, array $row, int $index): Militaire
+    {
+        $m->matricule = trim((string)$row['matricule']);
+        if (!empty($row['mle_grm'])) $m->mle_grm = trim((string)$row['mle_grm']);
+        if (!empty($row['numero_info'])) $m->numero_info = trim((string)$row['numero_info']);
+        if (!empty($row['numero_nina'])) $m->numero_nina = trim((string)$row['numero_nina']);
+        if (isset($row['nom'])) $m->nom = trim((string)$row['nom']);
+        if (isset($row['prenom'])) $m->prenom = trim((string)$row['prenom']);
+
+        $dateNaissance = $this->parseDate($row['date_naissance'] ?? null);
+        if ($dateNaissance) $m->date_naissance = $dateNaissance->toDateString();
+        if (!empty($row['lieu_naissance'])) $m->lieu_naissance = trim((string)$row['lieu_naissance']);
+
+        $dateEntree = $this->parseDate($row['date_entree_service'] ?? null);
+        if ($dateEntree) $m->date_entree_service = $dateEntree->toDateString();
+
+        $gradeActuel = $this->parseGrade($row['grade_actuel'] ?? null);
+        $m->grade_actuel = $gradeActuel ?: ($m->grade_actuel ?: 'Gendarme');
+
+        // Résolution grade_id, grade_ordre, catégorie via hash map O(1)
+        $gradeObj = $this->gradesMap[mb_strtolower($m->grade_actuel)] ?? null;
+        if ($gradeObj) {
+            $m->grade_id = $gradeObj->id;
+            $m->grade_ordre = $gradeObj->ordre ?? 0;
+            if (empty($m->categorie)) {
+                $m->categorie = $gradeObj->categorie_statutaire;
+            }
+        }
+        if (!empty($row['categorie'])) $m->categorie = trim((string)$row['categorie']);
+
+        $datePromo = $this->parseDate($row['date_derniere_promotion'] ?? null);
+        if ($datePromo) $m->date_derniere_promotion = $datePromo->toDateString();
+
+        if (!empty($row['specialite'])) $m->specialite = trim((string)$row['specialite']);
+        if (!empty($row['origine_formation'])) $m->origine_formation = trim((string)$row['origine_formation']);
+
+        $m->statut = $this->parseStatut($row['statut'] ?? null);
+        $m->statut_code = \App\Enums\StatutMilitaire::depuisTexte($m->statut)?->value ?? 1;
+
+        if (!empty($row['telephone'])) $m->telephone = trim((string)$row['telephone']);
+
+        // Sexe : détection automatique du gras, des valeurs de colonnes et des codes NINA
+        $m->sexe = $this->parseSexe($row['sexe'] ?? null, $m->matricule, $row);
+        $m->sexe_code = str_starts_with(mb_strtolower($m->sexe), 'f') ? 2 : 1;
+
+        if (!empty($row['groupe_sanguin'])) $m->groupe_sanguin = trim((string)$row['groupe_sanguin']);
+        if (!empty($row['taille'])) $m->taille = trim((string)$row['taille']);
+        if (!empty($row['status_sanitaire'])) $m->status_sanitaire = trim((string)$row['status_sanitaire']);
+        if (!empty($row['engagement_ops'])) $m->engagement_ops = trim((string)$row['engagement_ops']);
+        if (!empty($row['personne_a_contacter'])) $m->personne_a_contacter = trim((string)$row['personne_a_contacter']);
+        if (!empty($row['telephone_personne_contacter'])) $m->telephone_personne_contacter = trim((string)$row['telephone_personne_contacter']);
+        if (!empty($row['position_actuelle'])) $m->position_actuelle = trim((string)$row['position_actuelle']);
+        if (!empty($row['unite'])) $m->unite = trim((string)$row['unite']);
+        if (!empty($row['region'])) $m->region = trim((string)$row['region']);
+
+        $dateMutation = $this->parseDate($row['date_mutation'] ?? null);
+        if ($dateMutation) $m->date_mutation = $dateMutation->toDateString();
+
+        if (!empty($row['fonction_passee'])) $m->fonction_passee = trim((string)$row['fonction_passee']);
+        if (!empty($row['fonction_actuelle'])) $m->fonction_actuelle = trim((string)$row['fonction_actuelle']);
+
+        if (isset($row['a_permis_conduire'])) $m->a_permis_conduire = $this->parseBool($row['a_permis_conduire']);
+        if (isset($row['antecedent_judiciaire'])) $m->antecedent_judiciaire = $this->parseBool($row['antecedent_judiciaire']);
+        if (!empty($row['details_antecedent_judiciaire'])) $m->details_antecedent_judiciaire = trim((string)$row['details_antecedent_judiciaire']);
+        if (isset($row['antecedent_disciplinaire'])) $m->antecedent_disciplinaire = $this->parseBool($row['antecedent_disciplinaire']);
+        if (!empty($row['details_antecedent_disciplinaire'])) $m->details_antecedent_disciplinaire = trim((string)$row['details_antecedent_disciplinaire']);
+
+        if (!empty($row['decorations'])) $m->decorations = trim((string)$row['decorations']);
+        if (!empty($row['diplomes_academiques'])) $m->diplomes_academiques = trim((string)$row['diplomes_academiques']);
+        if (!empty($row['observations'])) $m->observations = trim((string)$row['observations']);
+
+        $dateDeces = $this->parseDate($row['date_deces'] ?? null);
+        if ($dateDeces) $m->date_deces = $dateDeces->toDateString();
+        if (!empty($row['circonstances_deces'])) $m->circonstances_deces = trim((string)$row['circonstances_deces']);
+        if (!empty($row['motif_radiation'])) $m->motif_radiation = trim((string)$row['motif_radiation']);
+        if (!empty($row['reference_decision'])) $m->reference_decision = trim((string)$row['reference_decision']);
+        if (!empty($row['unite_transfert'])) $m->unite_transfert = trim((string)$row['unite_transfert']);
+        if (!empty($row['motif_transfert'])) $m->motif_transfert = trim((string)$row['motif_transfert']);
+
+        $this->resolveOperationalAndTerritorial($m, $row);
+
+        // Sanitaire -> drapeaux opérationnels
+        $sanitaireLower = mb_strtolower(trim((string) $m->status_sanitaire));
+        if (preg_match('/bl[eéè]ss/iu', $sanitaireLower) || str_contains($sanitaireLower, 'amput')) {
+            $m->est_blesse_guerre = 1;
+            $m->est_non_mobilisable = 0;
+        } elseif (
+            str_contains($sanitaireLower, 'inapte') ||
+            str_contains($sanitaireLower, 'malad') ||
+            str_contains($sanitaireLower, 'exemp') ||
+            str_contains($sanitaireLower, 'convalesc') ||
+            str_contains($sanitaireLower, 'réform') ||
+            str_contains($sanitaireLower, 'reform') ||
+            str_contains($sanitaireLower, 'patholog')
+        ) {
+            if ($m->est_blesse_guerre !== 1) {
+                $m->est_non_mobilisable = 1;
+            }
+        } elseif (str_contains($sanitaireLower, 'apte') || empty($sanitaireLower)) {
+            $m->est_blesse_guerre = 0;
+            $m->est_non_mobilisable = 0;
+        }
+
+        if (!empty($m->is_otage) || str_contains(mb_strtolower((string)$m->position_actuelle), 'otage') || str_contains(mb_strtolower((string)$m->position_actuelle), 'disparu')) {
+            $m->est_disparu = 1;
+        }
+
+        $m->recherche = $m->construireTexteRecherche();
+
+        return $m;
+    }
+
+    protected function buildUpsertRecord(Militaire $m, string $now): array
+    {
+        return [
+            'matricule' => $m->matricule,
+            'nom' => $m->nom ?? '',
+            'prenom' => $m->prenom ?? '',
+            'date_naissance' => $m->date_naissance ? Carbon::parse($m->date_naissance)->toDateString() : null,
+            'date_entree_service' => $m->date_entree_service ? Carbon::parse($m->date_entree_service)->toDateString() : null,
+            'grade_actuel' => $m->grade_actuel ?: 'Gendarme',
+            'date_derniere_promotion' => $m->date_derniere_promotion ? Carbon::parse($m->date_derniere_promotion)->toDateString() : null,
+            'specialite' => $m->specialite,
+            'statut' => $m->statut ?: 'actif',
+            'a_permis_conduire' => $m->a_permis_conduire ? 1 : 0,
+            'antecedent_judiciaire' => $m->antecedent_judiciaire ? 1 : 0,
+            'details_antecedent_judiciaire' => $m->details_antecedent_judiciaire,
+            'antecedent_disciplinaire' => $m->antecedent_disciplinaire ? 1 : 0,
+            'details_antecedent_disciplinaire' => $m->details_antecedent_disciplinaire,
+            'position_actuelle' => $m->position_actuelle,
+            'fonction_passee' => $m->fonction_passee,
+            'fonction_actuelle' => $m->fonction_actuelle,
+            'telephone' => $m->telephone,
+            'sexe' => $m->sexe ?: 'Masculin',
+            'groupe_sanguin' => $m->groupe_sanguin,
+            'personne_a_contacter' => $m->personne_a_contacter,
+            'telephone_personne_contacter' => $m->telephone_personne_contacter,
+            'lieu_naissance' => $m->lieu_naissance,
+            'mle_grm' => $m->mle_grm,
+            'numero_info' => $m->numero_info,
+            'numero_nina' => $m->numero_nina,
+            'categorie' => $m->categorie,
+            'unite' => $m->unite,
+            'region' => $m->region,
+            'date_mutation' => $m->date_mutation ? Carbon::parse($m->date_mutation)->toDateString() : null,
+            'status_sanitaire' => $m->status_sanitaire,
+            'engagement_ops' => $m->engagement_ops,
+            'origine_formation' => $m->origine_formation,
+            'decorations' => $m->decorations,
+            'diplomes_academiques' => $m->diplomes_academiques,
+            'observations' => $m->observations,
+            'date_deces' => $m->date_deces ? Carbon::parse($m->date_deces)->toDateString() : null,
+            'circonstances_deces' => $m->circonstances_deces,
+            'motif_radiation' => $m->motif_radiation,
+            'reference_decision' => $m->reference_decision,
+            'unite_transfert' => $m->unite_transfert,
+            'motif_transfert' => $m->motif_transfert,
+            'taille' => $m->taille,
+            'region_id' => $m->region_id,
+            'unite_id' => $m->unite_id,
+            'position_id' => $m->position_id,
+            'statut_code' => $m->statut_code ?? 1,
+            'grade_ordre' => $m->grade_ordre ?? 0,
+            'recherche' => $m->recherche,
+            'grade_id' => $m->grade_id,
+            'organisme_detachement_id' => $m->organisme_detachement_id ?? 1,
+            'sexe_code' => $m->sexe_code ?? 1,
+            'est_blesse_guerre' => $m->est_blesse_guerre ? 1 : 0,
+            'est_non_mobilisable' => $m->est_non_mobilisable ? 1 : 0,
+            'est_disparu' => $m->est_disparu ? 1 : 0,
+            'theatre_id' => $m->theatre_id,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
+    }
+
+    protected function collectCertificatesForMatricule(string $matricule, array $row, array &$pivotRows, string $now): void
+    {
+        $certificatsCache = $this->getCertificatsCache();
+
+        foreach (self::CERTIFICATE_MAPPING as $key => $nomCertificat) {
+            $colFait = 'a_fait_' . $key;
+            $colDate = 'date_obtention_' . $key;
+
+            if (!isset($row[$colFait]) || !$this->parseBool($row[$colFait])) {
+                continue;
+            }
+
+            $certificat = $certificatsCache->get(mb_strtolower(trim($nomCertificat)))
+                ?? $certificatsCache->get(mb_strtolower(trim($key)));
+            if (!$certificat) {
+                continue;
+            }
+
+            $dateObtention = $this->parseDate($row[$colDate] ?? null);
+
+            $pivotRows[] = [
+                'matricule' => $matricule,
+                'certificat_id' => $certificat->id,
+                'date_obtention' => $dateObtention ? $dateObtention->toDateString() : null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
         }
     }
+
+    protected function collectBlessureRegistreForMatricule(Militaire $militaire, array $row, array &$registresToUpsert, string $now): void
+    {
+        // 1. Blessé de guerre (TYPE_BLESSE = 1)
+        if ($militaire->est_blesse_guerre) {
+            $dateBlessure = $this->parseDate($row['date_blessure'] ?? null)?->toDateString() ?? now()->toDateString();
+            $circonstances = !empty($row['circonstances_blessure']) 
+                ? trim((string)$row['circonstances_blessure']) 
+                : 'Blessure subie au combat en opération';
+
+            $registresToUpsert[] = [
+                'type_registre_code' => \App\Models\RegistreOperationnel::TYPE_BLESSE,
+                'matricule' => $militaire->matricule,
+                'mle_grm' => $militaire->mle_grm,
+                'nom' => $militaire->nom,
+                'prenom' => $militaire->prenom,
+                'grade_id' => $militaire->grade_id,
+                'grade_ordre' => $militaire->grade_ordre ?? 0,
+                'grade_texte' => $militaire->grade_actuel,
+                'region_id' => $militaire->region_id,
+                'unite_id' => $militaire->unite_id,
+                'unite_texte' => $militaire->unite,
+                'date_evenement' => $dateBlessure,
+                'circonstances' => $circonstances,
+                'est_actif_fichier' => 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        // 2. Cas d'otage / Porté disparu (TYPE_DISPARU = 2) - Hors ex-otages libérés
+        $isExOtage = (bool) (str_contains(mb_strtolower((string)$militaire->observations), 'ex-otage') || str_contains(mb_strtolower((string)$militaire->position_actuelle), 'ex-otage'));
+        if (!$isExOtage && ($militaire->position_id === 31 || $militaire->est_disparu || str_contains(mb_strtolower((string)$militaire->position_actuelle), 'otage') || str_contains(mb_strtolower((string)$militaire->position_actuelle), 'disparu'))) {
+            $circonstances = !empty($militaire->observations) 
+                ? trim((string)$militaire->observations) 
+                : (!empty($row['position_actuelle']) ? trim((string)$row['position_actuelle']) : "Militaire pris en otage en zone d'opérations");
+
+            $registresToUpsert[] = [
+                'type_registre_code' => \App\Models\RegistreOperationnel::TYPE_DISPARU,
+                'matricule' => $militaire->matricule,
+                'mle_grm' => $militaire->mle_grm,
+                'nom' => $militaire->nom,
+                'prenom' => $militaire->prenom,
+                'grade_id' => $militaire->grade_id,
+                'grade_ordre' => $militaire->grade_ordre ?? 0,
+                'grade_texte' => $militaire->grade_actuel,
+                'region_id' => $militaire->region_id,
+                'unite_id' => $militaire->unite_id,
+                'unite_texte' => $militaire->unite,
+                'circonstances' => $circonstances,
+                'observations' => $circonstances,
+                'est_actif_fichier' => 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+
+        // 3. Déserteur (TYPE_DESERTEUR = 5)
+        if ($militaire->statut === 'déserteur') {
+            $circonstances = !empty($militaire->position_actuelle) && $militaire->position_actuelle !== 'Déserteur'
+                ? trim((string)$militaire->position_actuelle)
+                : 'Déserteur';
+
+            $registresToUpsert[] = [
+                'type_registre_code' => \App\Models\RegistreOperationnel::TYPE_DESERTEUR,
+                'matricule' => $militaire->matricule,
+                'mle_grm' => $militaire->mle_grm,
+                'nom' => $militaire->nom,
+                'prenom' => $militaire->prenom,
+                'grade_id' => $militaire->grade_id,
+                'grade_ordre' => $militaire->grade_ordre ?? 0,
+                'grade_texte' => $militaire->grade_actuel,
+                'region_id' => $militaire->region_id,
+                'unite_id' => $militaire->unite_id,
+                'unite_texte' => $militaire->unite,
+                'circonstances' => $circonstances,
+                'est_actif_fichier' => 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
 
     /**
      * Parse une valeur de date, supportant :
@@ -392,22 +822,33 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
     }
 
     /**
-     * Normalise la valeur du sexe
+     * Normalise la valeur du sexe avec détection du gras, NINA et colonnes
      */
-    protected function parseSexe($value): ?string
+    protected function parseSexe($value, ?string $matricule = null, array $row = []): string
     {
-        if (empty($value)) return null;
-
-        $value = mb_strtolower(trim((string)$value));
-
-        if (in_array($value, ['m', 'masculin', 'homme', 'h', 'male'])) {
-            return 'Masculin';
-        }
-        if (in_array($value, ['f', 'féminin', 'feminin', 'femme', 'female'])) {
+        // 1. Détection prioritaire par texte en gras dans l'Excel ("tout ce qui sont en gras sont des feminin")
+        if ($matricule !== null && isset($this->boldMatricules[$matricule])) {
             return 'Féminin';
         }
 
-        return null;
+        // 2. Détection par valeur de colonne sexe/genre
+        if (!empty($value)) {
+            $valLower = mb_strtolower(trim((string)$value));
+            if (in_array($valLower, ['f', 'féminin', 'feminin', 'femme', 'female', 'd', 'dame'])) {
+                return 'Féminin';
+            }
+            if (in_array($valLower, ['m', 'masculin', 'homme', 'h', 'male'])) {
+                return 'Masculin';
+            }
+        }
+
+        // 3. Détection par code NINA ou matricule GRM (ex: GRM0784F009961 -> 'F' = Féminin)
+        $combined = ($row['nom'] ?? '') . ' ' . ($row['mle_grm'] ?? '') . ' ' . ($row['numero_nina'] ?? '') . ' ' . ($matricule ?? '');
+        if (preg_match('/[0-9]{3,4}F[0-9]{4,6}/i', $combined)) {
+            return 'Féminin';
+        }
+
+        return 'Masculin';
     }
 
     /**
@@ -597,6 +1038,49 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
             }
         }
 
+        // Traitement mandat de dépôt / antécédent judiciaire
+        $rawFonction = trim((string)($normalized['fonction_actuelle'] ?? ''));
+        $rawPosition = trim((string)($normalized['position_actuelle'] ?? ''));
+        if (preg_match('/mandat|d[eé]p[oô]t/iu', $rawFonction) || preg_match('/mandat|d[eé]p[oô]t/iu', $rawPosition)) {
+            $normalized['antecedent_judiciaire'] = 1;
+            $details = trim(($rawFonction ? $rawFonction . ' - ' : '') . $rawPosition);
+            $normalized['details_antecedent_judiciaire'] = $details ?: 'Mandat de dépôt';
+            if (preg_match('/mandat|d[eé]p[oô]t/iu', $rawFonction)) {
+                $normalized['fonction_actuelle'] = 'Elément';
+            }
+        }
+
+        // Traitement Otages & Portés Disparus vs Ex-otages libérés
+        $posCombined = $rawFonction . ' ' . $rawPosition;
+        $isExOtage = (bool) preg_match('/ex[\s\-_]?otage/iu', $posCombined);
+        $isOtageDisparu = (bool) preg_match('/otage|disparu|disparition|enlevé|enleve/iu', $posCombined) && !$isExOtage;
+
+        if ($isOtageDisparu) {
+            $normalized['position_actuelle'] = "Cas d'otage";
+            $normalized['position_id'] = 31;
+            $normalized['est_disparu'] = 1;
+            $normalized['observations'] = $rawPosition ?: $rawFonction;
+            if (preg_match('/otage|disparu/iu', $rawFonction)) {
+                $normalized['fonction_actuelle'] = 'Elément';
+            }
+        } elseif ($isExOtage) {
+            $normalized['position_actuelle'] = "À l'Unité / Au Poste";
+            $normalized['position_id'] = 21;
+            $normalized['est_disparu'] = 0;
+            if (empty($normalized['observations'])) {
+                $normalized['observations'] = 'Ex-otage libéré';
+            }
+            if (preg_match('/ex[\s\-_]?otage/iu', $rawFonction)) {
+                $normalized['fonction_actuelle'] = 'Elément';
+            }
+        } elseif (preg_match('/convalesc|arr[eéè]t\s*travail/iu', $rawPosition)) {
+            $normalized['position_actuelle'] = "En congé / Convalescence";
+            $normalized['position_id'] = 32;
+            if (empty($normalized['observations'])) {
+                $normalized['observations'] = $rawPosition;
+            }
+        }
+
         // Inférence du statut si absent ou actif
         if (!isset($normalized['statut']) || trim((string)$normalized['statut']) === '' || $normalized['statut'] === 'actif') {
             $pos = mb_strtolower(trim((string)($normalized['position_actuelle'] ?? '')));
@@ -608,7 +1092,7 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
             if (!$isReintegre && (str_contains($pos, 'desert') || str_contains($pos, 'désert') || str_contains($pos, 'dessertion') || str_contains($san, 'desert') || str_contains($san, 'désert'))) {
                 $normalized['statut'] = 'déserteur';
             } elseif (str_contains($pos, 'detache') || str_contains($pos, 'détach') || str_contains($reg, 'detache') || str_contains($reg, 'détach')) {
-                $normalized['statut'] = 'détaché';
+                $normalized['statut'] = 'actif';
                 if (empty($normalized['position_actuelle'])) {
                     $normalized['position_actuelle'] = 'Détachement';
                 }
@@ -617,9 +1101,9 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
             } elseif (str_contains($pos, 'retrait') || str_contains($pos, 'radi')) {
                 $normalized['statut'] = 'radié';
             } elseif (str_contains($pos, 'stage') || str_contains($pos, 'formation')) {
-                $normalized['statut'] = 'en stage';
+                $normalized['statut'] = 'actif';
             } elseif (str_contains($pos, 'mission')) {
-                $normalized['statut'] = 'en mission';
+                $normalized['statut'] = 'actif';
             } else {
                 $normalized['statut'] = 'actif';
             }
@@ -728,91 +1212,110 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
 
     protected function resolveOperationalAndTerritorial(Militaire $militaire, array $row): void
     {
-        // 1. Région
-        if (!empty($row['region'])) {
-            $regRaw = trim((string)$row['region']);
+        $this->initializeCaches();
+
+        $regRaw = trim((string)($row['region'] ?? ''));
+        $unitRaw = trim((string)($row['unite'] ?? ''));
+
+        // 1. Résolution de la Région
+        $reg = null;
+        if (!empty($regRaw)) {
             $regStr = mb_strtolower($regRaw);
+            $regNorm = $this->normalizeStringForMatch($regRaw);
+            $regUpper = strtoupper($regRaw);
 
-            // Direct exact match sur code ou nom
-            $reg = $this->getRegionsCache()->first(function ($r) use ($regStr) {
-                return mb_strtolower($r->code) === $regStr || mb_strtolower($r->nom) === $regStr;
-            });
-
-            // Regex: REGION N°X -> RX
-            if (!$reg && preg_match('/region\s*(?:n°|no|numéro|num|#)?\s*(\d+)/i', $regRaw, $m)) {
-                $reg = $this->getRegionsCache()->firstWhere('code', 'R' . $m[1]);
+            if (isset($this->regionsByName[$regStr])) {
+                $reg = $this->regionsByName[$regStr];
+            } elseif (isset($this->regionsByCode[$regUpper])) {
+                $reg = $this->regionsByCode[$regUpper];
+            } elseif (isset($this->regionsByNorm[$regNorm])) {
+                $reg = $this->regionsByNorm[$regNorm];
+            } elseif (preg_match('/region\s*(?:n°|no|numéro|num|#)?\s*(\d+)/i', $regRaw, $m)) {
+                $reg = $this->regionsByCode['R' . $m[1]] ?? null;
             }
 
-            // Structures centrales basées à Bamako (DGGN, CDURM, SIJ, CDECF, GSIGN)
-            if (!$reg && in_array(strtoupper($regRaw), ['DGGN', 'CDURM', 'SIJ', 'CDECF', 'GSIGN', 'BAMAKO', 'DISTRICT'])) {
-                $reg = $this->getRegionsCache()->firstWhere('code', 'R1');
-            }
-
-            // Fallback recherche sous-chaîne
-            if (!$reg) {
-                $reg = $this->getRegionsCache()->first(function ($r) use ($regStr) {
-                    return mb_stripos(mb_strtolower($r->nom), $regStr) !== false;
-                });
-            }
-
-            if ($reg) {
-                $militaire->region_id = $reg->id;
-                $militaire->region = $reg->nom;
-            } else {
-                $militaire->region = $regRaw;
+            // Structures centrales basées à Bamako ou personnel en détachement / CDUSF / Inspection
+            if (!$reg && in_array($regUpper, ['DGGN', 'CDURM', 'SIJ', 'CDECF', 'GSIGN', 'CDUSF', 'INSPECTION', 'IGN', 'DETACHEMENT', 'DÉTACHEMENT', 'BAMAKO', 'DISTRICT'])) {
+                $reg = $this->regionsByCode['R1'] ?? null;
             }
         }
 
-        // 2. Unité
-        if (!empty($row['unite'])) {
-            $unitRaw = trim((string)$row['unite']);
-            $unitStr = mb_strtolower($unitRaw);
-
-            // 1er niveau: Match exact sur nom ou code
-            $unite = $this->getUnitesCache()->first(function ($u) use ($unitStr) {
-                return mb_strtolower($u->nom) === $unitStr || ($u->code && mb_strtolower($u->code) === $unitStr);
-            });
-
-            // 2ème niveau: Match normalisé (sans stop-words "de", "la", ponctuation)
-            if (!$unite) {
-                $normTarget = $this->normalizeStringForMatch($unitRaw);
-                $unite = $this->getUnitesCache()->first(function ($u) use ($normTarget) {
-                    return $this->normalizeStringForMatch($u->nom) === $normTarget
-                        || ($u->code && $this->normalizeStringForMatch($u->code) === $normTarget);
-                });
+        // Si région non trouvée, analyse du texte de l'unité (ministères, directions nationales, services centraux)
+        if (!$reg && !empty($unitRaw)) {
+            $uLower = mb_strtolower($unitRaw);
+            if (
+                str_contains($uLower, 'minist') ||
+                str_contains($uLower, 'direction') ||
+                str_contains($uLower, 'primature') ||
+                str_contains($uLower, 'présidence') ||
+                str_contains($uLower, 'presidence') ||
+                str_contains($uLower, 'assemblée') ||
+                str_contains($uLower, 'assemblee') ||
+                str_contains($uLower, 'etat-major') ||
+                str_contains($uLower, 'emga') ||
+                str_contains($uLower, 'bureau du verificateur') ||
+                str_contains($uLower, 'oclei') ||
+                str_contains($uLower, 'anse') ||
+                str_contains($uLower, 'sécurité d\'etat') ||
+                str_contains($uLower, 'securite d\'etat') ||
+                str_contains($uLower, 'gar-si') ||
+                str_contains($uLower, 'garsi') ||
+                str_contains($uLower, 'inspection') ||
+                str_contains($uLower, 'maintien de la paix') ||
+                str_contains($uLower, 'procédure en cours') ||
+                str_contains($uLower, 'cours supreme')
+            ) {
+                $reg = $this->regionsByCode['R1'] ?? null;
             }
+        }
 
-            // 3ème niveau: Match sous-chaîne priorisant la région du militaire
-            if (!$unite) {
-                $candidates = $this->getUnitesCache()->filter(function ($u) use ($unitStr) {
-                    return mb_stripos(mb_strtolower($u->nom), $unitStr) !== false
-                        || mb_stripos($unitStr, mb_strtolower($u->nom)) !== false;
-                });
+        // 2. Résolution de l'Unité (lookup O(1) via hash maps)
+        $unite = null;
+        if (!empty($unitRaw)) {
+            $uStr = mb_strtolower($unitRaw);
+            $uNorm = $this->normalizeStringForMatch($unitRaw);
 
-                if ($militaire->region_id) {
-                    $unite = $candidates->firstWhere('region_id', $militaire->region_id) ?? $candidates->first();
-                } else {
-                    $unite = $candidates->first();
-                }
-            }
+            $unite = $this->unitesByName[$uStr] 
+                ?? $this->unitesByNorm[$uNorm] 
+                ?? $this->unitesByCode[$uStr] 
+                ?? null;
 
             if ($unite) {
                 $militaire->unite_id = $unite->id;
                 $militaire->unite = $unite->nom;
-                if ($unite->region_id) {
-                    $militaire->region_id = $unite->region_id;
-                    $reg = $this->getRegionsCache()->firstWhere('id', $unite->region_id);
-                    if ($reg) $militaire->region = $reg->nom;
+                if ($unite->region_id && (!$reg || empty($regRaw) || in_array(strtoupper($regRaw), ['DETACHEMENT', 'DÉTACHEMENT', 'CDUSF', 'INSPECTION']))) {
+                    $reg = $this->getRegionsCache()->firstWhere('id', $unite->region_id) ?? $reg;
                 }
             } else {
                 $militaire->unite = $unitRaw;
             }
         }
 
-        // 2b. Organisme de détachement (si militaire en détachement)
-        if ($militaire->statut === 'détaché' || mb_strtolower(trim((string)($row['region'] ?? ''))) === 'detachement') {
-            $orgTarget = $this->normalizeStringForMatch(!empty($row['unite']) ? (string)$row['unite'] : '');
-            if (!empty($orgTarget)) {
+        // Fallback ultime : aucune région laissée vide
+        if (!$reg) {
+            $reg = $this->regionsByCode['R1'] ?? null;
+        }
+
+        if ($reg) {
+            $militaire->region_id = $reg->id;
+            $militaire->region = $reg->nom;
+        }
+
+        // 2b. Organisme de détachement
+        $isDetache = str_contains(mb_strtolower((string)$militaire->position_actuelle), 'détach')
+            || str_contains(mb_strtolower((string)$militaire->position_actuelle), 'detach')
+            || $militaire->statut === 'détaché'
+            || $militaire->statut_code === 2
+            || strtoupper($regRaw) === 'DETACHEMENT'
+            || strtoupper($regRaw) === 'DÉTACHEMENT';
+
+        if ($isDetache) {
+            $militaire->statut = 'actif';
+            $militaire->statut_code = 1;
+            $militaire->position_id = 26;
+            $militaire->position_actuelle = 'En détachement';
+            if (!empty($unitRaw)) {
+                $orgTarget = $this->normalizeStringForMatch($unitRaw);
                 $org = $this->getOrganismesDetachementCache()->first(function ($o) use ($orgTarget) {
                     $normO = $this->normalizeStringForMatch($o->nom);
                     return $normO === $orgTarget
@@ -822,10 +1325,21 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
                 });
                 if ($org) {
                     $militaire->organisme_detachement_id = $org->id;
-                    $militaire->statut = 'détaché';
-                    if (empty($militaire->position_actuelle) || $militaire->position_actuelle === 'À l\'Unité / Au Poste') {
-                        $militaire->position_actuelle = 'Détachement';
-                    }
+                }
+            }
+        } else {
+            $militaire->organisme_detachement_id = $this->grmOrgId ?? 1;
+            if (!empty($militaire->est_disparu) || $militaire->position_id === 31 || str_contains(mb_strtolower((string)$militaire->position_actuelle), 'otage') || str_contains(mb_strtolower((string)$militaire->position_actuelle), 'disparu')) {
+                $militaire->position_id = 31;
+                $militaire->position_actuelle = "Cas d'otage";
+                $militaire->est_disparu = 1;
+            } elseif ($militaire->position_id === 32 || str_contains(mb_strtolower((string)$militaire->position_actuelle), 'convalesc')) {
+                $militaire->position_id = 32;
+                $militaire->position_actuelle = "En congé / Convalescence";
+            } elseif (empty($militaire->position_id)) {
+                $militaire->position_id = 21;
+                if (empty($militaire->position_actuelle)) {
+                    $militaire->position_actuelle = "À l'Unité / Au Poste";
                 }
             }
         }

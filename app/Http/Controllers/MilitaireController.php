@@ -247,6 +247,11 @@ class MilitaireController extends Controller
                 'unite_id' => $militaire->unite_id,
                 'position_id' => $militaire->position_id,
                 'statut_code' => $militaire->statut_code,
+                'sexe_code' => $militaire->sexe_code,
+                'theatre_id' => $militaire->theatre_id,
+                'est_disparu' => $militaire->est_disparu,
+                'est_blesse_guerre' => (bool) $militaire->est_blesse_guerre,
+                'est_non_mobilisable' => (bool) $militaire->est_non_mobilisable,
                 'matricule' => $militaire->matricule,
                 'mle_grm' => $militaire->mle_grm,
                 'numero_info' => $militaire->numero_info,
@@ -562,6 +567,8 @@ class MilitaireController extends Controller
             'groupe_sanguin' => 'nullable|string|max:10',
             'taille' => 'nullable|string|max:30',
             'status_sanitaire' => 'nullable|string',
+            'est_blesse_guerre' => 'nullable',
+            'est_non_mobilisable' => 'nullable',
             'engagement_ops' => 'nullable|string|max:255',
             'personne_a_contacter' => 'nullable|string|max:255',
             'telephone_personne_contacter' => 'nullable|string|max:20',
@@ -569,7 +576,9 @@ class MilitaireController extends Controller
             'organisme_detachement_id' => 'nullable|integer|exists:organismes_detachement,id',
             'a_permis_conduire' => 'nullable',
             'antecedent_judiciaire' => 'nullable',
+            'details_antecedent_judiciaire' => 'nullable|string',
             'antecedent_disciplinaire' => 'nullable',
+            'details_antecedent_disciplinaire' => 'nullable|string',
             'decorations' => 'nullable|string',
             'diplomes_academiques' => 'nullable|string',
             'observations' => 'nullable|string',
@@ -718,7 +727,9 @@ class MilitaireController extends Controller
             'statut' => $militaire->statut,
             'a_permis_conduire' => $militaire->a_permis_conduire,
             'antecedent_judiciaire' => $militaire->antecedent_judiciaire,
+            'details_antecedent_judiciaire' => $militaire->details_antecedent_judiciaire,
             'antecedent_disciplinaire' => $militaire->antecedent_disciplinaire,
+            'details_antecedent_disciplinaire' => $militaire->details_antecedent_disciplinaire,
             'decorations' => $militaire->decorations,
             'diplomes_academiques' => $militaire->diplomes_academiques,
             'observations' => $militaire->observations,
@@ -840,6 +851,11 @@ class MilitaireController extends Controller
                 'position_id' => $militaire->position_id,
                 'organisme_detachement_id' => $militaire->organisme_detachement_id,
                 'statut_code' => $militaire->statut_code,
+                'sexe_code' => $militaire->sexe_code,
+                'theatre_id' => $militaire->theatre_id,
+                'est_disparu' => $militaire->est_disparu,
+                'est_blesse_guerre' => (bool) $militaire->est_blesse_guerre,
+                'est_non_mobilisable' => (bool) $militaire->est_non_mobilisable,
                 'matricule' => $militaire->matricule,
                 'mle_grm' => $militaire->mle_grm,
                 'numero_info' => $militaire->numero_info,
@@ -875,7 +891,9 @@ class MilitaireController extends Controller
                 'statut' => $militaire->statut,
                 'a_permis_conduire' => $militaire->a_permis_conduire,
                 'antecedent_judiciaire' => $militaire->antecedent_judiciaire,
+                'details_antecedent_judiciaire' => $militaire->details_antecedent_judiciaire,
                 'antecedent_disciplinaire' => $militaire->antecedent_disciplinaire,
+                'details_antecedent_disciplinaire' => $militaire->details_antecedent_disciplinaire,
                 'decorations' => $militaire->decorations,
                 'diplomes_academiques' => $militaire->diplomes_academiques,
                 'observations' => $militaire->observations,
@@ -933,6 +951,8 @@ class MilitaireController extends Controller
             'groupe_sanguin' => 'nullable|string|max:10',
             'taille' => 'nullable|string|max:30',
             'status_sanitaire' => 'nullable|string',
+            'est_blesse_guerre' => 'nullable',
+            'est_non_mobilisable' => 'nullable',
             'engagement_ops' => 'nullable|string|max:255',
             'personne_a_contacter' => 'nullable|string|max:255',
             'telephone_personne_contacter' => 'nullable|string|max:20',
@@ -940,7 +960,9 @@ class MilitaireController extends Controller
             'organisme_detachement_id' => 'nullable|integer|exists:organismes_detachement,id',
             'a_permis_conduire' => 'nullable',
             'antecedent_judiciaire' => 'nullable',
+            'details_antecedent_judiciaire' => 'nullable|string',
             'antecedent_disciplinaire' => 'nullable',
+            'details_antecedent_disciplinaire' => 'nullable|string',
             'decorations' => 'nullable|string',
             'diplomes_academiques' => 'nullable|string',
             'observations' => 'nullable|string',
@@ -1110,7 +1132,8 @@ class MilitaireController extends Controller
             'a_fait_bmp1', 'a_fait_bmp2', 'a_fait_bs', 'a_fait_ct2',
             'a_fait_apli', 'a_fait_cfcu', 'a_fait_cem',
             'a_fait_certificat_etat_major', 'a_fait_ecole_guerre',
-            'a_permis_conduire', 'antecedent_judiciaire', 'antecedent_disciplinaire'
+            'a_permis_conduire', 'antecedent_judiciaire', 'antecedent_disciplinaire',
+            'est_blesse_guerre', 'est_non_mobilisable'
         ];
 
         foreach ($booleanFields as $field) {
@@ -1837,38 +1860,33 @@ class MilitaireController extends Controller
     {
         $v = Militaire::getCacheVersion();
         return Cache::remember("v{$v}:militaires:ids_retraite_{$anneeCible}", 1800, function () use ($anneeCible) {
-            $militaires = Militaire::whereNotNull('date_naissance')
-                ->whereNotNull('grade_actuel')
-                ->select('id', 'date_naissance', 'grade_actuel', 'statut', 'statut_code', 'position_actuelle', 'observations')
-                ->get();
-
-            $ids = [];
             $anneeCourante = (int) Carbon::now()->year;
 
-            foreach ($militaires as $m) {
-                // Exclusion formelle des militaires en otage
-                if ($m->isOtage()) {
-                    continue;
-                }
-
-                $ageRetraite = Grade::getRetraiteForGrade($m->grade_actuel);
-                if (!$ageRetraite) continue;
-
-                $anneeRetraite = (int) (Carbon::parse($m->date_naissance)->year + $ageRetraite);
-                $estActif = str_starts_with(mb_strtolower($m->statut ?? ''), 'actif');
-
-                if ($anneeCible === $anneeCourante) {
-                    if ($anneeRetraite === $anneeCible || ($estActif && $anneeRetraite < $anneeCible)) {
-                        $ids[] = $m->id;
-                    }
-                } else {
-                    if ($estActif && $anneeRetraite === $anneeCible) {
-                        $ids[] = $m->id;
-                    }
-                }
-            }
-
-            return $ids;
+            return DB::table('militaires')
+                ->join('grades', function ($join) {
+                    $join->on('militaires.grade_id', '=', 'grades.id')
+                         ->orWhere(function ($q) {
+                             $q->whereNull('militaires.grade_id')
+                               ->whereColumn('militaires.grade_actuel', 'grades.nom_grade');
+                         });
+                })
+                ->whereNotNull('militaires.date_naissance')
+                ->whereNotNull('grades.retraite_obligatoire')
+                ->where(function ($q) {
+                    $q->whereNull('militaires.position_actuelle')
+                      ->orWhere('militaires.position_actuelle', 'not ilike', '%otage%');
+                })
+                ->where(function ($q) {
+                    $q->whereNull('militaires.observations')
+                      ->orWhere('militaires.observations', 'not ilike', '%otage%');
+                })
+                ->where('militaires.est_disparu', 0)
+                ->whereRaw(($anneeCible === $anneeCourante)
+                    ? "((EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCible}) OR (LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire < {$anneeCible}))"
+                    : "(LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCible})"
+                )
+                ->pluck('militaires.id')
+                ->toArray();
         });
     }
 }

@@ -74,13 +74,16 @@ const parsedEngagementOps = computed(() => {
     if (match) {
         explicitCount = parseInt(match[1], 10);
     }
-    const cleaned = raw.replace(/[-–—]?\s*\d+\s*OPS/i, '').trim();
+    const cleaned = raw.replace(/[-–—]?\s*\d+\s*OPS/i, '').replace(/^[,;\s.-]+|[,;\s.-]+$/g, '').trim();
     let theatres = [];
-    if (cleaned) {
+    if (cleaned && cleaned !== '0') {
         theatres = cleaned
             .split(/[,;\n]+|(?<=[0-9a-zA-ZÀ-ÿ])\.(?=[0-9a-zA-ZÀ-ÿ])/)
             .map(t => t.trim())
             .filter(t => t && t !== '-' && t !== '.');
+    }
+    if (theatres.length === 0 && props.militaire?.theatre?.nom) {
+        theatres.push(props.militaire.theatre.nom);
     }
     const count = explicitCount !== null ? explicitCount : theatres.length;
     return {
@@ -777,11 +780,17 @@ const deleteMilitaire = () => {
                                     <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Antécédent disciplinaire</span>
                                     <Tag :value="militaire.antecedent_disciplinaire ? 'Oui' : 'Non'"
                                         :style="militaire.antecedent_disciplinaire ? { background: '#fee2e2', color: '#991b1b' } : { background: '#dcfce7', color: '#166534' }" />
+                                    <p v-if="militaire.antecedent_disciplinaire && militaire.details_antecedent_disciplinaire" class="mt-2 text-xs text-red-800 bg-red-50 p-2.5 rounded-lg border border-red-200 font-medium">
+                                        <i class="pi pi-info-circle mr-1 text-red-600"></i>{{ militaire.details_antecedent_disciplinaire }}
+                                    </p>
                                 </div>
                                 <div>
                                     <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1">Antécédent judiciaire</span>
                                     <Tag :value="militaire.antecedent_judiciaire ? 'Oui' : 'Non'"
                                         :style="militaire.antecedent_judiciaire ? { background: '#fee2e2', color: '#991b1b' } : { background: '#dcfce7', color: '#166534' }" />
+                                    <p v-if="militaire.antecedent_judiciaire && militaire.details_antecedent_judiciaire" class="mt-2 text-xs text-amber-900 bg-amber-50 p-2.5 rounded-lg border border-amber-200 font-medium">
+                                        <i class="pi pi-exclamation-triangle mr-1 text-amber-700"></i>{{ militaire.details_antecedent_judiciaire }}
+                                    </p>
                                 </div>
                             </div>
                         </div>

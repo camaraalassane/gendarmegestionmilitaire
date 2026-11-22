@@ -230,13 +230,16 @@ const categorieOptions = [
 ];
 
 const sexeOptions = [
-    { label: 'Masculin (M)', value: 'M' },
-    { label: 'Féminin (F)', value: 'F' }
+    { label: 'Masculin (M)', value: 'Masculin' },
+    { label: 'Féminin (F)', value: 'Féminin' }
 ];
 
 const defaultStatusSanitaire = [
     'Apte',
     'Blessé de guerre',
+    'Blessé en opération',
+    'Blessé en service',
+    'Grand malade (Non mobilisable)',
     'Inapte temporaire',
     'Inapte définitif',
     'Apte avec restrictions',
@@ -320,6 +323,49 @@ const removeStatusOption = (valToRemove) => {
         form.status_sanitaire = '';
     }
     saveStatusSanitaireList(statusSanitaireOptions.value.map(o => o.value));
+};
+
+const setProfilMedical = (type) => {
+    if (type === 'blesse') {
+        form.est_blesse_guerre = true;
+        form.est_non_mobilisable = false;
+        form.status_sanitaire = 'Blessé de guerre';
+    } else if (type === 'malade') {
+        form.est_blesse_guerre = false;
+        form.est_non_mobilisable = true;
+        form.status_sanitaire = 'Grand malade (Non mobilisable)';
+    } else {
+        form.est_blesse_guerre = false;
+        form.est_non_mobilisable = false;
+        form.status_sanitaire = 'Apte';
+    }
+};
+
+const onStatusSanitaireChange = (newVal) => {
+    if (!newVal) {
+        form.est_blesse_guerre = false;
+        form.est_non_mobilisable = false;
+        return;
+    }
+    const valLower = newVal.toLowerCase();
+    if (valLower.includes('bless') || valLower.includes('amput')) {
+        form.est_blesse_guerre = true;
+        form.est_non_mobilisable = false;
+    } else if (
+        valLower.includes('malad') ||
+        valLower.includes('inapte') ||
+        valLower.includes('exemp') ||
+        valLower.includes('convalesc') ||
+        valLower.includes('réform') ||
+        valLower.includes('reform') ||
+        valLower.includes('patholog')
+    ) {
+        form.est_blesse_guerre = false;
+        form.est_non_mobilisable = true;
+    } else if (valLower.includes('apte')) {
+        form.est_blesse_guerre = false;
+        form.est_non_mobilisable = false;
+    }
 };
 
 const groupeSanguinOptions = [
@@ -440,8 +486,8 @@ const form = reactive({
     date_derniere_promotion: null,
     specialite: '',
     origine_formation: '',
-    position_id: null,
-    position_actuelle: '',
+    position_id: 21,
+    position_actuelle: "À l'Unité / Au Poste",
     unite_id: null,
     unite: '',
     region_id: null,
@@ -459,6 +505,8 @@ const form = reactive({
     groupe_sanguin: null,
     taille: '',
     status_sanitaire: '',
+    est_blesse_guerre: false,
+    est_non_mobilisable: false,
     engagement_ops: '',
     personne_a_contacter: '',
     telephone_personne_contacter: '',
@@ -473,7 +521,9 @@ const form = reactive({
     motif_transfert: '',
     a_permis_conduire: false,
     antecedent_judiciaire: false,
+    details_antecedent_judiciaire: '',
     antecedent_disciplinaire: false,
+    details_antecedent_disciplinaire: '',
     certificats: {}
 });
 
@@ -597,9 +647,10 @@ const quickOrganismeForm = ref({ code: '', nom: '' });
 const currentQuickAffIndex = ref(null);
 
 const isDetache = computed(() => {
+    if (form.statut === 'détaché' || form.statut === 'detache') return true;
     const pos = localPositions.value.find(p => p.id === form.position_id);
     const nom = pos?.nom || form.position_actuelle || '';
-    return nom.toLowerCase().includes('détachement') || nom.toLowerCase().includes('detachement');
+    return nom.toLowerCase().includes('détach') || nom.toLowerCase().includes('detach');
 });
 
 const isPositionSpeciale = computed(() => {
@@ -608,6 +659,16 @@ const isPositionSpeciale = computed(() => {
     return nom.includes('détachement') || nom.includes('detachement')
         || nom.includes('stage') || nom.includes('formation')
         || nom.includes('mission') || nom.includes('otage');
+});
+
+const isOtage = computed(() => {
+    if (form.position_id === 31) return true;
+    const pos = localPositions.value.find(p => p.id === form.position_id);
+    const nom = (pos?.nom || form.position_actuelle || '').toLowerCase();
+    const obs = (form.observations || '').toLowerCase();
+    const isExOtage = nom.includes('ex-otage') || nom.includes('ex otage') || obs.includes('ex-otage') || obs.includes('ex otage');
+    if (isExOtage) return false;
+    return nom.includes('otage') || nom.includes('disparu') || obs.includes('otage') || obs.includes('disparu');
 });
 
 const setDefaultPositionUnite = () => {
@@ -668,13 +729,7 @@ const onPositionSelect = () => {
     if (posObj) {
         form.position_actuelle = posObj.nom;
     }
-    if (isDetache.value) {
-        if (form.affectations && form.affectations[0]) {
-            form.affectations[0].region_id = null;
-            form.affectations[0].unite_id = null;
-            form.affectations[0].region = '';
-        }
-    } else {
+    if (!isDetache.value) {
         form.organisme_detachement_id = null;
     }
 };
@@ -1003,7 +1058,11 @@ const submitForm = () => {
 
     formData.append('a_permis_conduire', form.a_permis_conduire ? '1' : '0');
     formData.append('antecedent_judiciaire', form.antecedent_judiciaire ? '1' : '0');
+    formData.append('details_antecedent_judiciaire', form.details_antecedent_judiciaire || '');
     formData.append('antecedent_disciplinaire', form.antecedent_disciplinaire ? '1' : '0');
+    formData.append('details_antecedent_disciplinaire', form.details_antecedent_disciplinaire || '');
+    formData.append('est_blesse_guerre', form.est_blesse_guerre ? '1' : '0');
+    formData.append('est_non_mobilisable', form.est_non_mobilisable ? '1' : '0');
 
     if (photoFile.value) {
         formData.append('photo', photoFile.value);
@@ -1327,14 +1386,19 @@ const cancel = () => {
                                     </div>
                                 </div>
 
-                                <div v-if="form.statut === 'déserteur'" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 p-4 bg-orange-50 border border-orange-200 rounded-xl">
+                                <div v-if="form.statut === 'déserteur' || form.statut === 'radié'" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 p-4 border rounded-xl"
+                                     :class="form.statut === 'déserteur' ? 'bg-orange-50 border-orange-200' : 'bg-rose-50 border-rose-200'">
                                     <div>
-                                        <label class="block text-sm font-bold text-orange-800 mb-1">Motif de radiation</label>
-                                        <InputText v-model="form.motif_radiation" class="w-full" placeholder="Ex: Désertion, Retrait d'emploi..." />
+                                        <label class="block text-sm font-bold mb-1" :class="form.statut === 'déserteur' ? 'text-orange-800' : 'text-rose-800'">
+                                            {{ form.statut === 'déserteur' ? 'Motif de désertion / Circonstances' : 'Motif de radiation' }}
+                                        </label>
+                                        <InputText v-model="form.motif_radiation" class="w-full" :placeholder="form.statut === 'déserteur' ? 'Ex: Désertion avec emport d\'armes...' : 'Ex: Retrait d\'emploi, Faute grave, Décision disciplinaire...'" />
                                     </div>
                                     <div>
-                                        <label class="block text-sm font-bold text-orange-800 mb-1">Référence décision ministérielle</label>
-                                        <InputText v-model="form.reference_decision" class="w-full" placeholder="Ex: N° Décret / Arrêté ministériel..." />
+                                        <label class="block text-sm font-bold mb-1" :class="form.statut === 'déserteur' ? 'text-orange-800' : 'text-rose-800'">
+                                            Référence décision ministérielle / Décret
+                                        </label>
+                                        <InputText v-model="form.reference_decision" class="w-full" placeholder="Ex: Décret N° / Arrêté ministériel..." />
                                     </div>
                                 </div>
 
@@ -1537,8 +1601,6 @@ const cancel = () => {
                                             </template>
                                         </Select>
                                     </div>
-
-                                    <!-- Observations particulières / Mention officielle -->
                                     <div class="field">
                                         <div class="h-6 flex items-center justify-between mb-1 gap-2">
                                             <label for="observations" class="block text-xs font-semibold text-gray-700 truncate whitespace-nowrap">
@@ -1550,6 +1612,28 @@ const cancel = () => {
                                                    v-model="form.observations"
                                                    class="w-full text-xs"
                                                    placeholder="Ex: Otage devant partir à la Retraite depuis 2020..." />
+                                    </div>
+                                </div>
+
+                                <!-- ZONE CONDITIONNELLE : CIRCONSTANCES D'OTAGE OU PORTÉ DISPARU -->
+                                <div v-if="isOtage" class="mt-4 p-4 bg-rose-50/90 border border-rose-300 rounded-xl animate-fade-in shadow-2xs">
+                                    <div class="flex items-start gap-2.5 mb-2">
+                                        <i class="pi pi-exclamation-triangle text-rose-600 mt-0.5 text-base shrink-0"></i>
+                                        <div>
+                                            <strong class="text-xs font-bold text-rose-950 block">Militaire en situation d'Otage ou Porté Disparu</strong>
+                                            <p class="text-[11px] text-rose-800 m-0">Les détails ci-dessous (date d'enlèvement, lieu, embuscade) sont automatiquement répertoriés dans le Registre officiel des Portés Disparus & Otages.</p>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label for="observations_otage" class="block text-xs font-bold text-rose-900 mb-1">
+                                            Circonstances précises de l'événement (Date, lieu, mission, unité) <span class="text-red-500">*</span>
+                                        </label>
+                                        <Textarea id="observations_otage"
+                                                  v-model="form.observations"
+                                                  rows="2"
+                                                  autoResize
+                                                  class="w-full text-xs font-medium text-slate-800"
+                                                  placeholder="Ex: Otage enlevé entre Boni et Nokara le 31 mai 2019 / Porté disparu à Boulkessi..." />
                                     </div>
                                 </div>
 
@@ -1741,6 +1825,70 @@ const cancel = () => {
                                 </div>
 
                                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <!-- Sélecteur rapide de profil opérationnel médical & Aiguillage Registres -->
+                                    <div class="col-span-full mb-1 p-3.5 bg-slate-100/70 border border-slate-200 rounded-xl">
+                                        <div class="flex items-center justify-between mb-2.5">
+                                            <span class="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                                                <i class="pi pi-heart-pulse text-rose-600 text-sm"></i>
+                                                Profil Médical & Aptitude Opérationnelle (Statistiques & Registres)
+                                            </span>
+                                            <span class="text-[11px] text-slate-500 font-medium">Sélectionnez la situation exacte pour alimenter les registres</span>
+                                        </div>
+                                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                            <!-- Bouton APTE -->
+                                            <button type="button" 
+                                                    @click="setProfilMedical('apte')"
+                                                    class="p-2.5 rounded-xl border text-left transition-all flex items-start gap-2.5 cursor-pointer"
+                                                    :class="(!form.est_blesse_guerre && !form.est_non_mobilisable) ? 'bg-emerald-50 border-emerald-400 text-emerald-950 shadow-xs ring-2 ring-emerald-300' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'">
+                                                <i class="pi pi-check-circle text-emerald-600 text-lg mt-0.5"></i>
+                                                <div>
+                                                    <div class="text-xs font-bold">Apte au service régulier</div>
+                                                    <div class="text-[11px] text-slate-500">Mobilisable & projetable partout</div>
+                                                </div>
+                                            </button>
+
+                                            <!-- Bouton BLESSÉ DE GUERRE -->
+                                            <button type="button" 
+                                                    @click="setProfilMedical('blesse')"
+                                                    class="p-2.5 rounded-xl border text-left transition-all flex items-start gap-2.5 cursor-pointer"
+                                                    :class="form.est_blesse_guerre ? 'bg-rose-50 border-rose-400 text-rose-950 shadow-xs ring-2 ring-rose-300' : 'bg-white border-slate-200 text-slate-700 hover:bg-rose-50/50'">
+                                                <i class="pi pi-shield text-rose-600 text-lg mt-0.5"></i>
+                                                <div>
+                                                    <div class="text-xs font-bold flex items-center gap-1">
+                                                        Blessé de guerre / OPEX
+                                                        <span class="w-2 h-2 rounded-full bg-rose-600 animate-pulse"></span>
+                                                    </div>
+                                                    <div class="text-[11px] text-slate-500">Action de combat / armes (Registre N°1)</div>
+                                                </div>
+                                            </button>
+
+                                            <!-- Bouton GRAND MALADE -->
+                                            <button type="button" 
+                                                    @click="setProfilMedical('malade')"
+                                                    class="p-2.5 rounded-xl border text-left transition-all flex items-start gap-2.5 cursor-pointer"
+                                                    :class="form.est_non_mobilisable ? 'bg-amber-50 border-amber-400 text-amber-950 shadow-xs ring-2 ring-amber-300' : 'bg-white border-slate-200 text-slate-700 hover:bg-amber-50/50'">
+                                                <i class="pi pi-exclamation-triangle text-amber-600 text-lg mt-0.5"></i>
+                                                <div>
+                                                    <div class="text-xs font-bold flex items-center gap-1">
+                                                        Grand malade / Non mobilisable
+                                                        <span class="w-2 h-2 rounded-full bg-amber-600"></span>
+                                                    </div>
+                                                    <div class="text-[11px] text-slate-500">Maladie chronique / Inapte (Registre N°3)</div>
+                                                </div>
+                                            </button>
+                                        </div>
+
+                                        <!-- Alertes contextuelles -->
+                                        <div v-if="form.est_blesse_guerre" class="mt-2.5 p-2 bg-rose-100/70 border border-rose-200 rounded-lg text-xs text-rose-900 flex items-center gap-2">
+                                            <i class="pi pi-info-circle text-rose-700"></i>
+                                            <span>Inscrit au <strong>Registre N° 1 des Blessés de Guerre</strong>. Les blessures seront rattachées aux statistiques de feu des opérations.</span>
+                                        </div>
+                                        <div v-if="form.est_non_mobilisable" class="mt-2.5 p-2 bg-amber-100/70 border border-amber-200 rounded-lg text-xs text-amber-900 flex items-center gap-2">
+                                            <i class="pi pi-info-circle text-amber-700"></i>
+                                            <span>Inscrit au <strong>Registre N° 3 des Grands Malades & Non Mobilisables</strong>. Ce militaire est exclu des effectifs projetables au front.</span>
+                                        </div>
+                                    </div>
+
                                     <!-- Groupe sanguin -->
                                     <div class="field">
                                         <div class="h-6 flex items-center mb-1">
@@ -1800,6 +1948,7 @@ const cancel = () => {
                                         <!-- Select avec recherche intégrée (pleine largeur, sans bouton débordant) -->
                                         <Select id="status_sanitaire" 
                                                 v-model="form.status_sanitaire" 
+                                                @change="onStatusSanitaireChange(form.status_sanitaire)"
                                                 :options="statusSanitaireOptions"
                                                 optionLabel="label" 
                                                 optionValue="value" 
@@ -1833,6 +1982,19 @@ const cancel = () => {
                                                 </div>
                                             </template>
                                         </Select>
+
+                                        <!-- Détails certificat médical / Exemption / Pathologie -->
+                                        <div class="mt-2">
+                                            <label for="status_sanitaire_details" class="block text-[11px] font-semibold text-slate-600 mb-1">
+                                                Détails certificat médical / Exemption / Pathologie
+                                            </label>
+                                            <Textarea id="status_sanitaire_details"
+                                                      v-model="form.observations"
+                                                      rows="2"
+                                                      autoResize
+                                                      placeholder="Ex: Certificat médical pour pathologie chronique, blessure par balle en service, exemption de terrain pendant 6 mois..."
+                                                      class="w-full text-xs font-medium text-slate-800" />
+                                        </div>
                                     </div>
 
                                     <!-- Engagement OPS Dynamique (Multi-sélection & Comptage OPS) -->
@@ -1933,20 +2095,38 @@ const cancel = () => {
                                         </label>
                                     </div>
 
-                                    <div class="flex items-center gap-2.5 p-3.5 border rounded-xl bg-white hover:bg-slate-50 transition-colors">
-                                        <Checkbox id="antecedent_judiciaire" v-model="form.antecedent_judiciaire" :binary="true" />
-                                        <label for="antecedent_judiciaire" class="text-xs font-bold text-gray-800 cursor-pointer flex items-center gap-1.5">
-                                            <i class="pi pi-exclamation-triangle text-amber-600"></i>
-                                            <span>Antécédent judiciaire</span>
-                                        </label>
+                                    <div>
+                                        <div class="flex items-center gap-2.5 p-3.5 border rounded-xl bg-white hover:bg-slate-50 transition-colors">
+                                            <Checkbox id="antecedent_judiciaire" v-model="form.antecedent_judiciaire" :binary="true" />
+                                            <label for="antecedent_judiciaire" class="text-xs font-bold text-gray-800 cursor-pointer flex items-center gap-1.5">
+                                                <i class="pi pi-exclamation-triangle text-amber-600"></i>
+                                                <span>Antécédent judiciaire</span>
+                                            </label>
+                                        </div>
+                                        <div v-if="form.antecedent_judiciaire" class="mt-2 p-2.5 rounded-xl bg-amber-50/70 border border-amber-200">
+                                            <label class="block text-[11px] font-bold text-amber-900 mb-1 flex items-center gap-1">
+                                                <i class="pi pi-file-edit text-amber-700"></i>
+                                                <span>Précisions / Directive judiciaire (Mandat de dépôt, Tribunal...)</span>
+                                            </label>
+                                            <InputText v-model="form.details_antecedent_judiciaire" class="w-full !text-xs !p-2" placeholder="Ex: Mandat de dépôt - Escadron Samory..." />
+                                        </div>
                                     </div>
 
-                                    <div class="flex items-center gap-2.5 p-3.5 border rounded-xl bg-white hover:bg-slate-50 transition-colors">
-                                        <Checkbox id="antecedent_disciplinaire" v-model="form.antecedent_disciplinaire" :binary="true" />
-                                        <label for="antecedent_disciplinaire" class="text-xs font-bold text-gray-800 cursor-pointer flex items-center gap-1.5">
-                                            <i class="pi pi-ban text-red-600"></i>
-                                            <span>Antécédent disciplinaire</span>
-                                        </label>
+                                    <div>
+                                        <div class="flex items-center gap-2.5 p-3.5 border rounded-xl bg-white hover:bg-slate-50 transition-colors">
+                                            <Checkbox id="antecedent_disciplinaire" v-model="form.antecedent_disciplinaire" :binary="true" />
+                                            <label for="antecedent_disciplinaire" class="text-xs font-bold text-gray-800 cursor-pointer flex items-center gap-1.5">
+                                                <i class="pi pi-ban text-red-600"></i>
+                                                <span>Antécédent disciplinaire</span>
+                                            </label>
+                                        </div>
+                                        <div v-if="form.antecedent_disciplinaire" class="mt-2 p-2.5 rounded-xl bg-red-50/70 border border-red-200">
+                                            <label class="block text-[11px] font-bold text-red-900 mb-1 flex items-center gap-1">
+                                                <i class="pi pi-file-edit text-red-700"></i>
+                                                <span>Précisions / Directive décision disciplinaire</span>
+                                            </label>
+                                            <InputText v-model="form.details_antecedent_disciplinaire" class="w-full !text-xs !p-2" placeholder="Ex: Arrêt de rigueur, Conseil de discipline..." />
+                                        </div>
                                     </div>
                                 </div>
                             </div>

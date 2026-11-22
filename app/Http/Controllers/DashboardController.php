@@ -78,51 +78,77 @@ class DashboardController extends Controller
         $anneeCourante ??= (int) Carbon::now()->year;
         $v ??= \App\Models\Militaire::getCacheVersion();
 
-        return Cache::remember("v{$v}:dashboard:statistiques_summary", 600, function () use ($anneeCourante) {
-            $retraitesBoth = $this->getRetraitesBoth();
-            $proposablesBoth = $this->getProposablesBoth();
-            $totalRetraitesN = $retraitesBoth['retraitesN']['total'] ?? 0;
-            $totalProposablesN = $proposablesBoth['proposablesN']['total'] ?? 0;
-            $totalActifs = $this->enActivite()->count();
+        return Cache::remember("v{$v}:dashboard:statistiques_summary", 600, function () use ($anneeCourante, $v) {
+            // 1. Départs en retraite année N (calcul SQL ultra-rapide sans charger les listes)
+            $totalRetraitesN = \Illuminate\Support\Facades\DB::table('militaires')
+                ->join('grades', 'militaires.grade_id', '=', 'grades.id')
+                ->whereNotNull('militaires.date_naissance')
+                ->whereNotNull('grades.retraite_obligatoire')
+                ->where(function ($q) {
+                    $q->whereNull('militaires.position_actuelle')
+                      ->orWhere('militaires.position_actuelle', 'not ilike', '%otage%');
+                })
+                ->where(function ($q) {
+                    $q->whereNull('militaires.observations')
+                      ->orWhere('militaires.observations', 'not ilike', '%otage%');
+                })
+                ->where('militaires.est_disparu', 0)
+                ->whereNull('militaires.deleted_at')
+                ->whereRaw("((EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCourante}) OR (LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire < {$anneeCourante}))")
+                ->count();
 
-            $totalDecedesCetteAnnee = Militaire::where(function ($q) {
-                $q->where('statut_code', 9)
-                  ->orWhereNotNull('date_deces');
-            })->where(function ($q) use ($anneeCourante) {
-                $debut = Carbon::create($anneeCourante, 1, 1)->startOfDay();
-                $fin = Carbon::create($anneeCourante, 12, 31)->endOfDay();
-                $q->whereBetween('date_deces', [$debut, $fin]);
-            })->count();
+            // 2. Proposables avancement année N (en cache pour ne pas bloquer l'affichage initial)
+            $totalProposablesN = Cache::remember("v{$v}:dashboard:proposables_n_count", 1800, function () {
+                $propBoth = $this->getProposablesBoth();
+                return $propBoth['proposablesN']['total'] ?? 0;
+            });
 
-            $totalDeserteurs = Militaire::where(function ($q) {
-                $q->where('statut_code', 6)
-                  ->orWhereRaw("LOWER(motif_radiation) LIKE '%desert%'");
-            })->count();
+            // 3. Synthèse globale des effectifs en 1 seule requête SQL agrégée ultra-rapide
+            $stats = Militaire::whereNull('deleted_at')->selectRaw("
+                COUNT(CASE WHEN " . Effectif::sqlActivite('statut') . " THEN 1 END) as total_actifs,
+                COUNT(CASE WHEN " . Effectif::sqlActivite('statut') . " AND (position_actuelle ILIKE '%detache%' OR position_actuelle ILIKE '%détach%') THEN 1 END) as detaches,
+                COUNT(CASE WHEN " . Effectif::sqlActivite('statut') . " AND (position_actuelle ILIKE '%mission%') THEN 1 END) as missions,
+                COUNT(CASE WHEN " . Effectif::sqlActivite('statut') . " AND (position_actuelle ILIKE '%stage%') THEN 1 END) as stages,
+                COUNT(CASE WHEN " . Effectif::sqlActivite('statut') . " AND (
+                    (position_actuelle IS NULL OR position_actuelle = '')
+                    OR (
+                        position_actuelle NOT ILIKE '%detache%' AND position_actuelle NOT ILIKE '%détach%'
+                        AND position_actuelle NOT ILIKE '%mission%'
+                        AND position_actuelle NOT ILIKE '%stage%'
+                    )
+                ) THEN 1 END) as actifs_stricts,
+                COUNT(CASE WHEN statut_code = 9 OR (date_deces >= '{$anneeCourante}-01-01' AND date_deces <= '{$anneeCourante}-12-31') THEN 1 END) as decedes,
+                COUNT(CASE WHEN statut_code = 6 OR LOWER(motif_radiation) LIKE '%desert%' THEN 1 END) as deserteurs,
+                COUNT(CASE WHEN statut_code = 8 OR statut = 'radié' THEN 1 END) as radies,
+                COUNT(CASE WHEN statut_code IS NULL AND statut IS NULL THEN 1 END) as non_classes
+            ")->first();
 
-            $totalDetaches = Effectif::appliquerFiltreDetaches($this->enActivite())->count();
-            $totalMissions = Effectif::appliquerFiltreMissions($this->enActivite())->count();
-            $totalStages = Effectif::appliquerFiltreStages($this->enActivite())->count();
-            $actifsStricts = Effectif::appliquerFiltreActifsStricts($this->enActivite())->count();
-            $totalRadies = Militaire::where('statut_code', 8)->orWhere('statut', 'radié')->count();
-            $totalNonClasses = Militaire::whereNull('statut_code')->whereNull('statut')->count();
+            // 4. Registres opérationnels en 1 seule requête SQL
+            $regStats = \App\Models\RegistreOperationnel::selectRaw("
+                COUNT(CASE WHEN type_registre_code = " . \App\Models\RegistreOperationnel::TYPE_BLESSE . " THEN 1 END) as blesses,
+                COUNT(CASE WHEN type_registre_code = " . \App\Models\RegistreOperationnel::TYPE_GRAND_MALADE . " THEN 1 END) as grands_malades,
+                COUNT(CASE WHEN type_registre_code = " . \App\Models\RegistreOperationnel::TYPE_DISPARU . " THEN 1 END) as disparus
+            ")->first();
+
+            $totalActifs = (int) ($stats->total_actifs ?? 0);
 
             return [
                 'annee' => $anneeCourante,
                 'total_militaires' => $totalActifs,
                 'militaires_actifs' => $totalActifs,
-                'actifs_stricts' => $actifsStricts,
-                'detaches' => $totalDetaches,
-                'missions' => $totalMissions,
-                'stages' => $totalStages,
-                'radies' => $totalRadies,
-                'non_classes' => $totalNonClasses,
-                'proposables_n' => $totalProposablesN,
-                'retraites_n' => $totalRetraitesN,
-                'decedes_cette_annee' => $totalDecedesCetteAnnee,
-                'deserteurs' => $totalDeserteurs,
-                'total_blesses' => \App\Models\RegistreOperationnel::where('type_registre_code', \App\Models\RegistreOperationnel::TYPE_BLESSE)->count(),
-                'total_grands_malades' => \App\Models\RegistreOperationnel::where('type_registre_code', \App\Models\RegistreOperationnel::TYPE_GRAND_MALADE)->count(),
-                'total_disparus' => \App\Models\RegistreOperationnel::where('type_registre_code', \App\Models\RegistreOperationnel::TYPE_DISPARU)->count(),
+                'actifs_stricts' => (int) ($stats->actifs_stricts ?? 0),
+                'detaches' => (int) ($stats->detaches ?? 0),
+                'missions' => (int) ($stats->missions ?? 0),
+                'stages' => (int) ($stats->stages ?? 0),
+                'radies' => (int) ($stats->radies ?? 0),
+                'non_classes' => (int) ($stats->non_classes ?? 0),
+                'proposables_n' => (int) $totalProposablesN,
+                'retraites_n' => (int) $totalRetraitesN,
+                'decedes_cette_annee' => (int) ($stats->decedes ?? 0),
+                'deserteurs' => (int) ($stats->deserteurs ?? 0),
+                'total_blesses' => (int) ($regStats->blesses ?? 0),
+                'total_grands_malades' => (int) ($regStats->grands_malades ?? 0),
+                'total_disparus' => (int) ($regStats->disparus ?? 0),
             ];
         });
     }
@@ -369,89 +395,52 @@ class DashboardController extends Controller
             $anneeCourante = (int) $aujourdhui->year;
             $anneeN1 = $anneeCourante + 1;
 
-            $gradesRetraites = Grade::all(['id', 'nom_grade', 'code_grade', 'type_grade', 'retraite_obligatoire']);
-            $gradeMap = [];
-            $gradeMapById = [];
-            foreach ($gradesRetraites as $g) {
-                if ($g->retraite_obligatoire !== null) {
-                    $age = (int) $g->retraite_obligatoire;
-                    $gradeMapById[$g->id] = $age;
-                    if ($g->nom_grade) $gradeMap[trim($g->nom_grade)] = $age;
-                    if ($g->code_grade) $gradeMap[trim($g->code_grade)] = $age;
-                }
-            }
+            $mapRetraite = function ($m) {
+                $dRetraite = Carbon::parse($m->date_naissance)->addYears($m->retraite_obligatoire);
+                return [
+                    'id' => $m->id,
+                    'matricule' => $m->matricule,
+                    'nom' => $m->nom,
+                    'prenom' => $m->prenom,
+                    'nom_complet' => $m->nom . ' ' . $m->prenom,
+                    'grade_actuel' => $m->grade_actuel,
+                    'statut' => $m->statut,
+                    'date_retraite' => $dRetraite->format('Y-m-d'),
+                    'date_retraite_formatted' => $dRetraite->format('d/m/Y'),
+                ];
+            };
 
-            // Calcul des bornes d'âge pour ne charger que les militaires d'âge éligible (élimine ~75% des recrues/jeunes)
-            $minAge = !empty($gradeMapById) ? min($gradeMapById) : 45;
-            $maxAge = !empty($gradeMapById) ? max($gradeMapById) : 66;
-            $anneeNaissanceMax = $anneeN1 - $minAge + 1;
-            $dateNaissanceMax = Carbon::create($anneeNaissanceMax, 12, 31)->toDateString();
-
-            // Récupération par lazyById(500) pour préserver la mémoire vive (RAM constante)
-            $militairesQuery = Militaire::where(function($q) {
-                    $q->whereIn('statut_code', [1, 2, 3, 4, 7])
-                      ->orWhere(function ($sub) {
-                          $sub->whereNull('statut_code')
-                              ->whereRaw("(LOWER(statut) LIKE 'actif%' OR LOWER(statut) LIKE 'retrait%')");
-                      });
-                })
-                ->whereNotNull('date_naissance')
-                ->where('date_naissance', '<=', $dateNaissanceMax)
+            $baseQuery = fn() => \Illuminate\Support\Facades\DB::table('militaires')
+                ->join('grades', 'militaires.grade_id', '=', 'grades.id')
+                ->whereNotNull('militaires.date_naissance')
+                ->whereNotNull('grades.retraite_obligatoire')
                 ->where(function ($q) {
-                    $q->whereNotNull('grade_id')->orWhereNotNull('grade_actuel');
+                    $q->whereNull('militaires.position_actuelle')
+                      ->orWhere('militaires.position_actuelle', 'not ilike', '%otage%');
                 })
-                ->select('id', 'nom', 'prenom', 'matricule', 'grade_id', 'grade_actuel', 'statut', 'statut_code', 'date_naissance', 'position_actuelle', 'observations');
+                ->where(function ($q) {
+                    $q->whereNull('militaires.observations')
+                      ->orWhere('militaires.observations', 'not ilike', '%otage%');
+                })
+                ->where('militaires.est_disparu', 0)
+                ->whereNull('militaires.deleted_at')
+                ->select([
+                    'militaires.id', 'militaires.matricule', 'militaires.nom', 'militaires.prenom',
+                    'militaires.grade_actuel', 'militaires.statut', 'militaires.date_naissance',
+                    'grades.retraite_obligatoire'
+                ]);
 
-            $retN = [];
-            $retN1 = [];
+            $retN = $baseQuery()
+                ->whereRaw("((EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCourante}) OR (LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire < {$anneeCourante}))")
+                ->get()
+                ->map($mapRetraite)
+                ->all();
 
-            foreach ($militairesQuery->lazyById(500) as $militaire) {
-                // Les militaires en otage sont expressément maintenus en activité dans le fichier et exclus des prévisions de retraite
-                if ($militaire->isOtage()) {
-                    continue;
-                }
-
-                $ageRetraite = ($militaire->grade_id && isset($gradeMapById[$militaire->grade_id]))
-                    ? $gradeMapById[$militaire->grade_id]
-                    : ($gradeMap[trim($militaire->grade_actuel ?? '')] ?? Grade::getRetraiteForGrade($militaire->grade_actuel));
-                if (!$ageRetraite) continue;
-
-                $birthYear = (int) substr($militaire->date_naissance, 0, 4);
-                if (!$birthYear) continue;
-
-                $anneeRetraite = $birthYear + $ageRetraite;
-                $dateRetraite = $militaire->calculerDateRetraite();
-                if (!$dateRetraite) continue;
-
-                $estActif = in_array((int) $militaire->statut_code, [1, 2, 3, 4], true)
-                    || str_starts_with(mb_strtolower($militaire->statut ?? ''), 'actif');
-
-                if ($anneeRetraite === $anneeCourante || ($estActif && $anneeRetraite < $anneeCourante)) {
-                    $retN[] = [
-                        'id' => $militaire->id,
-                        'matricule' => $militaire->matricule,
-                        'nom' => $militaire->nom,
-                        'prenom' => $militaire->prenom,
-                        'nom_complet' => $militaire->nom . ' ' . $militaire->prenom,
-                        'grade_actuel' => $militaire->grade_actuel,
-                        'statut' => $militaire->statut,
-                        'date_retraite' => $dateRetraite->format('Y-m-d'),
-                        'date_retraite_formatted' => $dateRetraite->format('d/m/Y'),
-                    ];
-                } elseif ($estActif && $anneeRetraite === $anneeN1) {
-                    $retN1[] = [
-                        'id' => $militaire->id,
-                        'matricule' => $militaire->matricule,
-                        'nom' => $militaire->nom,
-                        'prenom' => $militaire->prenom,
-                        'nom_complet' => $militaire->nom . ' ' . $militaire->prenom,
-                        'grade_actuel' => $militaire->grade_actuel,
-                        'statut' => $militaire->statut,
-                        'date_retraite' => $dateRetraite->format('Y-m-d'),
-                        'date_retraite_formatted' => $dateRetraite->format('d/m/Y'),
-                    ];
-                }
-            }
+            $retN1 = $baseQuery()
+                ->whereRaw("(LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeN1})")
+                ->get()
+                ->map($mapRetraite)
+                ->all();
 
             usort($retN, fn($a, $b) => strcmp($a['grade_actuel'], $b['grade_actuel']) ?: strcmp($a['date_retraite'], $b['date_retraite']));
             usort($retN1, fn($a, $b) => strcmp($a['grade_actuel'], $b['grade_actuel']) ?: strcmp($a['date_retraite'], $b['date_retraite']));
@@ -494,23 +483,180 @@ class DashboardController extends Controller
             $aujourdhui = Carbon::now();
             $anneeCourante = (int) $aujourdhui->year;
             $anneeN1 = $anneeCourante + 1;
-            $datePropN = Carbon::create($anneeCourante, 12, 31, 23, 59, 59);
-            $datePropN1 = Carbon::create($anneeN1, 12, 31, 23, 59, 59);
+            $datePropN_Str = "{$anneeCourante}-12-31";
+            $datePropN1_Str = "{$anneeN1}-12-31";
+            $nowY = (int) $aujourdhui->year;
+            $nowMd = (int) $aujourdhui->format('md');
+            $refMd = 1231;
 
-            $militairesQuery = $this->actifs()
+            $fastDiffYearsProp = static function (?string $dateStr, int $refY, int $refMd): int {
+                if (!$dateStr || strlen($dateStr) < 10) return 0;
+                $y = (int) substr($dateStr, 0, 4);
+                $md = (int) (substr($dateStr, 5, 2) . substr($dateStr, 8, 2));
+                $diff = $refY - $y;
+                if ($refMd < $md) $diff--;
+                return max(0, $diff);
+            };
+
+            $fastAncienneteFormattedProp = static function (?string $dateStr, int $refY): string {
+                if (!$dateStr || strlen($dateStr) < 10) return '0 an';
+                $y = (int) substr($dateStr, 0, 4);
+                $m = (int) substr($dateStr, 5, 2);
+                $d = (int) substr($dateStr, 8, 2);
+                $diffYears = $refY - $y;
+                $diffMonths = 12 - $m;
+                if (31 < $d) $diffMonths--;
+                if ($diffMonths < 0) {
+                    $diffYears--;
+                    $diffMonths += 12;
+                }
+                if ($diffYears < 0) return "moins d'1 mois";
+                if ($diffYears > 0 && $diffMonths > 0) {
+                    return "{$diffYears} an" . ($diffYears > 1 ? 's' : '') . " et {$diffMonths} mois";
+                } elseif ($diffYears > 0) {
+                    return "{$diffYears} an" . ($diffYears > 1 ? 's' : '');
+                } elseif ($diffMonths > 0) {
+                    return "{$diffMonths} mois";
+                } else {
+                    return "moins d'1 mois";
+                }
+            };
+
+            $militaires = $this->actifs()
                 ->select('id', 'nom', 'prenom', 'matricule', 'grade_actuel', 'date_naissance', 'date_entree_service', 'date_derniere_promotion', 'antecedent_judiciaire', 'antecedent_disciplinaire')
-                ->with(['certificats' => fn($q) => $q->select('certificats.id', 'certificats.nom_certificat', 'certificats.niveau_certificat')]);
+                ->get();
+
+            $rawCerts = \Illuminate\Support\Facades\DB::table('certificat_militaire')
+                ->join('certificats', 'certificats.id', '=', 'certificat_militaire.certificat_id')
+                ->join('militaires', 'militaires.id', '=', 'certificat_militaire.militaire_id')
+                ->whereRaw(\App\Support\Effectif::sqlActivite('militaires.statut'))
+                ->whereNull('militaires.deleted_at')
+                ->select('certificat_militaire.militaire_id', 'certificats.niveau_certificat', 'certificat_militaire.date_obtention')
+                ->get();
+
+            $certsMap = [];
+            foreach ($rawCerts as $c) {
+                $certsMap[$c->militaire_id][$c->niveau_certificat] = $c->date_obtention ? substr((string)$c->date_obtention, 0, 10) : true;
+            }
 
             $propN = [];
             $propN1 = [];
 
-            // Évaluation conjointe Année N et Année N+1 en une seule passe par paquets de 500 (mémoire RAM constante)
-            foreach ($militairesQuery->lazyById(500) as $m) {
-                // 1. Éligible pour l'année N ?
-                $gradeCibleN = $this->getGradeCible($m, $anneeCourante);
+            foreach ($militaires as $m) {
+                $grade = $m->grade_actuel;
+                $mId = $m->id;
+                $hasCerts = $certsMap[$mId] ?? [];
+                $conditionsBase = !$m->antecedent_judiciaire && !$m->antecedent_disciplinaire;
+
+                $dNaissanceStr = $m->getRawOriginal('date_naissance');
+                $dEntreeStr = $m->getRawOriginal('date_entree_service');
+                $dPromoStr = $m->getRawOriginal('date_derniere_promotion');
+
+                $age = $fastDiffYearsProp($dNaissanceStr, $nowY, $nowMd);
+
+                $evalGrade = function(int $refYear) use ($grade, $hasCerts, $conditionsBase, $dPromoStr, $dEntreeStr, $age, $refMd, $fastDiffYearsProp) {
+                    $ancGrade = $dPromoStr ? $fastDiffYearsProp($dPromoStr, $refYear, $refMd) : 0;
+                    $ancTotale = $dEntreeStr ? $fastDiffYearsProp($dEntreeStr, $refYear, $refMd) : 0;
+
+                    if ($grade === 'Sous-lieutenant' && $ancGrade >= 2) return 'Lieutenant';
+                    if ($grade === 'Lieutenant' && $ancGrade >= 3) return 'Capitaine';
+                    if ($grade === 'Capitaine' && $ancGrade >= 3) return 'Commandant';
+                    if ($grade === 'Commandant' && $ancGrade >= 3) return 'Lieutenant-colonel';
+                    if ($grade === 'Lieutenant-colonel' && $ancGrade >= 3) return 'Colonel';
+                    if ($grade === 'Colonel' && $ancGrade >= 6) return 'Colonel-Major';
+
+                    if ($grade === 'Soldat 1' && isset($hasCerts['CAT1']) && $conditionsBase && $ancTotale >= 5) {
+                        return 'Caporal';
+                    }
+                    if ($grade === 'Caporal' && isset($hasCerts['CAT1']) && isset($hasCerts['CAT2']) && $conditionsBase) {
+                        return 'Sergent';
+                    }
+                    if ($grade === 'Caporal' && isset($hasCerts['CAT1']) && !isset($hasCerts['CAT2']) && $age >= 47 && $ancGrade >= 3 && $conditionsBase) {
+                        return 'Caporal-chef';
+                    }
+                    if ($grade === 'Sergent' && $conditionsBase && $ancGrade >= 2 && $ancTotale >= 5) {
+                        return 'Sergent-Chef';
+                    }
+                    if ($grade === 'Sergent-Chef' && $conditionsBase && $ancGrade >= 3) {
+                        return 'Adjudant';
+                    }
+                    if ($grade === 'Adjudant' && $conditionsBase && $ancGrade >= 2) {
+                        return 'Adjudant-Chef';
+                    }
+                    if ($grade === 'Adjudant-Chef' && isset($hasCerts['CIA']) && isset($hasCerts['BA1']) && isset($hasCerts['BA2']) && $age >= 45 && $conditionsBase && $ancGrade >= 2) {
+                        return 'Adjudant-Chef Major';
+                    }
+                    if (isset($hasCerts['BA2'])) {
+                        if (($grade === 'Adjudant-Chef' && $age <= 45 && $ancTotale >= 15 && $ancGrade >= 2)
+                            || (mb_strtolower((string)$grade) === 'adjudant-chef major' && $ancGrade >= 2)) {
+                            return 'Sous-lieutenant';
+                        }
+                    }
+                    return null;
+                };
+
+                $getDateAncienneteStr = function(string $cible) use ($grade, $dPromoStr, $dEntreeStr, $dNaissanceStr, $hasCerts) {
+                    if ($grade === 'Lieutenant' && $cible === 'Capitaine') {
+                        return $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 3, substr($dPromoStr, 5, 5)) : null;
+                    }
+                    if ($grade === 'Sous-lieutenant' && $cible === 'Lieutenant') {
+                        return $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 2, substr($dPromoStr, 5, 5)) : null;
+                    }
+                    if ($grade === 'Capitaine' && $cible === 'Commandant') {
+                        return $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 3, substr($dPromoStr, 5, 5)) : null;
+                    }
+                    if ($grade === 'Commandant' && $cible === 'Lieutenant-colonel') {
+                        return $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 3, substr($dPromoStr, 5, 5)) : null;
+                    }
+                    if ($grade === 'Lieutenant-colonel' && $cible === 'Colonel') {
+                        return $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 3, substr($dPromoStr, 5, 5)) : null;
+                    }
+                    if ($grade === 'Colonel' && $cible === 'Colonel-Major') {
+                        return $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 6, substr($dPromoStr, 5, 5)) : null;
+                    }
+                    if ($grade === 'Soldat 1' && $cible === 'Caporal') {
+                        return $dEntreeStr ? sprintf('%04d-%s', (int)substr($dEntreeStr, 0, 4) + 5, substr($dEntreeStr, 5, 5)) : null;
+                    }
+                    if ($grade === 'Caporal' && $cible === 'Sergent') {
+                        $dObt = is_string($hasCerts['CAT1'] ?? false) ? $hasCerts['CAT1'] : null;
+                        return $dObt ? sprintf('%04d-%s', (int)substr($dObt, 0, 4) + 3, substr($dObt, 5, 5)) : null;
+                    }
+                    if ($grade === 'Caporal' && $cible === 'Caporal-chef') {
+                        return $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 3, substr($dPromoStr, 5, 5)) : null;
+                    }
+                    if ($grade === 'Sergent' && $cible === 'Sergent-Chef') {
+                        if ($dPromoStr && $dEntreeStr) {
+                            $d2 = sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 2, substr($dPromoStr, 5, 5));
+                            $d5 = sprintf('%04d-%s', (int)substr($dEntreeStr, 0, 4) + 5, substr($dEntreeStr, 5, 5));
+                            return max($d2, $d5);
+                        }
+                        return null;
+                    }
+                    if ($grade === 'Sergent-Chef' && $cible === 'Adjudant') {
+                        return $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 3, substr($dPromoStr, 5, 5)) : null;
+                    }
+                    if ($grade === 'Adjudant' && $cible === 'Adjudant-Chef') {
+                        return $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 2, substr($dPromoStr, 5, 5)) : null;
+                    }
+                    if ($grade === 'Adjudant-Chef' && $cible === 'Adjudant-Chef Major') {
+                        if ($dPromoStr && $dNaissanceStr) {
+                            $d2 = sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 2, substr($dPromoStr, 5, 5));
+                            $d45 = sprintf('%04d-%s', (int)substr($dNaissanceStr, 0, 4) + 45, substr($dNaissanceStr, 5, 5));
+                            return max($d2, $d45);
+                        }
+                        return null;
+                    }
+                    if ($cible === 'Sous-lieutenant') {
+                        return $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 2, substr($dPromoStr, 5, 5)) : null;
+                    }
+                    return null;
+                };
+
+                $gradeCibleN = $evalGrade($anneeCourante);
                 if ($gradeCibleN) {
-                    $dateAncienneteN = $this->getDateAncienneteReelle($m, $gradeCibleN);
-                    if ($dateAncienneteN && $dateAncienneteN <= $datePropN) {
+                    $dateAncStr = $getDateAncienneteStr($gradeCibleN);
+                    if ($dateAncStr && $dateAncStr <= $datePropN_Str) {
+                        $ancDateFormatted = sprintf('%02d/%02d/%04d', (int)substr($dateAncStr, 8, 2), (int)substr($dateAncStr, 5, 2), (int)substr($dateAncStr, 0, 4));
                         $propN[] = [
                             'id' => $m->id,
                             'matricule' => $m->matricule,
@@ -519,22 +665,21 @@ class DashboardController extends Controller
                             'nom_complet' => $m->nom . ' ' . $m->prenom,
                             'grade_actuel' => $m->grade_actuel,
                             'grade_cible' => $gradeCibleN,
-                            'date_proposition' => $datePropN->format('Y-m-d'),
-                            'date_proposition_formatted' => $datePropN->format('d/m/Y'),
-                            'date_anciennete' => $dateAncienneteN->format('Y-m-d'),
-                            'date_anciennete_formatted' => $dateAncienneteN->format('d/m/Y'),
-                            'anciennete_grade_formatted' => $this->getAncienneteGradeFormatted($m, $datePropN),
+                            'date_proposition' => $datePropN_Str,
+                            'date_proposition_formatted' => "31/12/{$anneeCourante}",
+                            'date_anciennete' => $dateAncStr,
+                            'date_anciennete_formatted' => $ancDateFormatted,
+                            'anciennete_grade_formatted' => $fastAncienneteFormattedProp($dPromoStr ?? $dEntreeStr, $anneeCourante),
                         ];
-                        // Un militaire éligible en N ne peut pas être listé en N+1
                         continue;
                     }
                 }
 
-                // 2. Sinon, éligible pour l'année N+1 ?
-                $gradeCibleN1 = $this->getGradeCible($m, $anneeN1);
+                $gradeCibleN1 = $evalGrade($anneeN1);
                 if ($gradeCibleN1) {
-                    $dateAncienneteN1 = $this->getDateAncienneteReelle($m, $gradeCibleN1);
-                    if ($dateAncienneteN1 && $dateAncienneteN1 <= $datePropN1) {
+                    $dateAncStr = $getDateAncienneteStr($gradeCibleN1);
+                    if ($dateAncStr && $dateAncStr <= $datePropN1_Str) {
+                        $ancDateFormatted = sprintf('%02d/%02d/%04d', (int)substr($dateAncStr, 8, 2), (int)substr($dateAncStr, 5, 2), (int)substr($dateAncStr, 0, 4));
                         $propN1[] = [
                             'id' => $m->id,
                             'matricule' => $m->matricule,
@@ -543,11 +688,11 @@ class DashboardController extends Controller
                             'nom_complet' => $m->nom . ' ' . $m->prenom,
                             'grade_actuel' => $m->grade_actuel,
                             'grade_cible' => $gradeCibleN1,
-                            'date_proposition' => $datePropN1->format('Y-m-d'),
-                            'date_proposition_formatted' => $datePropN1->format('d/m/Y'),
-                            'date_anciennete' => $dateAncienneteN1->format('Y-m-d'),
-                            'date_anciennete_formatted' => $dateAncienneteN1->format('d/m/Y'),
-                            'anciennete_grade_formatted' => $this->getAncienneteGradeFormatted($m, $datePropN1),
+                            'date_proposition' => $datePropN1_Str,
+                            'date_proposition_formatted' => "31/12/{$anneeN1}",
+                            'date_anciennete' => $dateAncStr,
+                            'date_anciennete_formatted' => $ancDateFormatted,
+                            'anciennete_grade_formatted' => $fastAncienneteFormattedProp($dPromoStr ?? $dEntreeStr, $anneeN1),
                         ];
                     }
                 }

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { router, Head, Link } from '@inertiajs/vue3';
+import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputText from 'primevue/inputtext';
 import Button from 'primevue/button';
@@ -163,39 +164,75 @@ const onUniteSelectChange = () => {
     }
 };
 
+const localMilitairesCache = ref({});
+let lookupTimeout = null;
+
+const applyFoundMilitaire = (found) => {
+    formRegistre.value.nom = found.nom || formRegistre.value.nom;
+    formRegistre.value.prenom = found.prenom || formRegistre.value.prenom;
+    if (found.grade_id) formRegistre.value.grade_id = found.grade_id;
+    if (found.region_id) formRegistre.value.region_id = found.region_id;
+    if (found.unite_id) {
+        formRegistre.value.unite_id = found.unite_id;
+        const u = props.unites.find(item => item.id === found.unite_id);
+        formRegistre.value.unite_texte = u ? u.nom : (found.unite || '');
+    } else if (found.unite) {
+        const u = props.unites.find(item => item.nom.toLowerCase().trim() === found.unite.toLowerCase().trim());
+        if (u) {
+            formRegistre.value.unite_id = u.id;
+            formRegistre.value.unite_texte = u.nom;
+            if (!formRegistre.value.region_id && u.region_id) formRegistre.value.region_id = u.region_id;
+        } else {
+            formRegistre.value.unite_id = null;
+            formRegistre.value.unite_texte = found.unite;
+        }
+    }
+    matriculeFoundNotice.value = `${found.nom} ${found.prenom} (Mle: ${found.matricule})`;
+};
+
 const onMatriculeInput = () => {
     if (!formRegistre.value.matricule) {
         matriculeFoundNotice.value = null;
         return;
     }
     const clean = String(formRegistre.value.matricule).trim().toLowerCase();
-    if (clean.length >= 2) {
+    if (clean.length < 2) {
+        matriculeFoundNotice.value = null;
+        return;
+    }
+
+    // Vérifier d'abord le cache local
+    if (localMilitairesCache.value[clean]) {
+        applyFoundMilitaire(localMilitairesCache.value[clean]);
+        return;
+    }
+
+    // Ou dans les props s'il y en a
+    if (props.militairesLookup && props.militairesLookup.length > 0) {
         const found = props.militairesLookup.find(m => String(m.matricule).toLowerCase() === clean);
         if (found) {
-            formRegistre.value.nom = found.nom || formRegistre.value.nom;
-            formRegistre.value.prenom = found.prenom || formRegistre.value.prenom;
-            if (found.grade_id) formRegistre.value.grade_id = found.grade_id;
-            if (found.region_id) formRegistre.value.region_id = found.region_id;
-            if (found.unite_id) {
-                formRegistre.value.unite_id = found.unite_id;
-                const u = props.unites.find(item => item.id === found.unite_id);
-                formRegistre.value.unite_texte = u ? u.nom : (found.unite || '');
-            } else if (found.unite) {
-                const u = props.unites.find(item => item.nom.toLowerCase().trim() === found.unite.toLowerCase().trim());
-                if (u) {
-                    formRegistre.value.unite_id = u.id;
-                    formRegistre.value.unite_texte = u.nom;
-                    if (!formRegistre.value.region_id && u.region_id) formRegistre.value.region_id = u.region_id;
-                } else {
-                    formRegistre.value.unite_id = null;
-                    formRegistre.value.unite_texte = found.unite;
-                }
-            }
-            matriculeFoundNotice.value = `${found.nom} ${found.prenom} (Mle: ${found.matricule})`;
+            localMilitairesCache.value[clean] = found;
+            applyFoundMilitaire(found);
             return;
         }
     }
-    matriculeFoundNotice.value = null;
+
+    // Recherche asynchrone débouncée
+    clearTimeout(lookupTimeout);
+    lookupTimeout = setTimeout(async () => {
+        try {
+            const resp = await axios.get(route('prise-armes.lookup-militaire'), { params: { matricule: clean } });
+            if (resp.data && resp.data.length > 0) {
+                const found = resp.data.find(m => String(m.matricule).toLowerCase() === clean) || resp.data[0];
+                localMilitairesCache.value[clean] = found;
+                applyFoundMilitaire(found);
+            } else {
+                matriculeFoundNotice.value = null;
+            }
+        } catch {
+            matriculeFoundNotice.value = null;
+        }
+    }, 250);
 };
 
 const openNewRegistreModal = (typeCode = 1) => {
@@ -225,9 +262,20 @@ const openEditRegistreModal = (item) => {
     editingRegistreId.value = item.id;
     matriculeFoundNotice.value = null;
     if (item.matricule) {
-        const found = props.militairesLookup.find(m => String(m.matricule).toLowerCase() === String(item.matricule).toLowerCase());
-        if (found) {
+        const clean = String(item.matricule).trim().toLowerCase();
+        if (localMilitairesCache.value[clean]) {
+            const found = localMilitairesCache.value[clean];
             matriculeFoundNotice.value = `${found.nom} ${found.prenom} (Mle: ${found.matricule})`;
+        } else {
+            axios.get(route('prise-armes.lookup-militaire'), { params: { matricule: clean } })
+                .then(resp => {
+                    if (resp.data && resp.data.length > 0) {
+                        const found = resp.data.find(m => String(m.matricule).toLowerCase() === clean) || resp.data[0];
+                        localMilitairesCache.value[clean] = found;
+                        matriculeFoundNotice.value = `${found.nom} ${found.prenom} (Mle: ${found.matricule})`;
+                    }
+                })
+                .catch(() => {});
         }
     }
 

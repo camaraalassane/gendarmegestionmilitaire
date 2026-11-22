@@ -17,21 +17,85 @@ class MilitairesImportController extends Controller
 
     public function process(Request $request)
     {
-        // Augmenter le temps d'exécution et la mémoire pour les gros fichiers
-        set_time_limit(600);
+        // Augmenter le temps d'exécution et la mémoire pour les très gros fichiers (10 000+ lignes)
+        set_time_limit(1800);
+        ini_set('max_execution_time', '1800');
         ini_set('memory_limit', '1024M');
 
         $request->validate([
-            'fichier' => 'required|file|mimes:xlsx,xls,csv|max:10240',
+            'fichier' => 'required|file|mimes:xlsx,xls,csv|max:51200',
             'duplicate_action' => 'sometimes|in:ignore,update',
         ]);
 
         $file = $request->file('fichier');
         $duplicateAction = $request->input('duplicate_action', 'ignore');
 
+        $realPath = $file->getRealPath();
+        $ext = strtolower($file->getClientOriginalExtension());
+        $targetSheet = null;
+        $boldMatricules = [];
+
+        if (in_array($ext, ['xlsx', 'xls'])) {
+            try {
+                $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($realPath);
+                $worksheetInfo = $reader->listWorksheetInfo($realPath);
+
+                // Auto-détection de la feuille principale (celle contenant le plus grand nombre de lignes)
+                $maxRows = 0;
+                foreach ($worksheetInfo as $info) {
+                    if ($info['totalRows'] > $maxRows) {
+                        $maxRows = $info['totalRows'];
+                        $targetSheet = $info['worksheetName'];
+                    }
+                }
+
+                // Pré-scan ultra-rapide des matricules en gras (ex: "tout ce qui sont en gras sont des feminin")
+                $spreadsheet = $reader->load($realPath);
+                $sheet = $targetSheet ? $spreadsheet->getSheetByName($targetSheet) : $spreadsheet->getActiveSheet();
+                if ($sheet) {
+                    $highestRow = $sheet->getHighestRow();
+                    for ($r = 2; $r <= $highestRow; $r++) {
+                        $isBold = $sheet->getStyle('B' . $r)->getFont()->getBold()
+                               || $sheet->getStyle('C' . $r)->getFont()->getBold()
+                               || $sheet->getStyle('A' . $r)->getFont()->getBold()
+                               || $sheet->getStyle('D' . $r)->getFont()->getBold();
+                        if ($isBold) {
+                            $mat = trim((string)$sheet->getCell('B' . $r)->getValue());
+                            if (empty($mat)) $mat = trim((string)$sheet->getCell('A' . $r)->getValue());
+                            if (!empty($mat)) {
+                                $boldMatricules[$mat] = true;
+                            }
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('Inspection des feuilles ou styles Excel: ' . $e->getMessage());
+            }
+        }
+
+        \App\Models\Militaire::$isImporting = true;
         try {
-            $import = new MilitairesImport($duplicateAction);
-            Excel::import($import, $file);
+            $import = new MilitairesImport($duplicateAction, $targetSheet, $boldMatricules);
+
+            if (in_array($ext, ['xlsx', 'xls']) && isset($spreadsheet) && isset($sheet)) {
+                $rows = $sheet->toArray(null, true, false, true);
+                $header = array_shift($rows);
+                $chunks = array_chunk($rows, 1000, true);
+
+                foreach ($chunks as $chunkRows) {
+                    $chunkCollection = collect($chunkRows)->map(function ($r) use ($header) {
+                        $row = [];
+                        foreach ($header as $col => $name) {
+                            $row[$name] = $r[$col] ?? null;
+                        }
+                        return $row;
+                    });
+
+                    $import->collection($chunkCollection);
+                }
+            } else {
+                Excel::import($import, $file);
+            }
 
             $summary = $import->getSummary();
             $duplicates = $import->getDuplicates();
@@ -79,6 +143,11 @@ class MilitairesImportController extends Controller
             return back()->withErrors([
                 'fichier' => $errMsg
             ]);
+        } finally {
+            \App\Models\Militaire::$isImporting = false;
+            \App\Models\Militaire::incrementCacheVersion();
+            \App\Http\Controllers\CarteController::flush();
+            \App\Support\CarteRattachement::oublier();
         }
     }
 

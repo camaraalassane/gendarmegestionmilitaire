@@ -48,6 +48,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
     // Carte opérationnelle & Déploiement
     Route::get('/carte', [CarteController::class, 'index'])->name('carte.index');
     Route::get('/carte/militaires-statut', [CarteController::class, 'militairesStatut'])->name('carte.militaires-statut');
+    Route::get('/carte/theatres/{theatre}/militaires', [CarteController::class, 'theatreMilitaires'])->name('carte.theatres.militaires');
     Route::patch('/carte/unites/{unite}/coordonnees', [CarteController::class, 'updateCoordinates'])->name('carte.unites.coordinates');
     Route::patch('/carte/theatres/{theatre}/coordonnees', [CarteController::class, 'updateTheatreCoordinates'])->name('carte.theatres.coordinates');
     Route::get('/carte/export', [\App\Http\Controllers\StatistiquesExportController::class, 'carte'])->name('carte.export');
@@ -133,6 +134,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
     // Situation de Prise d'Armes (SPA) & Registres Opérationnels (100% Base de données)
     Route::get('/prise-armes', [PriseArmeController::class, 'index'])->name('prise-armes.index');
     Route::get('/prise-armes/export', [PriseArmeController::class, 'export'])->name('prise-armes.export');
+    Route::get('/prise-armes/lookup-militaire', [PriseArmeController::class, 'lookupMilitaire'])->name('prise-armes.lookup-militaire');
     Route::post('/prise-armes/registres', [PriseArmeController::class, 'storeRegistre'])->name('prise-armes.registres.store');
     Route::put('/prise-armes/registres/{registre}', [PriseArmeController::class, 'updateRegistre'])->name('prise-armes.registres.update');
     Route::delete('/prise-armes/registres/{registre}', [PriseArmeController::class, 'destroyRegistre'])->name('prise-armes.registres.destroy');

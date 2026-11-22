@@ -9,6 +9,7 @@ use App\Exports\EligibilitesExport;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Inertia\Inertia;
 
@@ -115,26 +116,33 @@ class EligibiliteController extends Controller
      */
     private function computeAll(): array
     {
-        $refDate = Carbon::create(Carbon::now()->year, 12, 31, 23, 59, 59);
-        $refYear = $refDate->year;
-        $refYearStr = (string) $refYear;
-        $datePropStr = $refDate->format('Y-m-d');
         $now = Carbon::now();
+        $refYear = (int) $now->year;
+        $refYearStr = (string) $refYear;
+        $refY = $refYear;
+        $refMd = 1231;
+
+        $nowY = (int) $now->year;
+        $nowMd = (int) $now->format('md');
+        $nowYmd = $now->format('Y-m-d');
+        $datePropStr = "{$refYear}-12-31";
+
+        $fastDiffYears = static function (?string $dateStr, int $targetY, int $targetMd): int {
+            if (!$dateStr || strlen($dateStr) < 10) return 0;
+            $y = (int) substr($dateStr, 0, 4);
+            $md = (int) (substr($dateStr, 5, 2) . substr($dateStr, 8, 2));
+            $diff = $targetY - $y;
+            if ($targetMd < $md) {
+                $diff--;
+            }
+            return max(0, $diff);
+        };
 
         $militaires = Militaire::enActivite()
-            ->with([
-                'certificats' => function ($q) {
-                    $q->select('certificats.id', 'niveau_certificat');
-                },
-                'contratActif:id,militaire_id,statut,date_fin,date_debut',
-                'affectations' => function ($q) {
-                    $q->orderBy('date_mutation', 'desc');
-                },
-            ])
             ->select([
                 'id', 'matricule', 'nom', 'prenom', 'grade_id', 'grade_actuel', 'grade_ordre',
                 'date_entree_service', 'date_derniere_promotion',
-                'statut', 'statut_code', 'a_permis_conduire', 'antecedent_judiciaire',
+                'statut', 'statut_code', 'position_actuelle', 'a_permis_conduire', 'antecedent_judiciaire',
                 'antecedent_disciplinaire', 'date_naissance',
                 'unite', 'region', 'date_mutation'
             ])
@@ -147,6 +155,42 @@ class EligibiliteController extends Controller
             ->pluck('message', 'militaire_id')
             ->all();
 
+        $rawCerts = DB::table('certificat_militaire')
+            ->join('certificats', 'certificats.id', '=', 'certificat_militaire.certificat_id')
+            ->whereIn('certificat_militaire.militaire_id', $militaireIds)
+            ->select('certificat_militaire.militaire_id', 'certificats.niveau_certificat', 'certificat_militaire.date_obtention')
+            ->get();
+
+        $certsMap = [];
+        foreach ($rawCerts as $c) {
+            $certsMap[$c->militaire_id][] = [
+                'niveau' => $c->niveau_certificat,
+                'date_obtention' => $c->date_obtention ? substr((string)$c->date_obtention, 0, 10) : null,
+            ];
+        }
+
+        $contratsMap = DB::table('contrats')
+            ->where('statut', 'actif')
+            ->whereIn('militaire_id', $militaireIds)
+            ->select('id', 'militaire_id', 'date_fin', 'date_debut')
+            ->get()
+            ->keyBy('militaire_id')
+            ->all();
+
+        $latestAffectations = [];
+        if (DB::table('affectations')->count() > 0) {
+            $latestAffectations = DB::table('affectations')
+                ->select('militaire_id', 'unite', 'region', 'date_mutation')
+                ->whereIn('id', function($q) {
+                    $q->selectRaw('max(id)')->from('affectations')->groupBy('militaire_id');
+                })
+                ->get()
+                ->keyBy('militaire_id')
+                ->all();
+        }
+
+        $gradesRetraite = DB::table('grades')->whereNotNull('retraite_obligatoire')->pluck('retraite_obligatoire', 'nom_grade')->toArray();
+
         $allPromotions = [];
         $allFormations = [];
         $allRetraites = [];
@@ -155,55 +199,71 @@ class EligibiliteController extends Controller
         $formationCounts = [];
         $gradeCounts = [];
 
+        $gradesContrats = [
+            'Soldat 2' => true, 'Soldat 1' => true, 'Caporal' => true, 'Caporal-chef' => true,
+            'Sergent' => true, 'Sergent-Chef' => true, 'Adjudant' => true, 'Adjudant-Chef' => true, 'Major' => true,
+            'Sapeur 1ère classe' => true
+        ];
+
         foreach ($militaires as $m) {
             $grade = $m->grade_actuel;
             $hasAntecedents = ($m->antecedent_judiciaire || $m->antecedent_disciplinaire);
             $conditionsBase = !$hasAntecedents;
 
-            $dNaissance = $m->date_naissance;
-            $dEntree = $m->date_entree_service;
-            $dPromo = $m->date_derniere_promotion;
+            $dNaissanceStr = $m->getRawOriginal('date_naissance');
+            $dEntreeStr = $m->getRawOriginal('date_entree_service');
+            $dPromoStr = $m->getRawOriginal('date_derniere_promotion');
+            $dMutationRaw = $m->getRawOriginal('date_mutation');
 
-            $certs = null;
+            $mCertsList = $certsMap[$m->id] ?? [];
+            $certsNiveaux = null;
+
+            $getCertsNiveaux = function() use (&$certsNiveaux, $mCertsList) {
+                if ($certsNiveaux === null) {
+                    $certsNiveaux = array_column($mCertsList, 'niveau');
+                }
+                return $certsNiveaux;
+            };
+            $getCertDate = function(string $niveau) use ($mCertsList) {
+                foreach ($mCertsList as $c) {
+                    if ($c['niveau'] === $niveau) return $c['date_obtention'];
+                }
+                return null;
+            };
 
             // 1. PROMOTIONS
             $gradeCible = null;
-            $dateAnciennete = null;
+            $dateAncienneteStr = null;
             $promoDetail = '';
 
             switch ($grade) {
                 case 'Soldat 1':
                     if ($conditionsBase) {
-                        $anc = $dEntree ? $dEntree->diffInYears($refDate) : 0;
-                        if ($anc >= 5) {
-                            $certs = $m->certificats->pluck('niveau_certificat')->all();
-                            if (in_array('CAT1', $certs, true)) {
-                                $gradeCible = 'Caporal';
-                                $dateAnciennete = $dEntree->copy()->addYears(5);
-                            }
+                        $anc = $fastDiffYears($dEntreeStr, $refY, $refMd);
+                        if ($anc >= 5 && in_array('CAT1', $getCertsNiveaux(), true)) {
+                            $gradeCible = 'Caporal';
+                            $dateAncienneteStr = sprintf('%04d-%s', (int)substr($dEntreeStr, 0, 4) + 5, substr($dEntreeStr, 5, 5));
                         }
                     }
                     break;
 
                 case 'Caporal':
                     if ($conditionsBase) {
-                        $certs = $m->certificats->pluck('niveau_certificat')->all();
-                        $hasCAT1 = in_array('CAT1', $certs, true);
-                        if ($hasCAT1) {
-                            $hasCAT2 = in_array('CAT2', $certs, true);
-                            if ($hasCAT2) {
+                        $cNiv = $getCertsNiveaux();
+                        if (in_array('CAT1', $cNiv, true)) {
+                            if (in_array('CAT2', $cNiv, true)) {
                                 $gradeCible = 'Sergent';
-                                $c1 = $m->certificats->firstWhere('niveau_certificat', 'CAT1');
-                                if ($c1 && $c1->pivot->date_obtention) {
-                                    $dateAnciennete = Carbon::parse($c1->pivot->date_obtention)->addYears(3);
+                                $dObt = $getCertDate('CAT1');
+                                if ($dObt) {
+                                    $dateAncienneteStr = sprintf('%04d-%s', (int)substr($dObt, 0, 4) + 3, substr($dObt, 5, 5));
                                 }
                             } else {
-                                $age = $dNaissance ? $dNaissance->age : 0;
+                                $age = $fastDiffYears($dNaissanceStr, $nowY, $nowMd);
                                 if ($age >= 47) {
-                                    $ancG = $dPromo ? $dPromo->diffInYears($refDate) : ($dEntree ? $dEntree->diffInYears($refDate) : 0);
+                                    $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
                                     if ($ancG >= 3) {
                                         $gradeCible = 'Caporal-chef';
-                                        $dateAnciennete = $dPromo ? $dPromo->copy()->addYears(3) : null;
+                                        $dateAncienneteStr = $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 3, substr($dPromoStr, 5, 5)) : null;
                                         $promoDetail = 'âge ≥ 47 ans';
                                     }
                                 }
@@ -214,12 +274,12 @@ class EligibiliteController extends Controller
 
                 case 'Sergent':
                     if ($conditionsBase) {
-                        $ancG = $dPromo ? $dPromo->diffInYears($refDate) : ($dEntree ? $dEntree->diffInYears($refDate) : 0);
+                        $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
                         if ($ancG >= 2) {
-                            $anc = $dEntree ? $dEntree->diffInYears($refDate) : 0;
+                            $anc = $fastDiffYears($dEntreeStr, $refY, $refMd);
                             if ($anc >= 5) {
                                 $gradeCible = 'Sergent-Chef';
-                                $dateAnciennete = $dPromo ? $dPromo->copy()->addYears(2) : ($dEntree ? $dEntree->copy()->addYears(2) : null);
+                                $dateAncienneteStr = $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 2, substr($dPromoStr, 5, 5)) : ($dEntreeStr ? sprintf('%04d-%s', (int)substr($dEntreeStr, 0, 4) + 2, substr($dEntreeStr, 5, 5)) : null);
                             }
                         }
                     }
@@ -227,78 +287,80 @@ class EligibiliteController extends Controller
 
                 case 'Sergent-Chef':
                     if ($conditionsBase) {
-                        $ancG = $dPromo ? $dPromo->diffInYears($refDate) : ($dEntree ? $dEntree->diffInYears($refDate) : 0);
+                        $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
                         if ($ancG >= 3) {
                             $gradeCible = 'Adjudant';
-                            $dateAnciennete = $dPromo ? $dPromo->copy()->addYears(3) : null;
+                            $dateAncienneteStr = $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 3, substr($dPromoStr, 5, 5)) : null;
                         }
                     }
                     break;
 
                 case 'Adjudant':
                     if ($conditionsBase) {
-                        $ancG = $dPromo ? $dPromo->diffInYears($refDate) : ($dEntree ? $dEntree->diffInYears($refDate) : 0);
+                        $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
                         if ($ancG >= 2) {
                             $gradeCible = 'Adjudant-Chef';
-                            $dateAnciennete = $dPromo ? $dPromo->copy()->addYears(2) : null;
+                            $dateAncienneteStr = $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 2, substr($dPromoStr, 5, 5)) : null;
                         }
                     }
                     break;
 
                 case 'Sous-lieutenant':
-                    $ancG = $dPromo ? $dPromo->diffInYears($refDate) : ($dEntree ? $dEntree->diffInYears($refDate) : 0);
+                    $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
                     if ($ancG >= 2) {
                         $gradeCible = 'Lieutenant';
-                        $dateAnciennete = $dPromo ? $dPromo->copy()->addYears(2) : null;
+                        $dateAncienneteStr = $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 2, substr($dPromoStr, 5, 5)) : null;
                     }
                     break;
 
                 case 'Lieutenant':
-                    $ancG = $dPromo ? $dPromo->diffInYears($refDate) : ($dEntree ? $dEntree->diffInYears($refDate) : 0);
+                    $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
                     if ($ancG >= 3) {
                         $gradeCible = 'Capitaine';
-                        $dateAnciennete = $dPromo ? $dPromo->copy()->addYears(3) : null;
+                        $dateAncienneteStr = $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 3, substr($dPromoStr, 5, 5)) : null;
                     }
                     break;
 
                 case 'Capitaine':
-                    $ancG = $dPromo ? $dPromo->diffInYears($refDate) : ($dEntree ? $dEntree->diffInYears($refDate) : 0);
+                    $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
                     if ($ancG >= 3) {
                         $gradeCible = 'Commandant';
-                        $dateAnciennete = $dPromo ? $dPromo->copy()->addYears(3) : null;
+                        $dateAncienneteStr = $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 3, substr($dPromoStr, 5, 5)) : null;
                     }
                     break;
 
                 case 'Commandant':
-                    $ancG = $dPromo ? $dPromo->diffInYears($refDate) : ($dEntree ? $dEntree->diffInYears($refDate) : 0);
+                    $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
                     if ($ancG >= 3) {
                         $gradeCible = 'Lieutenant-colonel';
-                        $dateAnciennete = $dPromo ? $dPromo->copy()->addYears(3) : null;
+                        $dateAncienneteStr = $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 3, substr($dPromoStr, 5, 5)) : null;
                     }
                     break;
 
                 case 'Lieutenant-colonel':
-                    $ancG = $dPromo ? $dPromo->diffInYears($refDate) : ($dEntree ? $dEntree->diffInYears($refDate) : 0);
+                    $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
                     if ($ancG >= 3) {
                         $gradeCible = 'Colonel';
-                        $dateAnciennete = $dPromo ? $dPromo->copy()->addYears(3) : null;
+                        $dateAncienneteStr = $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 3, substr($dPromoStr, 5, 5)) : null;
                     }
                     break;
 
                 case 'Colonel':
-                    $ancG = $dPromo ? $dPromo->diffInYears($refDate) : ($dEntree ? $dEntree->diffInYears($refDate) : 0);
+                    $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
                     if ($ancG >= 6) {
                         $gradeCible = 'Colonel-Major';
-                        $dateAnciennete = $dPromo ? $dPromo->copy()->addYears(6) : null;
+                        $dateAncienneteStr = $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 6, substr($dPromoStr, 5, 5)) : null;
                     }
                     break;
             }
 
             if ($gradeCible) {
-                if ($dateAnciennete && $dateAnciennete->year <= $refYear) {
-                    $msg = "Proposable pour {$refYearStr} (ancienneté atteinte le " . $dateAnciennete->format('d/m/Y') . ")";
-                } elseif ($dateAnciennete) {
-                    $msg = "Proposable pour {$refYearStr} (ancienneté atteinte le " . $dateAnciennete->format('d/m/Y') . " - dans l'année)";
+                $ancYear = $dateAncienneteStr ? (int)substr($dateAncienneteStr, 0, 4) : 0;
+                $ancFormatted = $dateAncienneteStr ? sprintf('%02d/%02d/%04d', (int)substr($dateAncienneteStr, 8, 2), (int)substr($dateAncienneteStr, 5, 2), (int)substr($dateAncienneteStr, 0, 4)) : '';
+                if ($dateAncienneteStr && $ancYear <= $refYear) {
+                    $msg = "Proposable pour {$refYearStr} (ancienneté atteinte le {$ancFormatted})";
+                } elseif ($dateAncienneteStr) {
+                    $msg = "Proposable pour {$refYearStr} (ancienneté atteinte le {$ancFormatted} - dans l'année)";
                 } elseif ($promoDetail) {
                     $msg = "Proposable pour {$refYearStr} ({$promoDetail})";
                 } else {
@@ -318,56 +380,53 @@ class EligibiliteController extends Controller
                     'message' => $msg,
                     'date_estimation' => $datePropStr,
                     'annee_proposition' => $refYearStr,
-                    'date_anciennete' => $dateAnciennete ? $dateAnciennete->format('Y-m-d') : null,
+                    'date_anciennete' => $dateAncienneteStr,
                 ];
-
                 $gradeCounts[$grade] = ($gradeCounts[$grade] ?? 0) + 1;
             }
 
             // 2. FORMATIONS
             $age = null;
-            $anc = null;
             $ancG = null;
 
-            // CAT1
             if (($grade === 'Soldat 2' || $grade === 'Soldat 1') && $conditionsBase) {
-                $ancG = $dPromo ? $dPromo->diffInYears($refDate) : ($dEntree ? $dEntree->diffInYears($refDate) : 0);
+                $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
                 if ($ancG >= 5) {
-                    if ($certs === null) $certs = $m->certificats->pluck('niveau_certificat')->all();
-                    if (!in_array('CAT1', $certs, true)) {
-                        $dCond = $dEntree ? $dEntree->copy()->addYears(5) : null;
+                    if (!in_array('CAT1', $getCertsNiveaux(), true)) {
+                        $dCondStr = $dEntreeStr ? sprintf('%04d-%s', (int)substr($dEntreeStr, 0, 4) + 5, substr($dEntreeStr, 5, 5)) : null;
+                        $dCondFormatted = $dCondStr ? sprintf('%02d/%02d/%04d', (int)substr($dCondStr, 8, 2), (int)substr($dCondStr, 5, 2), (int)substr($dCondStr, 0, 4)) : '';
                         $allFormations[] = [
                             'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
                             'formation' => 'CAT1',
                             'nom_formation' => 'Certificat d\'Aptitude Technique Niveau 1',
-                            'message' => "Proposable pour {$refYearStr}" . ($dCond ? " (conditions remplies le " . $dCond->format('d/m/Y') . ")" : ""),
+                            'message' => "Proposable pour {$refYearStr}" . ($dCondStr ? " (conditions remplies le {$dCondFormatted})" : ""),
                             'date_estimation' => $datePropStr,
                             'annee_proposition' => $refYearStr,
-                            'date_conditions' => $dCond ? $dCond->format('Y-m-d') : null,
+                            'date_conditions' => $dCondStr,
                         ];
                         $formationCounts['CAT1'] = ($formationCounts['CAT1'] ?? 0) + 1;
                     }
                 }
             }
 
-            // CAT2
             if ($grade === 'Caporal' && $conditionsBase) {
-                if ($age === null) $age = $dNaissance ? $dNaissance->age : 0;
+                if ($age === null) $age = $fastDiffYears($dNaissanceStr, $nowY, $nowMd);
                 if ($age < 47) {
-                    $ancG = $dPromo ? $dPromo->diffInYears($refDate) : ($dEntree ? $dEntree->diffInYears($refDate) : 0);
+                    $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
                     if ($ancG >= 3) {
-                        if ($certs === null) $certs = $m->certificats->pluck('niveau_certificat')->all();
-                        if (!in_array('CAT2', $certs, true) && in_array('CAT1', $certs, true)) {
-                            $c1 = $m->certificats->firstWhere('niveau_certificat', 'CAT1');
-                            $dCond = ($c1 && $c1->pivot->date_obtention) ? Carbon::parse($c1->pivot->date_obtention)->addYears(3) : null;
+                        $cNiv = $getCertsNiveaux();
+                        if (!in_array('CAT2', $cNiv, true) && in_array('CAT1', $cNiv, true)) {
+                            $dObt = $getCertDate('CAT1');
+                            $dCondStr = $dObt ? sprintf('%04d-%s', (int)substr($dObt, 0, 4) + 3, substr($dObt, 5, 5)) : null;
+                            $dCondFormatted = $dCondStr ? sprintf('%02d/%02d/%04d', (int)substr($dCondStr, 8, 2), (int)substr($dCondStr, 5, 2), (int)substr($dCondStr, 0, 4)) : '';
                             $allFormations[] = [
                                 'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
                                 'formation' => 'CAT2',
                                 'nom_formation' => 'Certificat d\'Aptitude Technique Niveau 2',
-                                'message' => "Proposable pour {$refYearStr}" . ($dCond ? " (conditions remplies le " . $dCond->format('d/m/Y') . ")" : ""),
+                                'message' => "Proposable pour {$refYearStr}" . ($dCondStr ? " (conditions remplies le {$dCondFormatted})" : ""),
                                 'date_estimation' => $datePropStr,
                                 'annee_proposition' => $refYearStr,
-                                'date_conditions' => $dCond ? $dCond->format('Y-m-d') : null,
+                                'date_conditions' => $dCondStr,
                             ];
                             $formationCounts['CAT2'] = ($formationCounts['CAT2'] ?? 0) + 1;
                         }
@@ -375,10 +434,8 @@ class EligibiliteController extends Controller
                 }
             }
 
-            // CIA
             if (in_array($grade, ['Sergent', 'Sergent-Chef', 'Adjudant', 'Adjudant-Chef'], true) && $conditionsBase && $m->a_permis_conduire) {
-                if ($certs === null) $certs = $m->certificats->pluck('niveau_certificat')->all();
-                if (!in_array('CIA', $certs, true)) {
+                if (!in_array('CIA', $getCertsNiveaux(), true)) {
                     $allFormations[] = [
                         'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
                         'formation' => 'CIA',
@@ -392,53 +449,52 @@ class EligibiliteController extends Controller
                 }
             }
 
-            // BA1
             if (in_array($grade, ['Sergent-Chef', 'Adjudant', 'Adjudant-Chef'], true) && $conditionsBase) {
-                $anc = $dEntree ? $dEntree->diffInYears($refDate) : 0;
+                $anc = $fastDiffYears($dEntreeStr, $refY, $refMd);
                 if ($anc >= 8) {
-                    if ($certs === null) $certs = $m->certificats->pluck('niveau_certificat')->all();
-                    if (!in_array('BA1', $certs, true) && in_array('CIA', $certs, true)) {
-                        $c = $m->certificats->firstWhere('niveau_certificat', 'CIA');
-                        $dCond = ($c && $c->pivot->date_obtention) ? Carbon::parse($c->pivot->date_obtention)->addYears(3) : null;
+                    $cNiv = $getCertsNiveaux();
+                    if (!in_array('BA1', $cNiv, true) && in_array('CIA', $cNiv, true)) {
+                        $dObt = $getCertDate('CIA');
+                        $dCondStr = $dObt ? sprintf('%04d-%s', (int)substr($dObt, 0, 4) + 3, substr($dObt, 5, 5)) : null;
+                        $dCondFormatted = $dCondStr ? sprintf('%02d/%02d/%04d', (int)substr($dCondStr, 8, 2), (int)substr($dCondStr, 5, 2), (int)substr($dCondStr, 0, 4)) : '';
                         $allFormations[] = [
                             'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
                             'formation' => 'BA1',
                             'nom_formation' => 'Brevet d\'Aptitude Niveau 1',
-                            'message' => "Proposable pour {$refYearStr}" . ($dCond ? " (conditions remplies le " . $dCond->format('d/m/Y') . ")" : ""),
+                            'message' => "Proposable pour {$refYearStr}" . ($dCondStr ? " (conditions remplies le {$dCondFormatted})" : ""),
                             'date_estimation' => $datePropStr,
                             'annee_proposition' => $refYearStr,
-                            'date_conditions' => $dCond ? $dCond->format('Y-m-d') : null,
+                            'date_conditions' => $dCondStr,
                         ];
                         $formationCounts['BA1'] = ($formationCounts['BA1'] ?? 0) + 1;
                     }
                 }
             }
 
-            // BA2
             if (in_array($grade, ['Adjudant', 'Adjudant-Chef'], true) && $conditionsBase) {
-                if ($certs === null) $certs = $m->certificats->pluck('niveau_certificat')->all();
-                if (!in_array('BA2', $certs, true) && in_array('BA1', $certs, true)) {
-                    $c = $m->certificats->firstWhere('niveau_certificat', 'BA1');
-                    $dCond = ($c && $c->pivot->date_obtention) ? Carbon::parse($c->pivot->date_obtention)->addYears(3) : null;
+                $cNiv = $getCertsNiveaux();
+                if (!in_array('BA2', $cNiv, true) && in_array('BA1', $cNiv, true)) {
+                    $dObt = $getCertDate('BA1');
+                    $dCondStr = $dObt ? sprintf('%04d-%s', (int)substr($dObt, 0, 4) + 3, substr($dObt, 5, 5)) : null;
+                    $dCondFormatted = $dCondStr ? sprintf('%02d/%02d/%04d', (int)substr($dCondStr, 8, 2), (int)substr($dCondStr, 5, 2), (int)substr($dCondStr, 0, 4)) : '';
                     $allFormations[] = [
                         'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
                         'formation' => 'BA2',
                         'nom_formation' => 'Brevet d\'Aptitude Niveau 2',
-                        'message' => "Proposable pour {$refYearStr}" . ($dCond ? " (conditions remplies le " . $dCond->format('d/m/Y') . ")" : ""),
+                        'message' => "Proposable pour {$refYearStr}" . ($dCondStr ? " (conditions remplies le {$dCondFormatted})" : ""),
                         'date_estimation' => $datePropStr,
                         'annee_proposition' => $refYearStr,
-                        'date_conditions' => $dCond ? $dCond->format('Y-m-d') : null,
+                        'date_conditions' => $dCondStr,
                     ];
                     $formationCounts['BA2'] = ($formationCounts['BA2'] ?? 0) + 1;
                 }
             }
 
-            // APLI
             if (in_array($grade, ['Sous-lieutenant', 'Lieutenant', 'Capitaine'], true)) {
-                if ($age === null) $age = $dNaissance ? $dNaissance->age : 0;
+                if ($age === null) $age = $fastDiffYears($dNaissanceStr, $nowY, $nowMd);
                 if ($age <= 50) {
-                    if ($certs === null) $certs = $m->certificats->pluck('niveau_certificat')->all();
-                    if (!in_array('APLI', $certs, true) && !in_array('CFCU', $certs, true)) {
+                    $cNiv = $getCertsNiveaux();
+                    if (!in_array('APLI', $cNiv, true) && !in_array('CFCU', $cNiv, true)) {
                         $allFormations[] = [
                             'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
                             'formation' => 'APLI',
@@ -453,11 +509,10 @@ class EligibiliteController extends Controller
                 }
             }
 
-            // CFCU
             if (in_array($grade, ['Lieutenant', 'Capitaine'], true)) {
-                if ($certs === null) $certs = $m->certificats->pluck('niveau_certificat')->all();
-                if (!in_array('CFCU', $certs, true)) {
-                    if ($grade === 'Capitaine' || in_array('APLI', $certs, true)) {
+                $cNiv = $getCertsNiveaux();
+                if (!in_array('CFCU', $cNiv, true)) {
+                    if ($grade === 'Capitaine' || in_array('APLI', $cNiv, true)) {
                         $cond = $grade === 'Capitaine' ? 'grade Capitaine' : 'APLI validé';
                         $allFormations[] = [
                             'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
@@ -473,13 +528,12 @@ class EligibiliteController extends Controller
                 }
             }
 
-            // CEM
             if (in_array($grade, ['Capitaine', 'Commandant'], true)) {
-                if ($certs === null) $certs = $m->certificats->pluck('niveau_certificat')->all();
-                if (!in_array('CEM', $certs, true)) {
-                    $ancG = $dPromo ? $dPromo->diffInYears($refDate) : ($dEntree ? $dEntree->diffInYears($refDate) : 0);
+                $cNiv = $getCertsNiveaux();
+                if (!in_array('CEM', $cNiv, true)) {
+                    $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
                     if (($grade === 'Capitaine' && $ancG >= 3) || $grade === 'Commandant') {
-                        if ($age === null) $age = $dNaissance ? $dNaissance->age : 0;
+                        if ($age === null) $age = $fastDiffYears($dNaissanceStr, $nowY, $nowMd);
                         if ($age <= 45) {
                             $allFormations[] = [
                                 'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
@@ -496,12 +550,10 @@ class EligibiliteController extends Controller
                 }
             }
 
-            // Certificat d'État-Major (CERT_EM)
             if ($grade === 'Commandant') {
-                if ($age === null) $age = $dNaissance ? $dNaissance->age : 0;
+                if ($age === null) $age = $fastDiffYears($dNaissanceStr, $nowY, $nowMd);
                 if ($age > 45) {
-                    if ($certs === null) $certs = $m->certificats->pluck('niveau_certificat')->all();
-                    if (!in_array('CERT_EM', $certs, true)) {
+                    if (!in_array('CERT_EM', $getCertsNiveaux(), true)) {
                         $allFormations[] = [
                             'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
                             'formation' => 'CERT_EM',
@@ -516,14 +568,12 @@ class EligibiliteController extends Controller
                 }
             }
 
-            // École de Guerre (ECOLE_GUERRE)
             if (in_array($grade, ['Lieutenant-colonel', 'Colonel', 'Colonel-Major'], true)) {
-                $ancG = $dPromo ? $dPromo->diffInYears($refDate) : ($dEntree ? $dEntree->diffInYears($refDate) : 0);
+                $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
                 if ($ancG >= 2) {
-                    if ($age === null) $age = $dNaissance ? $dNaissance->age : 0;
+                    if ($age === null) $age = $fastDiffYears($dNaissanceStr, $nowY, $nowMd);
                     if ($age <= 53) {
-                        if ($certs === null) $certs = $m->certificats->pluck('niveau_certificat')->all();
-                        if (!in_array('ECOLE_GUERRE', $certs, true)) {
+                        if (!in_array('ECOLE_GUERRE', $getCertsNiveaux(), true)) {
                             $allFormations[] = [
                                 'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
                                 'formation' => 'ECOLE_GUERRE',
@@ -540,36 +590,38 @@ class EligibiliteController extends Controller
             }
 
             // 3. RETRAITES
-            $dRetraite = $m->calculerDateRetraite();
-            if ($dRetraite) {
-                $diffJours = $now->diffInDays($dRetraite, false);
-                $moisRestants = floor($diffJours / 30);
-                if ($moisRestants <= 12 && $diffJours >= 0) {
-                    $allRetraites[] = [
-                        'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
-                        'date_retraite' => $dRetraite->format('Y-m-d'),
-                        'date_retraite_formatted' => $dRetraite->format('d/m/Y'),
-                        'mois_restants' => $moisRestants,
-                    ];
+            $isOtage = str_contains(mb_strtolower((string) $m->position_actuelle), 'otage');
+            if (!$isOtage && $dNaissanceStr && $grade) {
+                $ageRetraite = $gradesRetraite[$grade] ?? null;
+                if ($ageRetraite) {
+                    $anneeRetraite = (int)substr($dNaissanceStr, 0, 4) + $ageRetraite;
+                    if ($anneeRetraite === $nowY || $anneeRetraite === $nowY + 1) {
+                        $dRetraite = Carbon::parse($dNaissanceStr)->addYears($ageRetraite);
+                        $diffJours = $now->diffInDays($dRetraite, false);
+                        $moisRestants = floor($diffJours / 30);
+                        if ($moisRestants <= 12 && $diffJours >= 0) {
+                            $allRetraites[] = [
+                                'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
+                                'date_retraite' => $dRetraite->format('Y-m-d'),
+                                'date_retraite_formatted' => $dRetraite->format('d/m/Y'),
+                                'mois_restants' => $moisRestants,
+                            ];
+                        }
+                    }
                 }
             }
 
             // 4. CONTRATS
             $hasContratAlerte = isset($alertesContrat[$m->id]);
             $isEligibleContrat = $hasContratAlerte;
+            $cActif = $contratsMap[$m->id] ?? null;
 
-            if (!$isEligibleContrat && $conditionsBase && $m->estEnActivite()) {
-                $gradesContrats = [
-                    'Soldat 2', 'Soldat 1', 'Caporal', 'Caporal-chef',
-                    'Sergent', 'Sergent-Chef', 'Adjudant', 'Adjudant-Chef', 'Major',
-                    'Sapeur 1ère classe'
-                ];
-                if (in_array($grade, $gradesContrats)) {
-                    $cActif = $m->contratActif;
-                    // Éligible au renouvellement si sans contrat actif ou contrat finissant dans <= 6 mois (ou expiré)
-                    if (!$cActif || !$cActif->date_fin || !$cActif->date_fin->isFuture() || $cActif->date_fin->diffInDays($now) <= 180) {
-                        $anneesServiceContrat = $dEntree ? (int) floor($dEntree->diffInYears($now)) : 0;
-                        if (!$dEntree || $anneesServiceContrat >= 5) {
+            if (!$isEligibleContrat && $conditionsBase && ($m->statut_code >= 1 && $m->statut_code <= 4)) {
+                if (isset($gradesContrats[$grade])) {
+                    $cFinStr = $cActif?->date_fin ? substr((string)$cActif->date_fin, 0, 10) : null;
+                    if (!$cActif || !$cFinStr || $cFinStr <= $nowYmd || ($fastDiffYears($nowYmd, (int)substr($cFinStr, 0, 4), (int)substr($cFinStr, 5, 2) . (int)substr($cFinStr, 8, 2)) === 0)) {
+                        $anneesServiceContrat = $fastDiffYears($dEntreeStr, $nowY, $nowMd);
+                        if (!$dEntreeStr || $anneesServiceContrat >= 5) {
                             $isEligibleContrat = true;
                         }
                     }
@@ -577,36 +629,30 @@ class EligibiliteController extends Controller
             }
 
             if ($isEligibleContrat) {
-                $contratActif = $m->contratActif;
-                $anneesService = $dEntree ? (int) floor($dEntree->diffInYears($now)) : 0;
+                $cFinStr = $cActif?->date_fin ? substr((string)$cActif->date_fin, 0, 10) : null;
+                $anneesService = $fastDiffYears($dEntreeStr, $nowY, $nowMd);
                 $msgContrat = $alertesContrat[$m->id] ?? ($anneesService > 0 
                     ? "Renouvellement de contrat requis pour {$m->prenom} {$m->nom} ({$anneesService} ans de service) - Grade: {$grade}"
                     : "Régularisation / Renouvellement de contrat requis pour {$m->prenom} {$m->nom} (sans contrat actif) - Grade: {$grade}");
                 $allContrats[] = [
                     'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
                     'annees_service' => $anneesService,
-                    'statut_contrat' => $contratActif ? 'actif' : 'sans contrat',
-                    'date_echeance' => $contratActif?->date_fin?->format('Y-m-d'),
+                    'statut_contrat' => $cActif ? 'actif' : 'sans contrat',
+                    'date_echeance' => $cFinStr,
                     'message' => $msgContrat,
                 ];
             }
 
-            // 5. MUTATIONS (>= 3 ans d'affectation calculée sur la date de mutation la plus RÉCENTE)
-            $plusRecenteAff = $m->relationLoaded('affectations') && $m->affectations->isNotEmpty()
-                ? $m->affectations->first()
-                : null;
+            // 5. MUTATIONS
+            $aff = $latestAffectations[$m->id] ?? null;
+            $dateMutationStr = $aff?->date_mutation ? substr((string)$aff->date_mutation, 0, 10) : ($dMutationRaw ? substr((string)$dMutationRaw, 0, 10) : ($dEntreeStr ? substr((string)$dEntreeStr, 0, 10) : null));
+            $uniteActuelle = $aff?->unite ?? $m->unite ?? 'Unité non précisée';
+            $regionActuelle = $aff?->region ?? $m->region ?? '-';
 
-            $dateMutation = $plusRecenteAff?->date_mutation 
-                ?? $m->date_mutation 
-                ?? $m->date_entree_service;
-
-            $uniteActuelle = $plusRecenteAff?->unite ?? $m->unite ?? 'Unité non précisée';
-            $regionActuelle = $plusRecenteAff?->region ?? $m->region ?? '-';
-
-            if ($dateMutation) {
-                $dMutationCarbon = $dateMutation instanceof Carbon ? $dateMutation : Carbon::parse($dateMutation);
-                $duree = floor($dMutationCarbon->diffInYears($now));
+            if ($dateMutationStr) {
+                $duree = $fastDiffYears($dateMutationStr, $nowY, $nowMd);
                 if ($duree >= 3) {
+                    $dMutFormatted = sprintf('%02d/%02d/%04d', (int)substr($dateMutationStr, 8, 2), (int)substr($dateMutationStr, 5, 2), (int)substr($dateMutationStr, 0, 4));
                     $allMutations[] = [
                         'id' => $m->id,
                         'matricule' => $m->matricule,
@@ -615,7 +661,7 @@ class EligibiliteController extends Controller
                         'grade_actuel' => $grade,
                         'unite' => $uniteActuelle,
                         'region' => $regionActuelle,
-                        'date_mutation' => $dMutationCarbon->format('d/m/Y'),
+                        'date_mutation' => $dMutFormatted,
                         'duree_annees' => $duree,
                         'conditions_remplies' => "En poste depuis {$duree} ans (>= 3 ans)",
                         'statut_eligibilite' => 'Éligible à la mutation'

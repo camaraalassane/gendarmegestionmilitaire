@@ -192,7 +192,8 @@ onUnmounted(() => {
 });
 
 const METRICS = {
-    eff: { label: 'Effectif', unit: '' },
+    eff: { label: 'Effectif Réel (Commandement Direct)', unit: '' },
+    eff_global: { label: 'Effectif Global (avec Détachés)', unit: '' },
     pres: { label: 'Présents', unit: '' },
     abs: { label: 'Absents', unit: '' },
     fem: { label: 'Femmes', unit: '' },
@@ -224,11 +225,12 @@ const shortName = (n) => n.replace(/^(Région de |Région du |District de )/, ''
 const opCount = (r) => r.unites.filter((u) => u.operationnelle).length;
 const valueOf = (r) => {
     switch (metric.value) {
+        case 'eff_global': return r.effectif;
         case 'pres': return r.effectif - r.absents;
         case 'abs': return r.absents;
         case 'fem': return r.femmes;
         case 'opp': return r.unites.length ? Math.round((opCount(r) / r.unites.length) * 100) : 0;
-        default: return r.effectif;
+        default: return (r.actifs !== undefined && r.actifs !== null) ? r.actifs : r.effectif;
     }
 };
 
@@ -384,11 +386,24 @@ const selTheatreObj = computed(() => {
 // Modal de consultation complète de la liste des militaires du théâtre
 const showTheatreMilitairesModal = ref(false);
 const theatreMilitaireCategorieFilter = ref('tous'); // 'tous' | 'officiers' | 'sous_officiers' | 'mdr' | 'blesses'
+const loadingTheatreMilitaires = ref(false);
 
-const ouvrirModalMilitairesTheatre = (cat = 'tous') => {
+const ouvrirModalMilitairesTheatre = async (cat = 'tous') => {
     theatreMilitaireCategorieFilter.value = cat;
     searchTheatreMilitaire.value = '';
     showTheatreMilitairesModal.value = true;
+    const th = selTheatreObj.value;
+    if (th && (!th.militaires || th.militaires.length === 0)) {
+        loadingTheatreMilitaires.value = true;
+        try {
+            const res = await axios.get(route('carte.theatres.militaires', th.id));
+            th.militaires = res.data;
+        } catch (e) {
+            console.error('Erreur chargement militaires théâtre', e);
+        } finally {
+            loadingTheatreMilitaires.value = false;
+        }
+    }
 };
 
 // Tri strict du grade le plus élevé au plus petit (ordre DESC)
@@ -436,12 +451,12 @@ const theatreMilitairesTriesEtFiltres = computed(() => {
 
 const theatreStatsHierarchiques = computed(() => {
     const th = selTheatreObj.value;
-    if (!th || !th.militaires) return { officiers: 0, sousOfficiers: 0, mdr: 0, blesses: 0 };
+    if (!th) return { officiers: 0, sousOfficiers: 0, mdr: 0, blesses: 0 };
     return {
-        officiers: th.militaires.filter(m => (m.grade_ordre || 0) >= 11).length,
-        sousOfficiers: th.militaires.filter(m => (m.grade_ordre || 0) >= 5 && (m.grade_ordre || 0) <= 10).length,
-        mdr: th.militaires.filter(m => (m.grade_ordre || 0) <= 4).length,
-        blesses: th.militaires.filter(m => m.est_blesse_guerre).length,
+        officiers: th.officiers ?? (th.militaires ? th.militaires.filter(m => (m.grade_ordre || 0) >= 11).length : 0),
+        sousOfficiers: th.sous_officiers ?? (th.militaires ? th.militaires.filter(m => (m.grade_ordre || 0) >= 5 && (m.grade_ordre || 0) <= 10).length : 0),
+        mdr: th.mdr ?? (th.militaires ? th.militaires.filter(m => (m.grade_ordre || 0) <= 4).length : 0),
+        blesses: th.blesses ?? (th.militaires ? th.militaires.filter(m => m.est_blesse_guerre || m.est_blesse).length : 0),
     };
 });
 
@@ -1291,6 +1306,7 @@ const detail = computed(() => {
         return [
             { label: 'Régions', value: props.regions.length },
             { label: 'Total Unités', value: tot((r) => r.unites.length) },
+            { label: 'Commandement direct', value: fmt(tot((r) => r.actifs || 0)) },
             { label: 'Effectif Global', value: fmt(tot((r) => r.effectif) + (Number(props.stats?.non_rattaches) || 0)) },
         ];
     }
@@ -3586,8 +3602,14 @@ const lignesFiltrees = computed(() => {
                     </span>
                 </div>
 
+                <!-- Loader chargement asynchrone -->
+                <div v-if="loadingTheatreMilitaires" class="py-16 text-center text-slate-500 font-semibold flex flex-col items-center justify-center gap-3 border border-slate-200 rounded-xl bg-slate-50/50">
+                    <i class="pi pi-spin pi-spinner text-3xl text-sky-600"></i>
+                    <span class="text-xs font-bold text-slate-700">Chargement des effectifs déployés sur ce théâtre d'opérations...</span>
+                </div>
+
                 <!-- Table nominative -->
-                <div class="max-h-[52vh] overflow-y-auto border border-slate-200 rounded-xl custom-scrollbar bg-white">
+                <div v-else class="max-h-[52vh] overflow-y-auto border border-slate-200 rounded-xl custom-scrollbar bg-white">
                     <table class="w-full text-left border-collapse text-xs">
                         <thead class="sticky top-0 bg-slate-100/95 backdrop-blur-xs text-slate-700 font-bold border-b border-slate-200 uppercase text-[10px] tracking-wider z-10">
                             <tr>

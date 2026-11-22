@@ -66,6 +66,9 @@ class AppServiceProvider extends ServiceProvider
 
         foreach ([\App\Models\Region::class, \App\Models\Unite::class, \App\Models\Militaire::class, \App\Models\Affectation::class] as $modele) {
             $vider = function () {
+                if (\App\Models\Militaire::$isImporting) {
+                    return;
+                }
                 \App\Http\Controllers\CarteController::flush();   // carte à jour
                 \App\Support\CarteRattachement::oublier();          // régions/unités relues au prochain besoin
             };

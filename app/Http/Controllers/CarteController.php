@@ -86,14 +86,18 @@ class CarteController extends Controller
             ->get()
             ->keyBy(fn ($l) => $l->region_id ?? 0);
 
-        // Retraites de l'année : exactement le même calcul (et le même cache) que le KPI du dashboard
-        $retraitesN = app(DashboardController::class)->getRetraitesBoth()['retraitesN']['data'] ?? [];
-        $retraitesParRegion = [];
-        foreach (array_chunk(array_column($retraitesN, 'id'), 500) as $ids) {
-            foreach (Militaire::whereIn('id', $ids)->pluck('region_id') as $rid) {
-                $retraitesParRegion[$rid ?? 0] = ($retraitesParRegion[$rid ?? 0] ?? 0) + 1;
-            }
-        }
+        // Retraites de l'année : calcul direct et groupé par région en SQL
+        $retraitesParRegion = \Illuminate\Support\Facades\DB::table('militaires')
+            ->join('grades', 'militaires.grade_id', '=', 'grades.id')
+            ->whereNotNull('militaires.date_naissance')
+            ->whereNotNull('grades.retraite_obligatoire')
+            ->where('militaires.est_disparu', 0)
+            ->whereNull('militaires.deleted_at')
+            ->whereRaw("((EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$annee}) OR (militaires.statut_code = 1 AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire < {$annee}))")
+            ->groupBy('militaires.region_id')
+            ->selectRaw('militaires.region_id, count(*) as cnt')
+            ->pluck('cnt', 'region_id')
+            ->toArray();
 
         $parUnite = $lignes->whereNotNull('unite_id')->keyBy('unite_id');
         $parRegion = $lignes->whereNotNull('region_id')->groupBy('region_id');
@@ -158,24 +162,42 @@ class CarteController extends Controller
             ];
         })->values();
 
-        // 4) Théâtres d'opérations souverains
+        // 4) Théâtres d'opérations souverains (agrégations SQL directes pour un chargement instantané)
         $regionsMap = $regions->keyBy('code');
-        $theatres = Theatre::with(['militaires' => function ($q) {
-            $q->with(['grade', 'unite', 'region', 'registresOperationnels']);
-        }])->get()->map(function ($th) use ($regionsMap) {
-            $militaires = $th->militaires;
-            $totalMilitaires = $militaires->count();
-            $blesses = $militaires->where('est_blesse_guerre', 1)->count();
-            $actifs = $militaires->where('statut_code', 1)->count();
-            $absents = max(0, $totalMilitaires - $actifs);
+        $theatres = Theatre::orderBy('code')->get()->map(function ($th) use ($regionsMap, $regions) {
+            $q = \Illuminate\Support\Facades\DB::table('militaires')
+                ->whereRaw(Effectif::sqlActivite())
+                ->whereNull('deleted_at');
+
+            if ($th->code === 'DET-SOKOLO') {
+                $q->where(function($sq) {
+                    $sq->where('position_actuelle', 'ILIKE', '%sokolo%')
+                       ->orWhere('engagement_ops', 'ILIKE', '%sokolo%')
+                       ->orWhere('unite', 'ILIKE', '%sokolo%');
+                });
+            } elseif ($th->code === 'DET-SAYE') {
+                $q->where(function($sq) {
+                    $sq->where('position_actuelle', 'ILIKE', '%saye%')
+                       ->orWhere('engagement_ops', 'ILIKE', '%saye%')
+                       ->orWhere('unite', 'ILIKE', '%saye%');
+                });
+            } else {
+                $regionsCodes = is_array($th->regions_codes) ? $th->regions_codes : [];
+                $regIds = $regions->whereIn('code', $regionsCodes)->pluck('id')->all();
+                $q->whereIn('region_id', $regIds);
+            }
+
+            $st = $q->selectRaw("
+                COUNT(*) as total,
+                SUM(CASE WHEN statut_code = 1 THEN 1 ELSE 0 END) as n_actifs,
+                SUM(CASE WHEN est_blesse_guerre = 1 THEN 1 ELSE 0 END) as n_blesses,
+                SUM(CASE WHEN grade_ordre >= 11 THEN 1 ELSE 0 END) as n_officiers,
+                SUM(CASE WHEN grade_ordre BETWEEN 5 AND 10 THEN 1 ELSE 0 END) as n_sous_officiers,
+                SUM(CASE WHEN grade_ordre < 5 THEN 1 ELSE 0 END) as n_mdr
+            ")->first();
 
             $regionsCodes = is_array($th->regions_codes) ? $th->regions_codes : [];
             $regionsNoms = array_filter(array_map(fn($c) => $regionsMap->get($c)?->nom, $regionsCodes));
-
-            // Trier les militaires du grade le plus élevé au plus petit (ordre DESC)
-            $militairesTries = $militaires->sortByDesc(function ($m) {
-                return (int) ($m->grade?->ordre ?? $m->grade_ordre ?? 0);
-            })->values();
 
             return [
                 'id' => $th->id,
@@ -189,39 +211,14 @@ class CarteController extends Controller
                 'regions_noms' => array_values($regionsNoms),
                 'couleur' => $th->couleur ?: '#ea580c',
                 'statut' => $th->statut ?: 'actif',
-                'effectif' => $totalMilitaires,
-                'actifs' => $actifs,
-                'absents' => $absents,
-                'blesses' => $blesses,
-                'militaires' => $militairesTries->map(function ($m) {
-                    $regBlesse = $m->registresOperationnels?->where('type_registre_code', 1)->first();
-                    $estBlesse = (bool) ($m->est_blesse_guerre || $regBlesse);
-
-                    // Circonstances précises de la blessure survenue sur le théâtre
-                    $circonstanceBlessure = null;
-                    if ($estBlesse) {
-                        $circonstanceBlessure = $regBlesse?->circonstances ?: 'Blessé au combat en opération';
-                    }
-
-                    return [
-                        'id' => $m->id,
-                        'matricule' => $m->matricule,
-                        'mle_grm' => $m->mle_grm,
-                        'nom' => $m->nom,
-                        'prenom' => $m->prenom,
-                        'grade' => $m->grade?->nom_grade ?? $m->grade_actuel ?? 'Soldat 2',
-                        'grade_code' => $m->grade?->code_grade ?? '',
-                        'grade_ordre' => (int) ($m->grade?->ordre ?? $m->grade_ordre ?? 0),
-                        'categorie_statutaire' => $m->grade?->categorie_statutaire ?? $m->grade?->type_grade ?? 'Militaire',
-                        'unite_nom' => $m->unite?->nom ?? '-',
-                        'region_nom' => $m->region?->nom ?? '-',
-                        'statut' => $m->statut ?? 'Actif',
-                        'est_blesse_guerre' => $estBlesse,
-                        'circonstance_blessure' => $circonstanceBlessure,
-                        'nature_pathologie' => $regBlesse?->nature_pathologie ?? null,
-                        'date_blessure' => $regBlesse?->date_evenement?->format('d/m/Y') ?? null,
-                    ];
-                })->values()->all(),
+                'effectif' => (int) ($st->total ?? 0),
+                'actifs' => (int) ($st->n_actifs ?? 0),
+                'absents' => max(0, (int) ($st->total ?? 0) - (int) ($st->n_actifs ?? 0)),
+                'blesses' => (int) ($st->n_blesses ?? 0),
+                'officiers' => (int) ($st->n_officiers ?? 0),
+                'sous_officiers' => (int) ($st->n_sous_officiers ?? 0),
+                'mdr' => (int) ($st->n_mdr ?? 0),
+                'militaires' => [], // Chargé à la demande à l'ouverture de la modale
             ];
         })->values();
 
@@ -479,5 +476,62 @@ class CarteController extends Controller
         }
 
         return redirect()->back()->with('success', "Coordonnées du PC du théâtre « {$theatre->nom} » actualisées avec succès.");
+    }
+
+    /**
+     * Charge à la demande les militaires déployés sur un théâtre d'opérations spécifique (pour la modale).
+     */
+    public function theatreMilitaires(Theatre $theatre)
+    {
+        $regions = Region::all();
+        $q = Militaire::enActivite()->with(['grade', 'unite', 'region', 'registresOperationnels']);
+
+        if ($theatre->code === 'DET-SOKOLO') {
+            $q->where(function ($sq) {
+                $sq->where('position_actuelle', 'ILIKE', '%sokolo%')
+                   ->orWhere('engagement_ops', 'ILIKE', '%sokolo%')
+                   ->orWhere('unite', 'ILIKE', '%sokolo%');
+            });
+        } elseif ($theatre->code === 'DET-SAYE') {
+            $q->where(function ($sq) {
+                $sq->where('position_actuelle', 'ILIKE', '%saye%')
+                   ->orWhere('engagement_ops', 'ILIKE', '%saye%')
+                   ->orWhere('unite', 'ILIKE', '%saye%');
+            });
+        } else {
+            $regionsCodes = is_array($theatre->regions_codes) ? $theatre->regions_codes : [];
+            $regIds = $regions->whereIn('code', $regionsCodes)->pluck('id')->all();
+            $q->whereIn('region_id', $regIds);
+        }
+
+        $militaires = $q->get();
+        $militairesTries = $militaires->sortByDesc(fn ($m) => (int) ($m->grade?->ordre ?? $m->grade_ordre ?? 0))->values();
+
+        return response()->json($militairesTries->map(function ($m) use ($regions) {
+            $regBlesse = $m->registresOperationnels?->where('type_registre_code', 1)->first();
+            $estBlesse = (bool) ($m->est_blesse_guerre || $regBlesse);
+            $regObj = $m->region_id ? $regions->firstWhere('id', $m->region_id) : null;
+
+            return [
+                'id' => $m->id,
+                'matricule' => $m->matricule,
+                'mle_grm' => $m->mle_grm,
+                'nom' => $m->nom,
+                'prenom' => $m->prenom,
+                'nom_complet' => $m->nom . ' ' . $m->prenom,
+                'grade' => $m->grade?->nom_grade ?? $m->grade_actuel ?? 'Soldat 2',
+                'grade_code' => $m->grade?->code_grade ?? '',
+                'grade_ordre' => (int) ($m->grade?->ordre ?? $m->grade_ordre ?? 0),
+                'categorie_statutaire' => $m->grade?->categorie_statutaire ?? $m->grade?->type_grade ?? 'Militaire',
+                'unite_nom' => $m->unite?->nom ?? (is_string($m->unite) ? $m->unite : '-'),
+                'region_nom' => $regObj?->nom ?? (is_string($m->region) ? $m->region : '-'),
+                'region_code' => $regObj?->code ?? '',
+                'statut' => $m->statut ?? 'Actif',
+                'est_blesse_guerre' => $estBlesse,
+                'circonstance_blessure' => $estBlesse ? ($regBlesse?->circonstances ?: 'Blessé au combat en opération') : null,
+                'nature_pathologie' => $regBlesse?->nature_pathologie ?? null,
+                'date_blessure' => $regBlesse?->date_evenement?->format('d/m/Y') ?? null,
+            ];
+        }));
     }
 }

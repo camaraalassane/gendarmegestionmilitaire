@@ -16,6 +16,8 @@ class Militaire extends Model
 {
     use HasFactory, SoftDeletes;
 
+    public static bool $isImporting = false;
+
     protected $fillable = [
         'matricule',
         'mle_grm',
@@ -62,7 +64,9 @@ class Militaire extends Model
         'statut_code',
         'a_permis_conduire',
         'antecedent_judiciaire',
+        'details_antecedent_judiciaire',
         'antecedent_disciplinaire',
+        'details_antecedent_disciplinaire',
         'decorations',
         'diplomes_academiques',
         'observations',
@@ -118,15 +122,17 @@ class Militaire extends Model
             }
 
             // Déduction automatique de la position administrative pour les détachés si non renseignée
-            if ($militaire->statut === 'détaché' && empty($militaire->position_actuelle) && empty($militaire->position_id)) {
+            if (!in_array($militaire->statut, ['déserteur', 'radié', 'décédé', 'retraité']) && (($militaire->organisme_detachement_id && $militaire->organisme_detachement_id != 1) || $militaire->position_id == 26 || $militaire->statut === 'détaché')) {
+                if (empty($militaire->statut) || $militaire->statut === 'détaché') {
+                    $militaire->statut = 'actif';
+                    $militaire->statut_code = 1;
+                }
+                $militaire->position_id = 26;
                 $militaire->position_actuelle = 'En détachement';
             } elseif (empty($militaire->position_actuelle) && empty($militaire->position_id)) {
                 if (!empty($militaire->unite_id) || !empty($militaire->unite)) {
                     $militaire->position_actuelle = "À l'Unité / Au Poste";
-                    $posId = Position::where('nom', "À l'Unité / Au Poste")->value('id');
-                    if ($posId) {
-                        $militaire->position_id = $posId;
-                    }
+                    $militaire->position_id = 21;
                 }
             }
 
@@ -237,14 +243,18 @@ class Militaire extends Model
         });
 
         static::saved(function ($militaire) {
-            static::incrementCacheVersion();
-            \App\Http\Controllers\CarteController::flush();
+            if (!static::$isImporting) {
+                static::incrementCacheVersion();
+                \App\Http\Controllers\CarteController::flush();
+            }
             $militaire->synchroniserRegistreOperationnel();
         });
 
         static::deleted(function ($militaire) {
-            static::incrementCacheVersion();
-            \App\Http\Controllers\CarteController::flush();
+            if (!static::$isImporting) {
+                static::incrementCacheVersion();
+                \App\Http\Controllers\CarteController::flush();
+            }
             RegistreOperationnel::where('militaire_id', $militaire->id)->delete();
         });
     }
@@ -257,6 +267,42 @@ class Militaire extends Model
     {
         $sanitaireLower = mb_strtolower(trim((string) $this->status_sanitaire));
         $positionLower = mb_strtolower(trim((string) $this->position_actuelle));
+
+        $hasException = $this->est_blesse_guerre
+            || preg_match('/bl[eéè]ss/iu', $sanitaireLower)
+            || str_contains($sanitaireLower, 'amput')
+            || $this->est_non_mobilisable
+            || str_contains($sanitaireLower, 'inapte')
+            || str_contains($sanitaireLower, 'malad')
+            || str_contains($sanitaireLower, 'exemp')
+            || str_contains($sanitaireLower, 'convalesc')
+            || str_contains($sanitaireLower, 'réform')
+            || str_contains($sanitaireLower, 'reform')
+            || str_contains($sanitaireLower, 'patholog')
+            || str_contains($sanitaireLower, 'arret')
+            || str_contains($sanitaireLower, 'arrêt')
+            || str_contains($sanitaireLower, 'diabèt')
+            || str_contains($sanitaireLower, 'diabet')
+            || str_contains($sanitaireLower, 'certificat')
+            || str_contains($sanitaireLower, 'trouble')
+            || $this->est_disparu
+            || !empty($this->is_otage)
+            || str_contains($positionLower, 'otage')
+            || str_contains($positionLower, 'disparu')
+            || $this->statut === 'déserteur'
+            || $this->statut_code === 6
+            || str_contains($positionLower, 'désert')
+            || str_contains($positionLower, 'desert')
+            || $this->statut === 'décédé'
+            || $this->statut_code === 5
+            || str_contains($positionLower, 'décéd')
+            || str_contains($positionLower, 'deced')
+            || !empty($this->date_deces);
+
+        // Si tout à fait apte sans exception et sans modification de statut/sanitaire/position
+        if (!$hasException && !$this->isDirty('status_sanitaire') && !$this->isDirty('position_actuelle') && !$this->isDirty('statut')) {
+            return;
+        }
 
         $reg = RegistreOperationnel::where('militaire_id', $this->id)
             ->orWhere(function ($q) {
@@ -368,9 +414,9 @@ class Militaire extends Model
 
         // 4. Cas DÉSERTEUR
         $isReintegre = preg_match('/r[eéè]int[eéè]gr/iu', $positionLower);
-        if (!$isReintegre && ($this->statut === 'déserteur' || ($this->statut_code === 6) || (
-            (str_contains($positionLower, 'désert') || str_contains($positionLower, 'desert') || str_contains($positionLower, 'dessertion'))
-        ))) {
+        if ($this->statut === 'déserteur' || ($this->statut_code === 6) || (
+            !$isReintegre && (str_contains($positionLower, 'désert') || str_contains($positionLower, 'desert') || str_contains($positionLower, 'dessertion'))
+        )) {
             $data = [
                 'type_registre_code' => RegistreOperationnel::TYPE_DESERTEUR,
                 'militaire_id' => $this->id,
