@@ -59,6 +59,7 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
     protected ?Collection $theatresCache = null;
     protected ?Collection $regionsCache = null;
     protected ?Collection $unitesCache = null;
+    protected ?Collection $organismesDetachementCache = null;
     protected ?string $detectedDateFormat = null;
 
     public function __construct(string $duplicateAction = 'ignore')
@@ -194,6 +195,14 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
             $this->unitesCache = \App\Models\Unite::all();
         }
         return $this->unitesCache;
+    }
+
+    protected function getOrganismesDetachementCache(): Collection
+    {
+        if ($this->organismesDetachementCache === null) {
+            $this->organismesDetachementCache = \App\Models\OrganismeDetachement::all();
+        }
+        return $this->organismesDetachementCache;
     }
 
     public function prepareForValidation($data, $index)
@@ -456,6 +465,9 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
         foreach ($row as $key => $value) {
             $k = mb_strtolower(trim((string)$key));
             $k = str_replace([' ', '-', '°', '°cl', '.', '’', "'"], ['_', '_', '', '', '_', '', ''], $k);
+            if (is_string($value) && in_array(mb_strtolower(trim($value)), ['nan', 'null', '#n/a', 'none'])) {
+                $value = null;
+            }
             $normalized[$k] = $value;
         }
 
@@ -482,6 +494,14 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
         // Aliases pour prenom
         if (!isset($normalized['prenom']) || trim((string)$normalized['prenom']) === '') {
             $normalized['prenom'] = $normalized['prenoms'] ?? $normalized['premons'] ?? null;
+        }
+        // Aliases pour date_naissance (ex: DATE DE NAISSANCE, naissance)
+        if (!isset($normalized['date_naissance']) || trim((string)$normalized['date_naissance']) === '') {
+            $normalized['date_naissance'] = $normalized['date_de_naissance'] ?? $normalized['naissance'] ?? null;
+        }
+        // Aliases pour date_mutation
+        if (!isset($normalized['date_mutation']) || trim((string)$normalized['date_mutation']) === '') {
+            $normalized['date_mutation'] = $normalized['date_de_mutation'] ?? null;
         }
         // Aliases pour grade_actuel
         if (!isset($normalized['grade_actuel']) || trim((string)$normalized['grade_actuel']) === '') {
@@ -554,6 +574,53 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
                 $normalized['diplomes_academiques'] = $compil . ' | ' . $source;
             } else {
                 $normalized['diplomes_academiques'] = $source ?: ($compil ?: ($normalized['diplomes'] ?? $normalized['diplome'] ?? null));
+            }
+        }
+        // Compléter diplômes avec OPJ / DTG si présent
+        $opjVal = trim((string)($normalized['opj_dtg'] ?? $normalized['opj'] ?? ''));
+        if (!empty($opjVal) && !in_array(mb_strtolower($opjVal), ['nan', 'null', '-', 'none', '0'])) {
+            if (!empty($normalized['diplomes_academiques'])) {
+                if (mb_stripos($normalized['diplomes_academiques'], $opjVal) === false) {
+                    $normalized['diplomes_academiques'] .= ' | ' . $opjVal;
+                }
+            } else {
+                $normalized['diplomes_academiques'] = $opjVal;
+            }
+        }
+
+        // Inférence du statut si absent ou actif
+        if (!isset($normalized['statut']) || trim((string)$normalized['statut']) === '' || $normalized['statut'] === 'actif') {
+            $pos = mb_strtolower(trim((string)($normalized['position_actuelle'] ?? '')));
+            $reg = mb_strtolower(trim((string)($normalized['region'] ?? '')));
+            $san = mb_strtolower(trim((string)($normalized['status_sanitaire'] ?? '')));
+
+            $isReintegre = str_contains($pos, 'réintégr') || str_contains($pos, 'reintegr');
+
+            if (!$isReintegre && (str_contains($pos, 'desert') || str_contains($pos, 'désert') || str_contains($pos, 'dessertion') || str_contains($san, 'desert') || str_contains($san, 'désert'))) {
+                $normalized['statut'] = 'déserteur';
+            } elseif (str_contains($pos, 'detache') || str_contains($pos, 'détach') || str_contains($reg, 'detache') || str_contains($reg, 'détach')) {
+                $normalized['statut'] = 'détaché';
+                if (empty($normalized['position_actuelle'])) {
+                    $normalized['position_actuelle'] = 'Détachement';
+                }
+            } elseif (str_contains($pos, 'décéd') || str_contains($pos, 'deced') || str_contains($pos, 'mort')) {
+                $normalized['statut'] = 'décédé';
+            } elseif (str_contains($pos, 'retrait') || str_contains($pos, 'radi')) {
+                $normalized['statut'] = 'radié';
+            } elseif (str_contains($pos, 'stage') || str_contains($pos, 'formation')) {
+                $normalized['statut'] = 'en stage';
+            } elseif (str_contains($pos, 'mission')) {
+                $normalized['statut'] = 'en mission';
+            } else {
+                $normalized['statut'] = 'actif';
+            }
+        }
+
+        // Inférence est_blesse_guerre si non spécifié
+        if (empty($normalized['est_blesse_guerre'])) {
+            $san = mb_strtolower(trim((string)($normalized['status_sanitaire'] ?? '')));
+            if (preg_match('/bl[eéè]ss/iu', $san) || (str_contains($san, 'guerre') && !str_contains($san, 'ecole de guerre')) || str_contains($san, 'opex') || str_contains($san, 'amput')) {
+                $normalized['est_blesse_guerre'] = 1;
             }
         }
         // Traitement intelligent engagement_ops
@@ -667,8 +734,8 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
                 $reg = $this->getRegionsCache()->firstWhere('code', 'R' . $m[1]);
             }
 
-            // Structures centrales basées à Bamako (DGGN, CDURM, SIJ)
-            if (!$reg && in_array(strtoupper($regRaw), ['DGGN', 'CDURM', 'SIJ', 'BAMAKO', 'DISTRICT'])) {
+            // Structures centrales basées à Bamako (DGGN, CDURM, SIJ, CDECF, GSIGN)
+            if (!$reg && in_array(strtoupper($regRaw), ['DGGN', 'CDURM', 'SIJ', 'CDECF', 'GSIGN', 'BAMAKO', 'DISTRICT'])) {
                 $reg = $this->getRegionsCache()->firstWhere('code', 'R1');
             }
 
@@ -730,6 +797,27 @@ class MilitairesImport implements ToCollection, WithHeadingRow, WithValidation, 
                 }
             } else {
                 $militaire->unite = $unitRaw;
+            }
+        }
+
+        // 2b. Organisme de détachement (si militaire en détachement)
+        if ($militaire->statut === 'détaché' || mb_strtolower(trim((string)($row['region'] ?? ''))) === 'detachement') {
+            $orgTarget = $this->normalizeStringForMatch(!empty($row['unite']) ? (string)$row['unite'] : '');
+            if (!empty($orgTarget)) {
+                $org = $this->getOrganismesDetachementCache()->first(function ($o) use ($orgTarget) {
+                    $normO = $this->normalizeStringForMatch($o->nom);
+                    return $normO === $orgTarget
+                        || mb_stripos($normO, $orgTarget) !== false
+                        || mb_stripos($orgTarget, $normO) !== false
+                        || ($o->code && mb_strtolower($o->code) === $orgTarget);
+                });
+                if ($org) {
+                    $militaire->organisme_detachement_id = $org->id;
+                    $militaire->statut = 'détaché';
+                    if (empty($militaire->position_actuelle) || $militaire->position_actuelle === 'À l\'Unité / Au Poste') {
+                        $militaire->position_actuelle = 'Détachement';
+                    }
+                }
             }
         }
 

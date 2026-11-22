@@ -206,7 +206,7 @@ class Militaire extends Model
 
             // Synchronisation statut sanitaire -> drapeaux opérationnels (codes numériques stricts 1 / 0)
             $sanitaireLower = mb_strtolower(trim((string) $militaire->status_sanitaire));
-            if (str_contains($sanitaireLower, 'bless') || str_contains($sanitaireLower, 'amput')) {
+            if (preg_match('/bl[eéè]ss/iu', $sanitaireLower) || str_contains($sanitaireLower, 'amput')) {
                 $militaire->est_blesse_guerre = 1;
                 $militaire->est_non_mobilisable = 0;
             } elseif (
@@ -267,7 +267,7 @@ class Militaire extends Model
             ->first();
 
         // 1. Cas BLESSÉ DE GUERRE
-        if ($this->est_blesse_guerre || str_contains($sanitaireLower, 'bless')) {
+        if ($this->est_blesse_guerre || preg_match('/bl[eéè]ss/iu', $sanitaireLower) || str_contains($sanitaireLower, 'amput')) {
             $data = [
                 'type_registre_code' => RegistreOperationnel::TYPE_BLESSE,
                 'militaire_id' => $this->id,
@@ -366,7 +366,67 @@ class Militaire extends Model
             return;
         }
 
-        // 4. Si redevenu Apte ou sans situation d'exception, nettoyer tout registre sanitaire obsolète
+        // 4. Cas DÉSERTEUR
+        if ($this->statut === 'déserteur' || ($this->statut_code === 6) || (
+            (str_contains($positionLower, 'désert') || str_contains($positionLower, 'desert') || str_contains($positionLower, 'dessertion'))
+            && !str_contains($positionLower, 'réintégr') && !str_contains($positionLower, 'reintegr')
+        )) {
+            $data = [
+                'type_registre_code' => RegistreOperationnel::TYPE_DESERTEUR,
+                'militaire_id' => $this->id,
+                'matricule' => $this->matricule,
+                'mle_grm' => $this->mle_grm,
+                'nom' => $this->nom,
+                'prenom' => $this->prenom,
+                'grade_id' => $this->grade_id,
+                'grade_ordre' => $this->grade_ordre,
+                'grade_texte' => $this->grade_actuel,
+                'sexe_code' => $this->sexe_code ?? 1,
+                'region_id' => $this->region_id,
+                'unite_id' => $this->unite_id,
+                'unite_texte' => $this->unite,
+                'circonstances' => $this->observations ?: ($this->position_actuelle ?: 'Déserteur - Avis de recherche'),
+                'decision_aptitude' => 'Déserteur',
+                'est_actif_fichier' => 0,
+            ];
+            if ($reg) {
+                $reg->update($data);
+            } else {
+                RegistreOperationnel::create($data);
+            }
+            return;
+        }
+
+        // 5. Cas DÉCÉDÉ
+        if ($this->statut === 'décédé' || ($this->statut_code === 5) || str_contains($positionLower, 'décéd') || str_contains($positionLower, 'deced') || !empty($this->date_deces)) {
+            $data = [
+                'type_registre_code' => RegistreOperationnel::TYPE_DECEDE,
+                'militaire_id' => $this->id,
+                'matricule' => $this->matricule,
+                'mle_grm' => $this->mle_grm,
+                'nom' => $this->nom,
+                'prenom' => $this->prenom,
+                'grade_id' => $this->grade_id,
+                'grade_ordre' => $this->grade_ordre,
+                'grade_texte' => $this->grade_actuel,
+                'sexe_code' => $this->sexe_code ?? 1,
+                'region_id' => $this->region_id,
+                'unite_id' => $this->unite_id,
+                'unite_texte' => $this->unite,
+                'date_evenement' => $this->date_deces,
+                'circonstances' => $this->circonstances_deces ?: ($this->observations ?: 'Décédé en service commandé / en combat'),
+                'decision_aptitude' => 'Rayé des contrôles (Décédé)',
+                'est_actif_fichier' => 0,
+            ];
+            if ($reg) {
+                $reg->update($data);
+            } else {
+                RegistreOperationnel::create($data);
+            }
+            return;
+        }
+
+        // 6. Si redevenu Apte ou sans situation d'exception, nettoyer tout registre sanitaire obsolète
         if ($reg && in_array($reg->type_registre_code, [RegistreOperationnel::TYPE_BLESSE, RegistreOperationnel::TYPE_GRAND_MALADE])) {
             $reg->delete();
         }
