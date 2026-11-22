@@ -384,7 +384,7 @@ class AlerteController extends Controller
         $retraites = DB::select("
             SELECT m.id, m.nom, m.prenom, m.date_naissance, m.grade_actuel, g.retraite_obligatoire
             FROM militaires m
-            JOIN grades g ON LOWER(TRIM(m.grade_actuel)) = LOWER(TRIM(g.nom_grade))
+            JOIN grades g ON m.grade_id = g.id
             WHERE m.statut_code = 1
               AND m.date_naissance IS NOT NULL
               AND g.retraite_obligatoire IS NOT NULL
@@ -680,7 +680,7 @@ class AlerteController extends Controller
         $retraitesSql = "
             SELECT m.id 
             FROM militaires m
-            JOIN grades g ON LOWER(TRIM(m.grade_actuel)) = LOWER(TRIM(g.nom_grade))
+            JOIN grades g ON m.grade_id = g.id
             WHERE m.statut_code = 1
               AND m.date_naissance IS NOT NULL
               AND g.retraite_obligatoire IS NOT NULL

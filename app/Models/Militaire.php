@@ -294,7 +294,7 @@ class Militaire extends Model
             || str_contains($positionLower, 'désert')
             || str_contains($positionLower, 'desert')
             || $this->statut === 'décédé'
-            || $this->statut_code === 5
+            || $this->statut_code === 9
             || str_contains($positionLower, 'décéd')
             || str_contains($positionLower, 'deced')
             || !empty($this->date_deces);
@@ -444,7 +444,7 @@ class Militaire extends Model
         }
 
         // 5. Cas DÉCÉDÉ
-        if ($this->statut === 'décédé' || ($this->statut_code === 5) || str_contains($positionLower, 'décéd') || str_contains($positionLower, 'deced') || !empty($this->date_deces)) {
+        if ($this->statut === 'décédé' || ($this->statut_code === 9) || str_contains($positionLower, 'décéd') || str_contains($positionLower, 'deced') || !empty($this->date_deces)) {
             $data = [
                 'type_registre_code' => RegistreOperationnel::TYPE_DECEDE,
                 'militaire_id' => $this->id,

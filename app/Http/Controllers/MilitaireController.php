@@ -1863,13 +1863,7 @@ class MilitaireController extends Controller
             $anneeCourante = (int) Carbon::now()->year;
 
             return DB::table('militaires')
-                ->join('grades', function ($join) {
-                    $join->on('militaires.grade_id', '=', 'grades.id')
-                         ->orWhere(function ($q) {
-                             $q->whereNull('militaires.grade_id')
-                               ->whereColumn('militaires.grade_actuel', 'grades.nom_grade');
-                         });
-                })
+                ->join('grades', 'militaires.grade_id', '=', 'grades.id')
                 ->whereNotNull('militaires.date_naissance')
                 ->whereNotNull('grades.retraite_obligatoire')
                 ->where(function ($q) {
