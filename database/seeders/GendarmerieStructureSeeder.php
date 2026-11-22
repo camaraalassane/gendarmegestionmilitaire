@@ -439,9 +439,24 @@ class GendarmerieStructureSeeder extends Seeder
             }
         }
 
-        // 3. Définition des Positions (L'endroit / Théâtre opérationnel / Déploiement physique où se trouve le gendarme)
+        // 3. Définition des Positions administratives standards avec IDs et Codes fixes
+        $positionsStandard = [
+            ['id' => Position::ID_UNITE, 'code' => Position::CODE_UNITE, 'nom' => "À l'Unité / Au Poste", 'type' => 'operationnelle', 'description' => "Présent au poste ou à l'unité d'affectation normale"],
+            ['id' => Position::ID_DETACHEMENT, 'code' => Position::CODE_DETACHEMENT, 'nom' => 'En détachement', 'type' => 'administrative', 'description' => "En détachement auprès d'un organisme civil ou militaire"],
+            ['id' => Position::ID_STAGE, 'code' => Position::CODE_STAGE, 'nom' => 'En stage / Formation', 'type' => 'administrative', 'description' => 'En stage ou formation'],
+            ['id' => Position::ID_MISSION, 'code' => Position::CODE_MISSION, 'nom' => 'En mission', 'type' => 'administrative', 'description' => 'En mission opérationnelle'],
+            ['id' => Position::ID_OTAGE, 'code' => Position::CODE_OTAGE, 'nom' => "Cas d'otage", 'type' => 'operationnelle', 'description' => "Militaire pris en otage en zone d'insécurité"],
+            ['id' => Position::ID_CONGE, 'code' => Position::CODE_CONGE, 'nom' => 'En congé / Convalescence', 'type' => 'administrative', 'description' => 'En congé ou repos maladie'],
+            ['id' => Position::ID_ATTENTE, 'code' => Position::CODE_ATTENTE, 'nom' => "En attente d'affectation", 'type' => 'administrative', 'description' => "En attente d'affectation"],
+            ['id' => Position::ID_DISPONIBILITE, 'code' => Position::CODE_DISPONIBILITE, 'nom' => 'Disponibilite', 'type' => 'administrative', 'description' => 'Position de disponibilité'],
+        ];
+
+        foreach ($positionsStandard as $p) {
+            Position::updateOrCreate(['id' => $p['id']], $p);
+        }
+
+        // 4. Définition des Positions de terrain / Escadrons
         $positions = [
-            ['nom' => 'À l\'Unité / Au Poste', 'type' => 'operationnelle', 'description' => 'Présent au poste ou à l\'unité d\'affectation normale'],
             ['nom' => 'Escadron Djiguiya', 'type' => 'operationnelle', 'description' => 'Théâtre opérationnel Djiguiya'],
             ['nom' => 'Escadron Yereko', 'type' => 'operationnelle', 'description' => 'Théâtre opérationnel Yereko'],
             ['nom' => 'Escadron Kalo', 'type' => 'operationnelle', 'description' => 'Théâtre opérationnel Kalo'],

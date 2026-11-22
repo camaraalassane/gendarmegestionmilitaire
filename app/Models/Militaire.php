@@ -122,17 +122,29 @@ class Militaire extends Model
             }
 
             // Déduction automatique de la position administrative pour les détachés si non renseignée
-            if (!in_array($militaire->statut, ['déserteur', 'radié', 'décédé', 'retraité']) && (($militaire->organisme_detachement_id && $militaire->organisme_detachement_id != 1) || $militaire->position_id == 26 || $militaire->statut === 'détaché')) {
-                if (empty($militaire->statut) || $militaire->statut === 'détaché') {
-                    $militaire->statut = 'actif';
-                    $militaire->statut_code = 1;
-                }
-                $militaire->position_id = 26;
-                $militaire->position_actuelle = 'En détachement';
-            } elseif (empty($militaire->position_actuelle) && empty($militaire->position_id)) {
-                if (!empty($militaire->unite_id) || !empty($militaire->unite)) {
-                    $militaire->position_actuelle = "À l'Unité / Au Poste";
-                    $militaire->position_id = 21;
+            $isHorsActivite = in_array($militaire->statut, ['déserteur', 'radié', 'décédé', 'retraité'])
+                || in_array($militaire->statut_code, [6, 7, 8, 9]);
+
+            if (!$isHorsActivite) {
+                $hasOrganismeExterne = $militaire->organisme_detachement_id && $militaire->organisme_detachement_id != 1;
+                $isDetache = $militaire->statut === 'détaché' || $militaire->statut_code === 2 || $hasOrganismeExterne;
+
+                if ($isDetache) {
+                    // Préserver le statut 'détaché' (statut_code = 2) et ne pas forcer en 'actif'
+                    if (empty($militaire->statut)) {
+                        $militaire->statut = 'détaché';
+                        $militaire->statut_code = 2;
+                    }
+                    // Remplir la position de détachement UNIQUEMENT si non renseignée (sans écraser une saisie existante)
+                    if (empty($militaire->position_actuelle) && empty($militaire->position_id)) {
+                        $militaire->position_id = Position::idDetachement();
+                        $militaire->position_actuelle = 'En détachement';
+                    }
+                } elseif (empty($militaire->position_actuelle) && empty($militaire->position_id)) {
+                    if (!empty($militaire->unite_id) || !empty($militaire->unite)) {
+                        $militaire->position_actuelle = "À l'Unité / Au Poste";
+                        $militaire->position_id = Position::idUnite();
+                    }
                 }
             }
 

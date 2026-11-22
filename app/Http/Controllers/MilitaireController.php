@@ -182,9 +182,9 @@ class MilitaireController extends Controller
                   ->orWhereRaw("LOWER(COALESCE(militaires.observations, '')) LIKE ?", ['%otage%']);
             });
         } elseif ($statutFilter === 'retraites_n') {
-            $query->whereIn('militaires.id', $this->getIdsRetraitePourAnnee($anneeN));
+            $this->appliquerFiltreRetraite($query, $anneeN);
         } elseif ($statutFilter === 'retraites_n1') {
-            $query->whereIn('militaires.id', $this->getIdsRetraitePourAnnee($anneeN + 1));
+            $this->appliquerFiltreRetraite($query, $anneeN + 1);
         } elseif ($statutFilter === 'decedes_annee_n') {
             $debutAnnee = Carbon::create($anneeN, 1, 1)->startOfDay();
             $finAnnee = Carbon::create($anneeN, 12, 31)->endOfDay();
@@ -1850,6 +1850,33 @@ class MilitaireController extends Controller
                 'date_echeance' => $echeance,
                 'est_vue'       => false,
             ]);
+        }
+    }
+
+    /**
+     * Applique directement le filtre des départs en retraite en SQL pur (0 tableau d'IDs en mémoire PHP).
+     */
+    private function appliquerFiltreRetraite($query, int $anneeCible): void
+    {
+        $anneeCourante = (int) Carbon::now()->year;
+
+        $query->join('grades as g_retraite', 'militaires.grade_id', '=', 'g_retraite.id')
+              ->whereNotNull('militaires.date_naissance')
+              ->whereNotNull('g_retraite.retraite_obligatoire')
+              ->where(function ($q) {
+                  $q->whereNull('militaires.position_actuelle')
+                    ->orWhere('militaires.position_actuelle', 'not ilike', '%otage%');
+              })
+              ->where(function ($q) {
+                  $q->whereNull('militaires.observations')
+                    ->orWhere('militaires.observations', 'not ilike', '%otage%');
+              })
+              ->where('militaires.est_disparu', 0);
+
+        if ($anneeCible === $anneeCourante) {
+            $query->whereRaw("((EXTRACT(YEAR FROM militaires.date_naissance) + g_retraite.retraite_obligatoire = {$anneeCible}) OR (LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + g_retraite.retraite_obligatoire < {$anneeCible}))");
+        } else {
+            $query->whereRaw("(LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + g_retraite.retraite_obligatoire = {$anneeCible})");
         }
     }
 

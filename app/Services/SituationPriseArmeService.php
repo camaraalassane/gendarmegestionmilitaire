@@ -211,6 +211,8 @@ class SituationPriseArmeService
 
             $grmId = OrganismeDetachement::where('code', 'GRM')->value('id') ?? 1;
 
+            $posDetacheId = \App\Models\Position::idDetachement();
+
             $mStats = DB::table('militaires')
                 ->selectRaw("
                     COUNT(CASE WHEN statut_code IN (1, 2, 3, 4) THEN 1 END) as total_spa,
@@ -219,7 +221,7 @@ class SituationPriseArmeService
                     COUNT(CASE WHEN statut_code IN (1, 2, 3, 4) AND (
                         (organisme_detachement_id IS NOT NULL AND organisme_detachement_id != {$grmId})
                         OR position_actuelle ILIKE '%détachement%'
-                        OR position_id = 26
+                        OR position_id = {$posDetacheId}
                     ) THEN 1 END) as total_detaches
                 ")
                 ->whereNull('deleted_at')

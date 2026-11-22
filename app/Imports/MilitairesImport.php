@@ -760,6 +760,7 @@ class MilitairesImport implements WithMultipleSheets, ToCollection, WithHeadingR
                 'updated_at' => $now,
             ];
         }
+    }
 
     /**
      * Parse une valeur de date, supportant :
@@ -1310,9 +1311,9 @@ class MilitairesImport implements WithMultipleSheets, ToCollection, WithHeadingR
             || strtoupper($regRaw) === 'DÉTACHEMENT';
 
         if ($isDetache) {
-            $militaire->statut = 'actif';
-            $militaire->statut_code = 1;
-            $militaire->position_id = 26;
+            $militaire->statut = 'détaché';
+            $militaire->statut_code = 2;
+            $militaire->position_id = \App\Models\Position::idDetachement();
             $militaire->position_actuelle = 'En détachement';
             if (!empty($unitRaw)) {
                 $orgTarget = $this->normalizeStringForMatch($unitRaw);
@@ -1329,15 +1330,17 @@ class MilitairesImport implements WithMultipleSheets, ToCollection, WithHeadingR
             }
         } else {
             $militaire->organisme_detachement_id = $this->grmOrgId ?? 1;
-            if (!empty($militaire->est_disparu) || $militaire->position_id === 31 || str_contains(mb_strtolower((string)$militaire->position_actuelle), 'otage') || str_contains(mb_strtolower((string)$militaire->position_actuelle), 'disparu')) {
-                $militaire->position_id = 31;
+            $otageId = \App\Models\Position::idOtage();
+            $uniteId = \App\Models\Position::idUnite();
+            if (!empty($militaire->est_disparu) || $militaire->position_id === $otageId || str_contains(mb_strtolower((string)$militaire->position_actuelle), 'otage') || str_contains(mb_strtolower((string)$militaire->position_actuelle), 'disparu')) {
+                $militaire->position_id = $otageId;
                 $militaire->position_actuelle = "Cas d'otage";
                 $militaire->est_disparu = 1;
-            } elseif ($militaire->position_id === 32 || str_contains(mb_strtolower((string)$militaire->position_actuelle), 'convalesc')) {
-                $militaire->position_id = 32;
+            } elseif ($militaire->position_id === \App\Models\Position::ID_CONGE || str_contains(mb_strtolower((string)$militaire->position_actuelle), 'convalesc')) {
+                $militaire->position_id = \App\Models\Position::ID_CONGE;
                 $militaire->position_actuelle = "En congé / Convalescence";
             } elseif (empty($militaire->position_id)) {
-                $militaire->position_id = 21;
+                $militaire->position_id = $uniteId;
                 if (empty($militaire->position_actuelle)) {
                     $militaire->position_actuelle = "À l'Unité / Au Poste";
                 }
