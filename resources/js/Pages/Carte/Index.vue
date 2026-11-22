@@ -470,7 +470,9 @@ const gradeBadgeStyle = (ordre) => {
 
 const theatreBadgeWidth = (th) => {
     const title = `${th.code} • ${(th.pc_lieu || 'PC').toUpperCase()}`;
-    return Math.max(90, Math.min(145, title.length * 6.5 + 24));
+    const baseW = title.length * 6.5 + 24;
+    const hasAppui = (th.effectif_appui || 0) > 0;
+    return Math.max(hasAppui ? 135 : 95, Math.min(175, baseW + (hasAppui ? 25 : 0)));
 };
 
 const theatreMilitairesFiltres = computed(() => theatreMilitairesTriesEtFiltres.value);
@@ -1994,13 +1996,13 @@ const lignesFiltrees = computed(() => {
                                                 ★
                                             </text>
 
-                                            <!-- GRAND BADGE TACTIQUE IDENTIQUE AU MAILLAGE TERRITORIAL AVEC GRAND CHIFFRE GLOBAL -->
+                                            <!-- GRAND BADGE TACTIQUE AVEC EFFECTIF GENDARMERIE ET EFFECTIF D'APPUI -->
                                             <g :transform="`translate(0, 20)`" class="pointer-events-none select-none">
                                                 <rect
                                                     :x="-theatreBadgeWidth(th) / 2"
                                                     y="-11"
                                                     :width="theatreBadgeWidth(th)"
-                                                    height="23"
+                                                    height="25"
                                                     rx="5"
                                                     ry="5"
                                                     fill="#090e17"
@@ -2018,14 +2020,54 @@ const lignesFiltrees = computed(() => {
                                                 >
                                                     {{ th.code }} • {{ (th.pc_lieu || 'PC').toUpperCase() }}
                                                 </text>
-                                                <!-- Ligne 2 : CHIFFRE GRAND ET EXTRA-VISIBLE (BLANC ÉCLATANT) -->
+                                                <!-- Ligne 2 : CHIFFRE GENDARMERIE & APPUI FAMa -->
                                                 <text
                                                     x="0"
-                                                    y="8"
+                                                    y="9"
                                                     text-anchor="middle"
                                                     class="tactical-badge-val"
                                                 >
-                                                    {{ fmt(th.effectif) }}
+                                                    <tspan fill="#ffffff" font-weight="900">{{ fmt(th.effectif) }}</tspan>
+                                                    <tspan fill="#94a3b8" font-size="8.5" font-weight="600"> Gend.</tspan>
+                                                    <template v-if="th.effectif_appui > 0">
+                                                        <tspan fill="#fbbf24" font-weight="800" font-size="10"> +{{ fmt(th.effectif_appui) }}</tspan>
+                                                        <tspan fill="#f59e0b" font-size="7.5" font-weight="700"> Appui</tspan>
+                                                    </template>
+                                                </text>
+                                            </g>
+
+                                            <!-- LIGNE DES BADGES D'APPUI AU SURVOL OU SÉLECTION (ex: AA 20 • AT 35 • DTTIA 10) -->
+                                            <g
+                                                v-if="(selTheatre === th.code || hoveredTheatre === th.code) && th.unites_appui && th.unites_appui.length > 0"
+                                                :transform="`translate(0, 39)`"
+                                                class="pointer-events-none select-none"
+                                            >
+                                                <rect
+                                                    :x="-Math.max(120, th.unites_appui.length * 36) / 2"
+                                                    y="-7"
+                                                    :width="Math.max(120, th.unites_appui.length * 36)"
+                                                    height="15"
+                                                    rx="3.5"
+                                                    ry="3.5"
+                                                    fill="#090e17"
+                                                    fill-opacity="0.94"
+                                                    stroke="#fbbf24"
+                                                    stroke-width="0.8"
+                                                />
+                                                <text
+                                                    x="0"
+                                                    y="3.5"
+                                                    text-anchor="middle"
+                                                    font-size="8"
+                                                    font-weight="bold"
+                                                    fill="#f8fafc"
+                                                    letter-spacing="0.2"
+                                                >
+                                                    <template v-for="(ua, uIdx) in th.unites_appui" :key="ua.id">
+                                                        <tspan :fill="ua.couleur || '#38bdf8'">{{ ua.code }} </tspan>
+                                                        <tspan fill="#ffffff" font-weight="900">{{ ua.effectif }}</tspan>
+                                                        <tspan v-if="uIdx < th.unites_appui.length - 1" fill="#64748b"> • </tspan>
+                                                    </template>
                                                 </text>
                                             </g>
                                         </g>
@@ -2335,12 +2377,13 @@ const lignesFiltrees = computed(() => {
                             @click="selTheatre = selTheatre === th.code ? null : th.code"
                             :title="th.nom + ' (PC ' + (th.pc_lieu || 'N/A') + ')'"
                         >
-                            <span
-                                class="w-2.5 h-2.5 rounded-full flex-none"
+                            <span class="w-2.5 h-2.5 rounded-full flex-none"
                                 :style="{ background: th.couleur }"
                             ></span>
                             <span class="font-mono font-bold">{{ th.code }}</span>
-                            <span class="text-[10px] opacity-80 tabular-nums">({{ th.effectif }})</span>
+                            <span class="text-[10px] opacity-90 tabular-nums">
+                                ({{ th.effectif }}<span v-if="th.effectif_appui" class="text-amber-600 font-bold ml-0.5">+{{ th.effectif_appui }}</span>)
+                            </span>
                         </button>
                     </div>
 
@@ -2472,21 +2515,27 @@ const lignesFiltrees = computed(() => {
                             </div>
 
                             <!-- Grille métriques globale théâtres -->
-                            <div class="grid grid-cols-3 gap-1 my-1.5 p-1 border border-slate-200/70 flex-none bg-sky-50/50 rounded text-center">
+                            <div class="grid grid-cols-4 gap-1 my-1.5 p-1 border border-slate-200/70 flex-none bg-sky-50/50 rounded text-center">
                                 <div class="min-w-0 px-0.5">
-                                    <div class="text-[9px] text-slate-500 font-semibold truncate leading-tight uppercase">Engagés</div>
+                                    <div class="text-[8.5px] text-slate-500 font-semibold truncate leading-tight uppercase">Gendarmes</div>
+                                    <div class="text-xs font-bold text-sky-900 tabular-nums">
+                                        {{ theatres.reduce((s, t) => s + (t.effectif_gendarmerie || t.effectif || 0), 0) }}
+                                    </div>
+                                </div>
+                                <div class="min-w-0 px-0.5">
+                                    <div class="text-[8.5px] text-amber-700 font-semibold truncate leading-tight uppercase">Appuis FAMa</div>
+                                    <div class="text-xs font-bold text-amber-700 tabular-nums">
+                                        +{{ theatres.reduce((s, t) => s + (t.effectif_appui || 0), 0) }}
+                                    </div>
+                                </div>
+                                <div class="min-w-0 px-0.5">
+                                    <div class="text-[8.5px] text-slate-600 font-semibold truncate leading-tight uppercase">Total Forces</div>
                                     <div class="text-xs font-bold text-slate-900 tabular-nums">
-                                        {{ theatres.reduce((s, t) => s + (t.effectif || 0), 0) }}
+                                        {{ theatres.reduce((s, t) => s + (t.effectif_global || t.effectif || 0), 0) }}
                                     </div>
                                 </div>
                                 <div class="min-w-0 px-0.5">
-                                    <div class="text-[9px] text-slate-500 font-semibold truncate leading-tight uppercase">Actifs front</div>
-                                    <div class="text-xs font-bold text-emerald-700 tabular-nums">
-                                        {{ theatres.reduce((s, t) => s + (t.actifs || 0), 0) }}
-                                    </div>
-                                </div>
-                                <div class="min-w-0 px-0.5">
-                                    <div class="text-[9px] text-slate-500 font-semibold truncate leading-tight uppercase">Blessés guerre</div>
+                                    <div class="text-[8.5px] text-rose-600 font-semibold truncate leading-tight uppercase">Blessés</div>
                                     <div class="text-xs font-bold text-rose-700 tabular-nums">
                                         {{ theatres.reduce((s, t) => s + (t.blesses || 0), 0) }}
                                     </div>
@@ -2510,9 +2559,14 @@ const lignesFiltrees = computed(() => {
                                             ></span>
                                             <span class="font-bold text-xs font-mono text-slate-900 group-hover:text-sky-900">{{ th.code }}</span>
                                         </div>
-                                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-900 border border-sky-200">
-                                            {{ th.effectif }} gendarme(s)
-                                        </span>
+                                        <div class="flex items-center gap-1">
+                                            <span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-900 border border-sky-200">
+                                                {{ th.effectif }} gendarme(s)
+                                            </span>
+                                            <span v-if="th.effectif_appui > 0" class="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                                                +{{ th.effectif_appui }} appui(s)
+                                            </span>
+                                        </div>
                                     </div>
 
                                     <div class="text-xs font-bold text-slate-800 leading-snug line-clamp-1">{{ th.nom }}</div>
@@ -2528,8 +2582,21 @@ const lignesFiltrees = computed(() => {
                                         </span>
                                     </div>
 
+                                    <!-- Mini badges des unités d'appui (ex: AA 20, AT 35, DTTIA 10, GENIE 15) -->
+                                    <div v-if="th.unites_appui && th.unites_appui.length > 0" class="flex flex-wrap gap-1 mt-1.5 pt-1.5 border-t border-slate-100">
+                                        <span
+                                            v-for="ua in th.unites_appui"
+                                            :key="ua.id"
+                                            class="px-1.5 py-0.2 rounded text-[9.5px] font-bold border"
+                                            :style="{ backgroundColor: (ua.couleur || '#0284c7') + '15', color: ua.couleur || '#0284c7', borderColor: (ua.couleur || '#0284c7') + '40' }"
+                                            :title="ua.nom + ' (' + ua.effectif + ' éléments)'"
+                                        >
+                                            {{ ua.code }}: {{ ua.effectif }}
+                                        </span>
+                                    </div>
+
                                     <!-- Emprise (Régions) -->
-                                    <div class="flex flex-wrap gap-1 mt-2">
+                                    <div class="flex flex-wrap gap-1 mt-1.5">
                                         <span
                                             v-for="rc in th.regions_codes"
                                             :key="rc"
@@ -2616,15 +2683,54 @@ const lignesFiltrees = computed(() => {
                                 </div>
                                 <div class="flex items-baseline gap-2">
                                     <div class="text-3xl font-black text-slate-900 tabular-nums">
-                                        {{ fmt(selTheatreObj.effectif) }}
+                                        {{ fmt((selTheatreObj.effectif || 0) + (selTheatreObj.effectif_appui || 0)) }}
                                     </div>
                                     <div class="text-xs font-semibold text-slate-600">
-                                        gendarme(s) engagé(s)
+                                        combattants au front
                                     </div>
                                 </div>
-                                <div class="text-[10px] text-sky-800/90 mt-1 flex items-center gap-1 font-medium">
-                                    <i class="pi pi-info-circle text-[10px] text-sky-600"></i>
-                                    <span>Cliquer pour ouvrir la liste complète (du plus haut au plus petit grade)</span>
+                                <div class="text-[10.5px] text-slate-600 mt-1 flex items-center gap-2 flex-wrap">
+                                    <span class="font-bold text-sky-900 bg-sky-100/70 px-1.5 py-0.2 rounded border border-sky-200">
+                                        {{ fmt(selTheatreObj.effectif) }} Gendarmes
+                                    </span>
+                                    <span v-if="selTheatreObj.effectif_appui > 0" class="font-bold text-amber-800 bg-amber-100/70 px-1.5 py-0.2 rounded border border-amber-200">
+                                        +{{ fmt(selTheatreObj.effectif_appui) }} Appuis FAMa
+                                    </span>
+                                </div>
+                            </div>
+
+                            <!-- SECTION UNITÉS D'APPUI INTERARMÉES (AA, AT, DTTIA, GÉNIE, ETC.) -->
+                            <div class="mb-2.5 flex-none p-2.5 rounded-lg border border-amber-200/80 bg-amber-50/50">
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <span class="text-[10px] font-bold text-amber-900 uppercase tracking-wide flex items-center gap-1.5">
+                                        <i class="pi pi-shield text-amber-700 text-xs"></i>
+                                        <span>Appuis FAMa ({{ selTheatreObj.unites_appui?.length || 0 }})</span>
+                                    </span>
+                                    <span class="text-xs font-black text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-300 tabular-nums">
+                                        +{{ selTheatreObj.effectif_appui || 0 }}
+                                    </span>
+                                </div>
+
+                                <div v-if="selTheatreObj.unites_appui && selTheatreObj.unites_appui.length > 0" class="grid grid-cols-2 gap-1.5">
+                                    <div
+                                        v-for="ua in selTheatreObj.unites_appui"
+                                        :key="ua.id"
+                                        class="p-1.5 rounded bg-white border border-amber-200 shadow-2xs flex items-center justify-between gap-1"
+                                    >
+                                        <div class="min-w-0">
+                                            <div class="flex items-center gap-1">
+                                                <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: ua.couleur || '#0284c7' }"></span>
+                                                <span class="font-mono font-black text-[11px] text-slate-900">{{ ua.code }}</span>
+                                            </div>
+                                            <div class="text-[9.5px] text-slate-500 truncate" :title="ua.nom">{{ ua.nom }}</div>
+                                        </div>
+                                        <span class="font-black text-xs px-1.5 py-0.5 rounded text-amber-900 bg-amber-50 border border-amber-200 tabular-nums shrink-0">
+                                            {{ ua.effectif }}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div v-else class="text-[10px] text-slate-500 italic text-center py-1">
+                                    Aucune unité d'appui FAMa rattachée à ce théâtre.
                                 </div>
                             </div>
 
@@ -3523,10 +3629,40 @@ const lignesFiltrees = computed(() => {
                     </div>
                     <div class="flex items-center gap-3 sm:border-l sm:border-slate-800 sm:pl-4">
                         <div class="text-right">
-                            <div class="text-[10px] uppercase font-bold text-slate-400">Total Projeté</div>
-                            <div class="text-2xl font-black text-sky-300 font-mono">{{ selTheatreObj.effectif }}</div>
+                            <div class="text-[9.5px] uppercase font-bold text-slate-400">Gendarmerie</div>
+                            <div class="text-lg font-black text-sky-300 font-mono">{{ selTheatreObj.effectif }}</div>
+                        </div>
+                        <div class="text-right border-l border-slate-800 pl-3">
+                            <div class="text-[9.5px] uppercase font-bold text-amber-400">Appui FAMa</div>
+                            <div class="text-lg font-black text-amber-300 font-mono">+{{ selTheatreObj.effectif_appui || 0 }}</div>
+                        </div>
+                        <div class="text-right border-l border-slate-800 pl-3">
+                            <div class="text-[9.5px] uppercase font-bold text-emerald-400">Total Combattants</div>
+                            <div class="text-xl font-black text-emerald-300 font-mono">{{ (selTheatreObj.effectif || 0) + (selTheatreObj.effectif_appui || 0) }}</div>
                         </div>
                     </div>
+                </div>
+
+                <!-- Dispositif des Unités d'Appui rattachées -->
+                <div v-if="selTheatreObj?.unites_appui && selTheatreObj.unites_appui.length > 0" class="p-2.5 rounded-lg bg-amber-50/70 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="font-bold text-amber-950 flex items-center gap-1">
+                            <i class="pi pi-shield text-amber-700 text-xs"></i>
+                            <span>Appuis Interarmées FAMa :</span>
+                        </span>
+                        <span
+                            v-for="ua in selTheatreObj.unites_appui"
+                            :key="ua.id"
+                            class="px-2 py-0.5 rounded text-[11px] font-bold border"
+                            :style="{ backgroundColor: (ua.couleur || '#0284c7') + '15', color: ua.couleur || '#0284c7', borderColor: (ua.couleur || '#0284c7') + '40' }"
+                            :title="ua.nom + (ua.observations ? ' • ' + ua.observations : '')"
+                        >
+                            {{ ua.code }} : {{ ua.effectif }}
+                        </span>
+                    </div>
+                    <span class="text-[11px] font-bold text-amber-800 shrink-0">
+                        Total Appuis : {{ selTheatreObj.effectif_appui }} combattants
+                    </span>
                 </div>
 
                 <!-- Barre d'outils : Filtres statutaires & Recherche textuelle -->

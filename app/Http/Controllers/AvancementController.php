@@ -103,8 +103,14 @@ class AvancementController extends Controller
 
         $annee = (int) $request->input('annee', date('Y'));
         $itemIds = collect($request->input('items', []))->pluck('militaire_id')->filter()->unique()->values();
-        if ($itemIds->isNotEmpty() && \App\Models\Militaire::whereIn('id', $itemIds)->count() !== $itemIds->count()) {
-            return back()->withErrors(['items' => 'Un ou plusieurs militaires sont introuvables.']);
+        if ($itemIds->isNotEmpty()) {
+            $totalFound = 0;
+            foreach ($itemIds->chunk(5000) as $chunk) {
+                $totalFound += \App\Models\Militaire::whereIn('id', $chunk)->count();
+            }
+            if ($totalFound !== $itemIds->count()) {
+                return back()->withErrors(['items' => 'Un ou plusieurs militaires sont introuvables.']);
+            }
         }
         $items = $request->input('items', []);
         $now = now();
@@ -450,13 +456,17 @@ class AvancementController extends Controller
                 return [];
             }
 
-            // Exclusion formelle des militaires déjà en retraite ou décédés
-            $militaires = Militaire::whereIn('id', $allIds)
-                ->enActivite()
-                ->whereNull('date_deces')
-                ->with(['certificats'])
-                ->get()
-                ->keyBy('id');
+            // Exclusion formelle des militaires déjà en retraite ou décédés (par lots de 5 000 max pour respecter la limite Postgres)
+            $militaires = collect();
+            foreach (array_chunk($allIds, 5000) as $chunkIds) {
+                $chunkMilitaires = Militaire::whereIn('id', $chunkIds)
+                    ->enActivite()
+                    ->whereNull('date_deces')
+                    ->with(['certificats'])
+                    ->get();
+                $militaires = $militaires->concat($chunkMilitaires);
+            }
+            $militaires = $militaires->keyBy('id');
 
             $candidates = [];
 

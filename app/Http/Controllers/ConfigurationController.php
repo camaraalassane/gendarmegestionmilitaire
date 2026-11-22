@@ -6,6 +6,7 @@ use App\Models\Position;
 use App\Models\Region;
 use App\Models\Unite;
 use App\Models\Theatre;
+use App\Models\TheatreUniteAppui;
 use App\Models\Militaire;
 use App\Http\Controllers\CarteController;
 use App\Services\RegionGeo;
@@ -41,7 +42,7 @@ class ConfigurationController extends Controller
 
         $unites = $unitesQuery->get();
         $positions = Position::orderBy('nom')->get();
-        $theatres = Theatre::withCount('militaires')->orderBy('nom')->get();
+        $theatres = Theatre::withCount('militaires')->with('unitesAppui')->orderBy('nom')->get();
 
         // Statistiques globales
         $stats = [
@@ -52,6 +53,8 @@ class ConfigurationController extends Controller
             'total_positions' => $positions->count(),
             'total_theatres' => $theatres->count(),
             'theatres_actifs' => $theatres->where('statut', 'actif')->count(),
+            'total_unites_appui' => TheatreUniteAppui::count(),
+            'effectif_total_appui' => (int) TheatreUniteAppui::sum('effectif'),
         ];
 
         return Inertia::render('Configurations/Index', [
@@ -434,5 +437,116 @@ class ConfigurationController extends Controller
         CarteController::flush();
 
         return redirect()->back()->with('success', 'Théâtre d’opérations supprimé avec succès.');
+    }
+
+    // ==========================================
+    // UNITÉS D'APPUI INTERARMÉES DES THÉÂTRES
+    // ==========================================
+
+    public function storeUniteAppui(Request $request, Theatre $theatre)
+    {
+        $validated = $request->validate([
+            'code' => 'required|string|max:30',
+            'nom' => 'required|string|max:150',
+            'effectif' => 'required|integer|min:0',
+            'chef_detachement' => 'nullable|string|max:150',
+            'couleur' => 'nullable|string|max:30',
+            'observations' => 'nullable|string|max:1000',
+        ], [
+            'code.required' => 'Le code de l’unité d’appui est obligatoire (ex: AA, AT, DTTIA).',
+            'nom.required' => 'Le nom complet de l’unité est obligatoire.',
+            'effectif.required' => 'L’effectif est obligatoire.',
+            'effectif.min' => 'L’effectif ne peut pas être négatif.',
+        ]);
+
+        $defaultCouleurs = [
+            'AA' => '#0284c7',
+            'AT' => '#16a34a',
+            'DTTIA' => '#9333ea',
+            'GENIE' => '#d97706',
+            'DCSSA' => '#e11d48',
+            'DMHTA' => '#64748b',
+        ];
+
+        $code = strtoupper(trim($validated['code']));
+        $couleur = $validated['couleur'] ?: ($defaultCouleurs[$code] ?? '#0284c7');
+
+        $theatre->unitesAppui()->create([
+            'code' => $code,
+            'nom' => trim($validated['nom']),
+            'effectif' => (int) $validated['effectif'],
+            'chef_detachement' => !empty($validated['chef_detachement']) ? trim($validated['chef_detachement']) : null,
+            'couleur' => $couleur,
+            'observations' => !empty($validated['observations']) ? trim($validated['observations']) : null,
+        ]);
+
+        CarteController::flush();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Unité d’appui « {$code} » rattachée avec succès au théâtre « {$theatre->nom} ».",
+                'theatre' => $theatre->load('unitesAppui'),
+            ]);
+        }
+
+        return redirect()->back()->with('success', "Unité d’appui « {$code} » rattachée avec succès au théâtre.");
+    }
+
+    public function updateUniteAppui(Request $request, TheatreUniteAppui $uniteAppui)
+    {
+        $validated = $request->validate([
+            'code' => 'required|string|max:30',
+            'nom' => 'required|string|max:150',
+            'effectif' => 'required|integer|min:0',
+            'chef_detachement' => 'nullable|string|max:150',
+            'couleur' => 'nullable|string|max:30',
+            'observations' => 'nullable|string|max:1000',
+        ], [
+            'code.required' => 'Le code de l’unité d’appui est obligatoire.',
+            'nom.required' => 'Le nom complet de l’unité est obligatoire.',
+            'effectif.required' => 'L’effectif est obligatoire.',
+            'effectif.min' => 'L’effectif ne peut pas être négatif.',
+        ]);
+
+        $code = strtoupper(trim($validated['code']));
+
+        $uniteAppui->update([
+            'code' => $code,
+            'nom' => trim($validated['nom']),
+            'effectif' => (int) $validated['effectif'],
+            'chef_detachement' => !empty($validated['chef_detachement']) ? trim($validated['chef_detachement']) : null,
+            'couleur' => $validated['couleur'] ?: $uniteAppui->couleur,
+            'observations' => !empty($validated['observations']) ? trim($validated['observations']) : null,
+        ]);
+
+        CarteController::flush();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Unité d’appui « {$code} » mise à jour avec succès.",
+                'uniteAppui' => $uniteAppui->fresh(),
+            ]);
+        }
+
+        return redirect()->back()->with('success', "Unité d’appui « {$code} » mise à jour avec succès.");
+    }
+
+    public function destroyUniteAppui(Request $request, TheatreUniteAppui $uniteAppui)
+    {
+        $code = $uniteAppui->code;
+        $uniteAppui->delete();
+
+        CarteController::flush();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Unité d’appui « {$code} » supprimée avec succès.",
+            ]);
+        }
+
+        return redirect()->back()->with('success', "Unité d’appui « {$code} » supprimée avec succès.");
     }
 }

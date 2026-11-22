@@ -138,18 +138,9 @@ class EligibiliteController extends Controller
             return max(0, $diff);
         };
 
-        $militaires = Militaire::enActivite()
-            ->select([
-                'id', 'matricule', 'nom', 'prenom', 'grade_id', 'grade_actuel', 'grade_ordre',
-                'date_entree_service', 'date_derniere_promotion',
-                'statut', 'statut_code', 'position_actuelle', 'a_permis_conduire', 'antecedent_judiciaire',
-                'antecedent_disciplinaire', 'date_naissance',
-                'unite', 'region', 'date_mutation'
-            ])
-            ->get();
+        $militaireSubquery = Militaire::enActivite()->select('id');
 
-        $militaireIds = $militaires->pluck('id')->all();
-        $alertesContrat = Alerte::whereIn('militaire_id', $militaireIds)
+        $alertesContrat = Alerte::whereIn('militaire_id', $militaireSubquery)
             ->where('type_alerte', 'contrat')
             ->where('est_vue', false)
             ->pluck('message', 'militaire_id')
@@ -157,7 +148,7 @@ class EligibiliteController extends Controller
 
         $rawCerts = DB::table('certificat_militaire')
             ->join('certificats', 'certificats.id', '=', 'certificat_militaire.certificat_id')
-            ->whereIn('certificat_militaire.militaire_id', $militaireIds)
+            ->whereIn('certificat_militaire.militaire_id', $militaireSubquery)
             ->select('certificat_militaire.militaire_id', 'certificats.niveau_certificat', 'certificat_militaire.date_obtention')
             ->get();
 
@@ -171,11 +162,21 @@ class EligibiliteController extends Controller
 
         $contratsMap = DB::table('contrats')
             ->where('statut', 'actif')
-            ->whereIn('militaire_id', $militaireIds)
+            ->whereIn('militaire_id', $militaireSubquery)
             ->select('id', 'militaire_id', 'date_fin', 'date_debut')
             ->get()
             ->keyBy('militaire_id')
             ->all();
+
+        $militaires = Militaire::enActivite()
+            ->select([
+                'id', 'matricule', 'nom', 'prenom', 'grade_id', 'grade_actuel', 'grade_ordre',
+                'date_entree_service', 'date_derniere_promotion',
+                'statut', 'statut_code', 'position_actuelle', 'a_permis_conduire', 'antecedent_judiciaire',
+                'antecedent_disciplinaire', 'date_naissance',
+                'unite', 'region', 'date_mutation'
+            ])
+            ->cursor();
 
         $latestAffectations = [];
         if (DB::table('affectations')->count() > 0) {

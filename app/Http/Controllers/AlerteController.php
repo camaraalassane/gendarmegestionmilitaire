@@ -183,7 +183,7 @@ class AlerteController extends Controller
     {
         $gradesEligibles = $this->getGradesEligiblesContrat();
 
-        $militaires = Militaire::whereIn('grade_actuel', $gradesEligibles)->get();
+        $militaires = Militaire::whereIn('grade_actuel', $gradesEligibles)->lazyById(500); // lecture par lots : mémoire bornée
 
         $createdCount = 0;
         $alreadyExists = 0;
@@ -242,7 +242,7 @@ class AlerteController extends Controller
     {
         $militaires = Militaire::enActivite()->with(['affectations' => function($q) {
             $q->orderBy('date_mutation', 'desc');
-        }])->get();
+        }])->lazyById(500); // lecture par lots : mémoire bornée
         $createdCount = 0;
         $alreadyExists = 0;
 

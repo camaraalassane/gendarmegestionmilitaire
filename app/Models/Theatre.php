@@ -39,4 +39,12 @@ class Theatre extends Model
     {
         return $this->hasMany(Militaire::class, 'theatre_id');
     }
+
+    /**
+     * Unités d'appui interarmées (AA, AT, DTTIA, Génie, etc.) rattachées à ce théâtre.
+     */
+    public function unitesAppui(): HasMany
+    {
+        return $this->hasMany(TheatreUniteAppui::class, 'theatre_id')->orderBy('code');
+    }
 }

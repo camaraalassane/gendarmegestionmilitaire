@@ -276,7 +276,7 @@ class ContratController extends Controller
 
         $militaires = Militaire::with(['contrats' => function($query) {
             $query->where('statut', 'actif')->latest('date_debut');
-        }])->whereIn('grade_actuel', $gradesEligibles)->get();
+        }])->whereIn('grade_actuel', $gradesEligibles)->lazyById(500);
 
         $createdCount = 0;
         $alertesExistantes = 0;
@@ -329,9 +329,11 @@ class ContratController extends Controller
         $totalExpires = Contrat::where('statut', 'expire')->count();
         $totalRenouveles = Contrat::where('statut', 'renouvele')->count();
 
-        $militaires = Militaire::with(['contrats' => function($query) {
-            $query->where('statut', 'actif')->latest('date_debut');
-        }])->get();
+        // Seuls les militaires ayant un contrat actif comptent ; lecture par lots pour une mémoire bornée
+        $militaires = Militaire::whereHas('contrats', fn ($q) => $q->where('statut', 'actif'))
+            ->with(['contrats' => function($query) {
+                $query->where('statut', 'actif')->latest('date_debut');
+            }])->lazyById(500);
 
         $a5ans = 0;
         $a10ans = 0;

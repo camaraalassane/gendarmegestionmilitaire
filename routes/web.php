@@ -131,6 +131,11 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::put('/configurations/theatres/{theatre}', [ConfigurationController::class, 'updateTheatre'])->name('configurations.theatres.update');
     Route::delete('/configurations/theatres/{theatre}', [ConfigurationController::class, 'destroyTheatre'])->name('configurations.theatres.destroy');
 
+    // Unités d'Appui des Théâtres d'Opérations (AA, AT, DTTIA, Génie, etc.)
+    Route::post('/configurations/theatres/{theatre}/unites-appui', [ConfigurationController::class, 'storeUniteAppui'])->name('configurations.theatres.unites-appui.store');
+    Route::put('/configurations/unites-appui/{uniteAppui}', [ConfigurationController::class, 'updateUniteAppui'])->name('configurations.unites-appui.update');
+    Route::delete('/configurations/unites-appui/{uniteAppui}', [ConfigurationController::class, 'destroyUniteAppui'])->name('configurations.unites-appui.destroy');
+
     // Situation de Prise d'Armes (SPA) & Registres Opérationnels (100% Base de données)
     Route::get('/prise-armes', [PriseArmeController::class, 'index'])->name('prise-armes.index');
     Route::get('/prise-armes/export', [PriseArmeController::class, 'export'])->name('prise-armes.export');

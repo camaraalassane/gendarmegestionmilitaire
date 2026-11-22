@@ -164,7 +164,7 @@ class CarteController extends Controller
 
         // 4) Théâtres d'opérations souverains (agrégations SQL directes pour un chargement instantané)
         $regionsMap = $regions->keyBy('code');
-        $theatres = Theatre::orderBy('code')->get()->map(function ($th) use ($regionsMap, $regions) {
+        $theatres = Theatre::with('unitesAppui')->orderBy('code')->get()->map(function ($th) use ($regionsMap, $regions) {
             $q = \Illuminate\Support\Facades\DB::table('militaires')
                 ->whereRaw(Effectif::sqlActivite())
                 ->whereNull('deleted_at');
@@ -199,6 +199,23 @@ class CarteController extends Controller
             $regionsCodes = is_array($th->regions_codes) ? $th->regions_codes : [];
             $regionsNoms = array_filter(array_map(fn($c) => $regionsMap->get($c)?->nom, $regionsCodes));
 
+            $unitesAppui = ($th->unitesAppui ?? collect())->map(function ($ua) {
+                return [
+                    'id' => $ua->id,
+                    'theatre_id' => $ua->theatre_id,
+                    'code' => $ua->code,
+                    'nom' => $ua->nom,
+                    'effectif' => (int) $ua->effectif,
+                    'chef_detachement' => $ua->chef_detachement,
+                    'couleur' => $ua->couleur ?: '#0284c7',
+                    'observations' => $ua->observations,
+                ];
+            })->values();
+
+            $effectifGendarmerie = (int) ($st->total ?? 0);
+            $effectifAppui = (int) $unitesAppui->sum('effectif');
+            $effectifGlobal = $effectifGendarmerie + $effectifAppui;
+
             return [
                 'id' => $th->id,
                 'code' => $th->code,
@@ -211,9 +228,13 @@ class CarteController extends Controller
                 'regions_noms' => array_values($regionsNoms),
                 'couleur' => $th->couleur ?: '#ea580c',
                 'statut' => $th->statut ?: 'actif',
-                'effectif' => (int) ($st->total ?? 0),
+                'effectif' => $effectifGendarmerie,
+                'effectif_gendarmerie' => $effectifGendarmerie,
+                'effectif_appui' => $effectifAppui,
+                'effectif_global' => $effectifGlobal,
+                'unites_appui' => $unitesAppui,
                 'actifs' => (int) ($st->n_actifs ?? 0),
-                'absents' => max(0, (int) ($st->total ?? 0) - (int) ($st->n_actifs ?? 0)),
+                'absents' => max(0, $effectifGendarmerie - (int) ($st->n_actifs ?? 0)),
                 'blesses' => (int) ($st->n_blesses ?? 0),
                 'officiers' => (int) ($st->n_officiers ?? 0),
                 'sous_officiers' => (int) ($st->n_sous_officiers ?? 0),
@@ -230,7 +251,10 @@ class CarteController extends Controller
                 'non_rattaches' => $nonRattaches,
                 'annee' => $annee,
                 'total_theatres' => $theatres->count(),
-                'effectif_theatres' => (int) $theatres->sum('effectif'),
+                'effectif_theatres' => (int) $theatres->sum('effectif_gendarmerie'),
+                'effectif_theatres_gendarmerie' => (int) $theatres->sum('effectif_gendarmerie'),
+                'effectif_theatres_appui' => (int) $theatres->sum('effectif_appui'),
+                'effectif_theatres_global' => (int) $theatres->sum('effectif_global'),
                 'hors_region' => [
                     'actifs' => (int) $lignes->whereNull('region_id')->sum('n_actifs'),
                     'detaches' => (int) $lignes->whereNull('region_id')->sum('n_detaches'),

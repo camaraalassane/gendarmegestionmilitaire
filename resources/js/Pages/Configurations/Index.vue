@@ -542,6 +542,126 @@ const saveTheatre = () => {
         });
     }
 };
+
+// ==========================================
+// GESTION DES UNITÉS D'APPUI DES THÉÂTRES (AA, AT, DTTIA, GENIE, ETC.)
+// ==========================================
+const manageAppuisDialogVisible = ref(false);
+const selectedTheatreForAppuis = ref(null);
+const savingAppui = ref(false);
+const editingAppuiId = ref(null);
+
+const appuiForm = ref({
+    code: 'AA',
+    nom: "Armée de l'Air",
+    effectif: 10,
+    chef_detachement: '',
+    couleur: '#0284c7',
+    observations: '',
+});
+
+const appuiPresets = [
+    { code: 'AA', nom: "Armée de l'Air", couleur: '#0284c7' },
+    { code: 'AT', nom: "Armée de Terre", couleur: '#16a34a' },
+    { code: 'DTTIA', nom: "Transmissions", couleur: '#9333ea' },
+    { code: 'GENIE', nom: "Génie Militaire", couleur: '#d97706' },
+    { code: 'DCSSA', nom: "Santé Militaire", couleur: '#e11d48' },
+    { code: 'DMHTA', nom: "Matériel / Logistique", couleur: '#64748b' },
+    { code: 'AUTRE', nom: "Autre unité d'appui", couleur: '#0284c7' },
+];
+
+const currentTheatreAppuis = computed(() => {
+    if (!selectedTheatreForAppuis.value) return [];
+    const th = props.theatres.find(t => t.id === selectedTheatreForAppuis.value.id);
+    return th?.unites_appui || [];
+});
+
+const currentTheatreAppuisTotal = computed(() => {
+    return currentTheatreAppuis.value.reduce((s, u) => s + (u.effectif || 0), 0);
+});
+
+const onSelectAppuiPreset = (preset) => {
+    appuiForm.value.code = preset.code === 'AUTRE' ? '' : preset.code;
+    appuiForm.value.nom = preset.code === 'AUTRE' ? '' : preset.nom;
+    appuiForm.value.couleur = preset.couleur;
+};
+
+const openManageAppuisDialog = (th) => {
+    selectedTheatreForAppuis.value = th;
+    editingAppuiId.value = null;
+    appuiForm.value = {
+        code: 'AA',
+        nom: "Armée de l'Air",
+        effectif: 10,
+        chef_detachement: '',
+        couleur: '#0284c7',
+        observations: '',
+    };
+    manageAppuisDialogVisible.value = true;
+};
+
+const startEditAppui = (ua) => {
+    editingAppuiId.value = ua.id;
+    appuiForm.value = {
+        code: ua.code,
+        nom: ua.nom,
+        effectif: ua.effectif,
+        chef_detachement: ua.chef_detachement || '',
+        couleur: ua.couleur || '#0284c7',
+        observations: ua.observations || '',
+    };
+};
+
+const cancelEditAppui = () => {
+    editingAppuiId.value = null;
+    appuiForm.value = {
+        code: 'AA',
+        nom: "Armée de l'Air",
+        effectif: 10,
+        chef_detachement: '',
+        couleur: '#0284c7',
+        observations: '',
+    };
+};
+
+const saveAppui = () => {
+    if (!selectedTheatreForAppuis.value) return;
+    if (!appuiForm.value.code || !appuiForm.value.nom || appuiForm.value.effectif === null) {
+        toast.add({ severity: 'warn', summary: 'Champs requis', detail: 'Le code, le nom et l’effectif sont obligatoires.', life: 3000 });
+        return;
+    }
+
+    savingAppui.value = true;
+    if (editingAppuiId.value) {
+        router.put(route('configurations.unites-appui.update', editingAppuiId.value), appuiForm.value, {
+            preserveScroll: true,
+            onSuccess: () => {
+                cancelEditAppui();
+                toast.add({ severity: 'success', summary: 'Succès', detail: 'Unité d’appui mise à jour.', life: 3000 });
+            },
+            onFinish: () => savingAppui.value = false,
+        });
+    } else {
+        router.post(route('configurations.theatres.unites-appui.store', selectedTheatreForAppuis.value.id), appuiForm.value, {
+            preserveScroll: true,
+            onSuccess: () => {
+                cancelEditAppui();
+                toast.add({ severity: 'success', summary: 'Succès', detail: 'Unité d’appui ajoutée avec succès.', life: 3000 });
+            },
+            onFinish: () => savingAppui.value = false,
+        });
+    }
+};
+
+const deleteAppui = (ua) => {
+    if (!confirm(`Supprimer l'unité d'appui ${ua.code} (${ua.nom}) ?`)) return;
+    router.delete(route('configurations.unites-appui.destroy', ua.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            toast.add({ severity: 'success', summary: 'Supprimée', detail: 'Unité d’appui supprimée.', life: 3000 });
+        },
+    });
+};
 </script>
 
 <template>
@@ -1029,7 +1149,8 @@ const saveTheatre = () => {
                                     <th class="py-3 px-3">Désignation Officielle</th>
                                     <th class="py-3 px-3">Poste de Commandement (PC)</th>
                                     <th class="py-3 px-3">Emprise Géographique (Régions)</th>
-                                    <th class="py-3 px-3 text-center">Effectif Engagé</th>
+                                    <th class="py-3 px-3 text-center">Gendarmerie</th>
+                                    <th class="py-3 px-3">Unités d'Appui FAMa</th>
                                     <th class="py-3 px-3 text-center">Statut</th>
                                     <th class="py-3 px-3 text-right">Actions</th>
                                 </tr>
@@ -1087,6 +1208,34 @@ const saveTheatre = () => {
                                             {{ th.militaires_count || 0 }} gendarme(s)
                                         </span>
                                     </td>
+                                    <td class="py-3 px-3">
+                                        <div class="flex items-center gap-1.5 flex-wrap">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                                +{{ (th.unites_appui || []).reduce((s, u) => s + (u.effectif || 0), 0) }} appui(s)
+                                            </span>
+                                            <button
+                                                type="button"
+                                                @click="openManageAppuisDialog(th)"
+                                                class="text-[10.5px] font-bold text-sky-800 hover:text-sky-950 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-2 py-0.5 rounded transition cursor-pointer flex items-center gap-1"
+                                                title="Gérer les unités d'appui de ce théâtre"
+                                            >
+                                                <i class="pi pi-cog text-[9px]"></i>
+                                                <span>Gérer</span>
+                                            </button>
+                                        </div>
+                                        <!-- Mini badges colorés -->
+                                        <div v-if="th.unites_appui && th.unites_appui.length > 0" class="flex flex-wrap gap-1 mt-1.5">
+                                            <span
+                                                v-for="ua in th.unites_appui"
+                                                :key="ua.id"
+                                                class="px-1.5 py-0.2 rounded text-[9.5px] font-bold border"
+                                                :style="{ backgroundColor: (ua.couleur || '#0284c7') + '15', color: ua.couleur || '#0284c7', borderColor: (ua.couleur || '#0284c7') + '40' }"
+                                                :title="ua.nom + ' (' + ua.effectif + ' éléments)'"
+                                            >
+                                                {{ ua.code }}: {{ ua.effectif }}
+                                            </span>
+                                        </div>
+                                    </td>
                                     <td class="py-3 px-3 text-center">
                                         <span
                                             v-if="th.statut === 'actif'"
@@ -1111,9 +1260,17 @@ const saveTheatre = () => {
                                         <div class="flex items-center justify-end gap-1">
                                             <button
                                                 type="button"
+                                                @click="openManageAppuisDialog(th)"
+                                                class="p-1 rounded hover:bg-amber-50 text-amber-700 transition cursor-pointer"
+                                                title="Gérer les unités d'appui (AA, AT, DTTIA, Génie...)"
+                                            >
+                                                <i class="pi pi-users text-xs"></i>
+                                            </button>
+                                            <button
+                                                type="button"
                                                 @click="editTheatre(th)"
                                                 class="p-1 rounded hover:bg-slate-100 text-sky-700 transition cursor-pointer"
-                                                title="Modifier"
+                                                title="Modifier les détails du théâtre"
                                             >
                                                 <i class="pi pi-pencil text-xs"></i>
                                             </button>
@@ -1129,7 +1286,7 @@ const saveTheatre = () => {
                                     </td>
                                 </tr>
                                 <tr v-if="filteredTheatres.length === 0">
-                                    <td colspan="7" class="py-8 text-center text-slate-400 italic">
+                                    <td colspan="8" class="py-8 text-center text-slate-400 italic">
                                         Aucun théâtre d'opérations trouvé.
                                     </td>
                                 </tr>
@@ -1667,6 +1824,233 @@ const saveTheatre = () => {
                             @click="saveTheatre"
                         />
                     </div>
+                </div>
+            </template>
+        </Dialog>
+
+        <!-- DIALOG DE GESTION DES UNITÉS D'APPUI DU THÉÂTRE (AA, AT, DTTIA, GÉNIE, ETC.) -->
+        <Dialog
+            v-model:visible="manageAppuisDialogVisible"
+            modal
+            :header="`🤝 Unités d'Appui Interarmées (FAMa) • ${selectedTheatreForAppuis?.nom || ''} (${selectedTheatreForAppuis?.code || ''})`"
+            :style="{ width: '820px', maxWidth: '96vw' }"
+            class="p-fluid"
+        >
+            <div class="space-y-4 pt-1">
+                <!-- En-tête récapitulatif -->
+                <div v-if="selectedTheatreForAppuis" class="p-3 rounded-lg bg-linear-to-r from-sky-900 to-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm border border-slate-700">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-3.5 h-3.5 rounded-full border border-white" :style="{ backgroundColor: selectedTheatreForAppuis.couleur }"></span>
+                            <span class="text-sm font-bold font-mono text-sky-200">{{ selectedTheatreForAppuis.code }}</span>
+                            <span class="text-xs text-white/90">• {{ selectedTheatreForAppuis.nom }}</span>
+                        </div>
+                        <div class="text-[11px] text-slate-300 mt-1 flex items-center gap-1.5">
+                            <i class="pi pi-map-marker text-sky-400 text-xs"></i>
+                            <span>PC : <strong>{{ selectedTheatreForAppuis.pc_lieu || 'Non renseigné' }}</strong></span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 flex-wrap text-center">
+                        <div class="bg-white/10 px-2.5 py-1 rounded border border-white/15">
+                            <div class="text-[9px] uppercase tracking-wider text-slate-300">Gendarmerie</div>
+                            <div class="text-sm font-black text-white tabular-nums">{{ selectedTheatreForAppuis.militaires_count || 0 }}</div>
+                        </div>
+                        <div class="bg-amber-500/20 px-2.5 py-1 rounded border border-amber-400/30">
+                            <div class="text-[9px] uppercase tracking-wider text-amber-200">Appui FAMa</div>
+                            <div class="text-sm font-black text-amber-300 tabular-nums">+{{ currentTheatreAppuisTotal }}</div>
+                        </div>
+                        <div class="bg-emerald-500/20 px-2.5 py-1 rounded border border-emerald-400/30">
+                            <div class="text-[9px] uppercase tracking-wider text-emerald-200">Total Combattants</div>
+                            <div class="text-sm font-black text-emerald-300 tabular-nums">{{ (selectedTheatreForAppuis.militaires_count || 0) + currentTheatreAppuisTotal }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formulaire d'ajout / modification rapide -->
+                <div class="p-3.5 rounded-lg border border-slate-200 bg-slate-50 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <i :class="editingAppuiId ? 'pi pi-pencil text-amber-600' : 'pi pi-plus-circle text-sky-700'"></i>
+                            <span>{{ editingAppuiId ? "Modifier l'Unité d'Appui" : "Ajouter une Unité d'Appui Interarmées" }}</span>
+                        </span>
+                        <button
+                            v-if="editingAppuiId"
+                            type="button"
+                            @click="cancelEditAppui"
+                            class="text-[11px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                        >
+                            Annuler l'édition
+                        </button>
+                    </div>
+
+                    <!-- Sélecteur rapide de presets (Armes FAMa) -->
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Corps d'armée / Spécialité rapide :</label>
+                        <div class="flex flex-wrap gap-1">
+                            <button
+                                v-for="p in appuiPresets"
+                                :key="p.code"
+                                type="button"
+                                @click="onSelectAppuiPreset(p)"
+                                class="px-2 py-0.5 rounded text-[10.5px] font-semibold transition border flex items-center gap-1 cursor-pointer"
+                                :class="appuiForm.code === p.code ? 'bg-sky-900 text-white border-sky-900 shadow-2xs' : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-200'"
+                            >
+                                <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: p.couleur }"></span>
+                                <span>{{ p.code }}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                        <div class="sm:col-span-1">
+                            <label class="block text-[11px] font-semibold text-slate-700 mb-0.5">Code militaire *</label>
+                            <InputText
+                                v-model="appuiForm.code"
+                                placeholder="ex: AA, AT, DTTIA"
+                                class="w-full text-xs uppercase font-mono font-bold"
+                            />
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-[11px] font-semibold text-slate-700 mb-0.5">Désignation complète *</label>
+                            <InputText
+                                v-model="appuiForm.nom"
+                                placeholder="ex: Armée de l'Air, Transmissions"
+                                class="w-full text-xs"
+                            />
+                        </div>
+                        <div class="sm:col-span-1">
+                            <label class="block text-[11px] font-semibold text-slate-700 mb-0.5">Effectif déployé *</label>
+                            <InputText
+                                v-model="appuiForm.effectif"
+                                type="number"
+                                min="0"
+                                placeholder="ex: 20"
+                                class="w-full text-xs font-bold"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-700 mb-0.5">Chef de détachement</label>
+                            <InputText
+                                v-model="appuiForm.chef_detachement"
+                                placeholder="ex: Cne Traoré"
+                                class="w-full text-xs"
+                            />
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-700 mb-0.5">Couleur tactique</label>
+                            <InputText
+                                v-model="appuiForm.couleur"
+                                placeholder="ex: #0284c7"
+                                class="w-full text-xs font-mono"
+                            />
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold text-slate-700 mb-0.5">Mission / Observation</label>
+                            <InputText
+                                v-model="appuiForm.observations"
+                                placeholder="ex: Section mortier & déminage"
+                                class="w-full text-xs"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end pt-1">
+                        <Button
+                            :label="editingAppuiId ? 'Mettre à jour l\'appui' : 'Enregistrer cet appui'"
+                            icon="pi pi-check"
+                            class="bg-sky-800 hover:bg-sky-900 text-white border-0 text-xs shadow-xs cursor-pointer"
+                            :loading="savingAppui"
+                            @click="saveAppui"
+                        />
+                    </div>
+                </div>
+
+                <!-- Liste des Unités d'Appui existantes pour ce Théâtre -->
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                            Unités d'appui enregistrées ({{ currentTheatreAppuis.length }})
+                        </h4>
+                        <span class="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                            Total effectif appui : {{ currentTheatreAppuisTotal }} combattants
+                        </span>
+                    </div>
+
+                    <div class="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                        <table class="w-full text-left text-xs text-slate-700 border-collapse">
+                            <thead class="bg-slate-100 text-slate-700 uppercase font-semibold text-[10.5px] border-b border-slate-200">
+                                <tr>
+                                    <th class="py-2.5 px-3">Arme / Code</th>
+                                    <th class="py-2.5 px-3">Désignation</th>
+                                    <th class="py-2.5 px-3 text-center">Effectif</th>
+                                    <th class="py-2.5 px-3">Chef Détachement</th>
+                                    <th class="py-2.5 px-3">Missions / Obs.</th>
+                                    <th class="py-2.5 px-3 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr
+                                    v-for="ua in currentTheatreAppuis"
+                                    :key="ua.id"
+                                    class="hover:bg-slate-50 transition"
+                                >
+                                    <td class="py-2 px-3 font-semibold">
+                                        <div class="flex items-center gap-1.5">
+                                            <span class="w-3 h-3 rounded-full border border-black/20 shrink-0" :style="{ backgroundColor: ua.couleur || '#0284c7' }"></span>
+                                            <span class="font-mono font-bold text-xs px-1.5 py-0.5 rounded border" :style="{ backgroundColor: (ua.couleur || '#0284c7') + '15', color: ua.couleur || '#0284c7', borderColor: (ua.couleur || '#0284c7') + '40' }">
+                                                {{ ua.code }}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td class="py-2 px-3 font-medium text-slate-900">{{ ua.nom }}</td>
+                                    <td class="py-2 px-3 text-center">
+                                        <span class="font-black text-xs text-slate-900 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full tabular-nums">
+                                            {{ ua.effectif }}
+                                        </span>
+                                    </td>
+                                    <td class="py-2 px-3 text-slate-600">{{ ua.chef_detachement || '-' }}</td>
+                                    <td class="py-2 px-3 text-slate-500 italic text-[11px]">{{ ua.observations || '-' }}</td>
+                                    <td class="py-2 px-3 text-right">
+                                        <div class="flex items-center justify-end gap-1">
+                                            <button
+                                                type="button"
+                                                @click="startEditAppui(ua)"
+                                                class="p-1 rounded hover:bg-slate-100 text-sky-700 transition cursor-pointer"
+                                                title="Modifier cet appui"
+                                            >
+                                                <i class="pi pi-pencil text-xs"></i>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                @click="deleteAppui(ua)"
+                                                class="p-1 rounded hover:bg-red-50 text-red-600 transition cursor-pointer"
+                                                title="Supprimer"
+                                            >
+                                                <i class="pi pi-trash text-xs"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr v-if="currentTheatreAppuis.length === 0">
+                                    <td colspan="6" class="py-6 text-center text-slate-400 italic">
+                                        Aucune unité d'appui interarmées enregistrée pour ce théâtre.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <template #footer>
+                <div class="flex items-center justify-between w-full pt-1">
+                    <span class="text-[11px] text-slate-400 italic">
+                        Les effectifs d'appui s'affichent automatiquement sur la carte opérationnelle.
+                    </span>
+                    <Button label="Fermer" text severity="secondary" @click="manageAppuisDialogVisible = false" />
                 </div>
             </template>
         </Dialog>
