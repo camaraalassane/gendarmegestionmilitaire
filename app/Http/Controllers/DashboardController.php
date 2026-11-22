@@ -79,21 +79,22 @@ class DashboardController extends Controller
         $v ??= \App\Models\Militaire::getCacheVersion();
 
         return Cache::remember("v{$v}:dashboard:statistiques_summary", 600, function () use ($anneeCourante, $v) {
-            $isSqlite = DB::getDriverName() === 'sqlite';
-            $yearExpr = $isSqlite ? "CAST(strftime('%Y', militaires.date_naissance) AS INTEGER)" : "EXTRACT(YEAR FROM militaires.date_naissance)";
-            $posNotOtage = $isSqlite ? "(militaires.position_actuelle IS NULL OR LOWER(militaires.position_actuelle) NOT LIKE '%otage%')" : "(militaires.position_actuelle IS NULL OR militaires.position_actuelle NOT ILIKE '%otage%')";
-            $obsNotOtage = $isSqlite ? "(militaires.observations IS NULL OR LOWER(militaires.observations) NOT LIKE '%otage%')" : "(militaires.observations IS NULL OR militaires.observations NOT ILIKE '%otage%')";
-
             // 1. Départs en retraite année N (calcul SQL ultra-rapide sans charger les listes)
             $totalRetraitesN = \Illuminate\Support\Facades\DB::table('militaires')
                 ->join('grades', 'militaires.grade_id', '=', 'grades.id')
                 ->whereNotNull('militaires.date_naissance')
                 ->whereNotNull('grades.retraite_obligatoire')
-                ->whereRaw($posNotOtage)
-                ->whereRaw($obsNotOtage)
+                ->where(function ($q) {
+                    $q->whereNull('militaires.position_actuelle')
+                      ->orWhere('militaires.position_actuelle', 'not ilike', '%otage%');
+                })
+                ->where(function ($q) {
+                    $q->whereNull('militaires.observations')
+                      ->orWhere('militaires.observations', 'not ilike', '%otage%');
+                })
                 ->where('militaires.est_disparu', 0)
                 ->whereNull('militaires.deleted_at')
-                ->whereRaw("(({$yearExpr} + grades.retraite_obligatoire = {$anneeCourante}) OR (LOWER(militaires.statut) LIKE 'actif%' AND {$yearExpr} + grades.retraite_obligatoire < {$anneeCourante}))")
+                ->whereRaw("((EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCourante}) OR (LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire < {$anneeCourante}))")
                 ->count();
 
             // 2. Proposables avancement année N (en cache pour ne pas bloquer l'affichage initial)
@@ -409,17 +410,18 @@ class DashboardController extends Controller
                 ];
             };
 
-            $isSqlite = DB::getDriverName() === 'sqlite';
-            $yearExpr = $isSqlite ? "CAST(strftime('%Y', militaires.date_naissance) AS INTEGER)" : "EXTRACT(YEAR FROM militaires.date_naissance)";
-            $posNotOtage = $isSqlite ? "(militaires.position_actuelle IS NULL OR LOWER(militaires.position_actuelle) NOT LIKE '%otage%')" : "(militaires.position_actuelle IS NULL OR militaires.position_actuelle NOT ILIKE '%otage%')";
-            $obsNotOtage = $isSqlite ? "(militaires.observations IS NULL OR LOWER(militaires.observations) NOT LIKE '%otage%')" : "(militaires.observations IS NULL OR militaires.observations NOT ILIKE '%otage%')";
-
             $baseQuery = fn() => \Illuminate\Support\Facades\DB::table('militaires')
                 ->join('grades', 'militaires.grade_id', '=', 'grades.id')
                 ->whereNotNull('militaires.date_naissance')
                 ->whereNotNull('grades.retraite_obligatoire')
-                ->whereRaw($posNotOtage)
-                ->whereRaw($obsNotOtage)
+                ->where(function ($q) {
+                    $q->whereNull('militaires.position_actuelle')
+                      ->orWhere('militaires.position_actuelle', 'not ilike', '%otage%');
+                })
+                ->where(function ($q) {
+                    $q->whereNull('militaires.observations')
+                      ->orWhere('militaires.observations', 'not ilike', '%otage%');
+                })
                 ->where('militaires.est_disparu', 0)
                 ->whereNull('militaires.deleted_at')
                 ->select([
@@ -429,13 +431,13 @@ class DashboardController extends Controller
                 ]);
 
             $retN = $baseQuery()
-                ->whereRaw("(({$yearExpr} + grades.retraite_obligatoire = {$anneeCourante}) OR (LOWER(militaires.statut) LIKE 'actif%' AND {$yearExpr} + grades.retraite_obligatoire < {$anneeCourante}))")
+                ->whereRaw("((EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCourante}) OR (LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire < {$anneeCourante}))")
                 ->get()
                 ->map($mapRetraite)
                 ->all();
 
             $retN1 = $baseQuery()
-                ->whereRaw("(LOWER(militaires.statut) LIKE 'actif%' AND {$yearExpr} + grades.retraite_obligatoire = {$anneeN1})")
+                ->whereRaw("(LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeN1})")
                 ->get()
                 ->map($mapRetraite)
                 ->all();
