@@ -310,150 +310,154 @@ onMounted(() => {
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
 
                 <!-- Cartes de navigation -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
                     <!-- Carte Promotions -->
-                    <div class="cursor-pointer transition-all rounded-xl border p-4 flex flex-col justify-between hover:shadow-md"
+                    <div class="cursor-pointer transition-all rounded-xl border p-3.5 sm:p-4 flex flex-col justify-between hover:shadow-md"
                         :class="selectedType === 'promotions' 
                             ? 'bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 text-white shadow-md border-sky-600 ring-2 ring-sky-400' 
                             : 'bg-white text-slate-800 border-slate-200 hover:border-sky-400 hover:shadow-xs'"
                         @click="selectType('promotions')">
-                        <div class="flex items-center justify-between gap-2 mb-2.5">
-                            <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center shrink-0"
                                 :class="selectedType === 'promotions' ? 'bg-white/20 text-white' : 'bg-sky-50 text-sky-900'">
-                                <i class="pi pi-star text-lg"></i>
+                                <i class="pi pi-star text-base sm:text-lg"></i>
                             </div>
-                            <div class="text-2xl sm:text-3xl font-black tabular-nums tracking-tight text-right"
+                            <div class="text-xl sm:text-2xl lg:text-3xl font-black tabular-nums tracking-tight text-right"
                                 :class="selectedType === 'promotions' ? 'text-white' : 'text-sky-950'">
                                 {{ Number(totalPromotions || 0).toLocaleString('fr-FR') }}
                             </div>
                         </div>
                         <div>
-                            <h3 class="text-sm font-bold leading-tight" :class="selectedType === 'promotions' ? 'text-white' : 'text-slate-800'">Promotions</h3>
-                            <p class="text-xs leading-tight mt-0.5" :class="selectedType === 'promotions' ? 'text-white/80' : 'text-slate-500'">Propositions de grade</p>
+                            <h3 class="text-xs sm:text-sm font-bold leading-tight" :class="selectedType === 'promotions' ? 'text-white' : 'text-slate-800'">Promotions</h3>
+                            <p class="text-[11px] sm:text-xs leading-tight mt-0.5 truncate" :class="selectedType === 'promotions' ? 'text-white/80' : 'text-slate-500'">Propositions de grade</p>
                         </div>
                     </div>
 
                     <!-- Carte Formations -->
-                    <div class="cursor-pointer transition-all rounded-xl border p-4 flex flex-col justify-between hover:shadow-md"
+                    <div class="cursor-pointer transition-all rounded-xl border p-3.5 sm:p-4 flex flex-col justify-between hover:shadow-md"
                         :class="selectedType === 'formations' 
                             ? 'bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 text-white shadow-md border-sky-600 ring-2 ring-sky-400' 
                             : 'bg-white text-slate-800 border-slate-200 hover:border-sky-400 hover:shadow-xs'"
                         @click="selectType('formations')">
-                        <div class="flex items-center justify-between gap-2 mb-2.5">
-                            <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center shrink-0"
                                 :class="selectedType === 'formations' ? 'bg-white/20 text-white' : 'bg-sky-50 text-sky-900'">
-                                <i class="pi pi-book text-lg"></i>
+                                <i class="pi pi-book text-base sm:text-lg"></i>
                             </div>
-                            <div class="text-2xl sm:text-3xl font-black tabular-nums tracking-tight text-right"
+                            <div class="text-xl sm:text-2xl lg:text-3xl font-black tabular-nums tracking-tight text-right"
                                 :class="selectedType === 'formations' ? 'text-white' : 'text-sky-950'">
                                 {{ Number(totalFormations || 0).toLocaleString('fr-FR') }}
                             </div>
                         </div>
                         <div>
-                            <h3 class="text-sm font-bold leading-tight" :class="selectedType === 'formations' ? 'text-white' : 'text-slate-800'">Formations</h3>
-                            <p class="text-xs leading-tight mt-0.5" :class="selectedType === 'formations' ? 'text-white/80' : 'text-slate-500'">Formations disponibles</p>
+                            <h3 class="text-xs sm:text-sm font-bold leading-tight" :class="selectedType === 'formations' ? 'text-white' : 'text-slate-800'">Formations</h3>
+                            <p class="text-[11px] sm:text-xs leading-tight mt-0.5 truncate" :class="selectedType === 'formations' ? 'text-white/80' : 'text-slate-500'">Formations disponibles</p>
                         </div>
                     </div>
 
                     <!-- Carte Contrats -->
-                    <div class="cursor-pointer transition-all rounded-xl border p-4 flex flex-col justify-between hover:shadow-md"
+                    <div class="cursor-pointer transition-all rounded-xl border p-3.5 sm:p-4 flex flex-col justify-between hover:shadow-md"
                         :class="selectedType === 'contrats' 
                             ? 'bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 text-white shadow-md border-sky-600 ring-2 ring-sky-400' 
                             : 'bg-white text-slate-800 border-slate-200 hover:border-sky-400 hover:shadow-xs'"
                         @click="selectType('contrats')">
-                        <div class="flex items-center justify-between gap-2 mb-2.5">
-                            <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center shrink-0"
                                 :class="selectedType === 'contrats' ? 'bg-white/20 text-white' : 'bg-sky-50 text-sky-900'">
-                                <i class="pi pi-file text-lg"></i>
+                                <i class="pi pi-file text-base sm:text-lg"></i>
                             </div>
-                            <div class="text-2xl sm:text-3xl font-black tabular-nums tracking-tight text-right"
+                            <div class="text-xl sm:text-2xl lg:text-3xl font-black tabular-nums tracking-tight text-right"
                                 :class="selectedType === 'contrats' ? 'text-white' : 'text-sky-950'">
                                 {{ Number(totalContrats || 0).toLocaleString('fr-FR') }}
                             </div>
                         </div>
                         <div>
-                            <h3 class="text-sm font-bold leading-tight" :class="selectedType === 'contrats' ? 'text-white' : 'text-slate-800'">Contrats</h3>
-                            <p class="text-xs leading-tight mt-0.5" :class="selectedType === 'contrats' ? 'text-white/80' : 'text-slate-500'">Renouvellements</p>
+                            <h3 class="text-xs sm:text-sm font-bold leading-tight" :class="selectedType === 'contrats' ? 'text-white' : 'text-slate-800'">Contrats</h3>
+                            <p class="text-[11px] sm:text-xs leading-tight mt-0.5 truncate" :class="selectedType === 'contrats' ? 'text-white/80' : 'text-slate-500'">Renouvellements</p>
                         </div>
                     </div>
 
                     <!-- Carte Mutations -->
-                    <div class="cursor-pointer transition-all rounded-xl border p-4 flex flex-col justify-between hover:shadow-md"
+                    <div class="cursor-pointer transition-all rounded-xl border p-3.5 sm:p-4 flex flex-col justify-between hover:shadow-md"
                         :class="selectedType === 'mutations' 
                             ? 'bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 text-white shadow-md border-sky-600 ring-2 ring-sky-400' 
                             : 'bg-white text-slate-800 border-slate-200 hover:border-sky-400 hover:shadow-xs'"
                         @click="selectType('mutations')">
-                        <div class="flex items-center justify-between gap-2 mb-2.5">
-                            <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center shrink-0"
                                 :class="selectedType === 'mutations' ? 'bg-white/20 text-white' : 'bg-sky-50 text-sky-900'">
-                                <i class="pi pi-arrows-alt text-lg"></i>
+                                <i class="pi pi-arrows-alt text-base sm:text-lg"></i>
                             </div>
-                            <div class="text-2xl sm:text-3xl font-black tabular-nums tracking-tight text-right"
+                            <div class="text-xl sm:text-2xl lg:text-3xl font-black tabular-nums tracking-tight text-right"
                                 :class="selectedType === 'mutations' ? 'text-white' : 'text-sky-950'">
                                 {{ Number(totalMutations || 0).toLocaleString('fr-FR') }}
                             </div>
                         </div>
                         <div>
-                            <h3 class="text-sm font-bold leading-tight" :class="selectedType === 'mutations' ? 'text-white' : 'text-slate-800'">Mutations</h3>
-                            <p class="text-xs leading-tight mt-0.5" :class="selectedType === 'mutations' ? 'text-white/80' : 'text-slate-500'">En poste ≥ 3 ans</p>
+                            <h3 class="text-xs sm:text-sm font-bold leading-tight" :class="selectedType === 'mutations' ? 'text-white' : 'text-slate-800'">Mutations</h3>
+                            <p class="text-[11px] sm:text-xs leading-tight mt-0.5 truncate" :class="selectedType === 'mutations' ? 'text-white/80' : 'text-slate-500'">En poste ≥ 3 ans</p>
                         </div>
                     </div>
                 </div>
 
                 <!-- Filtres sous forme de recherche compacte et responsive -->
                 <div v-if="selectedType" class="bg-white rounded-xl shadow-xs p-4 mb-6 border border-slate-200">
-                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-                        <!-- Recherche / Sélection Grade -->
-                        <div class="flex-1">
-                            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                                <i class="pi pi-star text-amber-500"></i> Filtrer par grade
-                            </label>
-                            <Select v-model="selectedGrade" 
-                                :options="gradeOptions" 
-                                optionLabel="label" 
-                                optionValue="id" 
-                                filter 
-                                showClear 
-                                placeholder="Rechercher ou sélectionner un grade..." 
-                                class="w-full text-sm" 
-                                @change="onFilterChange" />
+                    <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+                        <!-- Filtres gauche -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 flex-1 items-end">
+                            <!-- Recherche / Sélection Grade -->
+                            <div class="w-full">
+                                <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                    <i class="pi pi-star text-amber-500"></i> Filtrer par grade
+                                </label>
+                                <Select v-model="selectedGrade" 
+                                    :options="gradeOptions" 
+                                    optionLabel="label" 
+                                    optionValue="id" 
+                                    filter 
+                                    showClear 
+                                    placeholder="Rechercher ou sélectionner un grade..." 
+                                    class="w-full text-sm" 
+                                    @change="onFilterChange" />
+                            </div>
+
+                            <!-- Recherche / Sélection Formation (si sélectionné formations) -->
+                            <div v-if="selectedType === 'formations'" class="w-full">
+                                <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                                    <i class="pi pi-book text-sky-600"></i> Filtrer par formation
+                                </label>
+                                <Select v-model="selectedFormation" 
+                                    :options="formationOptions" 
+                                    optionLabel="label" 
+                                    optionValue="id" 
+                                    filter 
+                                    showClear 
+                                    placeholder="Rechercher ou sélectionner une formation..." 
+                                    class="w-full text-sm" 
+                                    @change="onFilterChange" />
+                            </div>
+
+                            <!-- Bouton réinitialiser -->
+                            <div v-if="selectedGrade || selectedFormation" class="w-full sm:w-auto">
+                                <button @click="clearAllFilters" 
+                                    type="button"
+                                    class="w-full sm:w-auto px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-1.5 cursor-pointer">
+                                    <i class="pi pi-filter-slash text-xs"></i> <span>Réinitialiser</span>
+                                </button>
+                            </div>
                         </div>
 
-                        <!-- Recherche / Sélection Formation (si sélectionné formations) -->
-                        <div v-if="selectedType === 'formations'" class="flex-1">
-                            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                                <i class="pi pi-book text-sky-600"></i> Filtrer par formation
-                            </label>
-                            <Select v-model="selectedFormation" 
-                                :options="formationOptions" 
-                                optionLabel="label" 
-                                optionValue="id" 
-                                filter 
-                                showClear 
-                                placeholder="Rechercher ou sélectionner une formation..." 
-                                class="w-full text-sm" 
-                                @change="onFilterChange" />
-                        </div>
-
-                        <!-- Bouton réinitialiser -->
-                        <div v-if="selectedGrade || selectedFormation" class="shrink-0 sm:self-end pb-0.5">
-                            <button @click="clearAllFilters" 
-                                type="button"
-                                class="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer">
-                                <i class="pi pi-filter-slash text-xs"></i> <span>Réinitialiser</span>
-                            </button>
-                        </div>
-                        <!-- Boutons d'exportation dans le card de filtre -->
-                        <div class="shrink-0 sm:self-end flex items-center gap-2 pb-0.5 sm:ml-auto">
+                        <!-- Boutons d'exportation -->
+                        <div class="flex flex-wrap items-center gap-2 pt-2 lg:pt-0 shrink-0 border-t lg:border-t-0 border-slate-100">
                             <Button :label="exportingFiltered ? 'Exportation...' : 'Exporter'" icon="pi pi-file-excel"
                                 size="small" severity="success" outlined
                                 :loading="exportingFiltered"
-                                class="text-xs font-semibold"
+                                class="text-xs font-semibold whitespace-nowrap"
                                 @click="exportData" />
                             <Button :label="exportingAll ? 'Exportation...' : 'Tout exporter'" icon="pi pi-file-excel"
                                 size="small" severity="success"
                                 :loading="exportingAll"
-                                class="text-xs font-semibold" 
+                                class="text-xs font-semibold whitespace-nowrap" 
                                 @click="exportAllData" />
                         </div>
                     </div>

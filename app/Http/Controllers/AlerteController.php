@@ -358,6 +358,7 @@ class AlerteController extends Controller
 
     /**
      * Générer toutes les alertes automatiquement (Promotions, Formations, Mutations, Contrats, Retraites)
+     * 100% synchronisées avec le moteur de calcul d'EligibiliteController.
      */
     public function genererAlertes()
     {
@@ -367,286 +368,81 @@ class AlerteController extends Controller
         // 2. Vider et réinitialiser la table des alertes pour générer à neuf et ultra-rapidement
         Alerte::query()->delete();
 
-        // 3. Génération ultra-rapide et vectorisée de toutes les alertes (Promotions, Formations, Retraites, Contrats, Mutations)
+        // 3. Récupérer les données officielles d'éligibilité pour une synchronisation 100% exacte
+        $eligibiliteController = app(EligibiliteController::class);
+        $data = $eligibiliteController->getAllComputedData();
+
         $now = now();
         $nowStr = $now->toDateTimeString();
-        $currentYear = (int) $now->year;
         $today = $now->toDateString();
-        $dateProposition = Carbon::create($currentYear, 12, 31, 23, 59, 59);
-        $datePropStr = $dateProposition->toDateString();
-        $anneeProp = (string) $currentYear;
         $endOfMonth = $now->copy()->endOfMonth()->toDateString();
         $sixMonthsFuture = $now->copy()->addMonths(6)->toDateString();
 
         $allAlertes = [];
 
-        // --- A. Alertes Retraites (<= 12 mois) ---
-        $retraites = DB::select("
-            SELECT m.id, m.nom, m.prenom, m.date_naissance, m.grade_actuel, g.retraite_obligatoire
-            FROM militaires m
-            JOIN grades g ON m.grade_id = g.id
-            WHERE m.statut_code = 1
-              AND m.date_naissance IS NOT NULL
-              AND g.retraite_obligatoire IS NOT NULL
-              AND (m.position_actuelle IS NULL OR LOWER(m.position_actuelle) NOT LIKE '%otage%')
-              AND (EXTRACT(YEAR FROM m.date_naissance) + g.retraite_obligatoire) = :currentYear
-        ", ['currentYear' => $currentYear]);
-
-        foreach ($retraites as $r) {
-            $dateRetraite = Carbon::parse($r->date_naissance)->addYears($r->retraite_obligatoire);
-            $diffJours = Carbon::now()->startOfDay()->diffInDays($dateRetraite);
-            $moisRestants = max(0, (int) floor($diffJours / 30));
+        // --- A. Alertes Promotions (809) ---
+        foreach ($data['promotions'] ?? [] as $p) {
             $allAlertes[] = [
-                'militaire_id'  => $r->id,
-                'type_alerte'   => 'retraite',
-                'message'       => "Retraite dans {$moisRestants} mois (le " . $dateRetraite->format('d/m/Y') . ")",
-                'date_echeance' => $dateRetraite->toDateString(),
+                'militaire_id'  => $p['militaire']['id'],
+                'type_alerte'   => 'promotion',
+                'message'       => $p['message'] . " - Promotion à " . $p['grade_cible'],
+                'date_echeance' => $p['date_estimation'] ?? $today,
                 'est_vue'       => false,
                 'created_at'    => $nowStr,
                 'updated_at'    => $nowStr,
             ];
         }
 
-        // --- B. Alertes Mutations (>= 3 ans en poste) ---
-        $mutations = DB::select("
-            SELECT m.id, m.nom, m.prenom, m.grade_actuel, m.unite, m.region,
-                   COALESCE(
-                       (SELECT a.date_mutation FROM affectations a WHERE a.militaire_id = m.id AND a.date_mutation IS NOT NULL ORDER BY a.date_mutation DESC LIMIT 1),
-                       m.date_mutation,
-                       m.date_entree_service
-                   ) as effective_date_mutation,
-                   COALESCE(
-                       (SELECT a.unite FROM affectations a WHERE a.militaire_id = m.id AND a.date_mutation IS NOT NULL ORDER BY a.date_mutation DESC LIMIT 1),
-                       m.unite
-                   ) as effective_unite,
-                   COALESCE(
-                       (SELECT a.region FROM affectations a WHERE a.militaire_id = m.id AND a.date_mutation IS NOT NULL ORDER BY a.date_mutation DESC LIMIT 1),
-                       m.region
-                   ) as effective_region
-            FROM militaires m
-            WHERE m.statut_code = 1
-        ");
-
-        foreach ($mutations as $m) {
-            if (!$m->effective_date_mutation) continue;
-            $d = substr($m->effective_date_mutation, 0, 10);
-            $years = (int) floor((strtotime($today) - strtotime($d)) / (365.25 * 86400));
-            if ($years >= 3) {
-                $dFormatted = date('d/m/Y', strtotime($d));
-                $unite = $m->effective_unite ?: 'Unité non précisée';
-                $region = $m->effective_region ?: '-';
-                $allAlertes[] = [
-                    'militaire_id'  => $m->id,
-                    'type_alerte'   => 'mutation',
-                    'message'       => "Alerte Mutation : {$m->grade_actuel} {$m->prenom} {$m->nom} en poste depuis {$years} ans à {$unite} ({$region}) (dernière mutation le {$dFormatted})",
-                    'date_echeance' => $endOfMonth,
-                    'est_vue'       => false,
-                    'created_at'    => $nowStr,
-                    'updated_at'    => $nowStr,
-                ];
-            }
+        // --- B. Alertes Formations (2393) ---
+        foreach ($data['formations'] ?? [] as $f) {
+            $allAlertes[] = [
+                'militaire_id'  => $f['militaire']['id'],
+                'type_alerte'   => 'formation',
+                'message'       => $f['message'] . " - Formation " . $f['nom_formation'],
+                'date_echeance' => $f['date_estimation'] ?? $today,
+                'est_vue'       => false,
+                'created_at'    => $nowStr,
+                'updated_at'    => $nowStr,
+            ];
         }
 
-        // --- C. Alertes Contrats ---
-        $contratsActifs = DB::table('contrats')
-            ->where('statut', 'actif')
-            ->select('militaire_id', 'date_fin', 'date_debut')
-            ->orderBy('date_debut', 'desc')
-            ->get()
-            ->keyBy('militaire_id');
-
-        $gradesContrat = [
-            'Soldat 2', 'Soldat 1', 'Caporal', 'Caporal-chef',
-            'Sergent', 'Sergent-Chef', 'Adjudant', 'Adjudant-Chef', 'Major',
-            'Sapeur 1ère classe'
-        ];
-
-        $militairesContrat = DB::table('militaires')
-            ->where('statut_code', 1)
-            ->whereIn('grade_actuel', $gradesContrat)
-            ->select('id', 'nom', 'prenom', 'grade_actuel', 'date_entree_service')
-            ->get();
-
-        foreach ($militairesContrat as $m) {
-            $c = $contratsActifs[$m->id] ?? null;
-            if ($c && $c->date_fin) {
-                $diffDays = (strtotime($c->date_fin) - strtotime($today)) / 86400;
-                if ($diffDays > 180) {
-                    continue; // Contrat actif sécurisé pour plus de 6 mois
-                }
-            }
-
-            $serviceYears = null;
-            if ($m->date_entree_service) {
-                $serviceYears = (int) floor((strtotime($today) - strtotime($m->date_entree_service)) / (365.25 * 86400));
-            }
-
-            if ($serviceYears !== null && $serviceYears < 5 && !$c) {
-                continue;
-            }
-
-            $message = ($serviceYears !== null && $serviceYears > 0)
-                ? "Renouvellement de contrat requis pour {$m->prenom} {$m->nom} ({$serviceYears} ans de service) - Grade: {$m->grade_actuel}"
-                : "Régularisation / Renouvellement de contrat requis pour {$m->prenom} {$m->nom} (sans contrat actif) - Grade: {$m->grade_actuel}";
-
+        // --- C. Alertes Contrats (5602) ---
+        foreach ($data['contrats'] ?? [] as $c) {
             $allAlertes[] = [
-                'militaire_id'  => $m->id,
+                'militaire_id'  => $c['militaire']['id'],
                 'type_alerte'   => 'contrat',
-                'message'       => $message,
-                'date_echeance' => $c?->date_fin ?? $sixMonthsFuture,
+                'message'       => $c['message'],
+                'date_echeance' => $c['date_echeance'] ?? $sixMonthsFuture,
                 'est_vue'       => false,
                 'created_at'    => $nowStr,
                 'updated_at'    => $nowStr,
             ];
         }
 
-        // --- D. Alertes Promotions & Formations ---
-        $certifs = DB::table('certificat_militaire')
-            ->join('certificats', 'certificat_militaire.certificat_id', '=', 'certificats.id')
-            ->select('certificat_militaire.militaire_id', 'certificats.niveau_certificat', 'certificat_militaire.date_obtention')
-            ->get();
-
-        $certifsByMilitaire = [];
-        $certifsDates = [];
-        foreach ($certifs as $c) {
-            $certifsByMilitaire[$c->militaire_id][] = $c->niveau_certificat;
-            if ($c->date_obtention) {
-                $certifsDates[$c->militaire_id][$c->niveau_certificat] = $c->date_obtention;
-            }
+        // --- D. Alertes Mutations (2049) ---
+        foreach ($data['mutations'] ?? [] as $m) {
+            $allAlertes[] = [
+                'militaire_id'  => $m['id'],
+                'type_alerte'   => 'mutation',
+                'message'       => "Alerte Mutation : {$m['grade_actuel']} {$m['prenom']} {$m['nom']} en poste depuis {$m['duree_annees']} ans à {$m['unite']} ({$m['region']})",
+                'date_echeance' => $endOfMonth,
+                'est_vue'       => false,
+                'created_at'    => $nowStr,
+                'updated_at'    => $nowStr,
+            ];
         }
 
-        $militairesActive = DB::table('militaires')
-            ->where('statut_code', 1)
-            ->select('id', 'nom', 'prenom', 'grade_actuel', 'date_naissance', 'date_entree_service', 'date_derniere_promotion', 'a_permis_conduire', 'antecedent_judiciaire', 'antecedent_disciplinaire')
-            ->get();
-
-        foreach ($militairesActive as $m) {
-            $grade = $m->grade_actuel;
-            if ($grade === 'Sapeur 1ère classe') $grade = 'Soldat 1';
-            elseif ($grade === 'Commissaire') $grade = 'Lieutenant';
-
-            $age = $m->date_naissance ? (int) floor((strtotime($today) - strtotime($m->date_naissance)) / (365.25 * 86400)) : 0;
-            $refProm = $m->date_derniere_promotion ?? $m->date_entree_service;
-            $ancienneteGrade = $refProm ? (int) floor((strtotime($today) - strtotime($refProm)) / (365.25 * 86400)) : 0;
-            $anciennete = $m->date_entree_service ? (int) floor((strtotime($today) - strtotime($m->date_entree_service)) / (365.25 * 86400)) : 0;
-
-            $conditionsBase = !$m->antecedent_judiciaire && !$m->antecedent_disciplinaire;
-            $cList = $certifsByMilitaire[$m->id] ?? [];
-            $hasCAT1 = in_array('CAT1', $cList);
-            $hasCAT2 = in_array('CAT2', $cList);
-            $hasCIA = in_array('CIA', $cList);
-            $hasBA1 = in_array('BA1', $cList);
-            $hasBA2 = in_array('BA2', $cList);
-            $hasAPLI = in_array('APLI', $cList);
-            $hasCFCU = in_array('CFCU', $cList);
-            $hasCEM = in_array('CEM', $cList);
-            $hasCERT_EM = in_array('CERT_EM', $cList);
-            $hasECOLE_GUERRE = in_array('ECOLE_GUERRE', $cList);
-
-            // Promotion helper
-            $addProm = function($cible, $annees) use (&$allAlertes, $m, $refProm, $anneeProp, $datePropStr, $nowStr) {
-                $dateAnc = $refProm ? date('d/m/Y', strtotime("+{$annees} years", strtotime($refProm))) : 'conditions remplies';
-                $allAlertes[] = [
-                    'militaire_id'  => $m->id,
-                    'type_alerte'   => 'promotion',
-                    'message'       => "Proposable pour {$anneeProp} (ancienneté atteinte le {$dateAnc}) - Promotion à {$cible}",
-                    'date_echeance' => $datePropStr,
-                    'est_vue'       => false,
-                    'created_at'    => $nowStr,
-                    'updated_at'    => $nowStr,
-                ];
-            };
-
-            // Formation helper
-            $addForm = function($formKey, $nomForm, $dateCond = null) use (&$allAlertes, $m, $anneeProp, $datePropStr, $nowStr) {
-                $dateCondTxt = $dateCond ? date('d/m/Y', strtotime($dateCond)) : 'conditions remplies';
-                $allAlertes[] = [
-                    'militaire_id'  => $m->id,
-                    'type_alerte'   => 'formation',
-                    'message'       => "Proposable pour {$anneeProp} (conditions remplies le {$dateCondTxt}) - Formation {$nomForm}",
-                    'date_echeance' => $datePropStr,
-                    'est_vue'       => false,
-                    'created_at'    => $nowStr,
-                    'updated_at'    => $nowStr,
-                ];
-            };
-
-            // Règles de promotion
-            if ($grade == 'Soldat 1' && $hasCAT1 && $conditionsBase && $anciennete >= 5) {
-                $addProm('Caporal', 5);
-            }
-            if ($grade == 'Caporal' && $hasCAT1 && $hasCAT2 && $conditionsBase) {
-                $addProm('Sergent', 3);
-            }
-            if ($grade == 'Caporal' && $hasCAT1 && !$hasCAT2 && $age >= 47 && $ancienneteGrade >= 3 && $conditionsBase) {
-                $addProm('Caporal-chef', 3);
-            }
-            if ($grade == 'Sergent' && $conditionsBase && $ancienneteGrade >= 2 && $anciennete >= 5) {
-                $addProm('Sergent-Chef', 2);
-            }
-            if ($grade == 'Sergent-Chef' && $conditionsBase && $ancienneteGrade >= 3) {
-                $addProm('Adjudant', 3);
-            }
-            if ($grade == 'Adjudant' && $conditionsBase && $ancienneteGrade >= 2) {
-                $addProm('Adjudant-Chef', 2);
-            }
-            if ($grade == 'Sous-lieutenant' && $ancienneteGrade >= 2) {
-                $addProm('Lieutenant', 2);
-            }
-            if ($grade == 'Lieutenant' && $ancienneteGrade >= 3) {
-                $addProm('Capitaine', 3);
-            }
-            if ($grade == 'Capitaine' && $ancienneteGrade >= 3) {
-                $addProm('Commandant', 3);
-            }
-            if ($grade == 'Commandant' && $ancienneteGrade >= 3) {
-                $addProm('Lieutenant-colonel', 3);
-            }
-            if ($grade == 'Lieutenant-colonel' && $ancienneteGrade >= 3) {
-                $addProm('Colonel', 3);
-            }
-            if ($grade == 'Colonel' && $ancienneteGrade >= 6) {
-                $addProm('Colonel-Major', 6);
-            }
-
-            // Règles de formation
-            if (!$hasAPLI && in_array($grade, ['Sous-lieutenant', 'Lieutenant', 'Capitaine']) && !$hasCFCU && $age <= 50) {
-                $addForm('APLI', "Cour d'Application");
-            }
-            if (!$hasCFCU && in_array($grade, ['Lieutenant', 'Capitaine']) && ($grade == 'Capitaine' || $hasAPLI)) {
-                $addForm('CFCU', "Cour des Futurs Commandants d'Unité");
-            }
-            if (!$hasCAT1 && in_array($grade, ['Soldat 2', 'Soldat 1']) && $ancienneteGrade >= 5 && $conditionsBase) {
-                $dEntree = $m->date_entree_service ? date('Y-m-d', strtotime('+5 years', strtotime($m->date_entree_service))) : null;
-                $addForm('CAT1', "Certificat d'Aptitude Technique Niveau 1", $dEntree);
-            }
-            if (!$hasCAT2 && $grade == 'Caporal' && $age < 47 && $ancienneteGrade >= 3 && $conditionsBase && $hasCAT1) {
-                $dObt = $certifsDates[$m->id]['CAT1'] ?? null;
-                $dCond = $dObt ? date('Y-m-d', strtotime('+3 years', strtotime($dObt))) : null;
-                $addForm('CAT2', "Certificat d'Aptitude Technique Niveau 2", $dCond);
-            }
-            if (!$hasCIA && in_array($grade, ['Sergent', 'Sergent-Chef', 'Adjudant', 'Adjudant-Chef']) && $conditionsBase && $m->a_permis_conduire) {
-                $addForm('CIA', "Certificat Interarmes (CIA)");
-            }
-            if (!$hasBA1 && in_array($grade, ['Sergent-Chef', 'Adjudant', 'Adjudant-Chef']) && $hasCIA && $conditionsBase && $anciennete >= 8) {
-                $dObt = $certifsDates[$m->id]['CIA'] ?? null;
-                $dCond = $dObt ? date('Y-m-d', strtotime('+3 years', strtotime($dObt))) : null;
-                $addForm('BA1', "Brevet d'Arme N1", $dCond);
-            }
-            if (!$hasBA2 && in_array($grade, ['Adjudant', 'Adjudant-Chef']) && $hasBA1 && $conditionsBase) {
-                $dObt = $certifsDates[$m->id]['BA1'] ?? null;
-                $dCond = $dObt ? date('Y-m-d', strtotime('+3 years', strtotime($dObt))) : null;
-                $addForm('BA2', "Brevet d'Arme N2", $dCond);
-            }
-            if (!$hasCEM && in_array($grade, ['Capitaine', 'Commandant']) && (($grade === 'Capitaine' && $ancienneteGrade >= 3) || $grade === 'Commandant') && $age <= 45) {
-                $addForm('CEM', "Cour d'État-Major");
-            }
-            if (!$hasCERT_EM && $grade == 'Commandant' && $age > 45) {
-                $addForm('CERT_EM', "Certificat d'État-Major");
-            }
-            if (!$hasECOLE_GUERRE && in_array($grade, ['Lieutenant-colonel', 'Colonel', 'Colonel-Major']) && $ancienneteGrade >= 2 && $age <= 53) {
-                $addForm('ECOLE_GUERRE', "École de Guerre");
-            }
+        // --- E. Alertes Retraites (13) ---
+        foreach ($data['retraites'] ?? [] as $r) {
+            $allAlertes[] = [
+                'militaire_id'  => $r['militaire']['id'],
+                'type_alerte'   => 'retraite',
+                'message'       => "Retraite dans {$r['mois_restants']} mois (le {$r['date_retraite_formatted']})",
+                'date_echeance' => $r['date_retraite'],
+                'est_vue'       => false,
+                'created_at'    => $nowStr,
+                'updated_at'    => $nowStr,
+            ];
         }
 
         // Insertion en masse par paquets de 1000 pour performance maximale

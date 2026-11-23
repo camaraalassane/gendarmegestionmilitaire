@@ -428,7 +428,7 @@ class AvancementController extends Controller
     public function buildCandidatesList(int $annee): array
     {
         $v = \App\Models\Militaire::getCacheVersion();
-        return Cache::remember("v{$v}:avancements:candidates_list_{$annee}", 1800, function () use ($annee) {
+        return Cache::remember("v{$v}:avancements:candidates_list_{$annee}", 86400, function () use ($annee) {
             // 1. Récupération des promotions éligibles depuis EligibiliteController
             $eligibiliteController = app(EligibiliteController::class);
             $computedData = $eligibiliteController->getAllComputedData();
@@ -474,8 +474,9 @@ class AvancementController extends Controller
                 $m = $militaires->get($mId);
                 if (!$m) continue;
 
-                // Double vérification stricte : statut actif, non décédé et limite d'âge non dépassée
-                if ($m->statut !== 'actif' || !empty($m->date_deces) || $m->estRetraiteDepassee()) {
+                // Double vérification stricte : personnel en activité (actif, détaché, etc.), non décédé et limite d'âge non dépassée
+                $statutClean = strtolower(trim((string)$m->statut));
+                if (!in_array($statutClean, ['actif', 'détaché', 'en mission', 'en stage']) || !empty($m->date_deces) || $m->estRetraiteDepassee()) {
                     continue;
                 }
 

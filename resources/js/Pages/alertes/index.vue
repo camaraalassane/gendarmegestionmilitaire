@@ -294,11 +294,11 @@ const viewMilitaire = (id) => {
 
                 <!-- 2. BARRE D'ONGLETS & RECHERCHE (RESPONSIVE & UNIFIÉE) -->
                 <div class="bg-white rounded-xl shadow-xs p-4 border border-slate-200 space-y-3">
-                    <!-- Ligne 1: Filtres par catégorie d'alerte -->
-                    <div class="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                    <!-- Ligne 1: Filtres par catégorie d'alerte (parfaitement scrollable & responsive) -->
+                    <div class="flex items-center gap-2 overflow-x-auto pb-1.5 -mx-1 px-1 scrollbar-thin scrollbar-thumb-slate-200">
                         <button @click="setActiveTab('all')"
                             :class="[
-                                'px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0',
+                                'px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0',
                                 activeTab === 'all'
                                     ? 'bg-gradient-to-r from-sky-800 to-sky-700 text-white shadow-xs'
                                     : 'bg-white text-slate-700 hover:bg-sky-50 hover:text-sky-900 border border-slate-200'
@@ -311,7 +311,7 @@ const viewMilitaire = (id) => {
 
                         <button @click="setActiveTab('promotion')"
                             :class="[
-                                'px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0',
+                                'px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0',
                                 activeTab === 'promotion'
                                     ? 'bg-gradient-to-r from-sky-800 to-sky-700 text-white shadow-xs'
                                     : 'bg-white text-slate-700 hover:bg-sky-50 hover:text-sky-900 border border-slate-200'
@@ -325,7 +325,7 @@ const viewMilitaire = (id) => {
 
                         <button @click="setActiveTab('formation')"
                             :class="[
-                                'px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0',
+                                'px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0',
                                 activeTab === 'formation'
                                     ? 'bg-gradient-to-r from-sky-800 to-sky-700 text-white shadow-xs'
                                     : 'bg-white text-slate-700 hover:bg-sky-50 hover:text-sky-900 border border-slate-200'
@@ -339,7 +339,7 @@ const viewMilitaire = (id) => {
 
                         <button @click="setActiveTab('contrat')"
                             :class="[
-                                'px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0',
+                                'px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0',
                                 activeTab === 'contrat'
                                     ? 'bg-gradient-to-r from-sky-800 to-sky-700 text-white shadow-xs'
                                     : 'bg-white text-slate-700 hover:bg-sky-50 hover:text-sky-900 border border-slate-200'
@@ -353,7 +353,7 @@ const viewMilitaire = (id) => {
 
                         <button @click="setActiveTab('mutation')"
                             :class="[
-                                'px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0',
+                                'px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0',
                                 activeTab === 'mutation'
                                     ? 'bg-gradient-to-r from-sky-800 to-sky-700 text-white shadow-xs'
                                     : 'bg-white text-slate-700 hover:bg-sky-50 hover:text-sky-900 border border-slate-200'
@@ -362,6 +362,20 @@ const viewMilitaire = (id) => {
                             <span>Mutations</span>
                             <span class="text-xs px-2 py-0.5 rounded-full" :class="activeTab === 'mutation' ? 'bg-white/20 text-white font-bold' : 'bg-slate-100 text-slate-700 font-medium'">
                                 {{ statistiques.mutations || 0 }}
+                            </span>
+                        </button>
+
+                        <button v-if="statistiques.retraites > 0" @click="setActiveTab('retraite')"
+                            :class="[
+                                'px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0',
+                                activeTab === 'retraite'
+                                    ? 'bg-gradient-to-r from-red-800 to-red-700 text-white shadow-xs'
+                                    : 'bg-white text-slate-700 hover:bg-red-50 hover:text-red-900 border border-slate-200'
+                            ]">
+                            <i class="pi pi-calendar-times text-xs"></i>
+                            <span>Retraites</span>
+                            <span class="text-xs px-2 py-0.5 rounded-full" :class="activeTab === 'retraite' ? 'bg-white/20 text-white font-bold' : 'bg-slate-100 text-slate-700 font-medium'">
+                                {{ statistiques.retraites || 0 }}
                             </span>
                         </button>
                     </div>
@@ -391,15 +405,15 @@ const viewMilitaire = (id) => {
                                 <i class="pi pi-list text-sky-800"></i>
                                 <span>{{ getTabTitle() }}</span>
                             </h3>
-                            <div class="flex items-center gap-2 shrink-0 flex-wrap">
+                            <div class="flex items-center gap-2 shrink-0 flex-wrap w-full sm:w-auto justify-start sm:justify-end">
                                 <Button v-if="statistiques.non_vues > 0" label="Tout marquer comme vu" icon="pi pi-check-circle"
                                     size="small" severity="success" outlined
-                                    class="text-xs font-semibold"
+                                    class="text-xs font-semibold whitespace-nowrap"
                                     @click="markAllAsRead" />
                                 <Button label="Générer toutes les alertes" icon="pi pi-sync"
                                     size="small" severity="primary"
                                     :loading="generatingAll"
-                                    class="text-xs font-semibold shadow-sm"
+                                    class="text-xs font-semibold shadow-sm whitespace-nowrap"
                                     @click="generateAllAlerts" />
                             </div>
                         </div>
@@ -460,9 +474,9 @@ const viewMilitaire = (id) => {
                                     </template>
                                 </Column>
 
-                                <Column header="Action" style="min-width: 14rem;">
+                                <Column header="Action" style="min-width: 13rem;">
                                     <template #body="slotProps">
-                                        <div class="flex items-center gap-2 flex-nowrap">
+                                        <div class="flex items-center gap-1.5 flex-wrap">
                                             <Button v-if="!slotProps.data.est_vue" label="Marquer vue"
                                                 icon="pi pi-check"
                                                 class="p-button-sm !bg-gradient-to-r !from-sky-800 !to-sky-700 hover:!from-sky-900 hover:!to-sky-800 !border-0 !text-white text-xs font-semibold px-2.5 py-1.5 shadow-2xs whitespace-nowrap shrink-0"

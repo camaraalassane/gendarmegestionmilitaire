@@ -78,7 +78,7 @@ class DashboardController extends Controller
         $anneeCourante ??= (int) Carbon::now()->year;
         $v ??= \App\Models\Militaire::getCacheVersion();
 
-        return Cache::remember("v{$v}:dashboard:statistiques_summary", 600, function () use ($anneeCourante, $v) {
+        return Cache::remember("v{$v}:dashboard:statistiques_summary", 86400, function () use ($anneeCourante, $v) {
             // 1. Départs en retraite année N (calcul SQL ultra-rapide sans charger les listes)
             $totalRetraitesN = \Illuminate\Support\Facades\DB::table('militaires')
                 ->join('grades', 'militaires.grade_id', '=', 'grades.id')
@@ -98,7 +98,7 @@ class DashboardController extends Controller
                 ->count();
 
             // 2. Proposables avancement année N (en cache pour ne pas bloquer l'affichage initial)
-            $totalProposablesN = Cache::remember("v{$v}:dashboard:proposables_n_count", 1800, function () {
+            $totalProposablesN = Cache::remember("v{$v}:dashboard:proposables_n_count", 86400, function () {
                 $propBoth = $this->getProposablesBoth();
                 return $propBoth['proposablesN']['total'] ?? 0;
             });
@@ -158,7 +158,7 @@ class DashboardController extends Controller
     {
         $v ??= \App\Models\Militaire::getCacheVersion();
 
-        return Cache::remember("v{$v}:dashboard:charts_data", 600, function () {
+        return Cache::remember("v{$v}:dashboard:charts_data", 86400, function () {
             // 1. STATISTIQUES PAR STATUT (Situation Administrative Statutaire)
         $statutsMeta = [
             'actif' => ['num' => 1, 'label' => 'Actif (En service)', 'color' => '#059669', 'bg' => 'bg-emerald-50 text-emerald-800 border-emerald-200'],
@@ -282,10 +282,13 @@ class DashboardController extends Controller
             })->count();
 
         if ($actifsEnAttenteAffectation > 0) {
-            $positionsDistribution[] = [
-                'label' => "En attente d'affectation (Recrues)",
-                'value' => (int) $actifsEnAttenteAffectation,
-            ];
+            foreach ($positionsDistribution as &$pos) {
+                if (strcasecmp($pos['label'], "À l'Unité / Au Poste") === 0) {
+                    $pos['value'] += (int) $actifsEnAttenteAffectation;
+                    break;
+                }
+            }
+            unset($pos);
         }
 
         // Tri : d'abord les positions occupées par ordre décroissant, puis alphabétique
@@ -486,7 +489,7 @@ class DashboardController extends Controller
     public function getProposablesBoth(): array
     {
         $v = \App\Models\Militaire::getCacheVersion();
-        return Cache::remember("v{$v}:dashboard:proposables_both", 1800, function () {
+        return Cache::remember("v{$v}:dashboard:proposables_both", 86400, function () {
             $aujourdhui = Carbon::now();
             $anneeCourante = (int) $aujourdhui->year;
             $anneeN1 = $anneeCourante + 1;
@@ -529,22 +532,21 @@ class DashboardController extends Controller
                 }
             };
 
-            $militaires = $this->actifs()
-                ->select('id', 'nom', 'prenom', 'matricule', 'grade_actuel', 'date_naissance', 'date_entree_service', 'date_derniere_promotion', 'antecedent_judiciaire', 'antecedent_disciplinaire')
-                ->cursor(); // un modèle à la fois : évite de saturer la mémoire PHP à 300 000 actifs
-
             $rawCerts = \Illuminate\Support\Facades\DB::table('certificat_militaire')
                 ->join('certificats', 'certificats.id', '=', 'certificat_militaire.certificat_id')
-                ->join('militaires', 'militaires.id', '=', 'certificat_militaire.militaire_id')
-                ->whereRaw(\App\Support\Effectif::sqlActivite('militaires.statut'))
-                ->whereNull('militaires.deleted_at')
                 ->select('certificat_militaire.militaire_id', 'certificats.niveau_certificat', 'certificat_militaire.date_obtention')
-                ->cursor();
+                ->get();
 
             $certsMap = [];
             foreach ($rawCerts as $c) {
                 $certsMap[$c->militaire_id][$c->niveau_certificat] = $c->date_obtention ? substr((string)$c->date_obtention, 0, 10) : true;
             }
+
+            $militaires = \Illuminate\Support\Facades\DB::table('militaires')
+                ->whereRaw(\App\Support\Effectif::sqlActivite('statut'))
+                ->whereNull('deleted_at')
+                ->select('id', 'nom', 'prenom', 'matricule', 'grade_actuel', 'date_naissance', 'date_entree_service', 'date_derniere_promotion', 'antecedent_judiciaire', 'antecedent_disciplinaire')
+                ->get();
 
             $propN = [];
             $propN1 = [];
@@ -555,9 +557,9 @@ class DashboardController extends Controller
                 $hasCerts = $certsMap[$mId] ?? [];
                 $conditionsBase = !$m->antecedent_judiciaire && !$m->antecedent_disciplinaire;
 
-                $dNaissanceStr = $m->getRawOriginal('date_naissance');
-                $dEntreeStr = $m->getRawOriginal('date_entree_service');
-                $dPromoStr = $m->getRawOriginal('date_derniere_promotion');
+                $dNaissanceStr = $m->date_naissance;
+                $dEntreeStr = $m->date_entree_service;
+                $dPromoStr = $m->date_derniere_promotion;
 
                 $age = $fastDiffYearsProp($dNaissanceStr, $nowY, $nowMd);
 

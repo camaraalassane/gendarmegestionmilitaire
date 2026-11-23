@@ -106,7 +106,7 @@ class EligibiliteController extends Controller
     public function getAllComputedData(): array
     {
         $v = \App\Models\Militaire::getCacheVersion();
-        return Cache::remember("v{$v}:eligibilites:all_computed_data", 1800, function () {
+        return Cache::remember("v{$v}:eligibilites:all_computed_data", 86400, function () {
             return $this->computeAll();
         });
     }
@@ -138,37 +138,44 @@ class EligibiliteController extends Controller
             return max(0, $diff);
         };
 
-        $militaireSubquery = Militaire::enActivite()->select('id');
-
-        $alertesContrat = Alerte::whereIn('militaire_id', $militaireSubquery)
-            ->where('type_alerte', 'contrat')
-            ->where('est_vue', false)
-            ->pluck('message', 'militaire_id')
-            ->all();
-
+        // 1. Indexation directe des certificats en O(1)
         $rawCerts = DB::table('certificat_militaire')
             ->join('certificats', 'certificats.id', '=', 'certificat_militaire.certificat_id')
-            ->whereIn('certificat_militaire.militaire_id', $militaireSubquery)
             ->select('certificat_militaire.militaire_id', 'certificats.niveau_certificat', 'certificat_militaire.date_obtention')
             ->get();
 
         $certsMap = [];
         foreach ($rawCerts as $c) {
-            $certsMap[$c->militaire_id][] = [
-                'niveau' => $c->niveau_certificat,
-                'date_obtention' => $c->date_obtention ? substr((string)$c->date_obtention, 0, 10) : null,
-            ];
+            $certsMap[$c->militaire_id][$c->niveau_certificat] = $c->date_obtention ? substr((string)$c->date_obtention, 0, 10) : true;
         }
 
+        // 2. Contrats actifs indexés
         $contratsMap = DB::table('contrats')
             ->where('statut', 'actif')
-            ->whereIn('militaire_id', $militaireSubquery)
             ->select('id', 'militaire_id', 'date_fin', 'date_debut')
             ->get()
             ->keyBy('militaire_id')
             ->all();
 
-        $militaires = Militaire::enActivite()
+        // 3. Affectations les plus récentes indexées
+        $latestAffectations = [];
+        $affectationRows = DB::table('affectations')
+            ->select('militaire_id', 'unite', 'region', 'date_mutation')
+            ->orderBy('date_mutation', 'desc')
+            ->get();
+        foreach ($affectationRows as $aff) {
+            if (!isset($latestAffectations[$aff->militaire_id])) {
+                $latestAffectations[$aff->militaire_id] = $aff;
+            }
+        }
+
+        // 4. Grades de retraite
+        $gradesRetraite = DB::table('grades')->whereNotNull('retraite_obligatoire')->pluck('retraite_obligatoire', 'nom_grade')->toArray();
+
+        // 5. Lecture ultra-rapide par DB Query Builder (évite l'hydratation lourde de 6800 modèles Eloquent)
+        $militaires = DB::table('militaires')
+            ->whereRaw(\App\Support\Effectif::sqlActivite('statut'))
+            ->whereNull('deleted_at')
             ->select([
                 'id', 'matricule', 'nom', 'prenom', 'grade_id', 'grade_actuel', 'grade_ordre',
                 'date_entree_service', 'date_derniere_promotion',
@@ -176,21 +183,7 @@ class EligibiliteController extends Controller
                 'antecedent_disciplinaire', 'date_naissance',
                 'unite', 'region', 'date_mutation'
             ])
-            ->cursor();
-
-        $latestAffectations = [];
-        if (DB::table('affectations')->count() > 0) {
-            $latestAffectations = DB::table('affectations')
-                ->select('militaire_id', 'unite', 'region', 'date_mutation')
-                ->whereIn('id', function($q) {
-                    $q->selectRaw('max(id)')->from('affectations')->groupBy('militaire_id');
-                })
-                ->get()
-                ->keyBy('militaire_id')
-                ->all();
-        }
-
-        $gradesRetraite = DB::table('grades')->whereNotNull('retraite_obligatoire')->pluck('retraite_obligatoire', 'nom_grade')->toArray();
+            ->get();
 
         $allPromotions = [];
         $allFormations = [];
@@ -211,26 +204,12 @@ class EligibiliteController extends Controller
             $hasAntecedents = ($m->antecedent_judiciaire || $m->antecedent_disciplinaire);
             $conditionsBase = !$hasAntecedents;
 
-            $dNaissanceStr = $m->getRawOriginal('date_naissance');
-            $dEntreeStr = $m->getRawOriginal('date_entree_service');
-            $dPromoStr = $m->getRawOriginal('date_derniere_promotion');
-            $dMutationRaw = $m->getRawOriginal('date_mutation');
+            $dNaissanceStr = $m->date_naissance;
+            $dEntreeStr = $m->date_entree_service;
+            $dPromoStr = $m->date_derniere_promotion;
+            $dMutationRaw = $m->date_mutation;
 
-            $mCertsList = $certsMap[$m->id] ?? [];
-            $certsNiveaux = null;
-
-            $getCertsNiveaux = function() use (&$certsNiveaux, $mCertsList) {
-                if ($certsNiveaux === null) {
-                    $certsNiveaux = array_column($mCertsList, 'niveau');
-                }
-                return $certsNiveaux;
-            };
-            $getCertDate = function(string $niveau) use ($mCertsList) {
-                foreach ($mCertsList as $c) {
-                    if ($c['niveau'] === $niveau) return $c['date_obtention'];
-                }
-                return null;
-            };
+            $mCerts = $certsMap[$m->id] ?? [];
 
             // 1. PROMOTIONS
             $gradeCible = null;
@@ -241,7 +220,7 @@ class EligibiliteController extends Controller
                 case 'Soldat 1':
                     if ($conditionsBase) {
                         $anc = $fastDiffYears($dEntreeStr, $refY, $refMd);
-                        if ($anc >= 5 && in_array('CAT1', $getCertsNiveaux(), true)) {
+                        if ($anc >= 5 && isset($mCerts['CAT1'])) {
                             $gradeCible = 'Caporal';
                             $dateAncienneteStr = sprintf('%04d-%s', (int)substr($dEntreeStr, 0, 4) + 5, substr($dEntreeStr, 5, 5));
                         }
@@ -250,11 +229,10 @@ class EligibiliteController extends Controller
 
                 case 'Caporal':
                     if ($conditionsBase) {
-                        $cNiv = $getCertsNiveaux();
-                        if (in_array('CAT1', $cNiv, true)) {
-                            if (in_array('CAT2', $cNiv, true)) {
+                        if (isset($mCerts['CAT1'])) {
+                            if (isset($mCerts['CAT2'])) {
                                 $gradeCible = 'Sergent';
-                                $dObt = $getCertDate('CAT1');
+                                $dObt = is_string($mCerts['CAT1']) ? $mCerts['CAT1'] : null;
                                 if ($dObt) {
                                     $dateAncienneteStr = sprintf('%04d-%s', (int)substr($dObt, 0, 4) + 3, substr($dObt, 5, 5));
                                 }
@@ -393,7 +371,7 @@ class EligibiliteController extends Controller
             if (($grade === 'Soldat 2' || $grade === 'Soldat 1') && $conditionsBase) {
                 $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
                 if ($ancG >= 5) {
-                    if (!in_array('CAT1', $getCertsNiveaux(), true)) {
+                    if (!isset($mCerts['CAT1'])) {
                         $dCondStr = $dEntreeStr ? sprintf('%04d-%s', (int)substr($dEntreeStr, 0, 4) + 5, substr($dEntreeStr, 5, 5)) : null;
                         $dCondFormatted = $dCondStr ? sprintf('%02d/%02d/%04d', (int)substr($dCondStr, 8, 2), (int)substr($dCondStr, 5, 2), (int)substr($dCondStr, 0, 4)) : '';
                         $allFormations[] = [
@@ -415,9 +393,8 @@ class EligibiliteController extends Controller
                 if ($age < 47) {
                     $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
                     if ($ancG >= 3) {
-                        $cNiv = $getCertsNiveaux();
-                        if (!in_array('CAT2', $cNiv, true) && in_array('CAT1', $cNiv, true)) {
-                            $dObt = $getCertDate('CAT1');
+                        if (!isset($mCerts['CAT2']) && isset($mCerts['CAT1'])) {
+                            $dObt = is_string($mCerts['CAT1']) ? $mCerts['CAT1'] : null;
                             $dCondStr = $dObt ? sprintf('%04d-%s', (int)substr($dObt, 0, 4) + 3, substr($dObt, 5, 5)) : null;
                             $dCondFormatted = $dCondStr ? sprintf('%02d/%02d/%04d', (int)substr($dCondStr, 8, 2), (int)substr($dCondStr, 5, 2), (int)substr($dCondStr, 0, 4)) : '';
                             $allFormations[] = [
@@ -436,7 +413,7 @@ class EligibiliteController extends Controller
             }
 
             if (in_array($grade, ['Sergent', 'Sergent-Chef', 'Adjudant', 'Adjudant-Chef'], true) && $conditionsBase && $m->a_permis_conduire) {
-                if (!in_array('CIA', $getCertsNiveaux(), true)) {
+                if (!isset($mCerts['CIA'])) {
                     $allFormations[] = [
                         'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
                         'formation' => 'CIA',
@@ -453,9 +430,8 @@ class EligibiliteController extends Controller
             if (in_array($grade, ['Sergent-Chef', 'Adjudant', 'Adjudant-Chef'], true) && $conditionsBase) {
                 $anc = $fastDiffYears($dEntreeStr, $refY, $refMd);
                 if ($anc >= 8) {
-                    $cNiv = $getCertsNiveaux();
-                    if (!in_array('BA1', $cNiv, true) && in_array('CIA', $cNiv, true)) {
-                        $dObt = $getCertDate('CIA');
+                    if (!isset($mCerts['BA1']) && isset($mCerts['CIA'])) {
+                        $dObt = is_string($mCerts['CIA']) ? $mCerts['CIA'] : null;
                         $dCondStr = $dObt ? sprintf('%04d-%s', (int)substr($dObt, 0, 4) + 3, substr($dObt, 5, 5)) : null;
                         $dCondFormatted = $dCondStr ? sprintf('%02d/%02d/%04d', (int)substr($dCondStr, 8, 2), (int)substr($dCondStr, 5, 2), (int)substr($dCondStr, 0, 4)) : '';
                         $allFormations[] = [
@@ -473,9 +449,8 @@ class EligibiliteController extends Controller
             }
 
             if (in_array($grade, ['Adjudant', 'Adjudant-Chef'], true) && $conditionsBase) {
-                $cNiv = $getCertsNiveaux();
-                if (!in_array('BA2', $cNiv, true) && in_array('BA1', $cNiv, true)) {
-                    $dObt = $getCertDate('BA1');
+                if (!isset($mCerts['BA2']) && isset($mCerts['BA1'])) {
+                    $dObt = is_string($mCerts['BA1']) ? $mCerts['BA1'] : null;
                     $dCondStr = $dObt ? sprintf('%04d-%s', (int)substr($dObt, 0, 4) + 3, substr($dObt, 5, 5)) : null;
                     $dCondFormatted = $dCondStr ? sprintf('%02d/%02d/%04d', (int)substr($dCondStr, 8, 2), (int)substr($dCondStr, 5, 2), (int)substr($dCondStr, 0, 4)) : '';
                     $allFormations[] = [
@@ -494,8 +469,7 @@ class EligibiliteController extends Controller
             if (in_array($grade, ['Sous-lieutenant', 'Lieutenant', 'Capitaine'], true)) {
                 if ($age === null) $age = $fastDiffYears($dNaissanceStr, $nowY, $nowMd);
                 if ($age <= 50) {
-                    $cNiv = $getCertsNiveaux();
-                    if (!in_array('APLI', $cNiv, true) && !in_array('CFCU', $cNiv, true)) {
+                    if (!isset($mCerts['APLI']) && !isset($mCerts['CFCU'])) {
                         $allFormations[] = [
                             'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
                             'formation' => 'APLI',
@@ -511,9 +485,8 @@ class EligibiliteController extends Controller
             }
 
             if (in_array($grade, ['Lieutenant', 'Capitaine'], true)) {
-                $cNiv = $getCertsNiveaux();
-                if (!in_array('CFCU', $cNiv, true)) {
-                    if ($grade === 'Capitaine' || in_array('APLI', $cNiv, true)) {
+                if (!isset($mCerts['CFCU'])) {
+                    if ($grade === 'Capitaine' || isset($mCerts['APLI'])) {
                         $cond = $grade === 'Capitaine' ? 'grade Capitaine' : 'APLI validé';
                         $allFormations[] = [
                             'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
@@ -530,8 +503,7 @@ class EligibiliteController extends Controller
             }
 
             if (in_array($grade, ['Capitaine', 'Commandant'], true)) {
-                $cNiv = $getCertsNiveaux();
-                if (!in_array('CEM', $cNiv, true)) {
+                if (!isset($mCerts['CEM'])) {
                     $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
                     if (($grade === 'Capitaine' && $ancG >= 3) || $grade === 'Commandant') {
                         if ($age === null) $age = $fastDiffYears($dNaissanceStr, $nowY, $nowMd);
@@ -554,7 +526,7 @@ class EligibiliteController extends Controller
             if ($grade === 'Commandant') {
                 if ($age === null) $age = $fastDiffYears($dNaissanceStr, $nowY, $nowMd);
                 if ($age > 45) {
-                    if (!in_array('CERT_EM', $getCertsNiveaux(), true)) {
+                    if (!isset($mCerts['CERT_EM'])) {
                         $allFormations[] = [
                             'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
                             'formation' => 'CERT_EM',
@@ -574,7 +546,7 @@ class EligibiliteController extends Controller
                 if ($ancG >= 2) {
                     if ($age === null) $age = $fastDiffYears($dNaissanceStr, $nowY, $nowMd);
                     if ($age <= 53) {
-                        if (!in_array('ECOLE_GUERRE', $getCertsNiveaux(), true)) {
+                        if (!isset($mCerts['ECOLE_GUERRE'])) {
                             $allFormations[] = [
                                 'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
                                 'formation' => 'ECOLE_GUERRE',
@@ -612,12 +584,11 @@ class EligibiliteController extends Controller
                 }
             }
 
-            // 4. CONTRATS
-            $hasContratAlerte = isset($alertesContrat[$m->id]);
-            $isEligibleContrat = $hasContratAlerte;
+            // 4. CONTRATS (Tous les grades contractuels éligibles au renouvellement ou régularisation)
             $cActif = $contratsMap[$m->id] ?? null;
+            $isEligibleContrat = false;
 
-            if (!$isEligibleContrat && $conditionsBase && ($m->statut_code >= 1 && $m->statut_code <= 4)) {
+            if ($m->statut_code >= 1 && $m->statut_code <= 4) {
                 if (isset($gradesContrats[$grade])) {
                     $cFinStr = $cActif?->date_fin ? substr((string)$cActif->date_fin, 0, 10) : null;
                     if (!$cActif || !$cFinStr || $cFinStr <= $nowYmd || ($fastDiffYears($nowYmd, (int)substr($cFinStr, 0, 4), (int)substr($cFinStr, 5, 2) . (int)substr($cFinStr, 8, 2)) === 0)) {
@@ -632,7 +603,7 @@ class EligibiliteController extends Controller
             if ($isEligibleContrat) {
                 $cFinStr = $cActif?->date_fin ? substr((string)$cActif->date_fin, 0, 10) : null;
                 $anneesService = $fastDiffYears($dEntreeStr, $nowY, $nowMd);
-                $msgContrat = $alertesContrat[$m->id] ?? ($anneesService > 0 
+                $msgContrat = ($anneesService > 0 
                     ? "Renouvellement de contrat requis pour {$m->prenom} {$m->nom} ({$anneesService} ans de service) - Grade: {$grade}"
                     : "Régularisation / Renouvellement de contrat requis pour {$m->prenom} {$m->nom} (sans contrat actif) - Grade: {$grade}");
                 $allContrats[] = [
