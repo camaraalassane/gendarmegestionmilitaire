@@ -520,7 +520,7 @@ class MilitaireController extends Controller
         $regions = Region::orderBy('ordre')->orderBy('nom')->get();
         $unites = Unite::with('region')->orderBy('nom')->get();
         $positions = Position::orderBy('nom')->get();
-        $organismes = \App\Models\OrganismeDetachement::where('est_actif', true)->orderBy('ordre')->get(['id', 'code', 'nom']);
+        $organismes = \App\Models\OrganismeDetachement::where('est_actif', true)->where('code', '!=', 'GRM')->orderBy('ordre')->get(['id', 'code', 'nom']);
 
         return Inertia::render('militaires/create', [
             'grades' => $grades,
@@ -828,7 +828,7 @@ class MilitaireController extends Controller
         $regions = Region::orderBy('ordre')->orderBy('nom')->get();
         $unites = Unite::with('region')->orderBy('nom')->get();
         $positions = Position::orderBy('nom')->get();
-        $organismes = \App\Models\OrganismeDetachement::where('est_actif', true)->orderBy('ordre')->get(['id', 'code', 'nom']);
+        $organismes = \App\Models\OrganismeDetachement::where('est_actif', true)->where('code', '!=', 'GRM')->orderBy('ordre')->get(['id', 'code', 'nom']);
 
         $uniteNom = $militaire->unite;
         $uniteId = $militaire->unite_id;

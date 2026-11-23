@@ -29,7 +29,7 @@ const props = defineProps({
 const localRegions = ref([...(props.regions || [])]);
 const localUnites = ref([...(props.unites || [])]);
 const localPositions = ref([...(props.positions || [])].filter(p => !p.nom?.match(/r[eéè]int[eéè]gr/i)));
-const localOrganismes = ref([...(props.organismes_detachement || [])]);
+const localOrganismes = ref([...(props.organismes_detachement || [])].filter(o => o.code !== 'GRM'));
 
 // Seules les positions officielles configurées en base sont autorisées dans le menu déroulant
 const validPositionMatch = localPositions.value.find(p => p.id === props.militaire?.position_id || p.nom?.toLowerCase() === props.militaire?.position_actuelle?.toLowerCase());

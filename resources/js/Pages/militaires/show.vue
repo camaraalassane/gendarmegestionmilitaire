@@ -878,7 +878,7 @@ const deleteMilitaire = () => {
                                 <span class="text-slate-800">{{ militaire.circonstances_deces }}</span>
                             </div>
                             <div v-if="militaire.motif_radiation">
-                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Motif de radiation</span>
+                                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">{{ militaire.statut === 'déserteur' ? 'Motif de désertion' : 'Motif de radiation / départ' }}</span>
                                 <span class="font-bold text-red-700">{{ militaire.motif_radiation }}</span>
                             </div>
                             <div v-if="militaire.reference_decision">

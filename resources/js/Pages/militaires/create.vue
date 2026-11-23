@@ -26,7 +26,7 @@ const props = defineProps({
 const localRegions = ref([...(props.regions || [])]);
 const localUnites = ref([...(props.unites || [])]);
 const localPositions = ref([...(props.positions || [])].filter(p => !p.nom?.match(/r[eéè]int[eéè]gr/i)));
-const localOrganismes = ref([...(props.organismes_detachement || [])]);
+const localOrganismes = ref([...(props.organismes_detachement || [])].filter(o => o.code !== 'GRM'));
 
 const toast = useToast();
 const saving = ref(false);
