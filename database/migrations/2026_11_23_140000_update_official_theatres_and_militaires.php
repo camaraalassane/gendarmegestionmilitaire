@@ -27,7 +27,7 @@ return new class extends Migration
                 'id' => 1,
                 'code' => 'TH-DANDERESSO',
                 'nom' => 'Détachement Opérationnel de Danderesso',
-                'description' => 'Détachement opérationnel de Danderesso (Région de Sikasso) — Unités : GARSI',
+                'description' => 'Détachement opérationnel de Danderesso (Région de Sikasso)',
                 'pc_lieu' => 'Danderesso',
                 'latitude' => 11.450000,
                 'longitude' => -5.450000,
@@ -42,7 +42,7 @@ return new class extends Migration
                 'id' => 2,
                 'code' => 'TH-KALANA',
                 'nom' => 'Détachement Opérationnel de Kalana',
-                'description' => 'Détachement opérationnel de Kalana (Région de Sikasso / Bougouni) — Unités : GARSI - GSIGN',
+                'description' => 'Détachement opérationnel de Kalana (Région de Sikasso / Bougouni)',
                 'pc_lieu' => 'Kalana',
                 'latitude' => 10.783000,
                 'longitude' => -8.183000,
@@ -57,7 +57,7 @@ return new class extends Migration
                 'id' => 3,
                 'code' => 'TH-KIMPARANA',
                 'nom' => 'Détachement Opérationnel de Kimparana',
-                'description' => 'Détachement opérationnel de Kimparana (Région de Ségou / San) — Unités : GSIGN',
+                'description' => 'Détachement opérationnel de Kimparana (Région de Ségou / San)',
                 'pc_lieu' => 'Kimparana',
                 'latitude' => 12.833000,
                 'longitude' => -5.017000,
@@ -72,7 +72,7 @@ return new class extends Migration
                 'id' => 4,
                 'code' => 'TH-MBEWANI',
                 'nom' => 'Détachement Opérationnel de M\'Béwani',
-                'description' => 'Détachement opérationnel de M\'Béwani (Région de Ségou) — Unités : GSIGN',
+                'description' => 'Détachement opérationnel de M\'Béwani (Région de Ségou)',
                 'pc_lieu' => 'M\'Béwani',
                 'latitude' => 13.983000,
                 'longitude' => -5.917000,
@@ -87,7 +87,7 @@ return new class extends Migration
                 'id' => 5,
                 'code' => 'TH-DOUGABOUGOU',
                 'nom' => 'Détachement Opérationnel de Dougabougou',
-                'description' => 'Détachement opérationnel de Dougabougou (Région de Ségou) — Unités : GARSI',
+                'description' => 'Détachement opérationnel de Dougabougou (Région de Ségou)',
                 'pc_lieu' => 'Dougabougou',
                 'latitude' => 13.733000,
                 'longitude' => -5.983000,
@@ -102,7 +102,7 @@ return new class extends Migration
                 'id' => 6,
                 'code' => 'TH-SOKOLO',
                 'nom' => 'Détachement Opérationnel de Sokolo',
-                'description' => 'Détachement opérationnel de Sokolo (Région de Ségou) — Unités : UNITÉS-GRM',
+                'description' => 'Détachement opérationnel de Sokolo (Région de Ségou)',
                 'pc_lieu' => 'Sokolo',
                 'latitude' => 14.733000,
                 'longitude' => -6.117000,
@@ -117,7 +117,7 @@ return new class extends Migration
                 'id' => 7,
                 'code' => 'TH-TOGORE-COUMBE',
                 'nom' => 'Détachement Opérationnel de Togoré-Coumbé',
-                'description' => 'Détachement opérationnel de Togoré-Coumbé (Région de Ségou) — Unités : UNITÉS-GRM',
+                'description' => 'Détachement opérationnel de Togoré-Coumbé (Région de Ségou)',
                 'pc_lieu' => 'Togoré-Coumbé',
                 'latitude' => 14.300000,
                 'longitude' => -5.350000,
@@ -132,7 +132,7 @@ return new class extends Migration
                 'id' => 8,
                 'code' => 'TH-DIALLOUBE',
                 'nom' => 'Détachement Opérationnel de Dialloubé',
-                'description' => 'Détachement opérationnel de Dialloubé (Région de Mopti) — Unités : UNITÉS-GRM',
+                'description' => 'Détachement opérationnel de Dialloubé (Région de Mopti)',
                 'pc_lieu' => 'Dialloubé',
                 'latitude' => 14.767000,
                 'longitude' => -3.983000,
@@ -147,7 +147,7 @@ return new class extends Migration
                 'id' => 9,
                 'code' => 'TH-TIMISSA',
                 'nom' => 'Détachement Opérationnel de Timissa',
-                'description' => 'Détachement opérationnel de Timissa (Région de Ségou / San) — Unités : UNITÉS-GRM',
+                'description' => 'Détachement opérationnel de Timissa (Région de Ségou / San)',
                 'pc_lieu' => 'Timissa',
                 'latitude' => 13.433000,
                 'longitude' => -4.850000,
@@ -162,7 +162,7 @@ return new class extends Migration
                 'id' => 10,
                 'code' => 'TH-SAYE',
                 'nom' => 'Détachement Opérationnel de Saye',
-                'description' => 'Détachement opérationnel de Saye (Région de Ségou) — Unités : UNITÉS-GRM',
+                'description' => 'Détachement opérationnel de Saye (Région de Ségou)',
                 'pc_lieu' => 'Saye',
                 'latitude' => 13.083000,
                 'longitude' => -5.350000,
@@ -177,22 +177,7 @@ return new class extends Migration
 
         DB::table('theatres')->insert($theatresData);
 
-        // 4. Insérer les unités prévues / d'appui
-        $unitesData = [
-            ['theatre_id' => 1, 'code' => 'GARSI', 'nom' => 'Groupe d\'Action Rapide de Surveillance et d\'Intervention', 'effectif' => 0, 'couleur' => '#0284c7', 'created_at' => $now, 'updated_at' => $now],
-            ['theatre_id' => 2, 'code' => 'GARSI-GSIGN', 'nom' => 'GARSI / GSIGN', 'effectif' => 0, 'couleur' => '#0ea5e9', 'created_at' => $now, 'updated_at' => $now],
-            ['theatre_id' => 3, 'code' => 'GSIGN', 'nom' => 'Groupe Spécial d\'Intervention de la Gendarmerie Nationale', 'effectif' => 0, 'couleur' => '#10b981', 'created_at' => $now, 'updated_at' => $now],
-            ['theatre_id' => 4, 'code' => 'GSIGN', 'nom' => 'Groupe Spécial d\'Intervention de la Gendarmerie Nationale', 'effectif' => 0, 'couleur' => '#059669', 'created_at' => $now, 'updated_at' => $now],
-            ['theatre_id' => 5, 'code' => 'GARSI', 'nom' => 'Groupe d\'Action Rapide de Surveillance et d\'Intervention', 'effectif' => 0, 'couleur' => '#14b8a6', 'created_at' => $now, 'updated_at' => $now],
-            ['theatre_id' => 6, 'code' => 'UNITES-GRM', 'nom' => 'Unités de Réserve et d\'Intervention GRM', 'effectif' => 0, 'couleur' => '#ea580c', 'created_at' => $now, 'updated_at' => $now],
-            ['theatre_id' => 7, 'code' => 'UNITES-GRM', 'nom' => 'Unités de Réserve et d\'Intervention GRM', 'effectif' => 0, 'couleur' => '#d97706', 'created_at' => $now, 'updated_at' => $now],
-            ['theatre_id' => 8, 'code' => 'UNITES-GRM', 'nom' => 'Unités de Réserve et d\'Intervention GRM', 'effectif' => 0, 'couleur' => '#dc2626', 'created_at' => $now, 'updated_at' => $now],
-            ['theatre_id' => 9, 'code' => 'UNITES-GRM', 'nom' => 'Unités de Réserve et d\'Intervention GRM', 'effectif' => 0, 'couleur' => '#8b5cf6', 'created_at' => $now, 'updated_at' => $now],
-            ['theatre_id' => 10, 'code' => 'UNITES-GRM', 'nom' => 'Unités de Réserve et d\'Intervention GRM', 'effectif' => 0, 'couleur' => '#6366f1', 'created_at' => $now, 'updated_at' => $now],
-        ];
-        DB::table('theatre_unites_appui')->insert($unitesData);
-
-        // 5. Affectation rigoureuse des militaires aux 10 théâtres
+        // 4. Affectation rigoureuse des militaires aux 10 théâtres (Forces propres Gendarmerie)
         $officialKeywords = [
             6  => ['sokolo'],                                 // SOKOLO
             7  => ['togr', 'togor', 'coumb'],                 // TOGORE-COUMBE
