@@ -468,11 +468,21 @@ const gradeBadgeStyle = (ordre) => {
     return 'bg-slate-100 text-slate-700 border-slate-300';                    // Militaires du rang
 };
 
+const hasTheatreAppuis = (th) => {
+    return Array.isArray(th?.unites_appui) && th.unites_appui.length > 0;
+};
+
+const getTheatreAppuiString = (th) => {
+    if (!hasTheatreAppuis(th)) return '';
+    return th.unites_appui.map(ua => `${ua.code} ${ua.effectif}`).join(' • ');
+};
+
 const theatreBadgeWidth = (th) => {
     const title = `${th.code} • ${(th.pc_lieu || 'PC').toUpperCase()}`;
-    const baseW = title.length * 6.5 + 24;
-    const hasAppui = (th.effectif_appui || 0) > 0;
-    return Math.max(hasAppui ? 135 : 95, Math.min(175, baseW + (hasAppui ? 25 : 0)));
+    const titleW = title.length * 6.5 + 24;
+    const appuiStr = getTheatreAppuiString(th);
+    const appuiW = appuiStr ? appuiStr.length * 5.6 + 28 : 0;
+    return Math.max(105, Math.min(260, Math.max(titleW, appuiW)));
 };
 
 const theatreMilitairesFiltres = computed(() => theatreMilitairesTriesEtFiltres.value);
@@ -1996,13 +2006,13 @@ const lignesFiltrees = computed(() => {
                                                 ★
                                             </text>
 
-                                            <!-- GRAND BADGE TACTIQUE AVEC EFFECTIF GENDARMERIE ET EFFECTIF D'APPUI -->
+                                            <!-- GRAND BADGE TACTIQUE AVEC EFFECTIF GENDARMERIE ET DÉTAIL DES APPUIS (ex: DTTIA 10 • AA 20 • AT 30) -->
                                             <g :transform="`translate(0, 20)`" class="pointer-events-none select-none">
                                                 <rect
                                                     :x="-theatreBadgeWidth(th) / 2"
                                                     y="-11"
                                                     :width="theatreBadgeWidth(th)"
-                                                    height="25"
+                                                    :height="hasTheatreAppuis(th) ? 36 : 24"
                                                     rx="5"
                                                     ry="5"
                                                     fill="#090e17"
@@ -2020,7 +2030,7 @@ const lignesFiltrees = computed(() => {
                                                 >
                                                     {{ th.code }} • {{ (th.pc_lieu || 'PC').toUpperCase() }}
                                                 </text>
-                                                <!-- Ligne 2 : CHIFFRE GENDARMERIE & APPUI FAMa -->
+                                                <!-- Ligne 2 : CHIFFRE GENDARMERIE -->
                                                 <text
                                                     x="0"
                                                     y="9"
@@ -2030,43 +2040,24 @@ const lignesFiltrees = computed(() => {
                                                     <tspan fill="#ffffff" font-weight="900">{{ fmt(th.effectif) }}</tspan>
                                                     <tspan fill="#94a3b8" font-size="8.5" font-weight="600"> Gend.</tspan>
                                                     <template v-if="th.effectif_appui > 0">
-                                                        <tspan fill="#fbbf24" font-weight="800" font-size="10"> +{{ fmt(th.effectif_appui) }}</tspan>
-                                                        <tspan fill="#f59e0b" font-size="7.5" font-weight="700"> Appui</tspan>
+                                                        <tspan fill="#fbbf24" font-weight="800" font-size="9.5"> (+{{ fmt(th.effectif_appui) }})</tspan>
                                                     </template>
                                                 </text>
-                                            </g>
 
-                                            <!-- LIGNE DES BADGES D'APPUI AU SURVOL OU SÉLECTION (ex: AA 20 • AT 35 • DTTIA 10) -->
-                                            <g
-                                                v-if="(selTheatre === th.code || hoveredTheatre === th.code) && th.unites_appui && th.unites_appui.length > 0"
-                                                :transform="`translate(0, 39)`"
-                                                class="pointer-events-none select-none"
-                                            >
-                                                <rect
-                                                    :x="-Math.max(120, th.unites_appui.length * 36) / 2"
-                                                    y="-7"
-                                                    :width="Math.max(120, th.unites_appui.length * 36)"
-                                                    height="15"
-                                                    rx="3.5"
-                                                    ry="3.5"
-                                                    fill="#090e17"
-                                                    fill-opacity="0.94"
-                                                    stroke="#fbbf24"
-                                                    stroke-width="0.8"
-                                                />
+                                                <!-- Ligne 3 : TOUS LES APPUIS AFFICHÉS DIRECTEMENT AVEC DES POINTS (ex: DTTIA 10 • AA 20 • AT 30) -->
                                                 <text
+                                                    v-if="hasTheatreAppuis(th)"
                                                     x="0"
-                                                    y="3.5"
+                                                    y="20"
                                                     text-anchor="middle"
-                                                    font-size="8"
+                                                    :font-size="th.unites_appui.length > 4 ? 7.2 : 8.2"
                                                     font-weight="bold"
-                                                    fill="#f8fafc"
                                                     letter-spacing="0.2"
                                                 >
                                                     <template v-for="(ua, uIdx) in th.unites_appui" :key="ua.id">
-                                                        <tspan :fill="ua.couleur || '#38bdf8'">{{ ua.code }} </tspan>
+                                                        <tspan :fill="ua.couleur || '#38bdf8'" font-weight="800">{{ ua.code }} </tspan>
                                                         <tspan fill="#ffffff" font-weight="900">{{ ua.effectif }}</tspan>
-                                                        <tspan v-if="uIdx < th.unites_appui.length - 1" fill="#64748b"> • </tspan>
+                                                        <tspan v-if="uIdx < th.unites_appui.length - 1" fill="#f59e0b" font-weight="bold"> • </tspan>
                                                     </template>
                                                 </text>
                                             </g>
