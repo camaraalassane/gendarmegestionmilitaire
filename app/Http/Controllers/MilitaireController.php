@@ -237,7 +237,8 @@ class MilitaireController extends Controller
               ->orderBy('militaires.nom', 'asc')
               ->orderBy('militaires.prenom', 'asc');
 
-        $militaires = $query->withCount(['alertes' => fn($q) => $q->where('est_vue', false)])
+        $militaires = $query->with(['theatre:id,code,nom'])
+            ->withCount(['alertes' => fn($q) => $q->where('est_vue', false)])
             ->paginate(20)
             ->withQueryString()
             ->through(fn ($militaire) => [
@@ -290,14 +291,18 @@ class MilitaireController extends Controller
                 'date_retraite' => $militaire->calculerDateRetraite()?->format('d/m/Y'),
             ]);
 
-        $grades = Grade::orderBy('ordre', 'desc')->select('id', 'nom_grade', 'code_grade', 'ordre')->get();
-        $regions = Region::orderByRaw('CASE WHEN ordre IS NULL OR ordre = 0 THEN 999 ELSE ordre END ASC')
-            ->orderBy('nom')
-            ->select('id', 'nom', 'code')
-            ->get();
-        $positions = Position::orderBy('nom')->select('id', 'nom')->get();
-        $theatres = \App\Models\Theatre::orderBy('nom')->select('id', 'nom', 'code', 'couleur', 'pc_lieu')->get();
-        $unites = Unite::orderBy('nom')->select('id', 'nom', 'code', 'region_id')->get();
+        $filterRefs = Cache::remember('ref:militaires_filter_options', 86400, function() {
+            return [
+                'grades' => Grade::orderBy('ordre', 'desc')->select('id', 'nom_grade', 'code_grade', 'ordre')->get(),
+                'regions' => Region::orderByRaw('CASE WHEN ordre IS NULL OR ordre = 0 THEN 999 ELSE ordre END ASC')
+                    ->orderBy('nom')
+                    ->select('id', 'nom', 'code')
+                    ->get(),
+                'positions' => Position::orderBy('nom')->select('id', 'nom')->get(),
+                'theatres' => \App\Models\Theatre::orderBy('nom')->select('id', 'nom', 'code', 'couleur', 'pc_lieu')->get(),
+                'unites' => Unite::orderBy('nom')->select('id', 'nom', 'code', 'region_id')->get(),
+            ];
+        });
 
         return Inertia::render('militaires/index', [
             'militaires'   => $militaires,
@@ -311,11 +316,11 @@ class MilitaireController extends Controller
                 'position'      => $request->position,
                 'non_rattaches' => $request->boolean('non_rattaches') || $request->input('non_rattaches') === '1' || $statutFilter === 'non_rattaches',
             ],
-            'grades'       => $grades,
-            'regions'      => $regions,
-            'positions'    => $positions,
-            'theatres'     => $theatres,
-            'unites'       => $unites,
+            'grades'       => $filterRefs['grades'],
+            'regions'      => $filterRefs['regions'],
+            'positions'    => $filterRefs['positions'],
+            'theatres'     => $filterRefs['theatres'],
+            'unites'       => $filterRefs['unites'],
         ]);
     }
 

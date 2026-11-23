@@ -59,6 +59,9 @@ class AvancementController extends Controller
         $gradesOfficiers = $sortGradesDesc($availableGradesOfficiers);
         $gradesSousOfficiers = $sortGradesDesc($availableGradesSousOfficiers);
 
+        $defaultTab = count($gradesOfficiers) > 0 ? 'officiers' : 'sous_officiers';
+        $tab = $request->input('tab', $defaultTab);
+
         $countOfficiers = count(array_filter($candidates, fn($c) => !empty($c['is_officier'])));
         $countSousOfficiers = count(array_filter($candidates, fn($c) => empty($c['is_officier'])));
 
@@ -463,6 +466,12 @@ class AvancementController extends Controller
                     ->enActivite()
                     ->whereNull('date_deces')
                     ->with(['certificats'])
+                    ->select([
+                        'id', 'matricule', 'mle_grm', 'nom', 'prenom', 'photo_url', 'grade_actuel',
+                        'fonction_actuelle', 'position_actuelle', 'date_derniere_promotion', 'date_entree_service',
+                        'date_naissance', 'statut', 'date_deces', 'anciennete_grade', 'anciennete',
+                        'diplomes_academiques', 'decorations', 'anciennete_grade_detaillee', 'anciennete_detaillee',
+                    ])
                     ->get();
                 $militaires = $militaires->concat($chunkMilitaires);
             }

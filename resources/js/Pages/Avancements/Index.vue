@@ -48,11 +48,11 @@ const dateImpression = new Date().toLocaleDateString('fr-FR', {
     year: 'numeric'
 });
 
-// Données locales réactives
-const localCandidates = ref(JSON.parse(JSON.stringify(props.candidates)));
+// Données locales réactives optimisées (évite le JSON.parse/stringify bloquant)
+const localCandidates = ref(props.candidates ? props.candidates.map(c => ({ ...c })) : []);
 
 watch(() => props.candidates, (newVal) => {
-    localCandidates.value = JSON.parse(JSON.stringify(newVal));
+    localCandidates.value = newVal ? newVal.map(c => ({ ...c })) : [];
     hasUnsavedChanges.value = false;
 });
 
