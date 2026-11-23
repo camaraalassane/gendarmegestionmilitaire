@@ -1282,6 +1282,8 @@ class MilitaireController extends Controller
                 }
             }
         }
+
+        Militaire::incrementCacheVersion();
     }
 
     /**

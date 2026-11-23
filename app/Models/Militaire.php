@@ -256,8 +256,29 @@ class Militaire extends Model
 
         static::saved(function ($militaire) {
             if (!static::$isImporting) {
-                static::incrementCacheVersion();
-                \App\Http\Controllers\CarteController::flush();
+                // Liste inverse de sécurité : seuls ces champs cosmétiques/contact/index n'invalident pas le cache
+                $champsIgnorables = [
+                    'telephone',
+                    'telephone_personne_contacter',
+                    'adresse',
+                    'adresse_personne_contacter',
+                    'personne_a_contacter',
+                    'photo',
+                    'observations',
+                    'groupe_sanguin',
+                    'taille',
+                    'pointure',
+                    'recherche',
+                    'updated_at',
+                ];
+
+                $modifs = array_keys($militaire->getChanges());
+                $aImpactStatistique = $militaire->wasRecentlyCreated || count(array_diff($modifs, $champsIgnorables)) > 0;
+
+                if ($aImpactStatistique) {
+                    static::incrementCacheVersion();
+                    \App\Http\Controllers\CarteController::flush();
+                }
             }
             $militaire->synchroniserRegistreOperationnel();
         });
