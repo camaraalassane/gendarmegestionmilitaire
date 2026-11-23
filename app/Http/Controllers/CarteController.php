@@ -164,51 +164,11 @@ class CarteController extends Controller
 
         // 4) Théâtres d'opérations souverains (agrégations SQL directes pour un chargement instantané)
         $regionsMap = $regions->keyBy('code');
-        $theatres = Theatre::with('unitesAppui')->orderBy('code')->get()->map(function ($th) use ($regionsMap, $regions) {
+        $theatres = Theatre::with('unitesAppui')->orderBy('id')->get()->map(function ($th) use ($regionsMap, $regions) {
             $q = \Illuminate\Support\Facades\DB::table('militaires')
                 ->whereRaw(Effectif::sqlActivite())
-                ->whereNull('deleted_at');
-
-            if ($th->code === 'DET-SOKOLO') {
-                $q->where(function($sq) use ($th) {
-                    $sq->where('theatre_id', $th->id)
-                       ->orWhere('position_actuelle', 'ILIKE', '%sokolo%')
-                       ->orWhere('engagement_ops', 'ILIKE', '%sokolo%')
-                       ->orWhere('unite', 'ILIKE', '%sokolo%');
-                });
-            } elseif ($th->code === 'DET-SAYE') {
-                $q->where(function($sq) use ($th) {
-                    $sq->where('theatre_id', $th->id)
-                       ->orWhere('position_actuelle', 'ILIKE', '%saye%')
-                       ->orWhere('engagement_ops', 'ILIKE', '%saye%')
-                       ->orWhere('unite', 'ILIKE', '%saye%');
-                });
-            } else {
-                $regionsCodes = is_array($th->regions_codes) ? $th->regions_codes : [];
-                $regIds = $regions->whereIn('code', $regionsCodes)->pluck('id')->all();
-                $q->where(function($sq) use ($th, $regIds) {
-                    $sq->where('theatre_id', $th->id)
-                       ->orWhere(function($ssq) use ($regIds) {
-                           $ssq->whereIn('region_id', $regIds)
-                               ->whereNull('theatre_id');
-                       });
-                })
-                // Exclure formellement les détachements spécifiques pour éviter tout double-compte avec le théâtre régional
-                ->where(function($sq) {
-                    $sq->whereNull('position_actuelle')
-                       ->orWhere(function($ssq) {
-                           $ssq->where('position_actuelle', 'NOT ILIKE', '%sokolo%')
-                               ->where('position_actuelle', 'NOT ILIKE', '%saye%');
-                       });
-                })
-                ->where(function($sq) {
-                    $sq->whereNull('unite')
-                       ->orWhere(function($ssq) {
-                           $ssq->where('unite', 'NOT ILIKE', '%sokolo%')
-                               ->where('unite', 'NOT ILIKE', '%saye%');
-                       });
-                });
-            }
+                ->whereNull('deleted_at')
+                ->where('theatre_id', $th->id);
 
             $st = $q->selectRaw("
                 COUNT(*) as total,
@@ -531,47 +491,9 @@ class CarteController extends Controller
     public function theatreMilitaires(Theatre $theatre)
     {
         $regions = Region::all();
-        $q = Militaire::enActivite()->with(['grade', 'unite', 'region', 'registresOperationnels']);
-
-        if ($theatre->code === 'DET-SOKOLO') {
-            $q->where(function ($sq) use ($theatre) {
-                $sq->where('theatre_id', $theatre->id)
-                   ->orWhere('position_actuelle', 'ILIKE', '%sokolo%')
-                   ->orWhere('engagement_ops', 'ILIKE', '%sokolo%')
-                   ->orWhere('unite', 'ILIKE', '%sokolo%');
-            });
-        } elseif ($theatre->code === 'DET-SAYE') {
-            $q->where(function ($sq) use ($theatre) {
-                $sq->where('theatre_id', $theatre->id)
-                   ->orWhere('position_actuelle', 'ILIKE', '%saye%')
-                   ->orWhere('engagement_ops', 'ILIKE', '%saye%')
-                   ->orWhere('unite', 'ILIKE', '%saye%');
-            });
-        } else {
-            $regionsCodes = is_array($theatre->regions_codes) ? $theatre->regions_codes : [];
-            $regIds = $regions->whereIn('code', $regionsCodes)->pluck('id')->all();
-            $q->where(function ($sq) use ($theatre, $regIds) {
-                $sq->where('theatre_id', $theatre->id)
-                   ->orWhere(function ($ssq) use ($regIds) {
-                       $ssq->whereIn('region_id', $regIds)
-                           ->whereNull('theatre_id');
-                   });
-            })
-            ->where(function ($sq) {
-                $sq->whereNull('position_actuelle')
-                   ->orWhere(function ($ssq) {
-                       $ssq->where('position_actuelle', 'NOT ILIKE', '%sokolo%')
-                           ->where('position_actuelle', 'NOT ILIKE', '%saye%');
-                   });
-            })
-            ->where(function ($sq) {
-                $sq->whereNull('unite')
-                   ->orWhere(function ($ssq) {
-                       $ssq->where('unite', 'NOT ILIKE', '%sokolo%')
-                           ->where('unite', 'NOT ILIKE', '%saye%');
-                   });
-            });
-        }
+        $q = Militaire::enActivite()
+            ->with(['grade', 'unite', 'region', 'registresOperationnels'])
+            ->where('theatre_id', $theatre->id);
 
         $militaires = $q->get();
         $militairesTries = $militaires->sortByDesc(fn ($m) => (int) ($m->grade?->ordre ?? $m->grade_ordre ?? 0))->values();
