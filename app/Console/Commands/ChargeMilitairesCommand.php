@@ -23,6 +23,9 @@ class ChargeMilitairesCommand extends Command
 
     public function handle(): int
     {
+        ini_set('memory_limit', '1024M');
+        DB::connection()->disableQueryLog();
+
         if (app()->environment('production')) {
             $this->error('Refusé en production.');
             return self::FAILURE;
@@ -101,8 +104,10 @@ class ChargeMilitairesCommand extends Command
 
             if (count($batch) === 2000) {
                 DB::table('militaires')->insert($batch);
+                unset($batch);
                 $batch = [];
                 if ($i % 20000 === 0) {
+                    gc_collect_cycles();
                     $this->line("  Progression : {$i} / {$total}");
                 }
             }
