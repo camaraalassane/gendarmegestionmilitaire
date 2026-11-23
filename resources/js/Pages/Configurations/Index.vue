@@ -153,6 +153,10 @@ const triggerDelete = (type, item) => {
         deleteDialogTitle.value = `Supprimer le théâtre d'opérations "${item.nom}" ?`;
         deleteDialogMessage.value = `Êtes-vous sûr de vouloir supprimer ce théâtre d'opérations ? Les militaires qui y étaient engagés conserveront leur unité et région d'origine mais seront détachés de ce théâtre.`;
         deleteWarningCascade.value = false;
+    } else if (type === 'appui') {
+        deleteDialogTitle.value = `Supprimer l'unité d'appui "${item.code} - ${item.nom}" ?`;
+        deleteDialogMessage.value = `Êtes-vous sûr de vouloir retirer cet appui (${item.effectif} combattants) de ce théâtre d'opérations ?`;
+        deleteWarningCascade.value = false;
     }
     deleteDialogVisible.value = true;
 };
@@ -170,19 +174,35 @@ const executeDelete = () => {
         url = route('configurations.positions.destroy', deleteItem.value.id);
     } else if (deleteType.value === 'theatre') {
         url = route('configurations.theatres.destroy', deleteItem.value.id);
+    } else if (deleteType.value === 'appui') {
+        url = `/configurations/unites-appui/${deleteItem.value.id}`;
     }
 
     router.delete(url, {
+        preserveScroll: true,
         onSuccess: () => {
+            const isAppui = deleteType.value === 'appui';
+            const deletedId = deleteItem.value?.id;
             deleteDialogVisible.value = false;
             uniteDialogVisible.value = false;
             regionDialogVisible.value = false;
             positionDialogVisible.value = false;
             theatreDialogVisible.value = false;
+
+            if (isAppui && deletedId) {
+                if (selectedTheatreForAppuis.value && Array.isArray(selectedTheatreForAppuis.value.unites_appui)) {
+                    selectedTheatreForAppuis.value.unites_appui = selectedTheatreForAppuis.value.unites_appui.filter(u => u.id !== deletedId);
+                }
+                const th = props.theatres.find(t => t.id === selectedTheatreForAppuis.value?.id);
+                if (th && Array.isArray(th.unites_appui)) {
+                    th.unites_appui = th.unites_appui.filter(u => u.id !== deletedId);
+                }
+            }
+
             toast.add({
                 severity: 'success',
                 summary: 'Suppression réussie',
-                detail: 'L\'élément a été supprimé avec succès.',
+                detail: isAppui ? 'Unité d\'appui supprimée du théâtre avec succès.' : 'L\'élément a été supprimé avec succès.',
                 life: 3000
             });
         },
@@ -562,15 +582,112 @@ const defaultAppuiForm = () => ({
 
 const appuiForm = ref(defaultAppuiForm());
 
-const appuiPresets = [
+// Types d'appui prédéfinis standards des Forces Armées & Sécurité
+const defaultAppuiPresets = [
     { code: 'AA', nom: "Armée de l'Air", couleur: '#0284c7' },
     { code: 'AT', nom: "Armée de Terre", couleur: '#16a34a' },
     { code: 'DTTIA', nom: "Transmissions", couleur: '#9333ea' },
     { code: 'GENIE', nom: "Génie Militaire", couleur: '#d97706' },
     { code: 'DCSSA', nom: "Santé Militaire", couleur: '#e11d48' },
     { code: 'DMHTA', nom: "Matériel / Logistique", couleur: '#64748b' },
-    { code: 'AUTRE', nom: "Autre unité d'appui", couleur: '#0284c7' },
+    { code: 'GN', nom: "Garde Nationale", couleur: '#4f46e5' },
+    { code: 'POLICE', nom: "Police Nationale", couleur: '#0891b2' },
+    { code: 'FS', nom: "Forces Spéciales", couleur: '#be123c' },
+    { code: 'ART', nom: "Artillerie", couleur: '#ca8a04' },
+    { code: 'CAV', nom: "Blindés / Cavalerie", couleur: '#854d0e' },
+    { code: 'DRONE', nom: "Escadron Drones", couleur: '#0284c7' },
 ];
+
+const customAppuiTypes = ref([]);
+
+// Palette de couleurs tactiques militaires rapides
+const tacticalColorPalette = [
+    { label: 'Bleu Ciel (Air / Drones)', color: '#0284c7' },
+    { label: 'Vert Kaki (Infanterie / Terre)', color: '#16a34a' },
+    { label: 'Violet (Transmissions)', color: '#9333ea' },
+    { label: 'Ambre / Fauve (Génie)', color: '#d97706' },
+    { label: 'Rouge (Santé Militaire)', color: '#e11d48' },
+    { label: 'Gris Ardoise (Matériel / Train)', color: '#64748b' },
+    { label: 'Indigo (Garde Nationale)', color: '#4f46e5' },
+    { label: 'Cyan (Police / Sécurité)', color: '#0891b2' },
+    { label: 'Bordeaux (Forces Spéciales)', color: '#be123c' },
+    { label: 'Jaune Or (Artillerie)', color: '#ca8a04' },
+];
+
+const loadCustomAppuiTypes = () => {
+    try {
+        const stored = localStorage.getItem('gendarmerie_custom_appui_types');
+        if (stored) {
+            customAppuiTypes.value = JSON.parse(stored);
+        }
+    } catch (e) {}
+
+    const knownCodes = new Set([
+        ...defaultAppuiPresets.map(p => p.code),
+        ...customAppuiTypes.value.map(p => p.code)
+    ]);
+
+    for (const th of props.theatres) {
+        if (Array.isArray(th.unites_appui)) {
+            for (const ua of th.unites_appui) {
+                if (ua.code && !knownCodes.has(ua.code)) {
+                    customAppuiTypes.value.push({
+                        code: ua.code,
+                        nom: ua.nom || ua.code,
+                        couleur: ua.couleur || '#0284c7'
+                    });
+                    knownCodes.add(ua.code);
+                }
+            }
+        }
+    }
+};
+
+// Exécuter au démarrage
+loadCustomAppuiTypes();
+
+// Liste combinée de tous les types d'appui disponibles
+const allAppuiTypes = computed(() => {
+    return [...defaultAppuiPresets, ...customAppuiTypes.value];
+});
+
+// Mini-créateur de type d'appui personnalisé
+const showNewTypeCreator = ref(false);
+const newTypeForm = ref({
+    code: '',
+    nom: '',
+    couleur: '#4f46e5',
+});
+
+const addNewCustomType = () => {
+    const code = (newTypeForm.value.code || '').trim().toUpperCase();
+    const nom = (newTypeForm.value.nom || '').trim() || code;
+    const couleur = newTypeForm.value.couleur || '#0284c7';
+
+    if (!code) {
+        toast.add({ severity: 'warn', summary: 'Code requis', detail: 'Veuillez saisir un code militaire (ex: GN, ART, FS).', life: 3000 });
+        return;
+    }
+
+    if (allAppuiTypes.value.some(p => p.code === code)) {
+        toast.add({ severity: 'warn', summary: 'Existe déjà', detail: `Le code d’appui « ${code} » existe déjà dans votre liste.`, life: 3000 });
+        return;
+    }
+
+    const newType = { code, nom, couleur };
+    customAppuiTypes.value.push(newType);
+    try {
+        localStorage.setItem('gendarmerie_custom_appui_types', JSON.stringify(customAppuiTypes.value));
+    } catch (e) {}
+
+    appuiForm.value.code = code;
+    appuiForm.value.nom = nom;
+    appuiForm.value.couleur = couleur;
+
+    newTypeForm.value = { code: '', nom: '', couleur: '#4f46e5' };
+    showNewTypeCreator.value = false;
+    toast.add({ severity: 'success', summary: 'Type d’appui créé', detail: `Le corps « ${code} - ${nom} » est disponible !`, life: 3000 });
+};
 
 const currentTheatreAppuis = computed(() => {
     if (!selectedTheatreForAppuis.value) return [];
@@ -583,16 +700,24 @@ const currentTheatreAppuisTotal = computed(() => {
 });
 
 const onSelectAppuiPreset = (preset) => {
-    appuiForm.value.code = preset.code === 'AUTRE' ? '' : preset.code;
-    appuiForm.value.nom = preset.code === 'AUTRE' ? '' : preset.nom;
+    appuiForm.value.code = preset.code;
+    appuiForm.value.nom = preset.nom;
     appuiForm.value.couleur = preset.couleur;
 };
 
 const openManageAppuisDialog = (th) => {
     selectedTheatreForAppuis.value = th;
     editingAppuiId.value = null;
+    showNewTypeCreator.value = false;
     appuiForm.value = defaultAppuiForm();
     manageAppuisDialogVisible.value = true;
+};
+
+const switchTheatreForAppuis = (th) => {
+    selectedTheatreForAppuis.value = th;
+    editingAppuiId.value = null;
+    showNewTypeCreator.value = false;
+    appuiForm.value = defaultAppuiForm();
 };
 
 const startEditAppui = (ua) => {
@@ -641,14 +766,20 @@ const saveAppui = () => {
     }
 };
 
+const isCustomAppuiType = (code) => {
+    return customAppuiTypes.value.some(c => c.code === code);
+};
+
+const removeCustomType = (code) => {
+    customAppuiTypes.value = customAppuiTypes.value.filter(c => c.code !== code);
+    try {
+        localStorage.setItem('gendarmerie_custom_appui_types', JSON.stringify(customAppuiTypes.value));
+    } catch (e) {}
+    toast.add({ severity: 'info', summary: 'Corps retiré', detail: `Le type d’appui « ${code} » a été retiré des suggestions.`, life: 2500 });
+};
+
 const deleteAppui = (ua) => {
-    if (!confirm(`Supprimer l'unité d'appui ${ua.code} (${ua.nom}) ?`)) return;
-    router.delete(route('configurations.unites-appui.destroy', ua.id), {
-        preserveScroll: true,
-        onSuccess: () => {
-            toast.add({ severity: 'success', summary: 'Supprimée', detail: 'Unité d’appui supprimée.', life: 3000 });
-        },
-    });
+    triggerDelete('appui', ua);
 };
 </script>
 
@@ -1821,35 +1952,51 @@ const deleteAppui = (ua) => {
             v-model:visible="manageAppuisDialogVisible"
             modal
             :header="`🤝 Unités d'Appui Interarmées (FAMa) • ${selectedTheatreForAppuis?.nom || ''} (${selectedTheatreForAppuis?.code || ''})`"
-            :style="{ width: '820px', maxWidth: '96vw' }"
+            :style="{ width: '880px', maxWidth: '98vw' }"
             class="p-fluid"
         >
             <div class="space-y-4 pt-1">
-                <!-- En-tête récapitulatif -->
-                <div v-if="selectedTheatreForAppuis" class="p-3 rounded-lg bg-linear-to-r from-sky-900 to-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm border border-slate-700">
+                <!-- Sélecteur rapide de Théâtre dans la modale -->
+                <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                    <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex-none">Théâtre :</span>
+                    <button
+                        v-for="th in props.theatres"
+                        :key="th.id"
+                        type="button"
+                        @click="switchTheatreForAppuis(th)"
+                        class="px-2 py-0.5 rounded text-[11px] font-bold border transition cursor-pointer flex-none flex items-center gap-1"
+                        :class="selectedTheatreForAppuis?.id === th.id ? 'bg-sky-800 text-white border-sky-800 shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-300'"
+                    >
+                        <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: th.couleur }"></span>
+                        <span>{{ th.code }}</span>
+                    </button>
+                </div>
+
+                <!-- En-tête récapitulatif sombre haute visibilité -->
+                <div v-if="selectedTheatreForAppuis" style="background: #090e17; color: #ffffff;" class="p-3.5 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md border border-slate-800">
                     <div>
                         <div class="flex items-center gap-2">
-                            <span class="w-3.5 h-3.5 rounded-full border border-white" :style="{ backgroundColor: selectedTheatreForAppuis.couleur }"></span>
-                            <span class="text-sm font-bold font-mono text-sky-200">{{ selectedTheatreForAppuis.code }}</span>
-                            <span class="text-xs text-white/90">• {{ selectedTheatreForAppuis.nom }}</span>
+                            <span class="w-3.5 h-3.5 rounded-full border border-white shrink-0" :style="{ backgroundColor: selectedTheatreForAppuis.couleur }"></span>
+                            <span class="text-sm font-black font-mono text-sky-300">{{ selectedTheatreForAppuis.code }}</span>
+                            <span class="text-xs font-semibold text-slate-200">• {{ selectedTheatreForAppuis.nom }}</span>
                         </div>
                         <div class="text-[11px] text-slate-300 mt-1 flex items-center gap-1.5">
                             <i class="pi pi-map-marker text-sky-400 text-xs"></i>
-                            <span>PC : <strong>{{ selectedTheatreForAppuis.pc_lieu || 'Non renseigné' }}</strong></span>
+                            <span>PC : <strong class="text-white">{{ selectedTheatreForAppuis.pc_lieu || 'Non renseigné' }}</strong></span>
                         </div>
                     </div>
                     <div class="flex items-center gap-2 flex-wrap text-center">
-                        <div class="bg-white/10 px-2.5 py-1 rounded border border-white/15">
-                            <div class="text-[9px] uppercase tracking-wider text-slate-300">Gendarmerie</div>
+                        <div class="bg-slate-800/90 px-3 py-1 rounded border border-slate-600">
+                            <div class="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">Gendarmerie</div>
                             <div class="text-sm font-black text-white tabular-nums">{{ selectedTheatreForAppuis.militaires_count || 0 }}</div>
                         </div>
-                        <div class="bg-amber-500/20 px-2.5 py-1 rounded border border-amber-400/30">
-                            <div class="text-[9px] uppercase tracking-wider text-amber-200">Appui FAMa</div>
-                            <div class="text-sm font-black text-amber-300 tabular-nums">+{{ currentTheatreAppuisTotal }}</div>
+                        <div class="bg-amber-950/80 px-3 py-1 rounded border border-amber-600/60">
+                            <div class="text-[9px] uppercase tracking-wider text-amber-300 font-semibold">Appui FAMa</div>
+                            <div class="text-sm font-black text-amber-400 tabular-nums">+{{ currentTheatreAppuisTotal }}</div>
                         </div>
-                        <div class="bg-emerald-500/20 px-2.5 py-1 rounded border border-emerald-400/30">
-                            <div class="text-[9px] uppercase tracking-wider text-emerald-200">Total Combattants</div>
-                            <div class="text-sm font-black text-emerald-300 tabular-nums">{{ (selectedTheatreForAppuis.militaires_count || 0) + currentTheatreAppuisTotal }}</div>
+                        <div class="bg-emerald-950/80 px-3 py-1 rounded border border-emerald-600/60">
+                            <div class="text-[9px] uppercase tracking-wider text-emerald-300 font-semibold">Total Combattants</div>
+                            <div class="text-sm font-black text-emerald-400 tabular-nums">{{ (selectedTheatreForAppuis.militaires_count || 0) + currentTheatreAppuisTotal }}</div>
                         </div>
                     </div>
                 </div>
@@ -1871,20 +2018,78 @@ const deleteAppui = (ua) => {
                         </button>
                     </div>
 
-                    <!-- Sélecteur rapide de presets (Armes FAMa) -->
+                    <!-- Sélecteur rapide de presets + Créateur de nouveau type -->
                     <div>
-                        <label class="block text-[11px] font-semibold text-slate-600 mb-1">Corps d'armée / Spécialité rapide :</label>
+                        <div class="flex items-center justify-between mb-1.5">
+                            <label class="block text-[11px] font-semibold text-slate-700">Corps d'armée / Spécialité rapide :</label>
+                            <button
+                                type="button"
+                                @click="showNewTypeCreator = !showNewTypeCreator"
+                                class="text-[11px] font-bold text-sky-700 hover:text-sky-900 flex items-center gap-1 cursor-pointer bg-sky-50 px-2 py-0.5 rounded border border-sky-200"
+                            >
+                                <i :class="showNewTypeCreator ? 'pi pi-times text-rose-600' : 'pi pi-plus text-sky-700'"></i>
+                                <span>{{ showNewTypeCreator ? 'Fermer le créateur' : '+ Créer un autre corps d’appui' }}</span>
+                            </button>
+                        </div>
+
+                        <!-- Mini-carte de création d'un nouveau type personnalisé -->
+                        <div v-if="showNewTypeCreator" class="mb-2.5 p-2.5 rounded-lg border-2 border-dashed border-sky-400 bg-sky-50 space-y-2">
+                            <div class="text-xs font-bold text-sky-950 flex items-center gap-1.5">
+                                <i class="pi pi-sparkles text-amber-600"></i>
+                                <span>Définir un nouveau corps d'appui (disponible pour tous les théâtres) :</span>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                <div>
+                                    <label class="block text-[10px] font-semibold text-slate-600 mb-0.5">Code militaire *</label>
+                                    <InputText v-model="newTypeForm.code" placeholder="ex: BAA, BIA, TRANSMISSION" class="w-full text-xs uppercase font-mono font-bold" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-semibold text-slate-600 mb-0.5">Désignation complète</label>
+                                    <InputText v-model="newTypeForm.nom" placeholder="ex: Bataillon Blindé, Commando" class="w-full text-xs" />
+                                </div>
+                                <div class="flex items-end gap-1.5">
+                                    <div class="flex-1">
+                                        <label class="block text-[10px] font-semibold text-slate-600 mb-0.5">Couleur tactique</label>
+                                        <InputText v-model="newTypeForm.couleur" placeholder="#4f46e5" class="w-full text-xs font-mono" />
+                                    </div>
+                                    <Button label="Ajouter" icon="pi pi-plus" class="bg-sky-800 hover:bg-sky-900 text-white text-xs h-[34px] px-3 shrink-0" @click="addNewCustomType" />
+                                </div>
+                            </div>
+                            <!-- Palette de couleurs pour le nouveau type -->
+                            <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
+                                <span class="text-[10px] text-slate-500 font-medium">Palette rapide :</span>
+                                <button
+                                    v-for="c in tacticalColorPalette"
+                                    :key="c.color"
+                                    type="button"
+                                    @click="newTypeForm.couleur = c.color"
+                                    class="w-4 h-4 rounded-full border border-black/20 transition transform hover:scale-125 cursor-pointer"
+                                    :style="{ backgroundColor: c.color }"
+                                    :title="c.label"
+                                ></button>
+                            </div>
+                        </div>
+
+                        <!-- Liste complète des corps disponibles -->
                         <div class="flex flex-wrap gap-1">
                             <button
-                                v-for="p in appuiPresets"
+                                v-for="p in allAppuiTypes"
                                 :key="p.code"
                                 type="button"
                                 @click="onSelectAppuiPreset(p)"
-                                class="px-2 py-0.5 rounded text-[10.5px] font-semibold transition border flex items-center gap-1 cursor-pointer"
+                                class="px-2 py-0.5 rounded text-[10.5px] font-semibold transition border flex items-center gap-1 cursor-pointer group"
                                 :class="appuiForm.code === p.code ? 'bg-sky-900 text-white border-sky-900 shadow-2xs' : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-200'"
                             >
                                 <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: p.couleur }"></span>
                                 <span>{{ p.code }}</span>
+                                <span
+                                    v-if="isCustomAppuiType(p.code)"
+                                    @click.stop="removeCustomType(p.code)"
+                                    class="ml-0.5 text-slate-400 hover:text-red-600 rounded px-0.5 hover:bg-red-50 text-[10px] font-bold"
+                                    title="Supprimer ce corps personnalisé des suggestions"
+                                >
+                                    ×
+                                </span>
                             </button>
                         </div>
                     </div>
@@ -1929,11 +2134,25 @@ const deleteAppui = (ua) => {
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-700 mb-0.5">Couleur tactique</label>
-                            <InputText
-                                v-model="appuiForm.couleur"
-                                placeholder="ex: #0284c7"
-                                class="w-full text-xs font-mono"
-                            />
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-5 h-5 rounded border border-slate-300 shrink-0" :style="{ backgroundColor: appuiForm.couleur || '#0284c7' }"></span>
+                                <InputText
+                                    v-model="appuiForm.couleur"
+                                    placeholder="ex: #0284c7"
+                                    class="w-full text-xs font-mono"
+                                />
+                            </div>
+                            <div class="flex items-center gap-1 mt-1 flex-wrap">
+                                <button
+                                    v-for="c in tacticalColorPalette"
+                                    :key="c.color"
+                                    type="button"
+                                    @click="appuiForm.couleur = c.color"
+                                    class="w-3.5 h-3.5 rounded-full border border-black/20 transition transform hover:scale-125 cursor-pointer"
+                                    :style="{ backgroundColor: c.color }"
+                                    :title="c.label"
+                                ></button>
+                            </div>
                         </div>
                         <div>
                             <label class="block text-[11px] font-semibold text-slate-700 mb-0.5">Mission / Observation</label>
@@ -2048,6 +2267,7 @@ const deleteAppui = (ua) => {
             v-model:visible="deleteDialogVisible"
             header="Confirmation de suppression"
             :modal="true"
+            :style="{ width: '450px', zIndex: 3000 }"
             class="w-full max-w-md"
         >
             <div class="flex items-start gap-3 pt-2">

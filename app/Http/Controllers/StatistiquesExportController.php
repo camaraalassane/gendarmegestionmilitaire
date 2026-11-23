@@ -205,4 +205,150 @@ class StatistiquesExportController extends Controller
             $filename
         );
     }
+
+    /**
+     * Export Excel de la situation opérationnelle des théâtres d'opérations et unités d'appui
+     * GET /carte/export-theatres[?theatre=DET-SAYE]
+     */
+    public function theatres(Request $request)
+    {
+        $d = app(CarteController::class)->donnees();
+        $theatresCollection = collect($d['theatres'] ?? []);
+
+        $theatreFiltre = $request->query('theatre');
+        if ($theatreFiltre) {
+            $theatresExport = $theatresCollection->where('code', $theatreFiltre);
+            if ($theatresExport->isEmpty()) {
+                $theatresExport = $theatresCollection;
+                $theatreFiltre = null;
+            }
+        } else {
+            $theatresExport = $theatresCollection;
+        }
+
+        // --- Feuille 1 : Synthèse des Théâtres ---
+        $lignesTheatres = [];
+        $totalGend = 0;
+        $totalAppui = 0;
+        $totalGlobal = 0;
+        $totalActifs = 0;
+        $totalBlesses = 0;
+        $totalOfficiers = 0;
+        $totalSousOff = 0;
+        $totalMdr = 0;
+
+        foreach ($theatresExport as $th) {
+            $gend = (int) ($th['effectif_gendarmerie'] ?? $th['effectif'] ?? 0);
+            $appui = (int) ($th['effectif_appui'] ?? 0);
+            $global = (int) ($th['effectif_global'] ?? ($gend + $appui));
+            $actifs = (int) ($th['actifs'] ?? 0);
+            $blesses = (int) ($th['blesses'] ?? 0);
+            $off = (int) ($th['officiers'] ?? 0);
+            $soff = (int) ($th['sous_officiers'] ?? 0);
+            $mdr = (int) ($th['mdr'] ?? 0);
+
+            $appuisList = collect($th['unites_appui'] ?? [])
+                ->map(fn($u) => ($u['code'] ?? '') . ': ' . ($u['effectif'] ?? 0))
+                ->implode(' • ');
+
+            $regionsList = implode(', ', $th['regions_noms'] ?? $th['regions_codes'] ?? []);
+
+            $lignesTheatres[] = [
+                $th['code'] ?? '',
+                $th['nom'] ?? '',
+                $th['pc_lieu'] ?? '',
+                $regionsList,
+                $gend,
+                $appui,
+                $global,
+                $actifs,
+                $blesses,
+                $off,
+                $soff,
+                $mdr,
+                $appuisList ?: 'Aucun appui',
+            ];
+
+            $totalGend += $gend;
+            $totalAppui += $appui;
+            $totalGlobal += $global;
+            $totalActifs += $actifs;
+            $totalBlesses += $blesses;
+            $totalOfficiers += $off;
+            $totalSousOff += $soff;
+            $totalMdr += $mdr;
+        }
+
+        $totalLigne = [
+            'TOTAL', '', '', '',
+            $totalGend, $totalAppui, $totalGlobal,
+            $totalActifs, $totalBlesses,
+            $totalOfficiers, $totalSousOff, $totalMdr,
+            '',
+        ];
+
+        // --- Feuille 2 : Détail des Unités d'Appui Interarmées ---
+        $lignesAppui = [];
+        $totalAppuiDetails = 0;
+
+        foreach ($theatresExport as $th) {
+            foreach (($th['unites_appui'] ?? []) as $ua) {
+                $eff = (int) ($ua['effectif'] ?? 0);
+                $lignesAppui[] = [
+                    $th['code'] ?? '',
+                    $th['nom'] ?? '',
+                    $th['pc_lieu'] ?? '',
+                    $ua['code'] ?? '',
+                    $ua['nom'] ?? '',
+                    $eff,
+                    $ua['chef_detachement'] ?? '-',
+                    $ua['observations'] ?? '-',
+                ];
+                $totalAppuiDetails += $eff;
+            }
+        }
+
+        $totalAppuiLigne = [
+            'TOTAL', '', '', '', '',
+            $totalAppuiDetails,
+            '', '',
+        ];
+
+        $titreSynthese = $theatreFiltre ? "Théâtre {$theatreFiltre}" : "Dispositif Théâtres";
+        $intituleSynthese = $theatreFiltre
+            ? "Situation Opérationnelle : {$theatreFiltre} - " . ($theatresExport->first()['nom'] ?? '')
+            : "Dispositif Opérationnel des Théâtres d'Opérations & Appuis Interarmées (FAMa)";
+
+        $feuilles = [
+            [
+                'titre' => $titreSynthese,
+                'intitule' => $intituleSynthese,
+                'entetes' => [
+                    'Code', 'Théâtre d\'Opérations', 'PC / Emplacement', 'Emprise Régionale',
+                    'Gendarmerie', 'Appuis FAMa', 'Total Forces',
+                    'Actifs', 'Blessés', 'Officiers', 'Sous-Officiers', 'MDR',
+                    'Détail des Appuis',
+                ],
+                'lignes' => $lignesTheatres,
+                'total' => $totalLigne,
+                'colonnes_nombres' => [5, 6, 7, 8, 9, 10, 11, 12],
+            ],
+            [
+                'titre' => 'Unités d\'Appui FAMa',
+                'intitule' => 'Détail des Unités d\'Appui Interarmées Déployées sur les Théâtres',
+                'entetes' => [
+                    'Code Théâtre', 'Nom Théâtre', 'PC', 'Arme / Spécialité',
+                    'Désignation Complète', 'Effectif Déployé', 'Chef Détachement', 'Missions / Observations',
+                ],
+                'lignes' => $lignesAppui,
+                'total' => $totalAppuiLigne,
+                'colonnes_nombres' => [6],
+            ],
+        ];
+
+        $prefix = $theatreFiltre ? 'theatre_' . strtolower(preg_replace('/[^a-zA-Z0-9]/', '_', $theatreFiltre)) . '_' : 'theatres_operations_';
+        $nom = $prefix . now()->format('Y-m-d_His') . '.xlsx';
+
+        return Excel::download(new StatistiquesExport($feuilles), $nom);
+    }
 }

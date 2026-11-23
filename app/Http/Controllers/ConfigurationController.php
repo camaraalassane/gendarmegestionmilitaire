@@ -493,8 +493,10 @@ class ConfigurationController extends Controller
         return redirect()->back()->with('success', "Unité d’appui « {$code} » rattachée avec succès au théâtre.");
     }
 
-    public function updateUniteAppui(Request $request, TheatreUniteAppui $uniteAppui)
+    public function updateUniteAppui(Request $request, $uniteAppui)
     {
+        $model = $uniteAppui instanceof TheatreUniteAppui ? $uniteAppui : TheatreUniteAppui::findOrFail($uniteAppui);
+
         $validated = $request->validate([
             'code' => 'required|string|max:30',
             'nom' => 'required|string|max:150',
@@ -511,12 +513,12 @@ class ConfigurationController extends Controller
 
         $code = strtoupper(trim($validated['code']));
 
-        $uniteAppui->update([
+        $model->update([
             'code' => $code,
             'nom' => trim($validated['nom']),
             'effectif' => (int) $validated['effectif'],
             'chef_detachement' => !empty($validated['chef_detachement']) ? trim($validated['chef_detachement']) : null,
-            'couleur' => $validated['couleur'] ?: $uniteAppui->couleur,
+            'couleur' => $validated['couleur'] ?: $model->couleur,
             'observations' => !empty($validated['observations']) ? trim($validated['observations']) : null,
         ]);
 
@@ -526,17 +528,18 @@ class ConfigurationController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => "Unité d’appui « {$code} » mise à jour avec succès.",
-                'uniteAppui' => $uniteAppui->fresh(),
+                'uniteAppui' => $model->fresh(),
             ]);
         }
 
         return redirect()->back()->with('success', "Unité d’appui « {$code} » mise à jour avec succès.");
     }
 
-    public function destroyUniteAppui(Request $request, TheatreUniteAppui $uniteAppui)
+    public function destroyUniteAppui(Request $request, $uniteAppui)
     {
-        $code = $uniteAppui->code;
-        $uniteAppui->delete();
+        $model = $uniteAppui instanceof TheatreUniteAppui ? $uniteAppui : TheatreUniteAppui::findOrFail($uniteAppui);
+        $code = $model->code;
+        $model->delete();
 
         CarteController::flush();
 

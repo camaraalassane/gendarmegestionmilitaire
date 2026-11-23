@@ -12,6 +12,7 @@ import { downloadExport } from '@/Utils/exportHelper';
 const toast = useToast();
 const exportingCarte = ref(false);
 const exportingStatutExcel = ref(false);
+const exportingTheatresExcel = ref(false);
 
 const props = defineProps({
     regions: { type: Array, default: () => [] },
@@ -125,6 +126,26 @@ const exporterStatutExcel = async () => {
         onFinish: () => { exportingStatutExcel.value = false; },
         loadingMessage: `Exportation de la liste (${statutModalType.value})...`,
         successMessage: 'Liste nominative téléchargée avec succès !'
+    });
+};
+
+const exportTheatresExcel = async (theatreCode = null) => {
+    const code = typeof theatreCode === 'string' ? theatreCode : (selTheatre.value || null);
+    const params = new URLSearchParams();
+    if (code) {
+        params.append('theatre', code);
+    }
+    const url = `/carte/export-theatres${params.toString() ? '?' + params.toString() : ''}`;
+    const filenameCode = code ? `theatre_${code.toLowerCase()}` : 'theatres_operations';
+    await downloadExport(url, {
+        defaultFilename: `situation_${filenameCode}_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        toast,
+        onStart: () => { exportingTheatresExcel.value = true; },
+        onFinish: () => { exportingTheatresExcel.value = false; },
+        loadingMessage: code
+            ? `Exportation de la situation opérationnelle (${code})...`
+            : "Génération de l'export Excel des théâtres d'opérations...",
+        successMessage: 'Situation opérationnelle des théâtres exportée avec succès !'
     });
 };
 
@@ -482,7 +503,7 @@ const theatreBadgeWidth = (th) => {
     const titleW = title.length * 6.5 + 24;
     const appuiStr = getTheatreAppuiString(th);
     const appuiW = appuiStr ? appuiStr.length * 5.6 + 28 : 0;
-    return Math.max(105, Math.min(260, Math.max(titleW, appuiW)));
+    return Math.max(115, Math.min(280, Math.max(titleW, appuiW)));
 };
 
 const theatreMilitairesFiltres = computed(() => theatreMilitairesTriesEtFiltres.value);
@@ -2500,9 +2521,21 @@ const lignesFiltrees = computed(() => {
                                         Dispositif opérationnel FAMa / Gendarmerie
                                     </p>
                                 </div>
-                                <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200 flex-none">
-                                    {{ theatres.length }} théâtres
-                                </span>
+                                <div class="flex items-center gap-1.5 flex-none">
+                                    <button
+                                        type="button"
+                                        @click="exportTheatresExcel(null)"
+                                        :disabled="exportingTheatresExcel"
+                                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-bold bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white shadow-xs transition cursor-pointer disabled:opacity-50"
+                                        title="Exporter la situation opérationnelle des théâtres et unités d'appui en Excel (.xlsx)"
+                                    >
+                                        <i :class="exportingTheatresExcel ? 'pi pi-spin pi-spinner text-[10px]' : 'pi pi-file-excel text-[10px]'"></i>
+                                        <span>{{ exportingTheatresExcel ? 'Export...' : 'Excel' }}</span>
+                                    </button>
+                                    <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200">
+                                        {{ theatres.length }} théâtres
+                                    </span>
+                                </div>
                             </div>
 
                             <!-- Grille métriques globale théâtres -->
@@ -2606,7 +2639,7 @@ const lignesFiltrees = computed(() => {
 
                         <!-- 2. VUE DÉTAILLÉE DU THÉÂTRE SÉLECTIONNÉ -->
                         <template v-else-if="selTheatreObj">
-                            <!-- En-tête avec bouton retour et bouton modifier GPS -->
+                            <!-- En-tête avec bouton retour et bouton modifier GPS + export Excel -->
                             <div class="flex items-center justify-between gap-1.5 pb-1.5 border-b border-slate-200 flex-none">
                                 <button
                                     type="button"
@@ -2616,15 +2649,27 @@ const lignesFiltrees = computed(() => {
                                     <i class="pi pi-arrow-left text-[10px]"></i>
                                     <span>Tous les théâtres</span>
                                 </button>
-                                <button
-                                    type="button"
-                                    @click="ouvrirEditTheatreCoordsModal(selTheatreObj)"
-                                    class="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-800 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-2 py-0.5 rounded transition cursor-pointer"
-                                    title="Modifier l'emplacement GPS du PC sur la carte"
-                                >
-                                    <i class="pi pi-map-marker text-[9px]"></i>
-                                    <span>Modifier GPS PC</span>
-                                </button>
+                                <div class="flex items-center gap-1">
+                                    <button
+                                        type="button"
+                                        @click="exportTheatresExcel(selTheatreObj.code)"
+                                        :disabled="exportingTheatresExcel"
+                                        class="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 px-2 py-0.5 rounded transition cursor-pointer disabled:opacity-50"
+                                        :title="`Exporter la situation opérationnelle de ${selTheatreObj.code} en Excel`"
+                                    >
+                                        <i :class="exportingTheatresExcel ? 'pi pi-spin pi-spinner text-[9px]' : 'pi pi-file-excel text-[9px]'"></i>
+                                        <span>Excel</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="ouvrirEditTheatreCoordsModal(selTheatreObj)"
+                                        class="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-800 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-2 py-0.5 rounded transition cursor-pointer"
+                                        title="Modifier l'emplacement GPS du PC sur la carte"
+                                    >
+                                        <i class="pi pi-map-marker text-[9px]"></i>
+                                        <span>GPS</span>
+                                    </button>
+                                </div>
                             </div>
 
                             <!-- Fiche récapitulative du Théâtre -->

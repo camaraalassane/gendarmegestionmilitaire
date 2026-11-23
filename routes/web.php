@@ -53,6 +53,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::patch('/carte/theatres/{theatre}/coordonnees', [CarteController::class, 'updateTheatreCoordinates'])->name('carte.theatres.coordinates');
     Route::get('/carte/export', [\App\Http\Controllers\StatistiquesExportController::class, 'carte'])->name('carte.export');
     Route::get('/carte/export-statut', [\App\Http\Controllers\StatistiquesExportController::class, 'exportStatut'])->name('carte.export-statut');
+    Route::get('/carte/export-theatres', [\App\Http\Controllers\StatistiquesExportController::class, 'theatres'])->name('carte.export-theatres');
     Route::get('/dashboard/export-statistiques', [\App\Http\Controllers\StatistiquesExportController::class, 'dashboard'])->name('dashboard.export-statistiques');
 
     // Alertes
