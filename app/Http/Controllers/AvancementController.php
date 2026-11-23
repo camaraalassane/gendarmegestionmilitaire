@@ -466,12 +466,6 @@ class AvancementController extends Controller
                     ->enActivite()
                     ->whereNull('date_deces')
                     ->with(['certificats'])
-                    ->select([
-                        'id', 'matricule', 'mle_grm', 'nom', 'prenom', 'photo_url', 'grade_actuel',
-                        'fonction_actuelle', 'position_actuelle', 'date_derniere_promotion', 'date_entree_service',
-                        'date_naissance', 'statut', 'date_deces', 'anciennete_grade', 'anciennete',
-                        'diplomes_academiques', 'decorations', 'anciennete_grade_detaillee', 'anciennete_detaillee',
-                    ])
                     ->get();
                 $militaires = $militaires->concat($chunkMilitaires);
             }
