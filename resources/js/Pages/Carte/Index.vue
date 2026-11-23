@@ -448,41 +448,38 @@ const BASE_THEATRES_CONFIG = {
 };
 
 const tacticalTheatres = computed(() => {
-    const K = 1.7, CX = 520, CY = 325, OX = 450, OY = 270;
-    const P = (x, y) => [OX + (x - CX) * K, OY + (y - CY) * K];
-    const LW = 158, LH = 44, TOP = 35, BOT = 525;
-
     const list = props.theatres.map(th => {
         const conf = BASE_THEATRES_CONFIG[th.code] || {};
-        let x = conf.x;
-        let y = conf.y;
-        if (!x || !y) {
-            if (th.lat !== null && th.lon !== null) {
-                const minLat = 10.0, maxLat = 15.5;
-                const minLon = -9.0, maxLon = -3.0;
-                x = 350 + ((th.lon - minLon) / (maxLon - minLon)) * 320;
-                y = 500 - ((th.lat - minLat) / (maxLat - minLat)) * 320;
-            } else {
-                x = 520;
-                y = 315;
-            }
+        let pt = null;
+        if (th.lat !== null && th.lon !== null && !isNaN(Number(th.lat)) && !isNaN(Number(th.lon))) {
+            pt = project(Number(th.lat), Number(th.lon));
+        } else if (Array.isArray(th.regions_codes) && th.regions_codes.length > 0 && SHAPES[th.regions_codes[0]]) {
+            pt = { x: SHAPES[th.regions_codes[0]].cx, y: SHAPES[th.regions_codes[0]].cy };
+        } else {
+            pt = { x: 265, y: 450 };
         }
-        const [px, py] = P(x, y);
+
         const eff = Number(th.effectif || th.effectif_gendarmerie || 0);
         const col = conf.c || th.couleur || '#38bdf8';
-        const nomCourt = conf.nomCourt || (th.nom ? th.nom.replace(/^Détachement\s+(Opérationnel\s+)?de\s+/i, '') : th.code);
+        const nomCourt = conf.nomCourt || (th.nom ? th.nom.replace(/^Détachement\s+(Opérationnel\s+)?de\s+/i, '') : (th.pc_lieu || th.code));
+        const hasAppui = Array.isArray(th.unites_appui) && th.unites_appui.length > 0;
+        const appuiTotal = hasAppui ? th.unites_appui.reduce((s, u) => s + (u.effectif || 0), 0) : 0;
 
         return {
             ...th,
             nomCourt,
             effectif: eff,
+            hasAppui,
+            appuiTotal,
             couleur: col,
-            px: Math.round(px),
-            py: Math.round(py),
-            markerR: Math.max(8, Math.sqrt(eff) * 0.3 + 7),
-            haloR: Math.max(16, Math.sqrt(eff) * 0.9 + 14),
+            px: Math.round(pt.x),
+            py: Math.round(pt.y),
+            markerR: 7.5,
+            haloR: Math.max(14, Math.min(26, Math.sqrt(eff) * 0.45 + 12)),
             lx: 0,
             ly: 0,
+            lw: 142,
+            lh: hasAppui ? 42 : 32,
             side: 'L',
             leadD: '',
         };
@@ -490,30 +487,35 @@ const tacticalTheatres = computed(() => {
 
     if (list.length === 0) return [];
 
+    // Diviser les théâtres en 2 groupes : Flanc Ouest (gauche) et Flanc Est (droite)
+    // Tri par px pour répartir équitablement, puis tri de chaque colonne par py (Nord au Sud)
     const sorted = [...list].sort((a, b) => a.px - b.px);
-    const mid = sorted[Math.floor(sorted.length / 2)].px;
-    const left = list.filter(t => t.px < mid).sort((a, b) => a.py - b.py);
-    const right = list.filter(t => t.px >= mid).sort((a, b) => a.py - b.py);
+    const mid = Math.ceil(sorted.length / 2);
+    const left = sorted.slice(0, mid).sort((a, b) => a.py - b.py);
+    const right = sorted.slice(mid).sort((a, b) => a.py - b.py);
 
     const stack = (col, xPos, side) => {
         const n = col.length;
-        const step = Math.max(LH + 8, (BOT - TOP) / Math.max(n, 1));
-        const used = (n - 1) * step;
-        const start = Math.max(TOP, (TOP + BOT) / 2 - used / 2);
+        if (n === 0) return;
+        const topY = 320;
+        const botY = 560;
+        const step = Math.min(52, Math.max(38, (botY - topY) / Math.max(n - 1, 1)));
+        const startY = Math.max(topY, (topY + botY) / 2 - ((n - 1) * step) / 2);
+
         col.forEach((t, i) => {
             t.lx = xPos;
-            t.ly = Math.round(start + i * step);
+            t.ly = Math.round(startY + i * step);
             t.side = side;
 
-            const ex = side === 'L' ? t.lx + LW : t.lx;
-            const ey = Math.round(t.ly + LH / 2);
-            const kx = side === 'L' ? ex + 16 : ex - 16;
-            t.leadD = `M ${t.px} ${t.py} L ${kx} ${ey} L ${ex} ${ey}`;
+            const badgeEdgeX = side === 'L' ? t.lx + t.lw : t.lx;
+            const badgeCenterY = Math.round(t.ly + t.lh / 2);
+            const kneeX = side === 'L' ? badgeEdgeX + 16 : badgeEdgeX - 16;
+            t.leadD = `M ${t.px} ${t.py} L ${kneeX} ${badgeCenterY} L ${badgeEdgeX} ${badgeCenterY}`;
         });
     };
 
-    stack(left, 18, 'L');
-    stack(right, 900 - 18 - LW, 'R');
+    stack(left, -18, 'L');
+    stack(right, 410, 'R');
 
     return list;
 });
@@ -2245,104 +2247,19 @@ const lignesFiltrees = computed(() => {
                             </div>
                         </transition>
 
-                        <!-- CARTE EN MODE THÉÂTRES D'OPÉRATIONS (DISPOSITIF TACTIQUE SANS CHEVAUCHEMENT) -->
+                        <!-- CARTE DU MALI (COMMUNE AU MAILLAGE TERRITORIAL ET AUX THÉÂTRES D'OPÉRATIONS) -->
                         <svg
-                            v-if="carteMode === 'theatres'"
-                            viewBox="0 0 900 560"
-                            class="w-full h-full max-h-full block select-none pointer-events-auto"
-                            preserveAspectRatio="xMidYMid meet"
-                            role="img"
-                            aria-label="Carte opérationnelle des théâtres"
-                        >
-                            <defs>
-                                <pattern id="tactical-grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                                    <path d="M40 0 H0 V40" fill="none" stroke="#1b2a47" stroke-width="1" />
-                                </pattern>
-                            </defs>
-                            <!-- Fond quadrillé tactique sombre -->
-                            <rect width="900" height="560" fill="url(#tactical-grid)" />
-
-                            <!-- Rayons tactiques proportionnels aux effectifs -->
-                            <circle
-                                v-for="t in tacticalTheatres"
-                                :key="'halo-' + t.code"
-                                :cx="t.px"
-                                :cy="t.py"
-                                :r="t.haloR"
-                                :fill="t.couleur"
-                                fill-opacity="0.14"
-                                :stroke="t.couleur"
-                                stroke-opacity="0.45"
-                                stroke-dasharray="3 3"
-                            />
-
-                            <!-- Groupes interactifs de chaque théâtre (Ligne leader + PC star + Étiquette latérale) -->
-                            <g
-                                v-for="t in tacticalTheatres"
-                                :key="'tactical-' + t.code"
-                                :class="[
-                                    'cursor-pointer transition-opacity duration-150',
-                                    (selTheatre && selTheatre !== t.code) || (hoveredTheatre && hoveredTheatre !== t.code && !selTheatre) ? 'dim' : '',
-                                    selTheatre === t.code ? 'sel' : '',
-                                    hoveredTheatre === t.code ? 'hov' : ''
-                                ]"
-                                @mouseenter="hoveredTheatre = t.code"
-                                @mouseleave="hoveredTheatre = null"
-                                @click="ouvrirModalMilitairesTheatre('tous', t)"
-                            >
-                                <!-- Trait de rappel (leader line sans croisement) -->
-                                <path
-                                    class="lead"
-                                    :d="t.leadD"
-                                    :stroke="t.couleur"
-                                    stroke-width="1.2"
-                                />
-
-                                <!-- Point de commandement central avec étoile ★ -->
-                                <g class="mk" :transform="`translate(${t.px}, ${t.py})`">
-                                    <circle class="halo" :r="t.markerR + 5" :fill="t.couleur" />
-                                    <circle :r="t.markerR" fill="#0b1220" :stroke="t.couleur" stroke-width="3" />
-                                    <text text-anchor="middle" y="4" :fill="t.couleur" font-size="11" font-weight="bold">★</text>
-                                </g>
-
-                                <!-- Étiquette latérale sur 2 colonnes (gauche / droite) sans chevauchement -->
-                                <g class="lab" :transform="`translate(${t.lx}, ${t.ly})`">
-                                    <rect
-                                        width="158"
-                                        height="44"
-                                        :stroke="t.couleur"
-                                    />
-                                    <rect
-                                        width="5"
-                                        height="44"
-                                        rx="2"
-                                        :fill="t.couleur"
-                                        stroke="none"
-                                    />
-                                    <text x="14" y="16" class="s">
-                                        {{ t.code }} · {{ t.nomCourt }}
-                                    </text>
-                                    <text x="14" y="35" class="n">
-                                        {{ fmt(t.effectif) }}
-                                    </text>
-                                    <text :x="14 + String(fmt(t.effectif)).length * 7.4 + 5" y="35" class="s">
-                                        gendarme{{ t.effectif > 1 ? 's' : '' }}
-                                    </text>
-                                </g>
-                            </g>
-                        </svg>
-
-                        <!-- CARTE EN MODE MAILLAGE TERRITORIAL (MALI ENTIER / RÉGIONS / BRIGADES) -->
-                        <svg
-                            v-else
                             ref="svgRef"
                             :viewBox="viewBox.join(' ')"
                             class="w-full h-full max-h-full block select-none pointer-events-auto"
                             preserveAspectRatio="xMidYMid meet"
                             role="img"
-                            aria-label="Carte du Mali par région"
+                            aria-label="Carte du Mali par région et théâtres d'opérations"
                         >
                             <defs>
+                                <pattern id="tactical-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                                    <path d="M40 0 H0 V40" fill="none" stroke="#162235" stroke-width="0.8" />
+                                </pattern>
                                 <filter id="pin-shadow" x="-30%" y="-30%" width="160%" height="160%">
                                     <feDropShadow dx="0" dy="0.8" stdDeviation="0.8" flood-opacity="0.5" flood-color="#000000" />
                                 </filter>
@@ -2354,7 +2271,17 @@ const lignesFiltrees = computed(() => {
                                 </clipPath>
                             </defs>
 
-                            <!-- Vue nationale : Tracés des régions SVG quand !sel (Mali entier) -->
+                            <!-- Fond quadrillé tactique léger en mode théâtres -->
+                            <rect
+                                v-if="carteMode === 'theatres'"
+                                :x="viewBox[0]"
+                                :y="viewBox[1]"
+                                :width="viewBox[2]"
+                                :height="viewBox[3]"
+                                fill="url(#tactical-grid)"
+                            />
+
+                            <!-- Vue nationale : Tracés des régions SVG quand !sel (Mali entier visible en permanence) -->
                             <template v-if="!sel">
                                 <template v-for="r in regions" :key="r.code">
                                     <path
@@ -2365,18 +2292,146 @@ const lignesFiltrees = computed(() => {
                                             hovered: hoveredCode === r.code
                                         }"
                                         :style="{
-                                            fill: fillFor(r),
-                                            stroke: '#16212e',
-                                            strokeWidth: 1.2 * zoom
+                                            fill: carteMode === 'theatres' ? getTheatreFill(r.code) : fillFor(r),
+                                            stroke: carteMode === 'theatres' ? getTheatreStroke(r.code) : '#16212e',
+                                            strokeWidth: carteMode === 'theatres' ? (selTheatre && (regionToTheatreMap[r.code] || []).some(t => t.code === selTheatre) ? 2.5 * zoom : 1.2 * zoom) : 1.2 * zoom
                                         }"
                                         @click="handleRegionClick(r.code)"
-                                        @mouseenter="onHoverRegion(r)"
-                                        @mouseleave="onLeaveHover()"
+                                        @mouseenter="carteMode === 'theatres' ? (hoveredCode = r.code, hoveredTheatre = (regionToTheatreMap[r.code] || [])[0]?.code) : onHoverRegion(r)"
+                                        @mouseleave="carteMode === 'theatres' ? (hoveredCode = null, hoveredTheatre = null) : onLeaveHover()"
                                     />
                                 </template>
 
-                                <!-- Vue nationale MAILLAGE TERRITORIAL : BADGES TACTIQUES HAUTE VISIBILITÉ DES RÉGIONS & CHIFFRES CLAIRS -->
-                                <template v-if="carteMode !== 'theatres'">
+                                <!-- CAS A : MODE THÉÂTRES D'OPÉRATIONS (DISPOSITIF TACTIQUE DIRECTEMENT SUR LA CARTE DU MALI SANS CHEVAUCHEMENT) -->
+                                <template v-if="carteMode === 'theatres'">
+                                    <!-- 1. Halos tactiques proportionnels aux effectifs -->
+                                    <circle
+                                        v-for="t in tacticalTheatres"
+                                        :key="'halo-' + t.code"
+                                        :cx="t.px"
+                                        :cy="t.py"
+                                        :r="t.haloR"
+                                        :fill="t.couleur"
+                                        fill-opacity="0.18"
+                                        :stroke="t.couleur"
+                                        stroke-opacity="0.5"
+                                        stroke-dasharray="3 2"
+                                    />
+
+                                    <!-- 2. Traits de rappel (leader lines) reliant le PC au badge sans croisement -->
+                                    <path
+                                        v-for="t in tacticalTheatres"
+                                        :key="'lead-' + t.code"
+                                        :d="t.leadD"
+                                        :stroke="t.couleur"
+                                        :stroke-width="selTheatre === t.code || hoveredTheatre === t.code ? 2.2 : 1.2"
+                                        :opacity="selTheatre && selTheatre !== t.code ? 0.25 : 0.85"
+                                        fill="none"
+                                        class="pointer-events-none"
+                                    />
+
+                                    <!-- 3. Points de commandement (PC) sur la carte avec étoile ★ -->
+                                    <g
+                                        v-for="t in tacticalTheatres"
+                                        :key="'mk-' + t.code"
+                                        class="cursor-pointer transition-transform duration-150 select-none"
+                                        :transform="`translate(${t.px}, ${t.py})`"
+                                        @click.stop="ouvrirModalMilitairesTheatre('tous', t)"
+                                        @mouseenter="hoveredTheatre = t.code"
+                                        @mouseleave="hoveredTheatre = null"
+                                    >
+                                        <circle
+                                            :r="selTheatre === t.code || hoveredTheatre === t.code ? 9.5 : 7.5"
+                                            :fill="t.couleur"
+                                            stroke="#ffffff"
+                                            stroke-width="2"
+                                            filter="url(#badge-glow)"
+                                        />
+                                        <text
+                                            x="0"
+                                            y="3.2"
+                                            text-anchor="middle"
+                                            font-size="8.5"
+                                            font-weight="bold"
+                                            fill="#ffffff"
+                                            class="pointer-events-none select-none"
+                                        >
+                                            ★
+                                        </text>
+                                    </g>
+
+                                    <!-- 4. Badges latéraux sans aucun chevauchement (flanc Ouest et flanc Est) -->
+                                    <g
+                                        v-for="t in tacticalTheatres"
+                                        :key="'badge-' + t.code"
+                                        class="cursor-pointer select-none transition-opacity duration-150"
+                                        :class="[
+                                            selTheatre && selTheatre !== t.code ? 'opacity-30' : 'opacity-100',
+                                            hoveredTheatre === t.code ? 'font-bold' : ''
+                                        ]"
+                                        :transform="`translate(${t.lx}, ${t.ly})`"
+                                        @click.stop="ouvrirModalMilitairesTheatre('tous', t)"
+                                        @mouseenter="hoveredTheatre = t.code"
+                                        @mouseleave="hoveredTheatre = null"
+                                    >
+                                        <!-- Boîtier du badge -->
+                                        <rect
+                                            :width="t.lw"
+                                            :height="t.lh"
+                                            rx="6"
+                                            ry="6"
+                                            fill="#0b1324"
+                                            :stroke="selTheatre === t.code || hoveredTheatre === t.code ? '#ffffff' : t.couleur"
+                                            :stroke-width="selTheatre === t.code || hoveredTheatre === t.code ? 2.2 : 1.2"
+                                            filter="url(#badge-glow)"
+                                        />
+                                        <!-- Bordure d'accent verticale couleur à gauche -->
+                                        <rect
+                                            x="0"
+                                            y="0"
+                                            width="4"
+                                            :height="t.lh"
+                                            rx="2"
+                                            :fill="t.couleur"
+                                        />
+                                        <!-- Ligne 1 : Code et PC -->
+                                        <text
+                                            x="10"
+                                            y="13"
+                                            fill="#94a3b8"
+                                            font-size="8"
+                                            font-weight="bold"
+                                            font-family="monospace"
+                                        >
+                                            {{ t.code }} · {{ t.nomCourt }}
+                                        </text>
+                                        <!-- Ligne 2 : Chiffre effectif -->
+                                        <text
+                                            x="10"
+                                            y="26"
+                                        >
+                                            <tspan fill="#ffffff" font-size="11" font-weight="900">{{ fmt(t.effectif) }}</tspan>
+                                            <tspan fill="#94a3b8" font-size="8" font-weight="600"> gendarme{{ t.effectif > 1 ? 's' : '' }}</tspan>
+                                            <tspan v-if="t.hasAppui && t.appuiTotal > 0" fill="#f59e0b" font-size="8.5" font-weight="bold"> (+{{ t.appuiTotal }})</tspan>
+                                        </text>
+                                        <!-- Ligne 3 (si appuis présents) : Mini codes d'appuis -->
+                                        <text
+                                            v-if="t.hasAppui && t.lh > 35"
+                                            x="10"
+                                            y="37"
+                                            font-size="7.5"
+                                            font-weight="bold"
+                                        >
+                                            <template v-for="(ua, uIdx) in t.unites_appui" :key="ua.id">
+                                                <tspan :fill="ua.couleur || '#38bdf8'">{{ ua.code }}:{{ ua.effectif }}</tspan>
+                                                <tspan v-if="uIdx < t.unites_appui.length - 1" fill="#64748b"> · </tspan>
+                                            </template>
+                                        </text>
+                                    </g>
+                                </template>
+
+                                <!-- CAS B : MODE MAILLAGE TERRITORIAL (BADGES DES RÉGIONS & CHIFFRES CLAIRS) -->
+                                <template v-else>
                                     <!-- 1. Régions avec effectif > 0 (hors Bamako) : Badges tactiques contrastés avec chiffre agrandi -->
                                     <template v-for="r in regions" :key="'badge-' + r.code">
                                         <g

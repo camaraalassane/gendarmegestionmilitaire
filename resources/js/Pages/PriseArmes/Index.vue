@@ -764,19 +764,6 @@ const listeOrganismesCards = computed(() => {
                 </button>
 
                 <button
-                    @click="activeTab = 'regions'"
-                    :class="[
-                        'px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2',
-                        activeTab === 'regions'
-                            ? 'bg-sky-800 text-white shadow-md'
-                            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                    ]"
-                >
-                    <i class="pi pi-map"></i>
-                    <span>Situation par Région (20)</span>
-                </button>
-
-                <button
                     @click="activeTab = 'blesses'"
                     :class="[
                         'px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2',
@@ -859,25 +846,23 @@ const listeOrganismesCards = computed(() => {
             <!-- TAB 1 : SITUATION DES EFFECTIFS (PRISE D'ARMES)          -->
             <!-- ======================================================== -->
             <div v-if="activeTab === 'spa'" class="space-y-6">
-                <!-- 1. CARD TOTAL GLOBAL DE LA GENDARMERIE NATIONALE -->
-                <div class="bg-gradient-to-br from-slate-900 via-sky-950 to-slate-900 rounded-2xl border border-sky-800/60 p-6 text-white shadow-xl relative overflow-hidden">
-                    <div class="absolute -right-12 -top-12 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
-                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-white/10 relative z-10">
+                <!-- 1. CARD TOTAL GLOBAL DE LA GENDARMERIE NATIONALE (FOND BLANC PROFESSIONNEL ÉLÉGANT) -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-6 text-slate-800 shadow-sm relative overflow-hidden">
+                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-100 relative z-10">
                         <div>
                             <div class="flex items-center space-x-2">
-                                <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-wider">
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-50 text-amber-800 border border-amber-200 uppercase tracking-wider">
                                     Situation de Revue & Prise d'Armes
                                 </span>
-                                <span class="px-2 py-0.5 rounded text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">
+                                <span class="px-2 py-0.5 rounded text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
                                     Direct Base de Données
                                 </span>
                             </div>
-                            <h2 class="text-xl sm:text-2xl font-black tracking-tight text-white mt-1.5 flex items-center gap-2">
-                                <i class="pi pi-shield text-amber-400"></i>
+                            <h2 class="text-xl sm:text-2xl font-black tracking-tight text-slate-900 mt-1.5 flex items-center gap-2">
+                                <i class="pi pi-shield text-amber-600"></i>
                                 <span>TOTAL GLOBAL · GENDARMERIE NATIONALE</span>
                             </h2>
-                            <p class="text-xs text-sky-200/80 mt-0.5">
+                            <p class="text-xs text-slate-500 mt-0.5">
                                 Répartition officielle par grade, genre (Hommes/Dames) et structures de déploiement
                             </p>
                         </div>
@@ -889,92 +874,92 @@ const listeOrganismesCards = computed(() => {
                                 label="Exporter la Situation DGGN (Excel .xlsx)"
                                 severity="success"
                                 size="small"
-                                class="!rounded-xl !bg-emerald-600 hover:!bg-emerald-500 !border-emerald-500 shadow-md font-bold"
+                                class="!rounded-xl !bg-emerald-600 hover:!bg-emerald-500 !border-emerald-500 shadow-sm font-bold"
                             />
                         </div>
                     </div>
 
                     <!-- Métriques Globales Clés -->
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-5 relative z-10">
-                        <div class="bg-white/5 border border-white/10 rounded-xl p-3.5 backdrop-blur-xs">
-                            <div class="text-[11px] font-bold text-sky-300 uppercase tracking-wider">Effectif Total SPA</div>
-                            <div class="text-2xl sm:text-3xl font-black text-white mt-1 tabular-nums">
-                                {{ fmt(stats.total_spa) }} <span class="text-xs font-semibold text-sky-300">pax</span>
+                        <div class="bg-slate-50/80 border border-slate-200 rounded-xl p-3.5">
+                            <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Effectif Total SPA</div>
+                            <div class="text-2xl sm:text-3xl font-black text-slate-900 mt-1 tabular-nums">
+                                {{ fmt(stats.total_spa) }} <span class="text-xs font-semibold text-sky-700">pax</span>
                             </div>
                             <div class="text-[10px] text-slate-400 mt-0.5">En activité / Détachement</div>
                         </div>
 
-                        <div class="bg-white/5 border border-white/10 rounded-xl p-3.5 backdrop-blur-xs">
-                            <div class="text-[11px] font-bold text-sky-300 uppercase tracking-wider flex items-center justify-between">
+                        <div class="bg-sky-50/60 border border-sky-100 rounded-xl p-3.5">
+                            <div class="text-[11px] font-bold text-sky-700 uppercase tracking-wider flex items-center justify-between">
                                 <span>Hommes (H)</span>
-                                <span class="text-[10px] text-sky-400 font-extrabold">
+                                <span class="text-[10px] text-sky-800 font-extrabold">
                                     {{ stats.total_spa > 0 ? Math.round(((stats.total_hommes || 0) / stats.total_spa) * 100) : 0 }}%
                                 </span>
                             </div>
-                            <div class="text-2xl sm:text-3xl font-black text-sky-200 mt-1 tabular-nums">
+                            <div class="text-2xl sm:text-3xl font-black text-sky-950 mt-1 tabular-nums">
                                 {{ fmt(stats.total_hommes) }}
                             </div>
-                            <div class="text-[10px] text-slate-400 mt-0.5">Personnels masculins</div>
+                            <div class="text-[10px] text-sky-600/80 mt-0.5">Personnels masculins</div>
                         </div>
 
-                        <div class="bg-white/5 border border-white/10 rounded-xl p-3.5 backdrop-blur-xs">
-                            <div class="text-[11px] font-bold text-rose-300 uppercase tracking-wider flex items-center justify-between">
+                        <div class="bg-rose-50/60 border border-rose-100 rounded-xl p-3.5">
+                            <div class="text-[11px] font-bold text-rose-700 uppercase tracking-wider flex items-center justify-between">
                                 <span>Dames (D)</span>
-                                <span class="text-[10px] text-rose-400 font-extrabold">
+                                <span class="text-[10px] text-rose-800 font-extrabold">
                                     {{ stats.total_spa > 0 ? Math.round(((stats.total_dames || 0) / stats.total_spa) * 100) : 0 }}%
                                 </span>
                             </div>
-                            <div class="text-2xl sm:text-3xl font-black text-rose-300 mt-1 tabular-nums">
+                            <div class="text-2xl sm:text-3xl font-black text-rose-950 mt-1 tabular-nums">
                                 {{ fmt(stats.total_dames) }}
                             </div>
-                            <div class="text-[10px] text-slate-400 mt-0.5">Personnels féminins</div>
+                            <div class="text-[10px] text-rose-600/80 mt-0.5">Personnels féminins</div>
                         </div>
 
-                        <div class="bg-white/5 border border-white/10 rounded-xl p-3.5 backdrop-blur-xs">
-                            <div class="text-[11px] font-bold text-amber-300 uppercase tracking-wider">Détachés Externes</div>
-                            <div class="text-2xl sm:text-3xl font-black text-amber-200 mt-1 tabular-nums">
+                        <div class="bg-amber-50/60 border border-amber-100 rounded-xl p-3.5">
+                            <div class="text-[11px] font-bold text-amber-700 uppercase tracking-wider">Détachés Externes</div>
+                            <div class="text-2xl sm:text-3xl font-black text-amber-950 mt-1 tabular-nums">
                                 {{ fmt(stats.total_detaches) }}
                             </div>
-                            <div class="text-[10px] text-slate-400 mt-0.5">Hors Gendarmerie (47 Org.)</div>
+                            <div class="text-[10px] text-amber-600/80 mt-0.5">Hors Gendarmerie (47 Org.)</div>
                         </div>
                     </div>
 
                     <!-- Décomposition hiérarchique par grandes catégories de grades -->
-                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-4 border-t border-white/10 mt-4 relative z-10 text-xs">
-                        <div class="bg-amber-400/10 border border-amber-400/20 rounded-lg p-2 text-center">
-                            <div class="text-[10px] text-amber-300 font-bold uppercase truncate">Off. Généraux</div>
-                            <div class="text-base font-black text-amber-200 tabular-nums">
+                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-4 border-t border-slate-100 mt-4 relative z-10 text-xs">
+                        <div class="bg-amber-50/80 border border-amber-200/80 rounded-lg p-2 text-center">
+                            <div class="text-[10px] text-amber-800 font-bold uppercase truncate">Off. Généraux</div>
+                            <div class="text-base font-black text-amber-950 tabular-nums">
                                 {{ fmt(stats.total_officiers_generaux || 0) }}
                             </div>
-                            <div class="text-[9px] text-amber-400/70">GAR · GCA · GDD · GDB</div>
+                            <div class="text-[9px] text-amber-600">GAR · GCA · GDD · GDB</div>
                         </div>
-                        <div class="bg-sky-400/10 border border-sky-400/20 rounded-lg p-2 text-center">
-                            <div class="text-[10px] text-sky-300 font-bold uppercase truncate">Off. Supérieurs</div>
-                            <div class="text-base font-black text-sky-200 tabular-nums">
+                        <div class="bg-sky-50/80 border border-sky-200/80 rounded-lg p-2 text-center">
+                            <div class="text-[10px] text-sky-800 font-bold uppercase truncate">Off. Supérieurs</div>
+                            <div class="text-base font-black text-sky-950 tabular-nums">
                                 {{ fmt(stats.total_officiers_superieurs || 0) }}
                             </div>
-                            <div class="text-[9px] text-sky-400/70">CLM · COL · LCL · CES</div>
+                            <div class="text-[9px] text-sky-600">CLM · COL · LCL · CES</div>
                         </div>
-                        <div class="bg-sky-400/10 border border-sky-400/20 rounded-lg p-2 text-center">
-                            <div class="text-[10px] text-sky-300 font-bold uppercase truncate">Off. Subalternes</div>
-                            <div class="text-base font-black text-sky-200 tabular-nums">
+                        <div class="bg-sky-50/80 border border-sky-200/80 rounded-lg p-2 text-center">
+                            <div class="text-[10px] text-sky-800 font-bold uppercase truncate">Off. Subalternes</div>
+                            <div class="text-base font-black text-sky-950 tabular-nums">
                                 {{ fmt(stats.total_officiers_subalternes || 0) }}
                             </div>
-                            <div class="text-[9px] text-sky-400/70">CNE · LTN · SLT · ASP · EOA</div>
+                            <div class="text-[9px] text-sky-600">CNE · LTN · SLT · ASP · EOA</div>
                         </div>
-                        <div class="bg-emerald-400/10 border border-emerald-400/20 rounded-lg p-2 text-center">
-                            <div class="text-[10px] text-emerald-300 font-bold uppercase truncate">Sous-Officiers</div>
-                            <div class="text-base font-black text-emerald-200 tabular-nums">
+                        <div class="bg-emerald-50/80 border border-emerald-200/80 rounded-lg p-2 text-center">
+                            <div class="text-[10px] text-emerald-800 font-bold uppercase truncate">Sous-Officiers</div>
+                            <div class="text-base font-black text-emerald-950 tabular-nums">
                                 {{ fmt(stats.total_sous_officiers || 0) }}
                             </div>
-                            <div class="text-[9px] text-emerald-400/70">MJR · ADC · ADJ · MDC · MDL</div>
+                            <div class="text-[9px] text-emerald-600">MJR · ADC · ADJ · MDC · MDL</div>
                         </div>
-                        <div class="bg-slate-400/10 border border-slate-400/20 rounded-lg p-2 text-center col-span-2 sm:col-span-1">
-                            <div class="text-[10px] text-slate-300 font-bold uppercase truncate">Rang & Gendarmes</div>
-                            <div class="text-base font-black text-slate-200 tabular-nums">
+                        <div class="bg-slate-100/80 border border-slate-200/80 rounded-lg p-2 text-center col-span-2 sm:col-span-1">
+                            <div class="text-[10px] text-slate-700 font-bold uppercase truncate">Rang & Gendarmes</div>
+                            <div class="text-base font-black text-slate-900 tabular-nums">
                                 {{ fmt(stats.total_militaires_rang || 0) }}
                             </div>
-                            <div class="text-[9px] text-slate-400/70">MRG · ESOA · Gendarmes</div>
+                            <div class="text-[9px] text-slate-500">MRG · ESOA · Gendarmes</div>
                         </div>
                     </div>
                 </div>
@@ -1084,99 +1069,6 @@ const listeOrganismesCards = computed(() => {
                                         <span class="text-slate-300">·</span>
                                         <span :class="item[g.code + '_d'] > 0 ? 'text-rose-600 font-extrabold' : 'text-slate-400'">D:{{ item[g.code + '_d'] || 0 }}</span>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ======================================================== -->
-            <!-- TAB 2 : SITUATION PAR RÉGION (20 RÉGIONS)                -->
-            <!-- ======================================================== -->
-            <div v-if="activeTab === 'regions'" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-                    <div>
-                        <div class="flex items-center space-x-2">
-                            <h2 class="text-lg font-black text-slate-800">Déploiement Territorial des 20 Régions du Mali</h2>
-                            <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800">
-                                {{ fmt(stats.total_spa) }} militaires répartis
-                            </span>
-                        </div>
-                        <p class="text-xs text-slate-500 mt-0.5">
-                            District de Bamako (R1) et les 19 Régions Militaires (R2 à R20) avec décompte distinct Hommes (H) et Dames (D) par grade
-                        </p>
-                    </div>
-
-                    <Button
-                        @click="telechargerExcel"
-                        icon="pi pi-download"
-                        label="Exporter Régions (Excel)"
-                        severity="info"
-                        size="small"
-                        outlined
-                        class="!rounded-xl self-start sm:self-auto"
-                    />
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div
-                        v-for="reg in liste20Regions"
-                        :key="reg.code"
-                        class="bg-slate-50/80 rounded-2xl border border-slate-200 p-4 hover:shadow-md transition-shadow flex flex-col justify-between"
-                    >
-                        <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200/70">
-                            <div class="flex items-center space-x-2 min-w-0">
-                                <span class="px-2 py-0.5 rounded-lg text-xs font-black bg-sky-800 text-white shrink-0">
-                                    {{ reg.code }}
-                                </span>
-                                <h3 class="font-bold text-sm text-slate-800 truncate">{{ reg.nom }}</h3>
-                            </div>
-                            <div class="text-right shrink-0 ml-2">
-                                <span class="text-sm font-black text-sky-950 bg-sky-100 px-2.5 py-0.5 rounded-full tabular-nums">
-                                    {{ fmt(reg.total) }} pax
-                                </span>
-                                <div class="text-[10px] text-slate-500 font-semibold mt-0.5 flex items-center justify-end gap-1">
-                                    <span class="text-sky-700">H:{{ fmt(reg.total_h) }}</span>
-                                    <span>·</span>
-                                    <span class="text-rose-600">D:{{ fmt(reg.total_d) }}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Grille des 20 Grades avec décompte H/D et clic modal -->
-                        <div class="grid grid-cols-4 gap-1.5 text-center">
-                            <div
-                                v-for="g in SPA_CARD_GRADES"
-                                :key="g.code"
-                                @click="reg[g.code] > 0 ? ouvrirModalGrade(reg, g.code, 'region') : null"
-                                :class="[
-                                    'p-1.5 rounded-lg border transition-all text-center select-none',
-                                    reg[g.code] > 0
-                                        ? 'cursor-pointer hover:border-sky-500 hover:shadow-xs active:scale-95'
-                                        : 'opacity-40 cursor-default',
-                                    g.cat === 'gen'
-                                        ? (reg[g.code] > 0 ? 'bg-amber-50/90 border-amber-300 hover:bg-amber-100' : 'bg-amber-50/30 border-amber-200/50')
-                                        : (reg[g.code] > 0 ? 'bg-white border-slate-200 hover:bg-sky-50/70' : 'bg-slate-50/50 border-slate-200/60')
-                                ]"
-                                :title="g.title + (reg[g.code] > 0 ? ' • Cliquer pour voir la liste nominale' : '')"
-                            >
-                                <div
-                                    class="text-[9px] font-black truncate"
-                                    :class="g.cat === 'gen' ? 'text-amber-800' : (g.cat === 'sup' ? 'text-sky-800' : 'text-slate-600')"
-                                >
-                                    {{ g.code }}
-                                </div>
-                                <div
-                                    class="text-xs font-black tabular-nums"
-                                    :class="g.cat === 'gen' ? 'text-amber-950' : (reg[g.code] > 0 ? 'text-slate-900' : 'text-slate-400')"
-                                >
-                                    {{ reg[g.code] || 0 }}
-                                </div>
-                                <div class="text-[8px] font-bold mt-0.5 flex items-center justify-center gap-0.5">
-                                    <span :class="reg[g.code + '_h'] > 0 ? 'text-sky-700 font-extrabold' : 'text-slate-400'">H:{{ reg[g.code + '_h'] || 0 }}</span>
-                                    <span class="text-slate-300">·</span>
-                                    <span :class="reg[g.code + '_d'] > 0 ? 'text-rose-600 font-extrabold' : 'text-slate-400'">D:{{ reg[g.code + '_d'] || 0 }}</span>
                                 </div>
                             </div>
                         </div>
