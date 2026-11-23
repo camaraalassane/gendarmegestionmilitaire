@@ -28,11 +28,11 @@ const props = defineProps({
 
 const localRegions = ref([...(props.regions || [])]);
 const localUnites = ref([...(props.unites || [])]);
-const localPositions = ref([...(props.positions || [])]);
+const localPositions = ref([...(props.positions || [])].filter(p => !p.nom?.match(/r[eéè]int[eéè]gr/i)));
 const localOrganismes = ref([...(props.organismes_detachement || [])]);
 
-// Si le militaire possède une position actuelle qui n'est pas encore dans la liste des options, on l'ajoute automatiquement
-if (props.militaire?.position_actuelle && !localPositions.value.some(p => p.nom?.toLowerCase() === props.militaire.position_actuelle.toLowerCase())) {
+// Si le militaire possède une position actuelle qui n'est pas encore dans la liste des options, on l'ajoute uniquement si valide (pas de "Réintégré")
+if (props.militaire?.position_actuelle && !props.militaire.position_actuelle.match(/r[eéè]int[eéè]gr/i) && !localPositions.value.some(p => p.nom?.toLowerCase() === props.militaire.position_actuelle.toLowerCase())) {
     localPositions.value.unshift({
         id: props.militaire.position_id || props.militaire.position_actuelle,
         nom: props.militaire.position_actuelle,
@@ -250,6 +250,7 @@ const sexeOptions = [
 
 const defaultStatusSanitaire = [
     'Apte',
+    'Certificat Médical',
     'Blessé de guerre',
     'Blessé en opération',
     'Blessé en service',
@@ -273,12 +274,17 @@ const sanitizeStatusLabel = (str) => {
 
 const loadStatusSanitaireList = () => {
     try {
-        const saved = localStorage.getItem('status_sanitaire_options_v4');
+        const saved = localStorage.getItem('status_sanitaire_options_v5');
         if (saved) {
             const parsed = JSON.parse(saved);
             if (Array.isArray(parsed) && parsed.length > 0) {
-                const cleaned = parsed.map(s => String(s).replace(/\s+/g, ' ').trim()).filter(Boolean);
-                return Array.from(new Set(cleaned));
+                const cleaned = parsed
+                    .map(s => String(s).replace(/\s+/g, ' ').trim())
+                    .filter(s => s && s.length <= 40 && !s.toLowerCase().includes('pour pathologie'));
+                if (cleaned.length > 0) {
+                    if (!cleaned.includes('Certificat Médical')) cleaned.splice(1, 0, 'Certificat Médical');
+                    return Array.from(new Set(cleaned));
+                }
             }
         }
     } catch (e) {}
@@ -287,7 +293,7 @@ const loadStatusSanitaireList = () => {
 
 const saveStatusSanitaireList = (list) => {
     try {
-        localStorage.setItem('status_sanitaire_options_v4', JSON.stringify(list));
+        localStorage.setItem('status_sanitaire_options_v5', JSON.stringify(list));
     } catch (e) {}
 };
 
@@ -341,7 +347,8 @@ const removeStatusOption = (valToRemove) => {
 
 if (props.militaire && props.militaire.status_sanitaire) {
     const rawVal = String(props.militaire.status_sanitaire).replace(/\s+/g, ' ').trim();
-    if (rawVal && !statusSanitaireOptions.value.some(o => o.value === rawVal)) {
+    // Ne jamais ajouter une phrase médicale longue dans les options du menu déroulant
+    if (rawVal && rawVal.length <= 40 && !rawVal.toLowerCase().includes('pour pathologie') && !statusSanitaireOptions.value.some(o => o.value === rawVal)) {
         statusSanitaireOptions.value.unshift({
             label: sanitizeStatusLabel(rawVal),
             value: rawVal,
@@ -429,10 +436,12 @@ const defaultTheatresOps = [
 
 const loadTheatresOpsList = () => {
     try {
-        const saved = localStorage.getItem('theatres_ops_options_v1');
+        const saved = localStorage.getItem('theatres_ops_options_v2');
         if (saved) {
             const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                return parsed.filter(s => s && !s.match(/r[eéè]int[eéè]gr/i));
+            }
         }
     } catch (e) {}
     return defaultTheatresOps;
@@ -440,7 +449,7 @@ const loadTheatresOpsList = () => {
 
 const saveTheatresOpsList = (list) => {
     try {
-        localStorage.setItem('theatres_ops_options_v1', JSON.stringify(list));
+        localStorage.setItem('theatres_ops_options_v2', JSON.stringify((list || []).filter(s => !s.match(/r[eéè]int[eéè]gr/i))));
     } catch (e) {}
 };
 
@@ -467,23 +476,29 @@ const initEngagementsOpsList = () => {
 
     let parts = [];
     if (cleaned && cleaned !== '0' && cleaned !== '1/1/1970' && cleaned !== '-') {
-        parts = cleaned
+        // Supprimer toute mention parasite "Réintégré..." collée aux théâtres
+        const strippedCleaned = cleaned
+            .replace(/r[eéè]int[eéè]gr[eéè]?\s*\d*\s*[-–—]?\s*/gi, '')
+            .replace(/(radi[eé]|d[eé]serteur)\s+r[eéè]int[eéè]gr[eéè]?\s*[-–—]?\s*/gi, '')
+            .trim();
+
+        parts = strippedCleaned
             .split(/[,;\n]+|(?<=[0-9a-zA-ZÀ-ÿ])\.(?=[0-9a-zA-ZÀ-ÿ])/)
-            .map(s => s.trim())
-            .filter(Boolean);
+            .map(s => s.replace(/^[-–—\s,]+|[-–—\s,]+$/g, '').trim())
+            .filter(s => s && s !== '-' && !s.match(/r[eéè]int[eéè]gr/i));
     }
 
     // Si le militaire a un théâtre d'opérations rattaché directement
     if (parts.length === 0 && (props.militaire?.theatre?.nom || props.militaire?.theatre_id)) {
         const thNom = props.militaire?.theatre?.nom || (props.theatres?.find(t => t.id === props.militaire?.theatre_id)?.nom ?? '');
-        if (thNom) parts.push(thNom);
+        if (thNom && !thNom.match(/r[eéè]int[eéè]gr/i)) parts.push(thNom);
     }
 
     const targetCount = explicitCount !== null ? explicitCount : parts.length;
     const result = [];
     for (let i = 0; i < Math.max(targetCount, parts.length); i++) {
         const theatreName = parts[i] || '';
-        if (theatreName && !theatresOpsOptions.value.find(o => o.value.toLowerCase() === theatreName.toLowerCase())) {
+        if (theatreName && !theatreName.match(/r[eéè]int[eéè]gr/i) && !theatresOpsOptions.value.find(o => o.value.toLowerCase() === theatreName.toLowerCase())) {
             theatresOpsOptions.value.push({ label: theatreName, value: theatreName });
         }
         result.push({ theatre: theatreName });
@@ -602,7 +617,26 @@ const normalizeSexe = (s, code) => {
 };
 
 const initialPositionNom = (localPositions.value.find(p => p.id === initialPositionId)?.nom) 
-    || (isRawOtage ? "Cas d'otage" : (isRawDetache ? 'En détachement' : (isRawConvalescence ? 'En congé / Convalescence' : (props.militaire.position_actuelle || "À l'Unité / Au Poste"))));
+    || (isRawOtage ? "Cas d'otage" : (isRawDetache ? 'En détachement' : (isRawConvalescence ? 'En congé / Convalescence' : ((props.militaire.position_actuelle && !props.militaire.position_actuelle.match(/r[eéè]int[eéè]gr/i)) ? props.militaire.position_actuelle : "À l'Unité / Au Poste"))));
+
+// Normalisation de la position actuelle si elle contient une mention administrative comme "Réintégré"
+let initialRawPos = props.militaire.position_actuelle || '';
+let initialObs = props.militaire.observations || '';
+if (initialRawPos.match(/r[eéè]int[eéè]gr/i)) {
+    if (!initialObs.includes(initialRawPos)) {
+        initialObs = initialObs ? initialObs + ' | ' + initialRawPos : 'Mention administrative: ' + initialRawPos;
+    }
+    initialRawPos = "À l'Unité / Au Poste";
+}
+
+// Normalisation du statut sanitaire : un statut court (Certificat Médical) et la longue phrase dans observations
+let initialStatusSanitaire = props.militaire.status_sanitaire || '';
+if (initialStatusSanitaire && (initialStatusSanitaire.match(/certificat/i) || initialStatusSanitaire.length > 35)) {
+    if (!initialObs.includes(initialStatusSanitaire)) {
+        initialObs = initialObs ? initialObs + '\n' + initialStatusSanitaire : initialStatusSanitaire;
+    }
+    initialStatusSanitaire = initialStatusSanitaire.match(/bl[eéè]ss/i) ? 'Blessé de guerre' : 'Certificat Médical';
+}
 
 const form = reactive({
     id: props.militaire.id,
@@ -620,8 +654,8 @@ const form = reactive({
     date_derniere_promotion: parsePropDate(props.militaire.date_derniere_promotion),
     specialite: props.militaire.specialite || '',
     origine_formation: props.militaire.origine_formation || '',
-    position_id: initialPositionId,
-    position_actuelle: initialPositionNom,
+    position_id: (props.militaire.position_actuelle || '').match(/r[eéè]int[eéè]gr/i) ? 21 : initialPositionId,
+    position_actuelle: initialPositionNom.match(/r[eéè]int[eéè]gr/i) ? "À l'Unité / Au Poste" : initialPositionNom,
     unite_id: props.militaire.organisme_detachement_id ? null : (props.militaire.unite_id ?? (props.unites.find(u => u.nom === props.militaire.unite)?.id ?? null)),
     unite: initialUnite,
     region_id: props.militaire.region_id ?? (props.regions.find(r => r.nom === props.militaire.region || r.code === props.militaire.region)?.id ?? null),
@@ -656,7 +690,7 @@ const form = reactive({
     sexe: normalizeSexe(props.militaire.sexe, props.militaire.sexe_code),
     groupe_sanguin: props.militaire.groupe_sanguin || null,
     taille: props.militaire.taille || '',
-    status_sanitaire: props.militaire.status_sanitaire || '',
+    status_sanitaire: initialStatusSanitaire,
     est_blesse_guerre: !!props.militaire.est_blesse_guerre,
     est_non_mobilisable: !!props.militaire.est_non_mobilisable,
     engagement_ops: props.militaire.engagement_ops || '',
@@ -664,7 +698,7 @@ const form = reactive({
     telephone_personne_contacter: props.militaire.telephone_personne_contacter || '',
     decorations: props.militaire.decorations || '',
     diplomes_academiques: props.militaire.diplomes_academiques || '',
-    observations: props.militaire.observations || '',
+    observations: initialObs,
     date_deces: parsePropDate(props.militaire.date_deces),
     circonstances_deces: props.militaire.circonstances_deces || '',
     motif_radiation: props.militaire.motif_radiation || '',

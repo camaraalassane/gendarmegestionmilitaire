@@ -25,7 +25,7 @@ const props = defineProps({
 
 const localRegions = ref([...(props.regions || [])]);
 const localUnites = ref([...(props.unites || [])]);
-const localPositions = ref([...(props.positions || [])]);
+const localPositions = ref([...(props.positions || [])].filter(p => !p.nom?.match(/r[eéè]int[eéè]gr/i)));
 const localOrganismes = ref([...(props.organismes_detachement || [])]);
 
 const toast = useToast();
@@ -236,6 +236,7 @@ const sexeOptions = [
 
 const defaultStatusSanitaire = [
     'Apte',
+    'Certificat Médical',
     'Blessé de guerre',
     'Blessé en opération',
     'Blessé en service',
@@ -259,12 +260,17 @@ const sanitizeStatusLabel = (str) => {
 
 const loadStatusSanitaireList = () => {
     try {
-        const saved = localStorage.getItem('status_sanitaire_options_v4');
+        const saved = localStorage.getItem('status_sanitaire_options_v5');
         if (saved) {
             const parsed = JSON.parse(saved);
             if (Array.isArray(parsed) && parsed.length > 0) {
-                const cleaned = parsed.map(s => String(s).replace(/\s+/g, ' ').trim()).filter(Boolean);
-                return Array.from(new Set(cleaned));
+                const cleaned = parsed
+                    .map(s => String(s).replace(/\s+/g, ' ').trim())
+                    .filter(s => s && s.length <= 40 && !s.toLowerCase().includes('pour pathologie'));
+                if (cleaned.length > 0) {
+                    if (!cleaned.includes('Certificat Médical')) cleaned.splice(1, 0, 'Certificat Médical');
+                    return Array.from(new Set(cleaned));
+                }
             }
         }
     } catch (e) {}
@@ -273,7 +279,7 @@ const loadStatusSanitaireList = () => {
 
 const saveStatusSanitaireList = (list) => {
     try {
-        localStorage.setItem('status_sanitaire_options_v4', JSON.stringify(list));
+        localStorage.setItem('status_sanitaire_options_v5', JSON.stringify(list));
     } catch (e) {}
 };
 
@@ -403,10 +409,12 @@ const defaultTheatresOps = [
 
 const loadTheatresOpsList = () => {
     try {
-        const saved = localStorage.getItem('theatres_ops_options_v1');
+        const saved = localStorage.getItem('theatres_ops_options_v2');
         if (saved) {
             const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                return parsed.filter(s => s && !s.match(/r[eéè]int[eéè]gr/i));
+            }
         }
     } catch (e) {}
     return defaultTheatresOps;
@@ -414,7 +422,7 @@ const loadTheatresOpsList = () => {
 
 const saveTheatresOpsList = (list) => {
     try {
-        localStorage.setItem('theatres_ops_options_v1', JSON.stringify(list));
+        localStorage.setItem('theatres_ops_options_v2', JSON.stringify((list || []).filter(s => !s.match(/r[eéè]int[eéè]gr/i))));
     } catch (e) {}
 };
 

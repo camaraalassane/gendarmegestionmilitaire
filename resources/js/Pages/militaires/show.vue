@@ -74,7 +74,12 @@ const parsedEngagementOps = computed(() => {
     if (match) {
         explicitCount = parseInt(match[1], 10);
     }
-    const cleaned = raw.replace(/[-–—]?\s*\d+\s*OPS/i, '').replace(/^[,;\s.-]+|[,;\s.-]+$/g, '').trim();
+    const cleaned = raw
+        .replace(/[-–—]?\s*\d+\s*OPS/i, '')
+        .replace(/r[eéè]int[eéè]gr[eéè]?\s*\d*\s*[-–—]?\s*/gi, '')
+        .replace(/(radi[eé]|d[eé]serteur)\s+r[eéè]int[eéè]gr[eéè]?\s*[-–—]?\s*/gi, '')
+        .replace(/^[,;\s.-]+|[,;\s.-]+$/g, '')
+        .trim();
     let theatres = [];
     if (cleaned && cleaned !== '0') {
         theatres = cleaned
