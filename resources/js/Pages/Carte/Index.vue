@@ -408,21 +408,36 @@ const selTheatreObj = computed(() => {
 const showTheatreMilitairesModal = ref(false);
 const theatreMilitaireCategorieFilter = ref('tous'); // 'tous' | 'officiers' | 'sous_officiers' | 'mdr' | 'blesses'
 const loadingTheatreMilitaires = ref(false);
+const currentTheatreMilitaires = ref([]);
+const theatreMilitairesCache = ref({});
 
 const ouvrirModalMilitairesTheatre = async (cat = 'tous', thTarget = null) => {
-    if (thTarget) {
+    if (thTarget && thTarget.code) {
         selTheatre.value = thTarget.code;
     }
     theatreMilitaireCategorieFilter.value = cat;
     searchTheatreMilitaire.value = '';
     theatrePage.value = 1;
     showTheatreMilitairesModal.value = true;
-    const th = thTarget || selTheatreObj.value;
-    if (th && (!th.militaires || th.militaires.length === 0)) {
+
+    // Déterminer l'objet théâtre ciblé
+    const targetCode = thTarget?.code || selTheatre.value;
+    const th = thTarget || selTheatreObj.value || (targetCode ? props.theatres.find(t => t.code === targetCode) : null);
+    if (!th || !th.id) return;
+
+    if (theatreMilitairesCache.value[th.id]) {
+        currentTheatreMilitaires.value = theatreMilitairesCache.value[th.id];
+    } else {
+        currentTheatreMilitaires.value = [];
         loadingTheatreMilitaires.value = true;
         try {
             const res = await axios.get(route('carte.theatres.militaires', th.id));
-            th.militaires = res.data;
+            const list = Array.isArray(res.data) ? res.data : [];
+            theatreMilitairesCache.value = {
+                ...theatreMilitairesCache.value,
+                [th.id]: list
+            };
+            currentTheatreMilitaires.value = list;
         } catch (e) {
             console.error('Erreur chargement militaires théâtre', e);
         } finally {
@@ -530,10 +545,10 @@ const totalProjeteTheatres = computed(() => {
 
 // Tri strict du grade le plus élevé au plus petit (ordre DESC)
 const theatreMilitairesTriesEtFiltres = computed(() => {
-    const th = selTheatreObj.value;
-    if (!th || !th.militaires) return [];
+    const listRaw = currentTheatreMilitaires.value;
+    if (!listRaw || listRaw.length === 0) return [];
 
-    let list = [...th.militaires];
+    let list = [...listRaw];
 
     // Tri hiérarchique décroissant : grade le plus élevé en premier
     list.sort((a, b) => {
@@ -591,11 +606,15 @@ const theatreMilitairesPagine = computed(() => {
 const theatreStatsHierarchiques = computed(() => {
     const th = selTheatreObj.value;
     if (!th) return { officiers: 0, sousOfficiers: 0, mdr: 0, blesses: 0 };
+    const list = currentTheatreMilitaires.value.length > 0 
+        ? currentTheatreMilitaires.value 
+        : (theatreMilitairesCache.value[th.id] || null);
+
     return {
-        officiers: th.officiers ?? (th.militaires ? th.militaires.filter(m => (m.grade_ordre || 0) >= 11).length : 0),
-        sousOfficiers: th.sous_officiers ?? (th.militaires ? th.militaires.filter(m => (m.grade_ordre || 0) >= 5 && (m.grade_ordre || 0) <= 10).length : 0),
-        mdr: th.mdr ?? (th.militaires ? th.militaires.filter(m => (m.grade_ordre || 0) <= 4).length : 0),
-        blesses: th.blesses ?? (th.militaires ? th.militaires.filter(m => m.est_blesse_guerre || m.est_blesse).length : 0),
+        officiers: list ? list.filter(m => (m.grade_ordre || 0) >= 11).length : (th.officiers ?? 0),
+        sousOfficiers: list ? list.filter(m => (m.grade_ordre || 0) >= 5 && (m.grade_ordre || 0) <= 10).length : (th.sous_officiers ?? 0),
+        mdr: list ? list.filter(m => (m.grade_ordre || 0) <= 4).length : (th.mdr ?? 0),
+        blesses: list ? list.filter(m => m.est_blesse_guerre || m.est_blesse).length : (th.blesses ?? 0),
     };
 });
 
@@ -4084,15 +4103,27 @@ const lignesFiltrees = computed(() => {
                         </button>
                     </div>
 
-                    <!-- Champ recherche -->
-                    <div class="relative w-full md:w-60">
-                        <input
-                            v-model="searchTheatreMilitaire"
-                            type="text"
-                            placeholder="Rechercher nom, grade, matricule..."
-                            class="w-full text-xs py-1.5 pl-8 pr-2.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                        />
-                        <i class="pi pi-search absolute left-2.5 top-2 text-xs text-slate-400"></i>
+                    <!-- Champ recherche & Export Excel -->
+                    <div class="flex items-center gap-2 w-full md:w-auto">
+                        <div class="relative w-full md:w-60">
+                            <input
+                                v-model="searchTheatreMilitaire"
+                                type="text"
+                                placeholder="Rechercher nom, grade, matricule..."
+                                class="w-full text-xs py-1.5 pl-8 pr-2.5 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                            />
+                            <i class="pi pi-search absolute left-2.5 top-2 text-xs text-slate-400"></i>
+                        </div>
+                        <button
+                            type="button"
+                            @click="exportTheatresExcel(selTheatreObj?.code)"
+                            :disabled="exportingTheatresExcel"
+                            class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                            title="Exporter la liste nominative de ce théâtre en Excel"
+                        >
+                            <i :class="exportingTheatresExcel ? 'pi pi-spin pi-spinner text-xs' : 'pi pi-file-excel text-xs'"></i>
+                            <span>Exporter Excel</span>
+                        </button>
                     </div>
                 </div>
 
