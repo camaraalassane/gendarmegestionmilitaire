@@ -1413,7 +1413,7 @@ const horsEffectif = computed(() => {
 const detail = computed(() => {
     if (!selRegion.value) {
         return [
-            { label: 'Régions', value: props.regions.length },
+            { label: 'Circonscriptions', value: props.regions.length === 20 ? '19 Rég. + 1 Dist.' : props.regions.length },
             { label: 'Total Unités', value: tot((r) => r.unites.length) },
             { label: 'Commandement direct', value: fmt(tot((r) => r.actifs || 0)) },
             { label: 'Effectif Global', value: fmt(tot((r) => r.effectif) + (Number(props.stats?.non_rattaches) || 0)) },
@@ -1561,7 +1561,7 @@ const lignesFiltrees = computed(() => {
                             Carte Opérationnelle/SPA
                         </h1>
                         <p class="text-[10px] text-sky-200">
-                            {{ regions.length }} régions • Maillage territorial souverain
+                            {{ regions.length === 20 ? '19 Régions + 1 District' : regions.length + ' régions' }} • Maillage territorial souverain
                         </p>
                     </div>
                 </div>
@@ -1773,7 +1773,7 @@ const lignesFiltrees = computed(() => {
                                 class="text-xs border border-slate-200 rounded-lg px-2 py-0.5 bg-white text-slate-700 focus:outline-none focus:border-sky-500 font-medium"
                                 aria-label="Choisir une région"
                             >
-                                <option value="">Tout le Mali (20 régions)</option>
+                                <option value="">Tout le Mali (19 Régions + District)</option>
                                 <option v-for="r in regions" :key="r.code" :value="r.code">
                                     {{ r.code }} - {{ r.nom }}
                                 </option>
@@ -3005,7 +3005,7 @@ const lignesFiltrees = computed(() => {
                             </div>
                         </div>
                         <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex-none">
-                            {{ sel ? selRegion.unites.length + ' unités' : regions.length + ' régions' }}
+                            {{ sel ? selRegion.unites.length + ' unités' : (regions.length === 20 ? '19 Régions + 1 District' : regions.length + ' régions') }}
                         </span>
                     </div>
 
@@ -3028,7 +3028,7 @@ const lignesFiltrees = computed(() => {
                             :class="sidebarTab === 'liste' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'"
                         >
                             <i class="pi pi-list text-[10px]"></i>
-                            <span>{{ sel ? 'Unités (' + selRegion.unites.length + ')' : 'Régions (' + regions.length + ')' }}</span>
+                            <span>{{ sel ? 'Unités (' + selRegion.unites.length + ')' : (regions.length === 20 ? '19 Régions + 1 District (20)' : 'Régions (' + regions.length + ')') }}</span>
                         </button>
                         <button
                             type="button"

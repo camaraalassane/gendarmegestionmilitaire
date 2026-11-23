@@ -33,19 +33,11 @@ class CoordinatesSeeder extends Seeder
             'R18' => ['lat' => 14.9970, 'lng' => -2.9480, 'chef_lieu' => 'Douentza'],
             'R19' => ['lat' => 14.3500, 'lng' => -3.6180, 'chef_lieu' => 'Bandiagara'],
             'R20' => ['lat' => 22.6700, 'lng' => -3.9800, 'chef_lieu' => 'Taoudénit'],
-            'DGGN' => ['lat' => 12.6515, 'lng' => -8.0142, 'chef_lieu' => 'Bamako (Camp I)'],
-            'GSIGN' => ['lat' => 12.6321, 'lng' => -8.0185, 'chef_lieu' => 'Bamako'],
-            'CDURM' => ['lat' => 12.6412, 'lng' => -7.9945, 'chef_lieu' => 'Bamako'],
-            'CDUSF' => ['lat' => 12.6378, 'lng' => -8.0075, 'chef_lieu' => 'Bamako'],
-            'CDECF' => ['lat' => 12.6052, 'lng' => -7.9782, 'chef_lieu' => 'Faladiè (Bamako)'],
-            'INSPECTION' => ['lat' => 12.6515, 'lng' => -8.0142, 'chef_lieu' => 'Bamako'],
-            'SIJ' => ['lat' => 12.6480, 'lng' => -8.0089, 'chef_lieu' => 'Camp I (Bamako)'],
-            'DETACHEMENT' => ['lat' => 12.6392, 'lng' => -8.0029, 'chef_lieu' => 'Bamako / Déploiement national'],
         ];
 
         foreach ($regionsCoords as $code => $data) {
-            $nom = (str_starts_with($code, 'R') && is_numeric(substr($code, 1))) ? 'REGION N°' . substr($code, 1) : $code;
-            $ordre = (str_starts_with($code, 'R') && is_numeric(substr($code, 1))) ? (int) substr($code, 1) : 99;
+            $nom = ($code === 'R1') ? 'DISTRICT DE BAMAKO' : ('REGION N°' . substr($code, 1));
+            $ordre = (int) substr($code, 1);
             Region::updateOrCreate(
                 ['code' => $code],
                 [

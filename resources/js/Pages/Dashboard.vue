@@ -164,26 +164,31 @@ const statutChartOptions = {
 // =========================================================================
 // 2. GRAPHIQUE PAR POSITION (Déploiement / Localisation Terrain)
 // =========================================================================
-const showOnlyActivePositions = ref(true);
+const positionViewMode = ref('top'); // 'top' | 'actives' | 'all'
 
-const activePositionsCount = computed(() => {
-    return (props.chartsData?.positions || []).filter(p => p.value > 0).length;
+const activePositionsList = computed(() => {
+    return (props.chartsData?.positions || []).filter(p => p.value > 0);
 });
+
+const activePositionsCount = computed(() => activePositionsList.value.length);
 
 const positionsDisplayList = computed(() => {
     const all = props.chartsData?.positions || [];
-    if (showOnlyActivePositions.value) {
-        return all.filter(p => p.value > 0);
+    if (positionViewMode.value === 'top') {
+        return activePositionsList.value.slice(0, 8);
+    }
+    if (positionViewMode.value === 'actives') {
+        return activePositionsList.value;
     }
     return all;
 });
 
 const positionChartContainerHeight = computed(() => {
-    const count = positionsDisplayList.value.length;
-    if (showOnlyActivePositions.value) {
-        return `${Math.max(180, count * 40)}px`;
+    if (positionViewMode.value === 'top') {
+        return '256px';
     }
-    return `${Math.max(260, count * 24)}px`;
+    const count = positionsDisplayList.value.length;
+    return `${Math.max(256, count * 32)}px`;
 });
 
 const positionChartData = computed(() => {
@@ -824,22 +829,28 @@ const horizontalBarOptions = {
                         <!-- Filtre positions avec effectif vs toutes -->
                         <div class="flex items-center bg-slate-100 p-0.5 rounded-lg text-[10px] font-medium shrink-0">
                             <button type="button"
-                                    @click="showOnlyActivePositions = false"
+                                    @click="positionViewMode = 'top'"
                                     class="px-2 py-1 rounded-md transition-colors"
-                                    :class="!showOnlyActivePositions ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'">
-                                Toutes
+                                    :class="positionViewMode === 'top' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'">
+                                Top 8
                             </button>
                             <button type="button"
-                                    @click="showOnlyActivePositions = true"
+                                    @click="positionViewMode = 'actives'"
                                     class="px-2 py-1 rounded-md transition-colors"
-                                    :class="showOnlyActivePositions ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'">
+                                    :class="positionViewMode === 'actives' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'">
                                 Effectif > 0 ({{ activePositionsCount }})
+                            </button>
+                            <button type="button"
+                                    @click="positionViewMode = 'all'"
+                                    class="px-2 py-1 rounded-md transition-colors"
+                                    :class="positionViewMode === 'all' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'">
+                                Toutes
                             </button>
                         </div>
                     </div>
 
                     <!-- Graphique Positions (Barres horizontales avec nombres à droite) -->
-                    <div class="w-full relative transition-all" :style="{ minHeight: '220px', height: positionChartContainerHeight }">
+                    <div class="w-full relative transition-all overflow-y-auto max-h-72 custom-scrollbar" :style="{ minHeight: '220px', height: positionChartContainerHeight }">
                         <Chart v-if="positionsDisplayList.length > 0"
                                type="bar"
                                :data="positionChartData"

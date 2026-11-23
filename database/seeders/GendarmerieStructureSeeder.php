@@ -14,19 +14,28 @@ class GendarmerieStructureSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Définition des Régions et Grands Commandements
+        // 1. Définition des 19 Régions Administratives + le District de Bamako (20 Circonscriptions officielles du Mali)
         $regionsData = [
-            ['code' => 'R1', 'nom' => 'REGION N°1', 'description' => 'District de Bamako et périphérie', 'latitude' => 12.6392, 'longitude' => -8.0029, 'chef_lieu' => 'Bamako', 'ordre' => 1],
-            ['code' => 'R2', 'nom' => 'REGION N°2', 'description' => 'Région de Kayes / Kita / Kéniéba', 'latitude' => 14.4469, 'longitude' => -11.4445, 'chef_lieu' => 'Kayes', 'ordre' => 2],
-            ['code' => 'R3', 'nom' => 'REGION N°3', 'description' => 'Région de Koulikoro / Kati / Nara / Dioïla', 'latitude' => 12.8628, 'longitude' => -7.5599, 'chef_lieu' => 'Koulikoro', 'ordre' => 3],
-            ['code' => 'R4', 'nom' => 'REGION N°4', 'description' => 'Région de Sikasso / Bougouni / Koutiala', 'latitude' => 11.3176, 'longitude' => -5.6665, 'chef_lieu' => 'Sikasso', 'ordre' => 4],
-            ['code' => 'R5', 'nom' => 'REGION N°5', 'description' => 'Région de Ségou / San', 'latitude' => 13.4317, 'longitude' => -6.2157, 'chef_lieu' => 'Ségou', 'ordre' => 5],
-            ['code' => 'R6', 'nom' => 'REGION N°6', 'description' => 'Région de Mopti / Sévaré / Bandiagara / Douentza', 'latitude' => 14.4958, 'longitude' => -4.1852, 'chef_lieu' => 'Mopti', 'ordre' => 6],
-            ['code' => 'R7', 'nom' => 'REGION N°7', 'description' => 'Région de Tombouctou / Taoudénit', 'latitude' => 16.7666, 'longitude' => -3.0026, 'chef_lieu' => 'Tombouctou', 'ordre' => 7],
-            ['code' => 'R8', 'nom' => 'REGION N°8', 'description' => 'Région de Gao / Ansongo / Bourem', 'latitude' => 16.2717, 'longitude' => -0.0447, 'chef_lieu' => 'Gao', 'ordre' => 8],
-            ['code' => 'R9', 'nom' => 'REGION N°9', 'description' => 'Région de Kidal / Tessalit', 'latitude' => 18.4411, 'longitude' => 1.4078, 'chef_lieu' => 'Kidal', 'ordre' => 9],
-            ['code' => 'R10', 'nom' => 'REGION N°10', 'description' => 'Région de Nioro du Sahel / Diéma', 'latitude' => 15.2289, 'longitude' => -9.5878, 'chef_lieu' => 'Nioro du Sahel', 'ordre' => 10],
-            ['code' => 'R11', 'nom' => 'REGION N°11', 'description' => 'Région de Ménaka', 'latitude' => 15.9182, 'longitude' => 2.4022, 'chef_lieu' => 'Ménaka', 'ordre' => 11],
+            ['code' => 'R1',  'nom' => 'DISTRICT DE BAMAKO', 'description' => 'District de Bamako (Capitale)',         'latitude' => 12.6392, 'longitude' => -8.0029,  'chef_lieu' => 'Bamako',          'ordre' => 1],
+            ['code' => 'R2',  'nom' => 'REGION N°2',          'description' => 'Région de Kayes',                       'latitude' => 14.4469, 'longitude' => -11.4445, 'chef_lieu' => 'Kayes',           'ordre' => 2],
+            ['code' => 'R3',  'nom' => 'REGION N°3',          'description' => 'Région de Koulikoro',                   'latitude' => 12.8628, 'longitude' => -7.5599,  'chef_lieu' => 'Koulikoro',       'ordre' => 3],
+            ['code' => 'R4',  'nom' => 'REGION N°4',          'description' => 'Région de Sikasso',                     'latitude' => 11.3176, 'longitude' => -5.6665,  'chef_lieu' => 'Sikasso',         'ordre' => 4],
+            ['code' => 'R5',  'nom' => 'REGION N°5',          'description' => 'Région de Ségou',                       'latitude' => 13.4317, 'longitude' => -6.2157,  'chef_lieu' => 'Ségou',           'ordre' => 5],
+            ['code' => 'R6',  'nom' => 'REGION N°6',          'description' => 'Région de Mopti',                       'latitude' => 14.4958, 'longitude' => -4.1852,  'chef_lieu' => 'Mopti',           'ordre' => 6],
+            ['code' => 'R7',  'nom' => 'REGION N°7',          'description' => 'Région de Tombouctou',                  'latitude' => 16.7666, 'longitude' => -3.0026,  'chef_lieu' => 'Tombouctou',      'ordre' => 7],
+            ['code' => 'R8',  'nom' => 'REGION N°8',          'description' => 'Région de Gao',                         'latitude' => 16.2717, 'longitude' => -0.0447,  'chef_lieu' => 'Gao',             'ordre' => 8],
+            ['code' => 'R9',  'nom' => 'REGION N°9',          'description' => 'Région de Kidal',                       'latitude' => 18.4411, 'longitude' => 1.4078,   'chef_lieu' => 'Kidal',           'ordre' => 9],
+            ['code' => 'R10', 'nom' => 'REGION N°10',         'description' => 'Région de Nioro du Sahel',              'latitude' => 15.2289, 'longitude' => -9.5878,  'chef_lieu' => 'Nioro du Sahel', 'ordre' => 10],
+            ['code' => 'R11', 'nom' => 'REGION N°11',         'description' => 'Région de Ménaka',                      'latitude' => 15.9182, 'longitude' => 2.4022,   'chef_lieu' => 'Ménaka',          'ordre' => 11],
+            ['code' => 'R12', 'nom' => 'REGION N°12',         'description' => 'Région de Kita',                        'latitude' => 13.0350, 'longitude' => -9.4860,  'chef_lieu' => 'Kita',            'ordre' => 12],
+            ['code' => 'R13', 'nom' => 'REGION N°13',         'description' => 'Région de Dioïla',                      'latitude' => 12.4834, 'longitude' => -6.7827,  'chef_lieu' => 'Dioïla',          'ordre' => 13],
+            ['code' => 'R14', 'nom' => 'REGION N°14',         'description' => 'Région de Nara',                        'latitude' => 15.1650, 'longitude' => -7.2830,  'chef_lieu' => 'Nara',            'ordre' => 14],
+            ['code' => 'R15', 'nom' => 'REGION N°15',         'description' => 'Région de Bougouni',                    'latitude' => 11.4150, 'longitude' => -7.4820,  'chef_lieu' => 'Bougouni',        'ordre' => 15],
+            ['code' => 'R16', 'nom' => 'REGION N°16',         'description' => 'Région de Koutiala',                    'latitude' => 12.3830, 'longitude' => -5.4680,  'chef_lieu' => 'Koutiala',        'ordre' => 16],
+            ['code' => 'R17', 'nom' => 'REGION N°17',         'description' => 'Région de San',                         'latitude' => 13.3030, 'longitude' => -4.8930,  'chef_lieu' => 'San',             'ordre' => 17],
+            ['code' => 'R18', 'nom' => 'REGION N°18',         'description' => 'Région de Douentza',                    'latitude' => 14.9970, 'longitude' => -2.9480,  'chef_lieu' => 'Douentza',        'ordre' => 18],
+            ['code' => 'R19', 'nom' => 'REGION N°19',         'description' => 'Région de Bandiagara',                  'latitude' => 14.3500, 'longitude' => -3.6180,  'chef_lieu' => 'Bandiagara',      'ordre' => 19],
+            ['code' => 'R20', 'nom' => 'REGION N°20',         'description' => 'Région de Taoudénit',                   'latitude' => 22.6700, 'longitude' => -3.9800,  'chef_lieu' => 'Taoudénit',       'ordre' => 20],
         ];
 
         $regionsMap = [];
