@@ -474,7 +474,7 @@ const exportMilitaires = async (format = 'xlsx') => {
             toast,
             onStart: () => {
                 exporting.value = true;
-                exportProgressText.value = isCsv ? 'Génération du flux CSV en cours...' : 'Génération du fichier Excel en cours...';
+                exportProgressText.value = isCsv ? 'Génération du flux CSV en cours (rapide, ~3s)...' : 'Génération du classeur Excel en cours (6 700+ lignes, ~15-20s)...';
             },
             onProgress: (percent) => {
                 if (percent !== null) {
@@ -1063,7 +1063,7 @@ const executeBulkAssign = () => {
                     <Button label="Annuler" icon="pi pi-times" class="p-button-text text-gray-500 hover:text-gray-700"
                         :disabled="exporting"
                         @click="exportDialogVisible = false" />
-                    <Button :label="exporting && exportingFormat === 'csv' ? 'Génération CSV...' : 'Exporter CSV (Flux)'" icon="pi pi-file"
+                    <Button :label="exporting && exportingFormat === 'csv' ? 'Génération CSV...' : 'Exporter CSV (Flux rapide ~3s)'" icon="pi pi-file"
                         class="bg-emerald-700 hover:bg-emerald-800 text-white border-0 shadow-sm font-medium" 
                         :loading="exporting && exportingFormat === 'csv'"
                         :disabled="exporting"

@@ -39,7 +39,23 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
     public function query()
     {
         $query = Militaire::query()
-            ->with(['certificats', 'affectations']); // Préchargement pour éviter le problème N+1
+            ->select([
+                'id', 'matricule', 'numero_nina', 'nom', 'prenom', 'sexe',
+                'date_naissance', 'lieu_naissance', 'telephone', 'groupe_sanguin', 'taille',
+                'personne_a_contacter', 'telephone_personne_contacter',
+                'grade_actuel', 'categorie', 'date_entree_service', 'date_derniere_promotion',
+                'origine_formation', 'specialite', 'statut', 'position_actuelle',
+                'fonction_actuelle', 'fonction_passee',
+                'unite', 'region', 'date_mutation',
+                'status_sanitaire', 'engagement_ops', 'a_permis_conduire', 'antecedent_judiciaire', 'antecedent_disciplinaire',
+                'decorations', 'diplomes_academiques',
+                'observations', 'date_deces', 'circonstances_deces', 'motif_radiation',
+                'reference_decision', 'unite_transfert', 'motif_transfert'
+            ])
+            ->with([
+                'certificats' => fn($q) => $q->select('certificats.id', 'nom_certificat', 'niveau_certificat'),
+                'affectations' => fn($q) => $q->select('id', 'militaire_id', 'unite', 'region', 'date_mutation')
+            ]); // Préchargement ciblé pour éviter le problème N+1 et alléger la mémoire
 
         if ($this->search) {
             $search = preg_replace('/\s+/', ' ', $this->search);
@@ -158,18 +174,53 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
 
     public function map($militaire): array
     {
-        // Helper rapide pour formater une date sans instancier inutilement Carbon
-        $formatDate = function ($date): string {
-            if (!$date) return '';
-            if ($date instanceof \DateTimeInterface) return $date->format('d/m/Y');
-            $s = (string) $date;
+        static $refYear = null;
+        static $todayMD = null;
+        if ($refYear === null) {
+            $refYear = (int) date('Y');
+            $todayMD = (int) date('md');
+        }
+
+        // Helper ultra-rapide pour formater une date sans instancier d'objet Carbon
+        $formatDateRaw = function ($rawDate): string {
+            if (!$rawDate) return '';
+            $s = (string) $rawDate;
             if (strlen($s) >= 10 && $s[4] === '-' && $s[7] === '-') {
                 return substr($s, 8, 2) . '/' . substr($s, 5, 2) . '/' . substr($s, 0, 4);
             }
             return $s;
         };
 
-        // Certificats militaires complets avec nom, niveau et date d'obtention (optimisé sans overhead collection)
+        // Extraction brute des dates sans instanciation d'objets Carbon Eloquent
+        $rawNaissance = $militaire->getRawOriginal('date_naissance');
+        $rawEntree = $militaire->getRawOriginal('date_entree_service');
+        $rawPromo = $militaire->getRawOriginal('date_derniere_promotion');
+        $rawMutation = $militaire->getRawOriginal('date_mutation');
+        $rawDeces = $militaire->getRawOriginal('date_deces');
+
+        $dNaissance = $formatDateRaw($rawNaissance);
+        $dEntree = $formatDateRaw($rawEntree);
+        $dPromo = $formatDateRaw($rawPromo);
+        $dDeces = $formatDateRaw($rawDeces);
+
+        // Calcul âge direct (0 ms)
+        $age = 0;
+        if ($rawNaissance && strlen($rawNaissance) >= 10) {
+            $y = (int) substr($rawNaissance, 0, 4);
+            $md = ((int) substr($rawNaissance, 5, 2)) * 100 + (int) substr($rawNaissance, 8, 2);
+            $age = $refYear - $y - ($todayMD < $md ? 1 : 0);
+        }
+
+        // Calcul ancienneté service direct au 31 décembre (0 ms)
+        $anc = 0;
+        if ($rawEntree && strlen($rawEntree) >= 4) {
+            $anc = max(0, $refYear - (int) substr($rawEntree, 0, 4));
+        }
+
+        // Calcul ancienneté grade direct (0 ms)
+        $ancGrade = ($rawPromo && strlen($rawPromo) >= 4) ? max(0, $refYear - (int) substr($rawPromo, 0, 4)) : $anc;
+
+        // Certificats militaires complets avec nom, niveau et date d'obtention (optimisé)
         $certParts = [];
         $niveaux = [];
         if ($militaire->relationLoaded('certificats') && $militaire->certificats) {
@@ -177,7 +228,7 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
                 $nom = $c->nom_certificat ?? $c->niveau_certificat ?? 'Certificat';
                 $niveau = ($c->niveau_certificat && $c->niveau_certificat !== $nom) ? " [{$c->niveau_certificat}]" : '';
                 $pDate = $c->pivot?->date_obtention;
-                $dateStr = $pDate ? ' (' . $formatDate($pDate) . ')' : '';
+                $dateStr = $pDate ? ' (' . $formatDateRaw($pDate) . ')' : '';
                 $entry = trim($nom . $niveau . $dateStr);
                 if ($entry !== '') {
                     $certParts[] = $entry;
@@ -226,14 +277,14 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
                 $affList[] = [
                     'unite' => trim((string)$a->unite),
                     'region' => trim((string)$a->region),
-                    'date_mutation' => $formatDate($a->date_mutation),
+                    'date_mutation' => $formatDateRaw($a->date_mutation),
                 ];
             }
-        } elseif ($militaire->unite || $militaire->region || $militaire->date_mutation) {
+        } elseif ($militaire->unite || $militaire->region || $rawMutation) {
             $affList = [[
                 'unite' => trim((string)$militaire->unite),
                 'region' => trim((string)$militaire->region),
-                'date_mutation' => $formatDate($militaire->date_mutation),
+                'date_mutation' => $formatDateRaw($rawMutation),
             ]];
         } else {
             $affList = [];
@@ -260,7 +311,7 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
 
         $uniteActuelle = $affList[0]['unite'] ?? ($militaire->unite ?? '');
         $regionActuelle = $affList[0]['region'] ?? ($militaire->region ?? '');
-        $dateMutationActuelle = $affList[0]['date_mutation'] ?? $formatDate($militaire->date_mutation);
+        $dateMutationActuelle = $affList[0]['date_mutation'] ?? $formatDateRaw($rawMutation);
 
         // Affectation & Maillage Territorial (Une seule colonne propre sans répétition)
         $numAff = count($affList);
@@ -285,9 +336,9 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
             $militaire->nom,
             $militaire->prenom,
             $militaire->sexe ?? '',
-            $formatDate($militaire->date_naissance),
+            $dNaissance,
             $militaire->lieu_naissance ?? '',
-            round($militaire->age),
+            $age,
             $militaire->telephone ?? '',
             $militaire->groupe_sanguin ?? '',
             $militaire->taille ?? '',
@@ -297,10 +348,10 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
             // Grade, Statut & Carrière
             $militaire->grade_actuel,
             $militaire->categorie ?? '',
-            $formatDate($militaire->date_entree_service),
-            round($militaire->anciennete),
-            $formatDate($militaire->date_derniere_promotion),
-            round($militaire->anciennete_grade ?? 0),
+            $dEntree,
+            $anc,
+            $dPromo,
+            $ancGrade,
             $militaire->origine_formation ?? '',
             $militaire->specialite ?? '',
             $militaire->statut,
@@ -329,7 +380,7 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
 
             // Circonstances spécifiques & Observations
             $militaire->observations ?? '',
-            $formatDate($militaire->date_deces),
+            $dDeces,
             $militaire->circonstances_deces ?? '',
             $militaire->motif_radiation ?? '',
             $militaire->reference_decision ?? '',
@@ -337,7 +388,16 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
             $militaire->motif_transfert ?? '',
         ];
 
-        return array_map([$this, 'sanitizeFormula'], $row);
+        // Neutralise les injections de formules CSV/Excel (CWE-1236)
+        foreach ($row as &$val) {
+            if (is_string($val) && $val !== '') {
+                $firstChar = $val[0];
+                if ($firstChar === '=' || $firstChar === '+' || $firstChar === '-' || $firstChar === '@' || $firstChar === "\t" || $firstChar === "\r") {
+                    $val = "'" . $val;
+                }
+            }
+        }
+        return $row;
     }
 
     /**
