@@ -111,7 +111,7 @@ export async function downloadExport(url, options = {}) {
                 life: 5000
             });
         }
-        throw error;
+        return false;
     } finally {
         if (typeof onFinish === 'function') {
             onFinish();

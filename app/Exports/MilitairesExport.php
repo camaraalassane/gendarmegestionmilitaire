@@ -18,7 +18,7 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 
-class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHeadings, WithMapping, ShouldAutoSize, WithStyles, WithCustomValueBinder
+class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHeadings, WithMapping, WithStyles, WithCustomValueBinder
 {
     use ProtegeFormules;
     protected $search;
@@ -158,50 +158,82 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
 
     public function map($militaire): array
     {
-        // Certificats militaires complets avec nom, niveau et date d'obtention
-        $certificatsComplets = $militaire->certificats->map(function ($c) {
-            $nom = $c->nom_certificat ?? $c->niveau_certificat ?? 'Certificat';
-            $niveau = ($c->niveau_certificat && $c->niveau_certificat !== $nom) ? " [{$c->niveau_certificat}]" : '';
-            $date = !empty($c->pivot->date_obtention)
-                ? ' (' . Carbon::parse($c->pivot->date_obtention)->format('d/m/Y') . ')'
-                : '';
-            return trim($nom . $niveau . $date);
-        })->filter()->implode(' ; ');
+        // Helper rapide pour formater une date sans instancier inutilement Carbon
+        $formatDate = function ($date): string {
+            if (!$date) return '';
+            if ($date instanceof \DateTimeInterface) return $date->format('d/m/Y');
+            $s = (string) $date;
+            if (strlen($s) >= 10 && $s[4] === '-' && $s[7] === '-') {
+                return substr($s, 8, 2) . '/' . substr($s, 5, 2) . '/' . substr($s, 0, 4);
+            }
+            return $s;
+        };
 
-        $niveauxCertificats = $militaire->certificats->pluck('niveau_certificat')->filter()->implode(', ');
+        // Certificats militaires complets avec nom, niveau et date d'obtention (optimisé sans overhead collection)
+        $certParts = [];
+        $niveaux = [];
+        if ($militaire->relationLoaded('certificats') && $militaire->certificats) {
+            foreach ($militaire->certificats as $c) {
+                $nom = $c->nom_certificat ?? $c->niveau_certificat ?? 'Certificat';
+                $niveau = ($c->niveau_certificat && $c->niveau_certificat !== $nom) ? " [{$c->niveau_certificat}]" : '';
+                $pDate = $c->pivot?->date_obtention;
+                $dateStr = $pDate ? ' (' . $formatDate($pDate) . ')' : '';
+                $entry = trim($nom . $niveau . $dateStr);
+                if ($entry !== '') {
+                    $certParts[] = $entry;
+                }
+                if (!empty($c->niveau_certificat)) {
+                    $niveaux[] = $c->niveau_certificat;
+                }
+            }
+        }
+        $certificatsComplets = implode(' ; ', $certParts);
+        $niveauxCertificats = implode(', ', array_unique($niveaux));
 
-        // Formatage listes JSON ou texte pour décorations et diplômes
+        // Formatage listes JSON ou texte pour décorations et diplômes (rapide, sans collect())
         $formatList = function ($val) {
             if (!$val) return '';
             $trimmed = trim((string)$val);
             if (str_starts_with($trimmed, '[') && str_ends_with($trimmed, ']')) {
                 $decoded = json_decode($trimmed, true);
                 if (is_array($decoded)) {
-                    $filtered = array_values(array_filter(array_map('trim', $decoded)));
-                    if (count($filtered) > 1) {
-                        return collect($filtered)->map(fn($item, $i) => ($i + 1) . '. ' . $item)->implode(' ; ');
+                    $filtered = [];
+                    foreach ($decoded as $item) {
+                        $itemTrimmed = trim((string)$item);
+                        if ($itemTrimmed !== '') {
+                            $filtered[] = $itemTrimmed;
+                        }
                     }
-                    return implode(', ', $filtered);
+                    $c = count($filtered);
+                    if ($c > 1) {
+                        $parts = [];
+                        foreach ($filtered as $i => $item) {
+                            $parts[] = ($i + 1) . '. ' . $item;
+                        }
+                        return implode(' ; ', $parts);
+                    }
+                    return $c === 1 ? $filtered[0] : '';
                 }
             }
             return $trimmed;
         };
 
-        // Affectations & Maillage Territorial (Gestion complète de l'historique)
-        $affs = $militaire->affectations;
+        // Affectations & Maillage Territorial (Gestion optimisée de l'historique sans collect)
+        $affs = $militaire->relationLoaded('affectations') ? $militaire->affectations : null;
         if ($affs && $affs->isNotEmpty()) {
-            $affList = $affs->map(function ($a) {
-                return [
+            $affList = [];
+            foreach ($affs as $a) {
+                $affList[] = [
                     'unite' => trim((string)$a->unite),
                     'region' => trim((string)$a->region),
-                    'date_mutation' => $a->date_mutation ? Carbon::parse($a->date_mutation)->format('d/m/Y') : '',
+                    'date_mutation' => $formatDate($a->date_mutation),
                 ];
-            })->values()->toArray();
+            }
         } elseif ($militaire->unite || $militaire->region || $militaire->date_mutation) {
             $affList = [[
                 'unite' => trim((string)$militaire->unite),
                 'region' => trim((string)$militaire->region),
-                'date_mutation' => $militaire->date_mutation?->format('d/m/Y') ?? '',
+                'date_mutation' => $formatDate($militaire->date_mutation),
             ]];
         } else {
             $affList = [];
@@ -228,19 +260,22 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
 
         $uniteActuelle = $affList[0]['unite'] ?? ($militaire->unite ?? '');
         $regionActuelle = $affList[0]['region'] ?? ($militaire->region ?? '');
-        $dateMutationActuelle = $affList[0]['date_mutation'] ?? ($militaire->date_mutation?->format('d/m/Y') ?? '');
+        $dateMutationActuelle = $affList[0]['date_mutation'] ?? $formatDate($militaire->date_mutation);
 
         // Affectation & Maillage Territorial (Une seule colonne propre sans répétition)
-        if (count($affList) === 0) {
+        $numAff = count($affList);
+        if ($numAff === 0) {
             $maillageTerritorial = '';
-        } elseif (count($affList) === 1) {
+        } elseif ($numAff === 1) {
             $maillageTerritorial = $formatAff($affList[0]);
         } else {
             // S'il y a plusieurs affectations : liste numérotée avec saut de ligne dans la cellule
-            $maillageTerritorial = collect($affList)->map(function ($item, $idx) use ($formatAff) {
+            $lines = [];
+            foreach ($affList as $idx => $item) {
                 $suffix = ($idx === 0) ? ' [Actuelle]' : '';
-                return ($idx + 1) . '. ' . $formatAff($item) . $suffix;
-            })->implode("\n");
+                $lines[] = ($idx + 1) . '. ' . $formatAff($item) . $suffix;
+            }
+            $maillageTerritorial = implode("\n", $lines);
         }
 
         $row = [
@@ -250,7 +285,7 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
             $militaire->nom,
             $militaire->prenom,
             $militaire->sexe ?? '',
-            $militaire->date_naissance?->format('d/m/Y') ?? '',
+            $formatDate($militaire->date_naissance),
             $militaire->lieu_naissance ?? '',
             round($militaire->age),
             $militaire->telephone ?? '',
@@ -262,9 +297,9 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
             // Grade, Statut & Carrière
             $militaire->grade_actuel,
             $militaire->categorie ?? '',
-            $militaire->date_entree_service?->format('d/m/Y') ?? '',
+            $formatDate($militaire->date_entree_service),
             round($militaire->anciennete),
-            $militaire->date_derniere_promotion?->format('d/m/Y') ?? '',
+            $formatDate($militaire->date_derniere_promotion),
             round($militaire->anciennete_grade ?? 0),
             $militaire->origine_formation ?? '',
             $militaire->specialite ?? '',
@@ -294,7 +329,7 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
 
             // Circonstances spécifiques & Observations
             $militaire->observations ?? '',
-            $militaire->date_deces?->format('d/m/Y') ?? '',
+            $formatDate($militaire->date_deces),
             $militaire->circonstances_deces ?? '',
             $militaire->motif_radiation ?? '',
             $militaire->reference_decision ?? '',
@@ -328,8 +363,21 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
         $sheet->getRowDimension(1)->setRowHeight(28);
         $sheet->getStyle('1')->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
 
-        // Activation du retour à la ligne pour afficher les affectations multiples proprement
-        $sheet->getStyle($sheet->calculateWorksheetDimension())->getAlignment()->setWrapText(true);
+        // Définition de la largeur par défaut sur toutes les colonnes (évite le calcul lourd ShouldAutoSize)
+        $sheet->getDefaultColumnDimension()->setWidth(18);
+
+        // Largeurs optimisées pour colonnes spécifiques
+        $sheet->getColumnDimension('A')->setWidth(14); // Matricule
+        $sheet->getColumnDimension('C')->setWidth(18); // Nom
+        $sheet->getColumnDimension('D')->setWidth(18); // Prénom
+        $sheet->getColumnDimension('N')->setWidth(20); // Grade actuel
+        $sheet->getColumnDimension('Z')->setWidth(25); // Unité
+        $sheet->getColumnDimension('AA')->setWidth(20); // Région
+        $sheet->getColumnDimension('AC')->setWidth(35); // Maillage Territorial
+        $sheet->getColumnDimension('AJ')->setWidth(30); // Certificats
+        $sheet->getColumnDimension('AL')->setWidth(30); // Décorations
+        $sheet->getColumnDimension('AM')->setWidth(30); // Diplômes
+        $sheet->getColumnDimension('AN')->setWidth(30); // Observations
 
         return [];
     }

@@ -22,6 +22,7 @@ const deleteDialogVisible = ref(false);
 const militaireToDelete = ref(null);
 const exportDialogVisible = ref(false);
 const exporting = ref(false);
+const exportingFormat = ref(null);
 const exportProgressText = ref('');
 
 // Sélection multiple et impression de certificats de présence
@@ -441,6 +442,7 @@ const openExportModal = () => {
 
 const exportMilitaires = async (format = 'xlsx') => {
     exporting.value = true;
+    exportingFormat.value = format;
 
     let params = {};
 
@@ -466,28 +468,36 @@ const exportMilitaires = async (format = 'xlsx') => {
     const queryString = new URLSearchParams(params).toString();
     const url = baseUrl + (queryString ? '?' + queryString : '');
 
-    await downloadExport(url, {
-        defaultFilename: `militaires_${new Date().toISOString().slice(0, 10)}.${isCsv ? 'csv' : 'xlsx'}`,
-        toast,
-        onStart: () => {
-            exporting.value = true;
-            exportProgressText.value = isCsv ? 'Génération du flux CSV en cours...' : 'Génération du fichier Excel en cours...';
-        },
-        onProgress: (percent) => {
-            if (percent !== null) {
-                exportProgressText.value = `Téléchargement : ${percent}%`;
-            } else {
-                exportProgressText.value = 'Réception du fichier en cours...';
-            }
-        },
-        onFinish: () => {
-            exporting.value = false;
-            exportDialogVisible.value = false;
-            exportProgressText.value = '';
-        },
-        loadingMessage: isCsv ? 'Préparation du flux CSV des militaires...' : 'Préparation du fichier Excel des militaires... Veuillez patienter.',
-        successMessage: isCsv ? 'Fichier CSV des militaires téléchargé avec succès !' : 'Liste des militaires téléchargée avec succès !'
-    });
+    try {
+        await downloadExport(url, {
+            defaultFilename: `militaires_${new Date().toISOString().slice(0, 10)}.${isCsv ? 'csv' : 'xlsx'}`,
+            toast,
+            onStart: () => {
+                exporting.value = true;
+                exportProgressText.value = isCsv ? 'Génération du flux CSV en cours...' : 'Génération du fichier Excel en cours...';
+            },
+            onProgress: (percent) => {
+                if (percent !== null) {
+                    exportProgressText.value = `Téléchargement : ${percent}%`;
+                } else {
+                    exportProgressText.value = 'Réception du fichier en cours...';
+                }
+            },
+            onFinish: () => {
+                exporting.value = false;
+                exportingFormat.value = null;
+                exportDialogVisible.value = false;
+                exportProgressText.value = '';
+            },
+            loadingMessage: isCsv ? 'Préparation du flux CSV des militaires...' : 'Préparation du fichier Excel des militaires... Veuillez patienter.',
+            successMessage: isCsv ? 'Fichier CSV des militaires téléchargé avec succès !' : 'Liste des militaires téléchargée avec succès !'
+        });
+    } catch (e) {
+        // Erreur déjà affichée par toast dans downloadExport
+    } finally {
+        exporting.value = false;
+        exportingFormat.value = null;
+    }
 };
 
 const confirmDelete = (militaire) => {
@@ -1053,11 +1063,15 @@ const executeBulkAssign = () => {
                     <Button label="Annuler" icon="pi pi-times" class="p-button-text text-gray-500 hover:text-gray-700"
                         :disabled="exporting"
                         @click="exportDialogVisible = false" />
-                    <Button :label="exporting ? 'Exportation...' : 'Exporter CSV (Flux)'" icon="pi pi-file"
-                        class="bg-emerald-700 hover:bg-emerald-800 text-white border-0 shadow-sm font-medium" :loading="exporting"
+                    <Button :label="exporting && exportingFormat === 'csv' ? 'Génération CSV...' : 'Exporter CSV (Flux)'" icon="pi pi-file"
+                        class="bg-emerald-700 hover:bg-emerald-800 text-white border-0 shadow-sm font-medium" 
+                        :loading="exporting && exportingFormat === 'csv'"
+                        :disabled="exporting"
                         @click="exportMilitaires('csv')" />
-                    <Button :label="exporting ? 'Exportation...' : 'Exporter Excel (.xlsx)'" icon="pi pi-file-excel"
-                        class="bg-gradient-to-r from-sky-900 to-sky-800 hover:from-sky-950 hover:to-sky-900 border-sky-800 text-white shadow-sm font-medium" :loading="exporting"
+                    <Button :label="exporting && exportingFormat === 'xlsx' ? 'Génération Excel...' : 'Exporter Excel (.xlsx)'" icon="pi pi-file-excel"
+                        class="bg-gradient-to-r from-sky-900 to-sky-800 hover:from-sky-950 hover:to-sky-900 border-sky-800 text-white shadow-sm font-medium" 
+                        :loading="exporting && exportingFormat === 'xlsx'"
+                        :disabled="exporting"
                         @click="exportMilitaires('xlsx')" />
                 </div>
             </template>
