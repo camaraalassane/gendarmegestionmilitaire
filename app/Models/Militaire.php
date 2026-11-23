@@ -257,6 +257,7 @@ class Militaire extends Model
         static::saved(function ($militaire) {
             if (!static::$isImporting) {
                 // Liste inverse de sécurité : seuls ces champs cosmétiques/contact/index n'invalident pas le cache
+                // 'observations' est intentionnellement exclu car il est scruté par les calculs de disparus/otages/retraite
                 $champsIgnorables = [
                     'telephone',
                     'telephone_personne_contacter',
@@ -264,7 +265,6 @@ class Militaire extends Model
                     'adresse_personne_contacter',
                     'personne_a_contacter',
                     'photo',
-                    'observations',
                     'groupe_sanguin',
                     'taille',
                     'pointure',

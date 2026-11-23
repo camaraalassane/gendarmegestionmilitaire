@@ -175,7 +175,7 @@ const executeDelete = () => {
     } else if (deleteType.value === 'theatre') {
         url = route('configurations.theatres.destroy', deleteItem.value.id);
     } else if (deleteType.value === 'appui') {
-        url = `/configurations/unites-appui/${deleteItem.value.id}`;
+        url = route('configurations.unites-appui.destroy', deleteItem.value.id);
     }
 
     router.delete(url, {
@@ -197,7 +197,13 @@ const executeDelete = () => {
                 if (th && Array.isArray(th.unites_appui)) {
                     th.unites_appui = th.unites_appui.filter(u => u.id !== deletedId);
                 }
+                if (editingAppuiId.value === deletedId) {
+                    cancelEditAppui();
+                }
             }
+
+            deleteItem.value = null;
+            deleteType.value = null;
 
             toast.add({
                 severity: 'success',
@@ -207,6 +213,9 @@ const executeDelete = () => {
             });
         },
         onError: () => {
+            deleteDialogVisible.value = false;
+            deleteItem.value = null;
+            deleteType.value = null;
             toast.add({
                 severity: 'error',
                 summary: 'Erreur',

@@ -312,79 +312,91 @@ onMounted(() => {
                 <!-- Cartes de navigation -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                     <!-- Carte Promotions -->
-                    <div class="cursor-pointer transition-all rounded-xl border p-3.5 flex items-center justify-between gap-2.5 min-w-0"
+                    <div class="cursor-pointer transition-all rounded-xl border p-4 flex flex-col justify-between hover:shadow-md"
                         :class="selectedType === 'promotions' 
                             ? 'bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 text-white shadow-md border-sky-600 ring-2 ring-sky-400' 
                             : 'bg-white text-slate-800 border-slate-200 hover:border-sky-400 hover:shadow-xs'"
                         @click="selectType('promotions')">
-                        <div class="flex items-center gap-2.5 min-w-0">
+                        <div class="flex items-center justify-between gap-2 mb-2.5">
                             <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
                                 :class="selectedType === 'promotions' ? 'bg-white/20 text-white' : 'bg-sky-50 text-sky-900'">
                                 <i class="pi pi-star text-lg"></i>
                             </div>
-                            <div class="min-w-0">
-                                <h3 class="text-sm font-bold truncate leading-tight" :class="selectedType === 'promotions' ? 'text-white' : 'text-slate-800'">Promotions</h3>
-                                <p class="text-[11px] truncate leading-tight mt-0.5" :class="selectedType === 'promotions' ? 'text-white/80' : 'text-slate-500'">Propositions de grade</p>
+                            <div class="text-2xl sm:text-3xl font-black tabular-nums tracking-tight text-right"
+                                :class="selectedType === 'promotions' ? 'text-white' : 'text-sky-950'">
+                                {{ Number(totalPromotions || 0).toLocaleString('fr-FR') }}
                             </div>
                         </div>
-                        <div class="text-2xl font-black shrink-0 tabular-nums text-right pl-1" :class="selectedType === 'promotions' ? 'text-white' : 'text-sky-950'">{{ totalPromotions }}</div>
+                        <div>
+                            <h3 class="text-sm font-bold leading-tight" :class="selectedType === 'promotions' ? 'text-white' : 'text-slate-800'">Promotions</h3>
+                            <p class="text-xs leading-tight mt-0.5" :class="selectedType === 'promotions' ? 'text-white/80' : 'text-slate-500'">Propositions de grade</p>
+                        </div>
                     </div>
 
                     <!-- Carte Formations -->
-                    <div class="cursor-pointer transition-all rounded-xl border p-3.5 flex items-center justify-between gap-2.5 min-w-0"
+                    <div class="cursor-pointer transition-all rounded-xl border p-4 flex flex-col justify-between hover:shadow-md"
                         :class="selectedType === 'formations' 
                             ? 'bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 text-white shadow-md border-sky-600 ring-2 ring-sky-400' 
                             : 'bg-white text-slate-800 border-slate-200 hover:border-sky-400 hover:shadow-xs'"
                         @click="selectType('formations')">
-                        <div class="flex items-center gap-2.5 min-w-0">
+                        <div class="flex items-center justify-between gap-2 mb-2.5">
                             <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
                                 :class="selectedType === 'formations' ? 'bg-white/20 text-white' : 'bg-sky-50 text-sky-900'">
                                 <i class="pi pi-book text-lg"></i>
                             </div>
-                            <div class="min-w-0">
-                                <h3 class="text-sm font-bold truncate leading-tight" :class="selectedType === 'formations' ? 'text-white' : 'text-slate-800'">Formations</h3>
-                                <p class="text-[11px] truncate leading-tight mt-0.5" :class="selectedType === 'formations' ? 'text-white/80' : 'text-slate-500'">Formations disponibles</p>
+                            <div class="text-2xl sm:text-3xl font-black tabular-nums tracking-tight text-right"
+                                :class="selectedType === 'formations' ? 'text-white' : 'text-sky-950'">
+                                {{ Number(totalFormations || 0).toLocaleString('fr-FR') }}
                             </div>
                         </div>
-                        <div class="text-2xl font-black shrink-0 tabular-nums text-right pl-1" :class="selectedType === 'formations' ? 'text-white' : 'text-sky-950'">{{ totalFormations }}</div>
+                        <div>
+                            <h3 class="text-sm font-bold leading-tight" :class="selectedType === 'formations' ? 'text-white' : 'text-slate-800'">Formations</h3>
+                            <p class="text-xs leading-tight mt-0.5" :class="selectedType === 'formations' ? 'text-white/80' : 'text-slate-500'">Formations disponibles</p>
+                        </div>
                     </div>
 
                     <!-- Carte Contrats -->
-                    <div class="cursor-pointer transition-all rounded-xl border p-3.5 flex items-center justify-between gap-2.5 min-w-0"
+                    <div class="cursor-pointer transition-all rounded-xl border p-4 flex flex-col justify-between hover:shadow-md"
                         :class="selectedType === 'contrats' 
                             ? 'bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 text-white shadow-md border-sky-600 ring-2 ring-sky-400' 
                             : 'bg-white text-slate-800 border-slate-200 hover:border-sky-400 hover:shadow-xs'"
                         @click="selectType('contrats')">
-                        <div class="flex items-center gap-2.5 min-w-0">
+                        <div class="flex items-center justify-between gap-2 mb-2.5">
                             <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
                                 :class="selectedType === 'contrats' ? 'bg-white/20 text-white' : 'bg-sky-50 text-sky-900'">
                                 <i class="pi pi-file text-lg"></i>
                             </div>
-                            <div class="min-w-0">
-                                <h3 class="text-sm font-bold truncate leading-tight" :class="selectedType === 'contrats' ? 'text-white' : 'text-slate-800'">Contrats</h3>
-                                <p class="text-[11px] truncate leading-tight mt-0.5" :class="selectedType === 'contrats' ? 'text-white/80' : 'text-slate-500'">Renouvellements</p>
+                            <div class="text-2xl sm:text-3xl font-black tabular-nums tracking-tight text-right"
+                                :class="selectedType === 'contrats' ? 'text-white' : 'text-sky-950'">
+                                {{ Number(totalContrats || 0).toLocaleString('fr-FR') }}
                             </div>
                         </div>
-                        <div class="text-2xl font-black shrink-0 tabular-nums text-right pl-1" :class="selectedType === 'contrats' ? 'text-white' : 'text-sky-950'">{{ totalContrats }}</div>
+                        <div>
+                            <h3 class="text-sm font-bold leading-tight" :class="selectedType === 'contrats' ? 'text-white' : 'text-slate-800'">Contrats</h3>
+                            <p class="text-xs leading-tight mt-0.5" :class="selectedType === 'contrats' ? 'text-white/80' : 'text-slate-500'">Renouvellements</p>
+                        </div>
                     </div>
 
                     <!-- Carte Mutations -->
-                    <div class="cursor-pointer transition-all rounded-xl border p-3.5 flex items-center justify-between gap-2.5 min-w-0"
+                    <div class="cursor-pointer transition-all rounded-xl border p-4 flex flex-col justify-between hover:shadow-md"
                         :class="selectedType === 'mutations' 
                             ? 'bg-gradient-to-r from-sky-800 via-sky-700 to-sky-800 text-white shadow-md border-sky-600 ring-2 ring-sky-400' 
                             : 'bg-white text-slate-800 border-slate-200 hover:border-sky-400 hover:shadow-xs'"
                         @click="selectType('mutations')">
-                        <div class="flex items-center gap-2.5 min-w-0">
+                        <div class="flex items-center justify-between gap-2 mb-2.5">
                             <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
                                 :class="selectedType === 'mutations' ? 'bg-white/20 text-white' : 'bg-sky-50 text-sky-900'">
                                 <i class="pi pi-arrows-alt text-lg"></i>
                             </div>
-                            <div class="min-w-0">
-                                <h3 class="text-sm font-bold truncate leading-tight" :class="selectedType === 'mutations' ? 'text-white' : 'text-slate-800'">Mutations</h3>
-                                <p class="text-[11px] truncate leading-tight mt-0.5" :class="selectedType === 'mutations' ? 'text-white/80' : 'text-slate-500'">En poste ≥ 3 ans</p>
+                            <div class="text-2xl sm:text-3xl font-black tabular-nums tracking-tight text-right"
+                                :class="selectedType === 'mutations' ? 'text-white' : 'text-sky-950'">
+                                {{ Number(totalMutations || 0).toLocaleString('fr-FR') }}
                             </div>
                         </div>
-                        <div class="text-2xl font-black shrink-0 tabular-nums text-right pl-1" :class="selectedType === 'mutations' ? 'text-white' : 'text-sky-950'">{{ totalMutations }}</div>
+                        <div>
+                            <h3 class="text-sm font-bold leading-tight" :class="selectedType === 'mutations' ? 'text-white' : 'text-slate-800'">Mutations</h3>
+                            <p class="text-xs leading-tight mt-0.5" :class="selectedType === 'mutations' ? 'text-white/80' : 'text-slate-500'">En poste ≥ 3 ans</p>
+                        </div>
                     </div>
                 </div>
 

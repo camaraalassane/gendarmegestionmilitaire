@@ -1073,6 +1073,109 @@ class MilitaireController extends Controller
         );
     }
 
+    /**
+     * Export CSV en flux de la liste du personnel : adapté aux très gros effectifs (300 000 fiches).
+     * Les lignes sont lues par lots de 2 000 (keyset sur l'id) puis écrites immédiatement : mémoire constante.
+     * Colonnes à plat uniquement (sans certificats ni historique d'affectations) ; ordre : id croissant.
+     * Pour l'export enrichi (styles, certificats, affectations) utiliser l'export Excel, de préférence filtré.
+     */
+    public function exportCsv(Request $request)
+    {
+        $clean = fn ($v) => ($v && $v !== 'null') ? $v : null;
+        $search = $clean($request->input('search'));
+        $grade = $clean($request->input('grade'));
+        $statut = $clean($request->input('statut'));
+
+        if (auth()->check()) {
+            ActivityLog::create([
+                'user_id' => auth()->id(),
+                'action' => 'Export',
+                'description' => "Export CSV du personnel (statut=" . ($statut ?? 'tous') . ", grade=" . ($grade ?? 'tous') . ")",
+                'ip_address' => $request->ip(),
+            ]);
+        }
+
+        $query = Militaire::query();
+
+        if ($search) {
+            foreach (array_filter(explode(' ', mb_strtolower(trim(preg_replace('/\s+/', ' ', $search))))) as $term) {
+                $term = addcslashes($term, '\\%_');
+                $query->where('militaires.recherche', 'like', "%{$term}%"); // index trigramme
+            }
+        }
+
+        if ($grade) {
+            if (is_numeric($grade)) {
+                $query->where('militaires.grade_id', (int) $grade);
+            } else {
+                $gradeId = Grade::where('nom_grade', $grade)->orWhere('code_grade', $grade)->value('id');
+                $gradeId
+                    ? $query->where('militaires.grade_id', $gradeId)
+                    : $query->where('militaires.grade_actuel', $grade);
+            }
+        }
+
+        if ($statut === 'retraites_n') {
+            $this->appliquerFiltreRetraite($query, (int) Carbon::now()->year);
+        } elseif ($statut === 'retraites_n1') {
+            $this->appliquerFiltreRetraite($query, (int) Carbon::now()->year + 1);
+        } elseif ($statut === 'actif') {
+            $query->whereBetween('militaires.statut_code', [1, 4]);
+        } elseif ($statut && $statut !== 'all') {
+            $code = \App\Enums\StatutMilitaire::depuisTexte($statut)?->value;
+            $code !== null
+                ? $query->where('militaires.statut_code', $code)
+                : $query->where('militaires.statut', $statut);
+        }
+
+        $colonnes = [
+            'matricule' => 'Matricule', 'numero_nina' => 'N° NINA', 'nom' => 'Nom', 'prenom' => 'Prénom',
+            'sexe' => 'Sexe', 'date_naissance' => 'Date de naissance', 'lieu_naissance' => 'Lieu de naissance',
+            'telephone' => 'Téléphone', 'grade_actuel' => 'Grade actuel', 'categorie' => 'Catégorie',
+            'date_entree_service' => 'Date entrée en service', 'date_derniere_promotion' => 'Date dernière promotion',
+            'specialite' => 'Spécialité', 'statut' => 'Statut', 'position_actuelle' => 'Position',
+            'fonction_actuelle' => 'Fonction actuelle', 'unite' => 'Unité', 'region' => 'Région',
+            'date_mutation' => 'Date dernière mutation', 'status_sanitaire' => 'Statut sanitaire',
+            'a_permis_conduire' => 'Permis de conduire', 'antecedent_judiciaire' => 'Antécédent judiciaire',
+            'antecedent_disciplinaire' => 'Antécédent disciplinaire', 'date_deces' => 'Date décès',
+            'motif_radiation' => 'Motif radiation',
+        ];
+        $dates = ['date_naissance', 'date_entree_service', 'date_derniere_promotion', 'date_mutation', 'date_deces'];
+        $oui = ['a_permis_conduire', 'antecedent_judiciaire', 'antecedent_disciplinaire'];
+
+        // Neutralise l'injection de formules (=, +, -, @) à l'ouverture dans Excel
+        $protege = static function ($v) {
+            $v = (string) $v;
+            return ($v !== '' && strpbrk($v[0], "=+-@\t\r") !== false) ? "'" . $v : $v;
+        };
+
+        return response()->streamDownload(function () use ($query, $colonnes, $dates, $oui, $protege) {
+            $out = fopen('php://output', 'w');
+            fwrite($out, "\xEF\xBB\xBF"); // BOM UTF-8 : accents corrects dans Excel
+            fputcsv($out, array_values($colonnes), ';');
+
+            $query->select(array_map(fn ($c) => "militaires.{$c}", array_keys($colonnes)) + ['id' => 'militaires.id'])
+                ->chunkById(2000, function ($lot) use ($out, $colonnes, $dates, $oui, $protege) {
+                    foreach ($lot as $m) {
+                        $ligne = [];
+                        foreach (array_keys($colonnes) as $c) {
+                            $v = $m->getRawOriginal($c);
+                            if (in_array($c, $dates, true)) {
+                                $v = $v ? Carbon::parse($v)->format('d/m/Y') : '';
+                            } elseif (in_array($c, $oui, true)) {
+                                $v = $v ? 'Oui' : 'Non';
+                            }
+                            $ligne[] = $protege($v);
+                        }
+                        fputcsv($out, $ligne, ';');
+                    }
+                    fflush($out);
+                }, 'militaires.id', 'id');
+
+            fclose($out);
+        }, 'militaires_' . date('Y-m-d') . '.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
     // =========================================================
     // MÉTHODES PRIVÉES
     // =========================================================

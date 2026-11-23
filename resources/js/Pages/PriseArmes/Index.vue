@@ -331,14 +331,33 @@ const saveRegistre = () => {
     }
 };
 
+const deleteDialogVisible = ref(false);
+const itemToDelete = ref(null);
+const deletingRegistre = ref(false);
+
 const deleteRegistre = (item) => {
-    if (confirm(`Êtes-vous sûr de vouloir supprimer ${item.grade_texte || ''} ${item.nom} de la base de données ?`)) {
-        router.delete(route('prise-armes.registres.destroy', item.id), {
-            onSuccess: () => {
-                toast.add({ severity: 'success', summary: 'Succès', detail: 'Entrée supprimée de la base.', life: 3000 });
-            }
-        });
-    }
+    itemToDelete.value = item;
+    deleteDialogVisible.value = true;
+};
+
+const executeDeleteRegistre = () => {
+    if (!itemToDelete.value) return;
+    deletingRegistre.value = true;
+    router.delete(route('prise-armes.registres.destroy', itemToDelete.value.id), {
+        onSuccess: () => {
+            deleteDialogVisible.value = false;
+            itemToDelete.value = null;
+            toast.add({ severity: 'success', summary: 'Succès', detail: 'Entrée supprimée de la base.', life: 3000 });
+        },
+        onError: () => {
+            deleteDialogVisible.value = false;
+            itemToDelete.value = null;
+            toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de supprimer cette entrée.', life: 3000 });
+        },
+        onFinish: () => {
+            deletingRegistre.value = false;
+        }
+    });
 };
 
 // Liste ordonnée des 20 régions (19 régions + 1 District de Bamako) depuis la base
@@ -1333,6 +1352,32 @@ const liste20Regions = computed(() => {
                         class="!bg-sky-800"
                         @click="saveRegistre"
                     />
+                </div>
+            </template>
+        </Dialog>
+
+        <!-- Modal confirmation suppression registre in-app -->
+        <Dialog
+            v-model:visible="deleteDialogVisible"
+            header="Confirmation de suppression"
+            modal
+            :style="{ width: '420px' }"
+        >
+            <div class="flex items-start gap-3 pt-2 text-xs">
+                <div class="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0 text-base">
+                    <i class="pi pi-exclamation-triangle"></i>
+                </div>
+                <div>
+                    <p class="font-bold text-slate-800 text-sm mb-1">Supprimer cette entrée ?</p>
+                    <p class="text-slate-600">
+                        Êtes-vous sûr de vouloir supprimer {{ itemToDelete?.grade_texte || '' }} {{ itemToDelete?.nom || '' }} de la base de données ?
+                    </p>
+                </div>
+            </div>
+            <template #footer>
+                <div class="flex justify-end gap-2 pt-2">
+                    <Button label="Annuler" text severity="secondary" size="small" @click="deleteDialogVisible = false" />
+                    <Button label="Supprimer" icon="pi pi-trash" severity="danger" size="small" :loading="deletingRegistre" @click="executeDeleteRegistre" />
                 </div>
             </template>
         </Dialog>

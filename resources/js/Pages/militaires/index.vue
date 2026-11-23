@@ -439,7 +439,7 @@ const openExportModal = () => {
     exportDialogVisible.value = true;
 };
 
-const exportMilitaires = async () => {
+const exportMilitaires = async (format = 'xlsx') => {
     exporting.value = true;
 
     let params = {};
@@ -461,16 +461,17 @@ const exportMilitaires = async () => {
         if (params[key] === null || params[key] === undefined || params[key] === '') delete params[key];
     });
 
-    const baseUrl = '/militaires/export';
+    const isCsv = format === 'csv';
+    const baseUrl = isCsv ? '/militaires/export-csv' : '/militaires/export';
     const queryString = new URLSearchParams(params).toString();
     const url = baseUrl + (queryString ? '?' + queryString : '');
 
     await downloadExport(url, {
-        defaultFilename: `militaires_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        defaultFilename: `militaires_${new Date().toISOString().slice(0, 10)}.${isCsv ? 'csv' : 'xlsx'}`,
         toast,
         onStart: () => {
             exporting.value = true;
-            exportProgressText.value = 'Génération du fichier Excel en cours...';
+            exportProgressText.value = isCsv ? 'Génération du flux CSV en cours...' : 'Génération du fichier Excel en cours...';
         },
         onProgress: (percent) => {
             if (percent !== null) {
@@ -484,8 +485,8 @@ const exportMilitaires = async () => {
             exportDialogVisible.value = false;
             exportProgressText.value = '';
         },
-        loadingMessage: 'Préparation du fichier Excel des militaires... Veuillez patienter.',
-        successMessage: 'Liste des militaires téléchargée avec succès !'
+        loadingMessage: isCsv ? 'Préparation du flux CSV des militaires...' : 'Préparation du fichier Excel des militaires... Veuillez patienter.',
+        successMessage: isCsv ? 'Fichier CSV des militaires téléchargé avec succès !' : 'Liste des militaires téléchargée avec succès !'
     });
 };
 
@@ -1048,13 +1049,16 @@ const executeBulkAssign = () => {
                 </div>
             </div>
             <template #footer>
-                <div class="flex justify-end gap-2">
+                <div class="flex justify-end gap-2 flex-wrap">
                     <Button label="Annuler" icon="pi pi-times" class="p-button-text text-gray-500 hover:text-gray-700"
                         :disabled="exporting"
                         @click="exportDialogVisible = false" />
-                    <Button :label="exporting ? 'Exportation...' : 'Exporter'" icon="pi pi-file-excel"
+                    <Button :label="exporting ? 'Exportation...' : 'Exporter CSV (Flux)'" icon="pi pi-file"
+                        class="bg-emerald-700 hover:bg-emerald-800 text-white border-0 shadow-sm font-medium" :loading="exporting"
+                        @click="exportMilitaires('csv')" />
+                    <Button :label="exporting ? 'Exportation...' : 'Exporter Excel (.xlsx)'" icon="pi pi-file-excel"
                         class="bg-gradient-to-r from-sky-900 to-sky-800 hover:from-sky-950 hover:to-sky-900 border-sky-800 text-white shadow-sm font-medium" :loading="exporting"
-                        @click="exportMilitaires" />
+                        @click="exportMilitaires('xlsx')" />
                 </div>
             </template>
         </Dialog>

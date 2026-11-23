@@ -88,6 +88,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
     // Militaires
     Route::get('/militaires/{militaire}/photo', [MilitairePhotoController::class, 'show'])->name('militaires.photo');
     Route::get('/militaires/export', [MilitaireController::class, 'export'])->name('militaires.export');
+    Route::get('/militaires/export-csv', [MilitaireController::class, 'exportCsv'])->name('militaires.export-csv');
     Route::get('/militaires/export/template', [MilitaireController::class, 'exportTemplate'])->name('militaires.export.template');
     Route::get('/militaires/search-selection', [MilitaireController::class, 'searchSelection'])->name('militaires.search-selection');
     Route::post('/militaires/affectation-collective', [MilitaireController::class, 'bulkAssign'])->name('militaires.bulk-assign');
