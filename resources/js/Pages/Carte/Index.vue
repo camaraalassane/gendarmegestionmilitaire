@@ -642,36 +642,36 @@ const regionToTheatreMap = computed(() => {
 const getTheatreFill = (regionCode) => {
     const ths = regionToTheatreMap.value[regionCode] || [];
     if (ths.length === 0) {
-        return selTheatre.value ? '#0f172a' : '#16212e';
+        return selTheatre.value ? '#111b2b' : '#1e2c3f';
     }
 
     if (selTheatre.value) {
         const match = ths.find(t => t.code === selTheatre.value);
         if (match) {
-            return `color-mix(in srgb, ${match.couleur} 52%, #0f172a)`;
+            return `color-mix(in srgb, ${match.couleur} 52%, #1e2c3f)`;
         }
-        return '#0f172a';
+        return '#111b2b';
     }
 
     if (hoveredTheatre.value) {
         const match = ths.find(t => t.code === hoveredTheatre.value);
         if (match) {
-            return `color-mix(in srgb, ${match.couleur} 50%, #0f172a)`;
+            return `color-mix(in srgb, ${match.couleur} 50%, #1e2c3f)`;
         }
     }
 
     const mainTh = ths[0];
-    return `color-mix(in srgb, ${mainTh.couleur} 32%, #141e2b)`;
+    return `color-mix(in srgb, ${mainTh.couleur} 32%, #1e2c3f)`;
 };
 
 const getTheatreStroke = (regionCode) => {
     const ths = regionToTheatreMap.value[regionCode] || [];
-    if (ths.length === 0) return '#1e293b';
+    if (ths.length === 0) return '#334155';
 
     if (selTheatre.value) {
         const match = ths.find(t => t.code === selTheatre.value);
         if (match) return match.couleur;
-        return '#1e293b';
+        return '#334155';
     }
 
     if (hoveredTheatre.value) {
@@ -679,7 +679,7 @@ const getTheatreStroke = (regionCode) => {
         if (match) return match.couleur;
     }
 
-    return ths[0].couleur;
+    return ths[0].couleur || '#38bdf8';
 };
 
 const projectedTheatres = computed(() => {
@@ -2043,7 +2043,7 @@ const lignesFiltrees = computed(() => {
                     <!-- UNIQUEMENT CET ENDROIT : LE CANEVAS DE LA CARTE EN BLEU ARDOISE ADOUCI (#16212E) -->
                     <div
                         class="flex-1 min-h-[380px] lg:min-h-[430px] xl:min-h-[460px] w-full h-full relative flex items-center justify-center overflow-hidden bg-[#16212e] rounded-lg border border-[#263446] p-1 select-none"
-                        :class="{ '!cursor-grabbing': isDragging, 'cursor-grab': true }"
+                        :class="{ '!cursor-grabbing': isDragging, 'cursor-grab': true, '!bg-[#0b121e]': carteMode === 'theatres' }"
                         @mousedown="onMouseDown($event)"
                         @wheel="onWheel($event)"
                         @touchstart="onTouchStart($event)"

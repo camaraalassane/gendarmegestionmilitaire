@@ -51,24 +51,9 @@ class DashboardController extends Controller
 
         $v = \App\Models\Militaire::getCacheVersion();
 
-        $statistiques = $this->statistiquesResume($anneeCourante, $v);
-
-        $chartsData = $this->donneesGraphiques($v);
-
-        // Pré-réchauffer les modules lourds (Éligibilités & Avancement) en arrière-plan sans ralentir le dashboard
-        // Une seule fois par version de cache (et non à chaque affichage du dashboard)
-        if (Cache::add("v{$v}:dashboard:prewarm", 1, 1800)) dispatch(function () {
-            try {
-                app(\App\Http\Controllers\EligibiliteController::class)->getAllComputedData();
-                app(\App\Http\Controllers\AvancementController::class)->buildCandidatesList((int) date('Y'));
-            } catch (\Throwable $e) {
-                // Silencieux pour préserver la fluidité
-            }
-        })->afterResponse();
-
         return Inertia::render('Dashboard', [
-            'statistiques' => $statistiques,
-            'chartsData' => $chartsData,
+            'statistiques' => Inertia::defer(fn () => $this->statistiquesResume($anneeCourante, $v)),
+            'chartsData' => Inertia::defer(fn () => $this->donneesGraphiques($v)),
         ]);
     }
 

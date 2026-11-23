@@ -1,6 +1,6 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { router, Deferred } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
@@ -308,7 +308,7 @@ const isOtage = (m) => {
 
 const props = defineProps({
     militaires: { type: Object, required: true },
-    statistiques: { type: Object, required: true },
+    statistiques: { type: Object, default: () => ({ total: 0, actifs: 0, non_rattaches: 0, retraites_n: 0, retraites_n1: 0 }) },
     filters: { type: Object, default: () => ({}) },
     grades: { type: Array, default: () => [] },
     regions: { type: Array, default: () => [] },
@@ -714,55 +714,69 @@ const executeBulkAssign = () => {
                 </div>
 
                 <!-- Statistiques -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
-                    <div @click="setStatutFilter('all')" 
-                         :class="filters.statut === 'all' ? 'ring-2 ring-sky-800 shadow-md bg-sky-50/50' : 'bg-white shadow-sm hover:shadow-md'"
-                         class="rounded-lg p-3 sm:p-4 border-l-4 border-sky-900 cursor-pointer transition-all">
-                        <div class="flex items-center justify-between mb-1">
-                            <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Total militaires</span>
-                            <i class="pi pi-users text-sky-800 text-sm"></i>
+                <Deferred data="statistiques">
+                    <template #fallback>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6 animate-pulse">
+                            <div v-for="i in 5" :key="'sk-m-' + i" class="bg-white rounded-lg p-3 sm:p-4 border-l-4 border-slate-300 shadow-sm space-y-2">
+                                <div class="flex items-center justify-between mb-1">
+                                    <div class="h-3 w-20 bg-slate-200 rounded"></div>
+                                    <div class="w-4 h-4 bg-slate-200 rounded-full"></div>
+                                </div>
+                                <div class="h-7 w-16 bg-slate-300 rounded"></div>
+                                <div class="h-2.5 w-24 bg-slate-100 rounded"></div>
+                            </div>
                         </div>
-                        <div class="text-xl md:text-2xl font-bold text-sky-950">{{ statistiques.total }}</div>
-                    </div>
-                    <div @click="setStatutFilter('actif')" 
-                         :class="filters.statut === 'actif' ? 'ring-2 ring-emerald-500 shadow-md bg-emerald-50/50' : 'bg-white shadow-sm hover:shadow-md'"
-                         class="rounded-lg p-3 sm:p-4 border-l-4 border-emerald-500 cursor-pointer transition-all">
-                        <div class="flex items-center justify-between mb-1">
-                            <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Militaires actifs</span>
-                            <i class="pi pi-check-circle text-emerald-600 text-sm"></i>
+                    </template>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+                        <div @click="setStatutFilter('all')" 
+                             :class="filters.statut === 'all' ? 'ring-2 ring-sky-800 shadow-md bg-sky-50/50' : 'bg-white shadow-sm hover:shadow-md'"
+                             class="rounded-lg p-3 sm:p-4 border-l-4 border-sky-900 cursor-pointer transition-all">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Total militaires</span>
+                                <i class="pi pi-users text-sky-800 text-sm"></i>
+                            </div>
+                            <div class="text-xl md:text-2xl font-bold text-sky-950">{{ statistiques.total }}</div>
                         </div>
-                        <div class="text-xl md:text-2xl font-bold text-emerald-600">{{ statistiques.actifs }}</div>
-                        <p class="text-[11px] text-emerald-700 font-medium mt-0.5">Actifs, détachés, stages</p>
-                    </div>
-                    <div @click="setStatutFilter('non_rattaches')" 
-                         :class="(filters.statut === 'non_rattaches' || filters.non_rattaches) ? 'ring-2 ring-amber-500 shadow-md bg-amber-50/70' : 'bg-white shadow-sm hover:shadow-md'"
-                         class="rounded-lg p-3 sm:p-4 border-l-4 border-amber-500 cursor-pointer transition-all">
-                        <div class="flex items-center justify-between mb-1">
-                            <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Sans région / unité</span>
-                            <i class="pi pi-exclamation-triangle text-amber-600 text-sm"></i>
+                        <div @click="setStatutFilter('actif')" 
+                             :class="filters.statut === 'actif' ? 'ring-2 ring-emerald-500 shadow-md bg-emerald-50/50' : 'bg-white shadow-sm hover:shadow-md'"
+                             class="rounded-lg p-3 sm:p-4 border-l-4 border-emerald-500 cursor-pointer transition-all">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Militaires actifs</span>
+                                <i class="pi pi-check-circle text-emerald-600 text-sm"></i>
+                            </div>
+                            <div class="text-xl md:text-2xl font-bold text-emerald-600">{{ statistiques.actifs }}</div>
+                            <p class="text-[11px] text-emerald-700 font-medium mt-0.5">Actifs, détachés, stages</p>
                         </div>
-                        <div class="text-xl md:text-2xl font-bold text-amber-600">{{ statistiques.non_rattaches ?? 0 }}</div>
-                        <p class="text-[11px] text-amber-700 font-medium mt-0.5">Recrues à affecter</p>
-                    </div>
-                    <div @click="setStatutFilter('retraites_n')" 
-                         :class="filters.statut === 'retraites_n' ? 'ring-2 ring-purple-500 shadow-md bg-purple-50/50' : 'bg-white shadow-sm hover:shadow-md'"
-                         class="rounded-lg p-3 sm:p-4 border-l-4 border-purple-500 cursor-pointer transition-all">
-                        <div class="flex items-center justify-between mb-1">
-                            <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Retraites N</span>
-                            <i class="pi pi-calendar text-purple-600 text-sm"></i>
+                        <div @click="setStatutFilter('non_rattaches')" 
+                             :class="(filters.statut === 'non_rattaches' || filters.non_rattaches) ? 'ring-2 ring-amber-500 shadow-md bg-amber-50/70' : 'bg-white shadow-sm hover:shadow-md'"
+                             class="rounded-lg p-3 sm:p-4 border-l-4 border-amber-500 cursor-pointer transition-all">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Sans région / unité</span>
+                                <i class="pi pi-exclamation-triangle text-amber-600 text-sm"></i>
+                            </div>
+                            <div class="text-xl md:text-2xl font-bold text-amber-600">{{ statistiques.non_rattaches ?? 0 }}</div>
+                            <p class="text-[11px] text-amber-700 font-medium mt-0.5">Recrues à affecter</p>
                         </div>
-                        <div class="text-xl md:text-2xl font-bold text-purple-700">{{ statistiques.retraites_n ?? 0 }}</div>
-                    </div>
-                    <div @click="setStatutFilter('retraites_n1')" 
-                         :class="filters.statut === 'retraites_n1' ? 'ring-2 ring-indigo-500 shadow-md bg-indigo-50/50' : 'bg-white shadow-sm hover:shadow-md'"
-                         class="rounded-lg p-3 sm:p-4 border-l-4 border-indigo-500 cursor-pointer transition-all">
-                        <div class="flex items-center justify-between mb-1">
-                            <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Retraites N+1</span>
-                            <i class="pi pi-calendar text-indigo-600 text-sm"></i>
+                        <div @click="setStatutFilter('retraites_n')" 
+                             :class="filters.statut === 'retraites_n' ? 'ring-2 ring-purple-500 shadow-md bg-purple-50/50' : 'bg-white shadow-sm hover:shadow-md'"
+                             class="rounded-lg p-3 sm:p-4 border-l-4 border-purple-500 cursor-pointer transition-all">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Retraites N</span>
+                                <i class="pi pi-calendar text-purple-600 text-sm"></i>
+                            </div>
+                            <div class="text-xl md:text-2xl font-bold text-purple-700">{{ statistiques.retraites_n ?? 0 }}</div>
                         </div>
-                        <div class="text-xl md:text-2xl font-bold text-indigo-700">{{ statistiques.retraites_n1 ?? 0 }}</div>
+                        <div @click="setStatutFilter('retraites_n1')" 
+                             :class="filters.statut === 'retraites_n1' ? 'ring-2 ring-indigo-500 shadow-md bg-indigo-50/50' : 'bg-white shadow-sm hover:shadow-md'"
+                             class="rounded-lg p-3 sm:p-4 border-l-4 border-indigo-500 cursor-pointer transition-all">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs uppercase tracking-wider font-semibold text-gray-500">Retraites N+1</span>
+                                <i class="pi pi-calendar text-indigo-600 text-sm"></i>
+                            </div>
+                            <div class="text-xl md:text-2xl font-bold text-indigo-700">{{ statistiques.retraites_n1 ?? 0 }}</div>
+                        </div>
                     </div>
-                </div>
+                </Deferred>
 
                 <!-- Filtres -->
                 <div class="bg-white overflow-hidden shadow-sm rounded-lg mb-6">

@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { router, Deferred } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import DashboardSkeleton from '@/Components/DashboardSkeleton.vue';
 import Chart from 'primevue/chart';
 import Button from 'primevue/button';
 import Toast from 'primevue/toast';
@@ -443,7 +444,7 @@ const horizontalBarOptions = {
                         <span>Tableau de bord — Situation des Effectifs & Déploiements</span>
                     </h2>
                     <p class="text-xs text-sky-100 mt-0.5 flex items-center gap-2 flex-wrap">
-                        <span>Année : <strong>{{ statistiques.annee }}</strong></span>
+                        <span>Année : <strong>{{ statistiques?.annee || new Date().getFullYear() }}</strong></span>
                         <span class="text-sky-300">|</span>
                         <span class="flex items-center gap-1.5">
                             <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -472,10 +473,15 @@ const horizontalBarOptions = {
 
         <Toast />
 
-        <div class="py-4 sm:py-8 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 space-y-6 sm:space-y-8 min-w-0">
-            <!-- ========================================================================= -->
-            <!-- 1. AXE A : EFFECTIF OPÉRATIONNEL EN ACTIVITÉ (COMPTABILISÉS SÉPARÉMENT)    -->
-            <!-- ========================================================================= -->
+        <div class="py-4 sm:py-8 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-w-0">
+            <Deferred data="['statistiques', 'chartsData']">
+                <template #fallback>
+                    <DashboardSkeleton />
+                </template>
+                <div class="space-y-6 sm:space-y-8">
+                    <!-- ========================================================================= -->
+                    <!-- 1. AXE A : EFFECTIF OPÉRATIONNEL EN ACTIVITÉ (COMPTABILISÉS SÉPARÉMENT)    -->
+                    <!-- ========================================================================= -->
             <div class="space-y-2">
                 <div class="flex items-center justify-between">
                     <div>
@@ -1067,6 +1073,8 @@ const horizontalBarOptions = {
                     </div>
                 </div>
             </div>
+            </div>
+            </Deferred>
         </div>
     </AuthenticatedLayout>
 </template>
