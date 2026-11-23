@@ -1177,15 +1177,31 @@ class MilitaireController extends Controller
         }
 
         $colonnes = [
-            'matricule' => 'Matricule', 'numero_nina' => 'N° NINA', 'nom' => 'Nom', 'prenom' => 'Prénom',
-            'sexe' => 'Sexe', 'date_naissance' => 'Date de naissance', 'lieu_naissance' => 'Lieu de naissance',
-            'telephone' => 'Téléphone', 'grade_actuel' => 'Grade actuel', 'categorie' => 'Catégorie',
-            'date_entree_service' => 'Date entrée en service', 'date_derniere_promotion' => 'Date dernière promotion',
-            'specialite' => 'Spécialité', 'statut' => 'Statut', 'position_actuelle' => 'Position',
-            'fonction_actuelle' => 'Fonction actuelle', 'unite' => 'Unité', 'region' => 'Région',
-            'date_mutation' => 'Date dernière mutation', 'status_sanitaire' => 'Statut sanitaire',
-            'a_permis_conduire' => 'Permis de conduire', 'antecedent_judiciaire' => 'Antécédent judiciaire',
-            'antecedent_disciplinaire' => 'Antécédent disciplinaire', 'date_deces' => 'Date décès',
+            'matricule' => 'Matricule (FAMA)',
+            'mle_grm' => 'Matricule Gendarmerie (GRM)',
+            'numero_nina' => 'N° NINA',
+            'nom' => 'Nom',
+            'prenom' => 'Prénom',
+            'sexe' => 'Sexe',
+            'date_naissance' => 'Date de naissance',
+            'lieu_naissance' => 'Lieu de naissance',
+            'telephone' => 'Téléphone',
+            'grade_actuel' => 'Grade actuel',
+            'categorie' => 'Catégorie',
+            'date_entree_service' => 'Date entrée en service',
+            'date_derniere_promotion' => 'Date dernière promotion',
+            'specialite' => 'Spécialité',
+            'statut' => 'Statut administratif',
+            'position_actuelle' => 'Position administrative',
+            'fonction_actuelle' => 'Fonction actuelle',
+            'unite' => 'Unité',
+            'region' => 'Région',
+            'date_mutation' => 'Date dernière mutation',
+            'status_sanitaire' => 'Statut sanitaire',
+            'a_permis_conduire' => 'Permis de conduire',
+            'antecedent_judiciaire' => 'Antécédent judiciaire',
+            'antecedent_disciplinaire' => 'Antécédent disciplinaire',
+            'date_deces' => 'Date décès',
             'motif_radiation' => 'Motif radiation',
         ];
         $dates = ['date_naissance', 'date_entree_service', 'date_derniere_promotion', 'date_mutation', 'date_deces'];
@@ -1202,13 +1218,18 @@ class MilitaireController extends Controller
             fwrite($out, "\xEF\xBB\xBF"); // BOM UTF-8 : accents corrects dans Excel
             fputcsv($out, array_values($colonnes), ';');
 
-            $query->select(array_map(fn ($c) => "militaires.{$c}", array_keys($colonnes)) + ['id' => 'militaires.id'])
+            $query->select(array_map(fn ($c) => "militaires.{$c}", array_keys($colonnes)) + ['id' => 'militaires.id', 'statut_code' => 'militaires.statut_code'])
                 ->chunkById(2000, function ($lot) use ($out, $colonnes, $dates, $oui, $protege) {
                     foreach ($lot as $m) {
                         $ligne = [];
                         foreach (array_keys($colonnes) as $c) {
                             $v = $m->getRawOriginal($c);
-                            if (in_array($c, $dates, true)) {
+                            if ($c === 'statut') {
+                                $rawS = mb_strtolower(trim((string)$v));
+                                if (in_array($rawS, ['détaché', 'detache', 'en détachement', 'mission', 'en mission', 'stage', 'en stage / formation']) || in_array((int)$m->statut_code, [2, 3, 4])) {
+                                    $v = 'actif';
+                                }
+                            } elseif (in_array($c, $dates, true)) {
                                 $v = $v ? Carbon::parse($v)->format('d/m/Y') : '';
                             } elseif (in_array($c, $oui, true)) {
                                 $v = $v ? 'Oui' : 'Non';

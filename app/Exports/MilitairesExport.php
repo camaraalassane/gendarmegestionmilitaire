@@ -40,7 +40,7 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
     {
         $query = Militaire::query()
             ->select([
-                'id', 'matricule', 'numero_nina', 'nom', 'prenom', 'sexe',
+                'id', 'matricule', 'mle_grm', 'numero_nina', 'nom', 'prenom', 'sexe',
                 'date_naissance', 'lieu_naissance', 'telephone', 'groupe_sanguin', 'taille',
                 'personne_a_contacter', 'telephone_personne_contacter',
                 'grade_actuel', 'categorie', 'date_entree_service', 'date_derniere_promotion',
@@ -114,7 +114,8 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
     {
         return [
             // Identifiants & État Civil
-            'Matricule',
+            'Matricule (FAMA)',
+            'Matricule Gendarmerie (GRM)',
             'N° NINA',
             'Nom',
             'Prénom',
@@ -329,9 +330,17 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
             $maillageTerritorial = implode("\n", $lines);
         }
 
+        // Normalisation du Statut administratif : les personnels en activité (actif, détaché, stage, mission) ont le statut officiel 'actif'
+        // Le détachement / stage / mission est leur Position administrative.
+        $rawStatut = mb_strtolower(trim((string)$militaire->statut));
+        $statutAdmin = (in_array($rawStatut, ['détaché', 'detache', 'en détachement', 'mission', 'en mission', 'stage', 'en stage / formation']) || in_array((int)$militaire->statut_code, [2, 3, 4]))
+            ? 'actif'
+            : ($militaire->statut ?: 'actif');
+
         $row = [
             // Identifiants & État Civil
-            $militaire->matricule,
+            $militaire->matricule ?? '',
+            $militaire->mle_grm ?? '',
             $militaire->numero_nina ?? '',
             $militaire->nom,
             $militaire->prenom,
@@ -354,7 +363,7 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
             $ancGrade,
             $militaire->origine_formation ?? '',
             $militaire->specialite ?? '',
-            $militaire->statut,
+            $statutAdmin,
             $militaire->position_actuelle ?? '',
             $militaire->fonction_actuelle ?? '',
             $militaire->fonction_passee ?? '',
@@ -427,17 +436,19 @@ class MilitairesExport extends DefaultValueBinder implements FromQuery, WithHead
         $sheet->getDefaultColumnDimension()->setWidth(18);
 
         // Largeurs optimisées pour colonnes spécifiques
-        $sheet->getColumnDimension('A')->setWidth(14); // Matricule
-        $sheet->getColumnDimension('C')->setWidth(18); // Nom
-        $sheet->getColumnDimension('D')->setWidth(18); // Prénom
-        $sheet->getColumnDimension('N')->setWidth(20); // Grade actuel
-        $sheet->getColumnDimension('Z')->setWidth(25); // Unité
-        $sheet->getColumnDimension('AA')->setWidth(20); // Région
-        $sheet->getColumnDimension('AC')->setWidth(35); // Maillage Territorial
-        $sheet->getColumnDimension('AJ')->setWidth(30); // Certificats
-        $sheet->getColumnDimension('AL')->setWidth(30); // Décorations
-        $sheet->getColumnDimension('AM')->setWidth(30); // Diplômes
-        $sheet->getColumnDimension('AN')->setWidth(30); // Observations
+        $sheet->getColumnDimension('A')->setWidth(15); // Matricule FAMA
+        $sheet->getColumnDimension('B')->setWidth(20); // Matricule Gendarmerie (GRM)
+        $sheet->getColumnDimension('C')->setWidth(16); // N° NINA
+        $sheet->getColumnDimension('D')->setWidth(18); // Nom
+        $sheet->getColumnDimension('E')->setWidth(18); // Prénom
+        $sheet->getColumnDimension('O')->setWidth(20); // Grade actuel
+        $sheet->getColumnDimension('AA')->setWidth(25); // Unité
+        $sheet->getColumnDimension('AB')->setWidth(20); // Région
+        $sheet->getColumnDimension('AD')->setWidth(35); // Maillage Territorial
+        $sheet->getColumnDimension('AK')->setWidth(30); // Certificats
+        $sheet->getColumnDimension('AM')->setWidth(30); // Décorations
+        $sheet->getColumnDimension('AN')->setWidth(30); // Diplômes
+        $sheet->getColumnDimension('AO')->setWidth(30); // Observations
 
         return [];
     }
