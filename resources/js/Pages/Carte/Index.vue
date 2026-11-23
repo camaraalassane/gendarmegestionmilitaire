@@ -412,6 +412,7 @@ const loadingTheatreMilitaires = ref(false);
 const ouvrirModalMilitairesTheatre = async (cat = 'tous') => {
     theatreMilitaireCategorieFilter.value = cat;
     searchTheatreMilitaire.value = '';
+    theatrePage.value = 1;
     showTheatreMilitairesModal.value = true;
     const th = selTheatreObj.value;
     if (th && (!th.militaires || th.militaires.length === 0)) {
@@ -468,6 +469,23 @@ const theatreMilitairesTriesEtFiltres = computed(() => {
     }
 
     return list;
+});
+
+// Pagination pour la modale des militaires de théâtre
+const theatrePage = ref(1);
+const theatrePerPage = ref(25);
+
+watch([theatreMilitaireCategorieFilter, searchTheatreMilitaire], () => {
+    theatrePage.value = 1;
+});
+
+const theatreTotalPages = computed(() => {
+    return Math.max(1, Math.ceil(theatreMilitairesTriesEtFiltres.value.length / theatrePerPage.value));
+});
+
+const theatreMilitairesPagine = computed(() => {
+    const start = (theatrePage.value - 1) * theatrePerPage.value;
+    return theatreMilitairesTriesEtFiltres.value.slice(start, start + theatrePerPage.value);
 });
 
 const theatreStatsHierarchiques = computed(() => {
@@ -3884,7 +3902,7 @@ const lignesFiltrees = computed(() => {
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             <tr
-                                v-for="m in theatreMilitairesTriesEtFiltres"
+                                v-for="m in theatreMilitairesPagine"
                                 :key="m.id"
                                 class="hover:bg-sky-50/40 transition"
                                 :class="m.est_blesse_guerre ? 'bg-rose-50/30' : ''"
@@ -3969,6 +3987,48 @@ const lignesFiltrees = computed(() => {
                             </tr>
                         </tbody>
                     </table>
+                </div>
+
+                <!-- Contrôles de pagination -->
+                <div v-if="theatreMilitairesTriesEtFiltres.length > 0" class="flex flex-col sm:flex-row items-center justify-between gap-2 py-2 px-1 border-t border-slate-100 text-xs">
+                    <div class="text-[11px] text-slate-500 font-medium">
+                        Affichage de <span class="font-bold text-slate-700">{{ (theatrePage - 1) * theatrePerPage + 1 }}</span> à <span class="font-bold text-slate-700">{{ Math.min(theatrePage * theatrePerPage, theatreMilitairesTriesEtFiltres.length) }}</span> sur <span class="font-bold text-slate-700">{{ theatreMilitairesTriesEtFiltres.length }}</span> gendarmes
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button
+                            type="button"
+                            :disabled="theatrePage <= 1"
+                            @click="theatrePage--"
+                            class="px-2.5 py-1 rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-medium flex items-center gap-1 transition cursor-pointer"
+                        >
+                            <i class="pi pi-chevron-left text-[10px]"></i>
+                            <span>Précédent</span>
+                        </button>
+
+                        <span class="px-2.5 py-1 bg-sky-50 text-sky-800 font-bold rounded border border-sky-200 text-xs font-mono">
+                            {{ theatrePage }} / {{ theatreTotalPages }}
+                        </span>
+
+                        <button
+                            type="button"
+                            :disabled="theatrePage >= theatreTotalPages"
+                            @click="theatrePage++"
+                            class="px-2.5 py-1 rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-medium flex items-center gap-1 transition cursor-pointer"
+                        >
+                            <span>Suivant</span>
+                            <i class="pi pi-chevron-right text-[10px]"></i>
+                        </button>
+
+                        <select
+                            v-model.number="theatrePerPage"
+                            @change="theatrePage = 1"
+                            class="ml-2 text-[11px] py-1 px-2 rounded border border-slate-200 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                        >
+                            <option :value="25">25 / page</option>
+                            <option :value="50">50 / page</option>
+                            <option :value="100">100 / page</option>
+                        </select>
+                    </div>
                 </div>
 
                 <!-- Footer de la modale -->
