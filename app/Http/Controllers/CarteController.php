@@ -525,4 +525,44 @@ class CarteController extends Controller
             ];
         }));
     }
+
+    /**
+     * Supprime une unité d'appui interarmées depuis la vue cartographique.
+     */
+    public function destroyTheatreAppui(Request $request, \App\Models\TheatreUniteAppui $uniteAppui)
+    {
+        $code = $uniteAppui->code;
+        $uniteAppui->delete();
+        static::flush();
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true, 'message' => "Unité d’appui « {$code} » supprimée avec succès."]);
+        }
+
+        return redirect()->back()->with('success', "Unité d’appui « {$code} » supprimée avec succès.");
+    }
+
+    /**
+     * Enregistre une unité d'appui interarmées directement depuis la vue cartographique.
+     */
+    public function storeTheatreAppui(Request $request, Theatre $theatre)
+    {
+        $validated = $request->validate([
+            'code' => 'required|string|max:50',
+            'nom' => 'required|string|max:255',
+            'effectif' => 'required|integer|min:0',
+            'chef_detachement' => 'nullable|string|max:255',
+            'couleur' => 'nullable|string|max:20',
+            'observations' => 'nullable|string|max:255',
+        ]);
+
+        $theatre->unitesAppui()->create($validated);
+        static::flush();
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true, 'message' => "Unité d'appui ajoutée au théâtre avec succès."]);
+        }
+
+        return redirect()->back()->with('success', "Unité d'appui ajoutée au théâtre avec succès.");
+    }
 }

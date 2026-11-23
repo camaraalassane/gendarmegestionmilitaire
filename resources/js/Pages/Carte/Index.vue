@@ -842,6 +842,113 @@ const saveTheatreCoords = () => {
     });
 };
 
+// --- GESTION & SUPPRESSION DES UNITÉS D'APPUI SUR LA CARTE ---
+const showDeleteAppuiDialog = ref(false);
+const appuiToDelete = ref(null);
+const deletingAppui = ref(false);
+
+const confirmDeleteAppui = (ua) => {
+    appuiToDelete.value = ua;
+    showDeleteAppuiDialog.value = true;
+};
+
+const executeDeleteAppui = () => {
+    if (!appuiToDelete.value) return;
+    deletingAppui.value = true;
+    const uaId = appuiToDelete.value.id;
+    const uaCode = appuiToDelete.value.code;
+
+    router.delete(route('carte.unites-appui.destroy', uaId), {
+        preserveScroll: true,
+        onSuccess: () => {
+            if (selTheatreObj.value && Array.isArray(selTheatreObj.value.unites_appui)) {
+                selTheatreObj.value.unites_appui = selTheatreObj.value.unites_appui.filter(u => u.id !== uaId);
+                selTheatreObj.value.effectif_appui = selTheatreObj.value.unites_appui.reduce((s, u) => s + (u.effectif || 0), 0);
+            }
+            const th = props.theatres.find(t => t.id === selTheatreObj.value?.id);
+            if (th && Array.isArray(th.unites_appui)) {
+                th.unites_appui = th.unites_appui.filter(u => u.id !== uaId);
+                th.effectif_appui = th.unites_appui.reduce((s, u) => s + (u.effectif || 0), 0);
+            }
+            showDeleteAppuiDialog.value = false;
+            appuiToDelete.value = null;
+            toast.add({ severity: 'success', summary: 'Appui supprimé', detail: `L'unité d'appui « ${uaCode} » a été supprimée du théâtre avec succès.`, life: 3000 });
+        },
+        onError: () => {
+            toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de supprimer cette unité d\'appui.', life: 3000 });
+        },
+        onFinish: () => {
+            deletingAppui.value = false;
+        }
+    });
+};
+
+const showAddAppuiModal = ref(false);
+const savingAppui = ref(false);
+const newAppuiForm = ref({
+    code: '',
+    nom: '',
+    effectif: null,
+    chef_detachement: '',
+    couleur: '#0284c7',
+    observations: ''
+});
+
+const mapAppuiPresets = [
+    { code: 'AA', nom: "Armée de l'Air", couleur: '#0284c7' },
+    { code: 'AT', nom: "Armée de Terre", couleur: '#16a34a' },
+    { code: 'DTTIA', nom: "Transmissions", couleur: '#9333ea' },
+    { code: 'GENIE', nom: "Génie Militaire", couleur: '#d97706' },
+    { code: 'DCSSA', nom: "Santé Militaire", couleur: '#e11d48' },
+    { code: 'DMHTA', nom: "Matériel / Logistique", couleur: '#64748b' },
+    { code: 'GN', nom: "Garde Nationale", couleur: '#4f46e5' },
+    { code: 'POLICE', nom: "Police Nationale", couleur: '#0891b2' },
+    { code: 'FS', nom: "Forces Spéciales", couleur: '#be123c' },
+    { code: 'ART', nom: "Artillerie", couleur: '#ca8a04' },
+    { code: 'CAV', nom: "Blindés / Cavalerie", couleur: '#854d0e' },
+    { code: 'DRONE', nom: "Escadron Drones", couleur: '#0284c7' },
+];
+
+const openAddAppuiModal = () => {
+    newAppuiForm.value = {
+        code: '',
+        nom: '',
+        effectif: null,
+        chef_detachement: '',
+        couleur: '#0284c7',
+        observations: ''
+    };
+    showAddAppuiModal.value = true;
+};
+
+const selectMapAppuiPreset = (p) => {
+    newAppuiForm.value.code = p.code;
+    newAppuiForm.value.nom = p.nom;
+    newAppuiForm.value.couleur = p.couleur;
+};
+
+const saveNewAppuiOnMap = () => {
+    if (!selTheatreObj.value) return;
+    if (!newAppuiForm.value.code || !newAppuiForm.value.nom || newAppuiForm.value.effectif === null) {
+        toast.add({ severity: 'warn', summary: 'Champs requis', detail: 'Le code, le nom et l’effectif sont obligatoires.', life: 3000 });
+        return;
+    }
+    savingAppui.value = true;
+    router.post(route('carte.theatres.unites-appui.store', selTheatreObj.value.id), newAppuiForm.value, {
+        preserveScroll: true,
+        onSuccess: () => {
+            showAddAppuiModal.value = false;
+            toast.add({ severity: 'success', summary: 'Appui ajouté', detail: `Unité d'appui « ${newAppuiForm.value.code} » ajoutée avec succès.`, life: 3000 });
+        },
+        onError: () => {
+            toast.add({ severity: 'error', summary: 'Erreur', detail: 'Échec de l\'enregistrement de l\'unité d\'appui.', life: 3000 });
+        },
+        onFinish: () => {
+            savingAppui.value = false;
+        }
+    });
+};
+
 const handleUnitClick = (id) => {
     if (hasDragged.value) return;
     toggleUnit(id);
@@ -2892,27 +2999,48 @@ const lignesFiltrees = computed(() => {
                                         <i class="pi pi-shield text-amber-700 text-xs"></i>
                                         <span>Appuis FAMa ({{ selTheatreObj.unites_appui?.length || 0 }})</span>
                                     </span>
-                                    <span class="text-xs font-black text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-300 tabular-nums">
-                                        +{{ selTheatreObj.effectif_appui || 0 }}
-                                    </span>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="text-xs font-black text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-300 tabular-nums">
+                                            +{{ selTheatreObj.effectif_appui || 0 }}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            @click="openAddAppuiModal"
+                                            class="text-[10.5px] font-bold text-sky-800 bg-white hover:bg-sky-50 px-2 py-0.5 rounded border border-sky-300 flex items-center gap-1 cursor-pointer transition shadow-2xs"
+                                            title="Ajouter une unité d'appui à ce théâtre"
+                                        >
+                                            <i class="pi pi-plus text-[9px] text-sky-700"></i>
+                                            <span>Ajouter</span>
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div v-if="selTheatreObj.unites_appui && selTheatreObj.unites_appui.length > 0" class="grid grid-cols-2 gap-1.5">
                                     <div
                                         v-for="ua in selTheatreObj.unites_appui"
                                         :key="ua.id"
-                                        class="p-1.5 rounded bg-white border border-amber-200 shadow-2xs flex items-center justify-between gap-1"
+                                        class="p-1.5 rounded bg-white border border-amber-200 shadow-2xs flex items-center justify-between gap-1 group hover:border-amber-400 transition"
                                     >
-                                        <div class="min-w-0">
+                                        <div class="min-w-0 flex-1">
                                             <div class="flex items-center gap-1">
                                                 <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: ua.couleur || '#0284c7' }"></span>
                                                 <span class="font-mono font-black text-[11px] text-slate-900">{{ ua.code }}</span>
                                             </div>
                                             <div class="text-[9.5px] text-slate-500 truncate" :title="ua.nom">{{ ua.nom }}</div>
                                         </div>
-                                        <span class="font-black text-xs px-1.5 py-0.5 rounded text-amber-900 bg-amber-50 border border-amber-200 tabular-nums shrink-0">
-                                            {{ ua.effectif }}
-                                        </span>
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <span class="font-black text-xs px-1.5 py-0.5 rounded text-amber-900 bg-amber-50 border border-amber-200 tabular-nums">
+                                                {{ ua.effectif }}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                @click.stop="confirmDeleteAppui(ua)"
+                                                class="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition cursor-pointer"
+                                                title="Supprimer cette unité d'appui"
+                                            >
+                                                <i class="pi pi-trash text-[11px]"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                                 <div v-else class="text-[10px] text-slate-500 italic text-center py-1">
@@ -4202,6 +4330,148 @@ const lignesFiltrees = computed(() => {
                         <i v-if="savingTheatreCoords" class="pi pi-spin pi-spinner text-xs"></i>
                         <i v-else class="pi pi-check text-xs"></i>
                         <span>{{ savingTheatreCoords ? 'Enregistrement...' : 'Enregistrer les coordonnées' }}</span>
+                    </button>
+                </div>
+            </div>
+        </Dialog>
+
+        <!-- MODAL CONFIRMATION SUPPRESSION UNITÉ D'APPUI -->
+        <Dialog
+            v-model:visible="showDeleteAppuiDialog"
+            header="Confirmation de suppression"
+            :modal="true"
+            :style="{ width: '420px', zIndex: 3000 }"
+            class="w-full max-w-md"
+        >
+            <div class="space-y-3 pt-1">
+                <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0 text-lg">
+                        <i class="pi pi-exclamation-triangle"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-bold text-slate-900 mb-1">
+                            Supprimer l'unité d'appui « {{ appuiToDelete?.code }} - {{ appuiToDelete?.nom }} » ?
+                        </h4>
+                        <p class="text-xs text-slate-600 leading-relaxed">
+                            Êtes-vous sûr de vouloir retirer cet appui de <span class="font-bold text-slate-800">{{ appuiToDelete?.effectif }} combattants</span> de ce théâtre d'opérations ?
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+                    <button
+                        type="button"
+                        @click="showDeleteAppuiDialog = false"
+                        class="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer"
+                    >
+                        Annuler
+                    </button>
+                    <button
+                        type="button"
+                        @click="executeDeleteAppui"
+                        :disabled="deletingAppui"
+                        class="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                    >
+                        <i v-if="deletingAppui" class="pi pi-spin pi-spinner text-xs"></i>
+                        <i v-else class="pi pi-trash text-xs"></i>
+                        <span>{{ deletingAppui ? 'Suppression...' : 'Supprimer définitivement' }}</span>
+                    </button>
+                </div>
+            </div>
+        </Dialog>
+
+        <!-- MODAL AJOUT D'UNITÉ D'APPUI DEPUIS LA CARTE -->
+        <Dialog
+            v-model:visible="showAddAppuiModal"
+            :header="`Ajouter un appui • ${selTheatreObj?.nom || 'Théâtre'}`"
+            :modal="true"
+            :style="{ width: '520px', zIndex: 3000 }"
+            class="w-full max-w-lg"
+        >
+            <div class="space-y-3 pt-1">
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-700 mb-1">Corps d'armée / Spécialité rapide :</label>
+                    <div class="flex flex-wrap gap-1">
+                        <button
+                            v-for="p in mapAppuiPresets"
+                            :key="p.code"
+                            type="button"
+                            @click="selectMapAppuiPreset(p)"
+                            class="px-2 py-0.5 rounded text-[10.5px] font-semibold transition border flex items-center gap-1 cursor-pointer"
+                            :class="newAppuiForm.code === p.code ? 'bg-sky-900 text-white border-sky-900 shadow-2xs' : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-200'"
+                        >
+                            <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: p.couleur }"></span>
+                            <span>{{ p.code }}</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div>
+                        <label class="block text-[10.5px] font-semibold text-slate-600 mb-0.5">Code militaire *</label>
+                        <input
+                            v-model="newAppuiForm.code"
+                            placeholder="ex: AA, AT"
+                            class="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs uppercase font-mono font-bold"
+                        />
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-[10.5px] font-semibold text-slate-600 mb-0.5">Désignation complète *</label>
+                        <input
+                            v-model="newAppuiForm.nom"
+                            placeholder="ex: Armée de l'Air, Transmissions"
+                            class="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs"
+                        />
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-[10.5px] font-semibold text-slate-600 mb-0.5">Effectif déployé *</label>
+                        <input
+                            v-model="newAppuiForm.effectif"
+                            type="number"
+                            min="0"
+                            placeholder="ex: 20"
+                            class="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs font-bold"
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-[10.5px] font-semibold text-slate-600 mb-0.5">Chef de détachement</label>
+                        <input
+                            v-model="newAppuiForm.chef_detachement"
+                            placeholder="ex: Cne Traoré"
+                            class="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs"
+                        />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[10.5px] font-semibold text-slate-600 mb-0.5">Mission / Observation</label>
+                    <input
+                        v-model="newAppuiForm.observations"
+                        placeholder="ex: Section mortier & déminage"
+                        class="w-full px-2.5 py-1.5 border border-slate-300 rounded text-xs"
+                    />
+                </div>
+
+                <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+                    <button
+                        type="button"
+                        @click="showAddAppuiModal = false"
+                        class="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold cursor-pointer"
+                    >
+                        Annuler
+                    </button>
+                    <button
+                        type="button"
+                        @click="saveNewAppuiOnMap"
+                        :disabled="savingAppui"
+                        class="px-4 py-1.5 bg-sky-800 hover:bg-sky-900 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                    >
+                        <i v-if="savingAppui" class="pi pi-spin pi-spinner text-xs"></i>
+                        <i v-else class="pi pi-check text-xs"></i>
+                        <span>{{ savingAppui ? 'Enregistrement...' : 'Enregistrer cet appui' }}</span>
                     </button>
                 </div>
             </div>

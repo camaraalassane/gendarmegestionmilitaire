@@ -51,6 +51,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('/carte/theatres/{theatre}/militaires', [CarteController::class, 'theatreMilitaires'])->name('carte.theatres.militaires');
     Route::patch('/carte/unites/{unite}/coordonnees', [CarteController::class, 'updateCoordinates'])->name('carte.unites.coordinates');
     Route::patch('/carte/theatres/{theatre}/coordonnees', [CarteController::class, 'updateTheatreCoordinates'])->name('carte.theatres.coordinates');
+    Route::post('/carte/theatres/{theatre}/unites-appui', [CarteController::class, 'storeTheatreAppui'])->name('carte.theatres.unites-appui.store');
+    Route::delete('/carte/unites-appui/{uniteAppui}', [CarteController::class, 'destroyTheatreAppui'])->name('carte.unites-appui.destroy');
     Route::get('/carte/export', [\App\Http\Controllers\StatistiquesExportController::class, 'carte'])->name('carte.export');
     Route::get('/carte/export-statut', [\App\Http\Controllers\StatistiquesExportController::class, 'exportStatut'])->name('carte.export-statut');
     Route::get('/carte/export-theatres', [\App\Http\Controllers\StatistiquesExportController::class, 'theatres'])->name('carte.export-theatres');

@@ -24,6 +24,7 @@ const props = defineProps({
     unites: { type: Array, default: () => [] },
     positions: { type: Array, default: () => [] },
     organismes_detachement: { type: Array, default: () => [] },
+    theatres: { type: Array, default: () => [] },
 });
 
 const localRegions = ref([...(props.regions || [])]);
@@ -407,48 +408,34 @@ const groupeSanguinOptions = [
 ];
 
 // =========================================================================
-// ENGAGEMENTS OPS / THÉÂTRES D'OPÉRATIONS DYNAMIQUES
+// ENGAGEMENTS OPS / THÉÂTRES D'OPÉRATIONS OFFICIELS RH
 // =========================================================================
-const defaultTheatresOps = [
-    'Opération Maliko (Théâtre Est)',
-    'Opération Maliko (Théâtre Centre)',
-    'Opération Maliko (Théâtre Sud)',
-    'Opération Dambé',
-    'Détachement Sokolo',
-    'Détachement Dialoumbé',
-    'Détachement Timissa',
-    'Détachement Toguéré-Coumbé',
-    'Détachement Saye',
-    'Détachement Goma-Coura',
-    'GARSI (Groupement d\'Action Rapide de Surveillance et d\'Intervention)',
-    'PSIRC (Peloton Spécial d\'Intervention de la Région Centre)',
-    'Prévôté Kidal / Ménaka / Gao',
-    'Force Conjointe G-5 Sahel',
-    'Mission Internationale (MISMA / MINUSMA)',
-    'GIGM / FTS Opérationnelle'
+const defaultOfficialTheatres = [
+    'Détachement Opérationnel de Danderesso',
+    'Détachement Opérationnel de Kalana',
+    'Détachement Opérationnel de Kimparana',
+    'Détachement Opérationnel de M\'Béwani',
+    'Détachement Opérationnel de Dougabougou',
+    'Détachement Opérationnel de Sokolo',
+    'Détachement Opérationnel de Togoré-Coumbé',
+    'Détachement Opérationnel de Dialloubé',
+    'Détachement Opérationnel de Timissa',
+    'Détachement Opérationnel de Saye'
 ];
 
-const loadTheatresOpsList = () => {
-    try {
-        const saved = localStorage.getItem('theatres_ops_options_v2');
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-                return parsed.filter(s => s && !s.match(/r[eéè]int[eéè]gr/i));
-            }
-        }
-    } catch (e) {}
-    return defaultTheatresOps;
-};
+// Nettoyer définitivement les anciens caches locaux de théâtres fictifs
+try {
+    localStorage.removeItem('theatres_ops_options');
+    localStorage.removeItem('theatres_ops_options_v2');
+} catch (e) {}
 
-const saveTheatresOpsList = (list) => {
-    try {
-        localStorage.setItem('theatres_ops_options_v2', JSON.stringify((list || []).filter(s => !s.match(/r[eéè]int[eéè]gr/i))));
-    } catch (e) {}
+const getOfficialTheatresList = () => {
+    const fromProps = (props.theatres || []).map(t => t.nom).filter(Boolean);
+    return fromProps.length > 0 ? fromProps : defaultOfficialTheatres;
 };
 
 const theatresOpsOptions = ref(
-    loadTheatresOpsList().map(s => ({ label: s, value: s }))
+    getOfficialTheatresList().map(s => ({ label: s, value: s }))
 );
 
 const initEngagementsOpsList = () => {
@@ -470,7 +457,6 @@ const initEngagementsOpsList = () => {
 
     let parts = [];
     if (cleaned && cleaned !== '0' && cleaned !== '1/1/1970' && cleaned !== '-') {
-        // Supprimer toute mention parasite "Réintégré..." collée aux théâtres
         const strippedCleaned = cleaned
             .replace(/r[eéè]int[eéè]gr[eéè]?\s*\d*\s*[-–—]?\s*/gi, '')
             .replace(/(radi[eé]|d[eé]serteur)\s+r[eéè]int[eéè]gr[eéè]?\s*[-–—]?\s*/gi, '')
@@ -482,19 +468,25 @@ const initEngagementsOpsList = () => {
             .filter(s => s && s !== '-' && !s.match(/r[eéè]int[eéè]gr/i));
     }
 
-    // Si le militaire a un théâtre d'opérations rattaché directement
+    // Si le militaire a un théâtre d'opérations officiel rattaché directement
     if (parts.length === 0 && (props.militaire?.theatre?.nom || props.militaire?.theatre_id)) {
         const thNom = props.militaire?.theatre?.nom || (props.theatres?.find(t => t.id === props.militaire?.theatre_id)?.nom ?? '');
         if (thNom && !thNom.match(/r[eéè]int[eéè]gr/i)) parts.push(thNom);
     }
 
-    const targetCount = explicitCount !== null ? explicitCount : parts.length;
+    // Filtrer pour ne retenir que les théâtres réels ou correspondants
+    const officialOptions = theatresOpsOptions.value.map(o => o.value.toLowerCase());
+    const validParts = parts.filter(p => {
+        const pLow = p.toLowerCase();
+        return officialOptions.some(opt => opt.includes(pLow) || pLow.includes(opt));
+    });
+
+    const finalParts = validParts.length > 0 ? validParts : (parts.length > 0 && explicitCount !== 0 ? validParts : []);
+
+    const targetCount = explicitCount !== null ? explicitCount : finalParts.length;
     const result = [];
-    for (let i = 0; i < Math.max(targetCount, parts.length); i++) {
-        const theatreName = parts[i] || '';
-        if (theatreName && !theatreName.match(/r[eéè]int[eéè]gr/i) && !theatresOpsOptions.value.find(o => o.value.toLowerCase() === theatreName.toLowerCase())) {
-            theatresOpsOptions.value.push({ label: theatreName, value: theatreName });
-        }
+    for (let i = 0; i < Math.max(targetCount, finalParts.length); i++) {
+        const theatreName = finalParts[i] || '';
         result.push({ theatre: theatreName });
     }
 
@@ -540,7 +532,6 @@ const saveNewTheatreOption = () => {
     const existing = theatresOpsOptions.value.find(o => o.value.toLowerCase() === trimmed.toLowerCase());
     if (!existing) {
         theatresOpsOptions.value.push({ label: trimmed, value: trimmed });
-        saveTheatresOpsList(theatresOpsOptions.value.map(o => o.value));
     }
     if (engagementsOpsList.value.length > 0 && !engagementsOpsList.value[engagementsOpsList.value.length - 1].theatre) {
         engagementsOpsList.value[engagementsOpsList.value.length - 1].theatre = trimmed;

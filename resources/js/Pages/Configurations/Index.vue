@@ -655,9 +655,21 @@ const loadCustomAppuiTypes = () => {
 // Exécuter au démarrage
 loadCustomAppuiTypes();
 
-// Liste combinée de tous les types d'appui disponibles
+const hiddenAppuiPresets = ref([]);
+const loadHiddenAppuiPresets = () => {
+    try {
+        const stored = localStorage.getItem('gendarmerie_hidden_appui_presets');
+        if (stored) {
+            hiddenAppuiPresets.value = JSON.parse(stored);
+        }
+    } catch (e) {}
+};
+loadHiddenAppuiPresets();
+
+// Liste combinée de tous les types d'appui disponibles (filtrée sans les corps supprimés)
 const allAppuiTypes = computed(() => {
-    return [...defaultAppuiPresets, ...customAppuiTypes.value];
+    const hidden = new Set(hiddenAppuiPresets.value);
+    return [...defaultAppuiPresets, ...customAppuiTypes.value].filter(p => !hidden.has(p.code));
 });
 
 // Mini-créateur de type d'appui personnalisé
@@ -779,12 +791,29 @@ const isCustomAppuiType = (code) => {
     return customAppuiTypes.value.some(c => c.code === code);
 };
 
-const removeCustomType = (code) => {
-    customAppuiTypes.value = customAppuiTypes.value.filter(c => c.code !== code);
+const removeAppuiPreset = (code) => {
+    if (isCustomAppuiType(code)) {
+        customAppuiTypes.value = customAppuiTypes.value.filter(c => c.code !== code);
+        try {
+            localStorage.setItem('gendarmerie_custom_appui_types', JSON.stringify(customAppuiTypes.value));
+        } catch (e) {}
+    } else {
+        if (!hiddenAppuiPresets.value.includes(code)) {
+            hiddenAppuiPresets.value.push(code);
+            try {
+                localStorage.setItem('gendarmerie_hidden_appui_presets', JSON.stringify(hiddenAppuiPresets.value));
+            } catch (e) {}
+        }
+    }
+    toast.add({ severity: 'info', summary: 'Corps d’appui retiré', detail: `Le corps « ${code} » a été retiré des suggestions.`, life: 2500 });
+};
+
+const resetAppuiPresets = () => {
+    hiddenAppuiPresets.value = [];
     try {
-        localStorage.setItem('gendarmerie_custom_appui_types', JSON.stringify(customAppuiTypes.value));
+        localStorage.removeItem('gendarmerie_hidden_appui_presets');
     } catch (e) {}
-    toast.add({ severity: 'info', summary: 'Corps retiré', detail: `Le type d’appui « ${code} » a été retiré des suggestions.`, life: 2500 });
+    toast.add({ severity: 'success', summary: 'Suggestions réinitialisées', detail: 'Toutes les suggestions de corps d’appui ont été rétablies.', life: 2500 });
 };
 
 const deleteAppui = (ua) => {
@@ -2030,7 +2059,18 @@ const deleteAppui = (ua) => {
                     <!-- Sélecteur rapide de presets + Créateur de nouveau type -->
                     <div>
                         <div class="flex items-center justify-between mb-1.5">
-                            <label class="block text-[11px] font-semibold text-slate-700">Corps d'armée / Spécialité rapide :</label>
+                            <div class="flex items-center gap-2">
+                                <label class="block text-[11px] font-semibold text-slate-700">Corps d'armée / Spécialité rapide :</label>
+                                <button
+                                    v-if="hiddenAppuiPresets.length > 0"
+                                    type="button"
+                                    @click="resetAppuiPresets"
+                                    class="text-[10px] text-sky-700 hover:text-sky-900 underline cursor-pointer"
+                                    title="Restaurer toutes les suggestions supprimées"
+                                >
+                                    (Restaurer les suggestions par défaut)
+                                </button>
+                            </div>
                             <button
                                 type="button"
                                 @click="showNewTypeCreator = !showNewTypeCreator"
@@ -2092,10 +2132,9 @@ const deleteAppui = (ua) => {
                                 <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: p.couleur }"></span>
                                 <span>{{ p.code }}</span>
                                 <span
-                                    v-if="isCustomAppuiType(p.code)"
-                                    @click.stop="removeCustomType(p.code)"
-                                    class="ml-0.5 text-slate-400 hover:text-red-600 rounded px-0.5 hover:bg-red-50 text-[10px] font-bold"
-                                    title="Supprimer ce corps personnalisé des suggestions"
+                                    @click.stop="removeAppuiPreset(p.code)"
+                                    class="ml-0.5 text-slate-400 hover:text-red-600 rounded px-1 hover:bg-red-50 text-[11px] font-bold"
+                                    title="Supprimer ce corps d'appui des suggestions"
                                 >
                                     ×
                                 </span>

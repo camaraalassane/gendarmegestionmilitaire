@@ -21,6 +21,7 @@ const props = defineProps({
     unites: { type: Array, default: () => [] },
     positions: { type: Array, default: () => [] },
     organismes_detachement: { type: Array, default: () => [] },
+    theatres: { type: Array, default: () => [] },
 });
 
 const localRegions = ref([...(props.regions || [])]);
@@ -386,48 +387,34 @@ const groupeSanguinOptions = [
 ];
 
 // =========================================================================
-// ENGAGEMENTS OPS / THÉÂTRES D'OPÉRATIONS DYNAMIQUES
+// ENGAGEMENTS OPS / THÉÂTRES D'OPÉRATIONS OFFICIELS RH
 // =========================================================================
-const defaultTheatresOps = [
-    'Opération Maliko (Théâtre Est)',
-    'Opération Maliko (Théâtre Centre)',
-    'Opération Maliko (Théâtre Sud)',
-    'Opération Dambé',
-    'Détachement Sokolo',
-    'Détachement Dialoumbé',
-    'Détachement Timissa',
-    'Détachement Toguéré-Coumbé',
-    'Détachement Saye',
-    'Détachement Goma-Coura',
-    'GARSI (Groupement d\'Action Rapide de Surveillance et d\'Intervention)',
-    'PSIRC (Peloton Spécial d\'Intervention de la Région Centre)',
-    'Prévôté Kidal / Ménaka / Gao',
-    'Force Conjointe G-5 Sahel',
-    'Mission Internationale (MISMA / MINUSMA)',
-    'GIGM / FTS Opérationnelle'
+const defaultOfficialTheatres = [
+    'Détachement Opérationnel de Danderesso',
+    'Détachement Opérationnel de Kalana',
+    'Détachement Opérationnel de Kimparana',
+    'Détachement Opérationnel de M\'Béwani',
+    'Détachement Opérationnel de Dougabougou',
+    'Détachement Opérationnel de Sokolo',
+    'Détachement Opérationnel de Togoré-Coumbé',
+    'Détachement Opérationnel de Dialloubé',
+    'Détachement Opérationnel de Timissa',
+    'Détachement Opérationnel de Saye'
 ];
 
-const loadTheatresOpsList = () => {
-    try {
-        const saved = localStorage.getItem('theatres_ops_options_v2');
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-                return parsed.filter(s => s && !s.match(/r[eéè]int[eéè]gr/i));
-            }
-        }
-    } catch (e) {}
-    return defaultTheatresOps;
-};
+// Nettoyer définitivement les anciens caches locaux de théâtres fictifs/non officiels
+try {
+    localStorage.removeItem('theatres_ops_options');
+    localStorage.removeItem('theatres_ops_options_v2');
+} catch (e) {}
 
-const saveTheatresOpsList = (list) => {
-    try {
-        localStorage.setItem('theatres_ops_options_v2', JSON.stringify((list || []).filter(s => !s.match(/r[eéè]int[eéè]gr/i))));
-    } catch (e) {}
+const getOfficialTheatresList = () => {
+    const fromProps = (props.theatres || []).map(t => t.nom).filter(Boolean);
+    return fromProps.length > 0 ? fromProps : defaultOfficialTheatres;
 };
 
 const theatresOpsOptions = ref(
-    loadTheatresOpsList().map(s => ({ label: s, value: s }))
+    getOfficialTheatresList().map(s => ({ label: s, value: s }))
 );
 
 const engagementsOpsList = ref([]);
@@ -467,7 +454,6 @@ const saveNewTheatreOption = () => {
     const existing = theatresOpsOptions.value.find(o => o.value.toLowerCase() === trimmed.toLowerCase());
     if (!existing) {
         theatresOpsOptions.value.push({ label: trimmed, value: trimmed });
-        saveTheatresOpsList(theatresOpsOptions.value.map(o => o.value));
     }
     if (engagementsOpsList.value.length > 0 && !engagementsOpsList.value[engagementsOpsList.value.length - 1].theatre) {
         engagementsOpsList.value[engagementsOpsList.value.length - 1].theatre = trimmed;

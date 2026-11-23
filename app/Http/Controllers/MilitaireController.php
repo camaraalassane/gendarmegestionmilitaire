@@ -521,6 +521,8 @@ class MilitaireController extends Controller
         $unites = Unite::with('region')->orderBy('nom')->get();
         $positions = Position::orderBy('nom')->get();
         $organismes = \App\Models\OrganismeDetachement::where('est_actif', true)->where('code', '!=', 'GRM')->orderBy('ordre')->get(['id', 'code', 'nom']);
+        $theatres = \App\Models\Theatre::where('statut', 'actif')->orderBy('nom')->get(['id', 'code', 'nom', 'pc_lieu']);
+        $theatres = \App\Models\Theatre::where('statut', 'actif')->orderBy('nom')->get(['id', 'code', 'nom', 'pc_lieu']);
 
         return Inertia::render('militaires/create', [
             'grades' => $grades,
@@ -529,6 +531,7 @@ class MilitaireController extends Controller
             'unites' => $unites,
             'positions' => $positions,
             'organismes_detachement' => $organismes,
+            'theatres' => $theatres,
         ]);
     }
 
@@ -829,6 +832,7 @@ class MilitaireController extends Controller
         $unites = Unite::with('region')->orderBy('nom')->get();
         $positions = Position::orderBy('nom')->get();
         $organismes = \App\Models\OrganismeDetachement::where('est_actif', true)->where('code', '!=', 'GRM')->orderBy('ordre')->get(['id', 'code', 'nom']);
+        $theatres = \App\Models\Theatre::where('statut', 'actif')->orderBy('nom')->get(['id', 'code', 'nom', 'pc_lieu']);
 
         $uniteNom = $militaire->unite;
         $uniteId = $militaire->unite_id;
@@ -912,6 +916,7 @@ class MilitaireController extends Controller
             'unites' => $unites,
             'positions' => $positions,
             'organismes_detachement' => $organismes,
+            'theatres' => $theatres,
         ]);
     }
 
@@ -1262,6 +1267,19 @@ class MilitaireController extends Controller
                 $data['unite'] = $org->nom;
                 $data['unite_id'] = null;
             }
+        }
+
+        // Synchronisation du theatre_id avec les théâtres d'opérations officiels
+        if ($request->has('theatre_id')) {
+            $thVal = $request->input('theatre_id');
+            $data['theatre_id'] = ($thVal && $thVal !== 'remove') ? (int) $thVal : null;
+        } elseif (!empty($data['engagement_ops'])) {
+            $th = \App\Models\Theatre::get()->first(function ($t) use ($data) {
+                return str_contains(mb_strtolower($data['engagement_ops']), mb_strtolower($t->nom))
+                    || str_contains(mb_strtolower($data['engagement_ops']), mb_strtolower($t->code))
+                    || str_contains(mb_strtolower($data['engagement_ops']), mb_strtolower($t->pc_lieu));
+            });
+            $data['theatre_id'] = $th ? $th->id : null;
         }
 
         return $data;
