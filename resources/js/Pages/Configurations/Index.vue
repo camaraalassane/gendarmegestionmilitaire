@@ -551,14 +551,16 @@ const selectedTheatreForAppuis = ref(null);
 const savingAppui = ref(false);
 const editingAppuiId = ref(null);
 
-const appuiForm = ref({
-    code: 'AA',
-    nom: "Armée de l'Air",
-    effectif: 10,
+const defaultAppuiForm = () => ({
+    code: '',
+    nom: '',
+    effectif: null,
     chef_detachement: '',
     couleur: '#0284c7',
     observations: '',
 });
+
+const appuiForm = ref(defaultAppuiForm());
 
 const appuiPresets = [
     { code: 'AA', nom: "Armée de l'Air", couleur: '#0284c7' },
@@ -589,14 +591,7 @@ const onSelectAppuiPreset = (preset) => {
 const openManageAppuisDialog = (th) => {
     selectedTheatreForAppuis.value = th;
     editingAppuiId.value = null;
-    appuiForm.value = {
-        code: 'AA',
-        nom: "Armée de l'Air",
-        effectif: 10,
-        chef_detachement: '',
-        couleur: '#0284c7',
-        observations: '',
-    };
+    appuiForm.value = defaultAppuiForm();
     manageAppuisDialogVisible.value = true;
 };
 
@@ -614,14 +609,7 @@ const startEditAppui = (ua) => {
 
 const cancelEditAppui = () => {
     editingAppuiId.value = null;
-    appuiForm.value = {
-        code: 'AA',
-        nom: "Armée de l'Air",
-        effectif: 10,
-        chef_detachement: '',
-        couleur: '#0284c7',
-        observations: '',
-    };
+    appuiForm.value = defaultAppuiForm();
 };
 
 const saveAppui = () => {
