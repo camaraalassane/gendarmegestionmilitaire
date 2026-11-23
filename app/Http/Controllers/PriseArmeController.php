@@ -32,6 +32,7 @@ class PriseArmeController extends Controller
         // 2. MATRICE DYNAMIQUE DE LA SITUATION (SPA) & 20 RÉGIONS DEPUIS LA BASE
         $matrice = $spaService->calculerMatriceDynamique();
         $regionsSituation = $spaService->calculerRegionsDynamique();
+        $organismesCards = $spaService->calculerOrganismesCardsDynamique();
 
         // Compléter la situation par région pour les 20 régions (19 + 1 Bamako) si des clés manquent
         foreach ($regions as $r) {
@@ -40,12 +41,15 @@ class PriseArmeController extends Controller
                     'id' => $r->id,
                     'nom' => $r->nom,
                     'code' => $r->code,
+                    'total' => 0,
+                    'total_h' => 0,
+                    'total_d' => 0,
+                    'grades' => [],
                     'GAR' => 0, 'GCA' => 0, 'GDD' => 0, 'GDB' => 0,
                     'CLM' => 0, 'COL' => 0, 'LCL' => 0, 'CES' => 0,
                     'CNE' => 0, 'LTN' => 0, 'SLT' => 0, 'ASP' => 0,
                     'EOA' => 0, 'MJR' => 0, 'ADC' => 0, 'ADJ' => 0,
                     'MDC' => 0, 'MDL' => 0, 'ESOA' => 0, 'MRG' => 0,
-                    'total' => 0
                 ];
             }
         }
@@ -103,6 +107,7 @@ class PriseArmeController extends Controller
             'unites' => $unites,
             'matrice' => $matrice,
             'regionsSituation' => $regionsSituation,
+            'organismesCards' => $organismesCards,
             'registres' => $registres,
             'militairesLookup' => [], // Allégé : recherche dynamique asynchrone via lookup-militaire (évite de transférer 6 700 objets à chaque visite)
             'filters' => $request->only([
@@ -136,6 +141,108 @@ class PriseArmeController extends Controller
             ->get(['id', 'matricule', 'nom', 'prenom', 'grade_id', 'grade_actuel', 'region_id', 'unite_id', 'unite']);
 
         return response()->json($results);
+    }
+
+    /**
+     * Renvoie la liste nominale des militaires d'un grade donné pour une région ou un organisme (modale SPA).
+     * Permet le filtrage Hommes / Dames et la recherche instantanée.
+     */
+    public function militairesGrade(Request $request)
+    {
+        $validated = $request->validate([
+            'grade_col' => 'required|string',
+            'region_id' => 'nullable|integer',
+            'organisme_id' => 'nullable|integer',
+            'sexe' => 'nullable|string|in:H,D',
+            'search' => 'nullable|string',
+        ]);
+
+        $gradeCol = strtoupper(trim($validated['grade_col']));
+        $gradeIds = SituationPriseArmeService::getGradeIdsForCol($gradeCol);
+
+        $query = Militaire::whereIn('statut_code', [1, 2, 3, 4])
+            ->whereNull('deleted_at')
+            ->whereIn('grade_id', $gradeIds)
+            ->with(['grade', 'region', 'unite']);
+
+        $perimetreNom = 'Tous les effectifs';
+
+        if (!empty($validated['region_id'])) {
+            $reg = Region::find($validated['region_id']);
+            if ($reg) {
+                $query->where('region_id', $reg->id);
+                $perimetreNom = "{$reg->nom} ({$reg->code})";
+            }
+        } elseif (!empty($validated['organisme_id'])) {
+            $org = OrganismeDetachement::find($validated['organisme_id']);
+            if ($org) {
+                $grmId = OrganismeDetachement::where('code', 'GRM')->value('id') ?? 1;
+                if ($org->id === $grmId) {
+                    $query->where(function ($sub) use ($grmId) {
+                        $sub->whereNull('organisme_detachement_id')->orWhere('organisme_detachement_id', $grmId);
+                    });
+                } else {
+                    $query->where('organisme_detachement_id', $org->id);
+                }
+                $perimetreNom = "{$org->nom} ({$org->code})";
+            }
+        }
+
+        $allMilitaires = (clone $query)->orderBy('nom')->orderBy('prenom')->get();
+        $totalTous = $allMilitaires->count();
+        $totalHommes = $allMilitaires->where(fn($m) => $m->sexe_code !== 2)->count();
+        $totalDames = $allMilitaires->where(fn($m) => $m->sexe_code === 2)->count();
+
+        $filtered = $allMilitaires;
+        if (!empty($validated['sexe'])) {
+            if ($validated['sexe'] === 'D') {
+                $filtered = $filtered->where(fn($m) => $m->sexe_code === 2);
+            } elseif ($validated['sexe'] === 'H') {
+                $filtered = $filtered->where(fn($m) => $m->sexe_code !== 2);
+            }
+        }
+
+        if (!empty($validated['search'])) {
+            $s = mb_strtolower(trim($validated['search']));
+            $filtered = $filtered->filter(function ($m) use ($s) {
+                return str_contains(mb_strtolower($m->nom ?? ''), $s)
+                    || str_contains(mb_strtolower($m->prenom ?? ''), $s)
+                    || str_contains(mb_strtolower($m->matricule ?? ''), $s)
+                    || str_contains(mb_strtolower($m->mle_grm ?? ''), $s);
+            });
+        }
+
+        $list = $filtered->values()->map(function ($m) {
+            $isDame = ($m->sexe_code === 2);
+            return [
+                'id' => $m->id,
+                'matricule' => $m->matricule,
+                'mle_grm' => $m->mle_grm,
+                'nom' => $m->nom,
+                'prenom' => $m->prenom,
+                'nom_complet' => $m->nom . ' ' . $m->prenom,
+                'grade' => $m->grade?->nom_grade ?? $m->grade_actuel ?? '-',
+                'grade_code' => $m->grade?->code_grade ?? '',
+                'sexe' => $isDame ? 'D' : 'H',
+                'sexe_libelle' => $isDame ? 'Féminin' : 'Masculin',
+                'unite_nom' => $m->unite?->nom ?? (is_string($m->unite) ? $m->unite : '-'),
+                'region_nom' => $m->region?->nom ?? '-',
+                'position' => $m->position_actuelle ?: ($m->statut ?: 'En activité'),
+            ];
+        });
+
+        $gradeNom = SituationPriseArmeService::getGradeLibelleForCol($gradeCol);
+
+        return response()->json([
+            'grade_col' => $gradeCol,
+            'grade_nom' => $gradeNom,
+            'perimetre' => $perimetreNom,
+            'total' => $totalTous,
+            'total_h' => $totalHommes,
+            'total_d' => $totalDames,
+            'count_filtered' => $list->count(),
+            'militaires' => $list,
+        ]);
     }
 
     // ==========================================

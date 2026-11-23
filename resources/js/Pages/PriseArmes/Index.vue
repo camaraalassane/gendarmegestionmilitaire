@@ -18,6 +18,7 @@ const props = defineProps({
     unites: { type: Array, default: () => [] },
     matrice: { type: Object, default: () => ({}) },
     regionsSituation: { type: Object, default: () => ({}) },
+    organismesCards: { type: Object, default: () => ({}) },
     registres: { type: Array, default: () => [] },
     militairesLookup: { type: Array, default: () => [] },
     filters: { type: Object, default: () => ({}) },
@@ -381,7 +382,121 @@ const executeDeleteRegistre = () => {
     });
 };
 
-// Liste ordonnée des 20 régions (19 régions + 1 District de Bamako) depuis la base
+// Sous-vue active dans la Situation des Effectifs (SPA) : Régions ou Organismes de Détachement
+const spaCardsView = ref('regions'); // 'regions' | 'organismes'
+
+// Modal de consultation nominale (Hommes & Dames) par grade
+const showGradeModal = ref(false);
+const loadingGradeModal = ref(false);
+const modalGradeInfo = ref({
+    grade_col: '',
+    grade_nom: '',
+    perimetre: '',
+    total: 0,
+    total_h: 0,
+    total_d: 0,
+    militaires: [],
+});
+const modalGradeSexeFilter = ref('tous'); // 'tous' | 'H' | 'D'
+const modalGradeSearch = ref('');
+const modalGradePage = ref(1);
+const modalGradePerPage = ref(25);
+
+const ouvrirModalGrade = async (target, gradeCode, type = 'region') => {
+    const gradeCol = gradeCode.toUpperCase();
+    const gData = (target.grades && target.grades[gradeCol]) || {
+        total: target[gradeCol] || 0,
+        h: target[gradeCol + '_h'] || 0,
+        d: target[gradeCol + '_d'] || 0
+    };
+    if (!gData.total || gData.total <= 0) {
+        return;
+    }
+
+    modalGradeSexeFilter.value = 'tous';
+    modalGradeSearch.value = '';
+    modalGradePage.value = 1;
+    showGradeModal.value = true;
+    loadingGradeModal.value = true;
+
+    try {
+        const params = { grade_col: gradeCol };
+        if (type === 'region') {
+            params.region_id = target.id;
+        } else {
+            params.organisme_id = target.id;
+        }
+        const res = await axios.get(route('prise-armes.militaires-grade'), { params });
+        modalGradeInfo.value = res.data;
+    } catch (e) {
+        console.error('Erreur chargement militaires du grade', e);
+        toast.add({ severity: 'error', summary: 'Erreur', detail: 'Impossible de charger la liste des militaires.', life: 3000 });
+    } finally {
+        loadingGradeModal.value = false;
+    }
+};
+
+const modalMilitairesFiltres = computed(() => {
+    let list = modalGradeInfo.value.militaires || [];
+    if (modalGradeSexeFilter.value === 'H') {
+        list = list.filter(m => m.sexe === 'H');
+    } else if (modalGradeSexeFilter.value === 'D') {
+        list = list.filter(m => m.sexe === 'D');
+    }
+    if (modalGradeSearch.value && modalGradeSearch.value.trim() !== '') {
+        const q = modalGradeSearch.value.toLowerCase().trim();
+        list = list.filter(m =>
+            (m.nom_complet && m.nom_complet.toLowerCase().includes(q)) ||
+            (m.matricule && String(m.matricule).toLowerCase().includes(q)) ||
+            (m.mle_grm && String(m.mle_grm).toLowerCase().includes(q)) ||
+            (m.unite_nom && m.unite_nom.toLowerCase().includes(q)) ||
+            (m.position && m.position.toLowerCase().includes(q))
+        );
+    }
+    return list;
+});
+
+const modalTotalPages = computed(() => {
+    return Math.max(1, Math.ceil(modalMilitairesFiltres.value.length / modalGradePerPage.value));
+});
+
+const modalMilitairesPagine = computed(() => {
+    const start = (modalGradePage.value - 1) * modalGradePerPage.value;
+    return modalMilitairesFiltres.value.slice(start, start + modalGradePerPage.value);
+});
+
+const fmt = (n) => (n !== null && n !== undefined ? Number(n).toLocaleString('fr-FR') : '0');
+
+// Définition hiérarchique officielle des 20 grades pour l'affichage en cartes
+const SPA_CARD_GRADES = [
+    // Ligne 1 : Officiers Généraux (Doré / Ambre)
+    { code: 'GAR', title: "Général d'Armée", cat: 'gen' },
+    { code: 'GCA', title: "Général de Corps d'Armée", cat: 'gen' },
+    { code: 'GDD', title: "Général de Division", cat: 'gen' },
+    { code: 'GDB', title: "Général de Brigade", cat: 'gen' },
+    // Ligne 2 : Officiers Supérieurs
+    { code: 'CLM', title: "Colonel-Major", cat: 'sup' },
+    { code: 'COL', title: "Colonel", cat: 'sup' },
+    { code: 'LCL', title: "Lieutenant-Colonel", cat: 'sup' },
+    { code: 'CES', title: "Chef d'Escadron", cat: 'sup' },
+    // Ligne 3 : Officiers Subalternes
+    { code: 'CNE', title: "Capitaine", cat: 'sub' },
+    { code: 'LTN', title: "Lieutenant", cat: 'sub' },
+    { code: 'SLT', title: "Sous-Lieutenant", cat: 'sub' },
+    { code: 'ASP', title: "Aspirant", cat: 'sub' },
+    // Ligne 4 : Élèves & Sous-officiers Supérieurs
+    { code: 'EOA', title: "Élève Officier d'Active", cat: 'eoa' },
+    { code: 'MJR', title: "Major / Adjudant-Chef Major", cat: 'so_sup' },
+    { code: 'ADC', title: "Adjudant-Chef", cat: 'so_sup' },
+    { code: 'ADJ', title: "Adjudant", cat: 'so_sup' },
+    // Ligne 5 : Sous-officiers Subalternes & Rang
+    { code: 'MDC', title: "Maréchal des Logis-Chef", cat: 'so_sub' },
+    { code: 'MDL', title: "Maréchal des Logis", cat: 'so_sub' },
+    { code: 'ESOA', title: "Élève Sous-Officier d'Active", cat: 'esoa' },
+    { code: 'MRG', title: "Militaire du Rang / Gendarmes", cat: 'mrg' },
+];
+
+// Liste ordonnée des 20 régions (19 régions + 1 District de Bamako) depuis la base avec décomposition H / D
 const liste20Regions = computed(() => {
     return props.regions.map(r => {
         const sit = props.regionsSituation[r.code] || {};
@@ -389,27 +504,66 @@ const liste20Regions = computed(() => {
             id: r.id,
             code: r.code,
             nom: r.nom,
-            GAR: sit.GAR || 0,
-            GCA: sit.GCA || 0,
-            GDD: sit.GDD || 0,
-            GDB: sit.GDB || 0,
-            CLM: sit.CLM || 0,
-            COL: sit.COL || 0,
-            LCL: sit.LCL || 0,
-            CES: sit.CES || 0,
-            CNE: sit.CNE || 0,
-            LTN: sit.LTN || 0,
-            SLT: sit.SLT || 0,
-            ASP: sit.ASP || 0,
-            EOA: sit.EOA || 0,
-            MJR: sit.MJR || 0,
-            ADC: sit.ADC || 0,
-            ADJ: sit.ADJ || 0,
-            MDC: sit.MDC || 0,
-            MDL: sit.MDL || 0,
-            ESOA: sit.ESOA || 0,
-            MRG: sit.MRG || 0,
             total: sit.total || 0,
+            total_h: sit.total_h || 0,
+            total_d: sit.total_d || 0,
+            grades: sit.grades || {},
+            GAR: sit.GAR || 0, GAR_h: sit.GAR_h || 0, GAR_d: sit.GAR_d || 0,
+            GCA: sit.GCA || 0, GCA_h: sit.GCA_h || 0, GCA_d: sit.GCA_d || 0,
+            GDD: sit.GDD || 0, GDD_h: sit.GDD_h || 0, GDD_d: sit.GDD_d || 0,
+            GDB: sit.GDB || 0, GDB_h: sit.GDB_h || 0, GDB_d: sit.GDB_d || 0,
+            CLM: sit.CLM || 0, CLM_h: sit.CLM_h || 0, CLM_d: sit.CLM_d || 0,
+            COL: sit.COL || 0, COL_h: sit.COL_h || 0, COL_d: sit.COL_d || 0,
+            LCL: sit.LCL || 0, LCL_h: sit.LCL_h || 0, LCL_d: sit.LCL_d || 0,
+            CES: sit.CES || 0, CES_h: sit.CES_h || 0, CES_d: sit.CES_d || 0,
+            CNE: sit.CNE || 0, CNE_h: sit.CNE_h || 0, CNE_d: sit.CNE_d || 0,
+            LTN: sit.LTN || 0, LTN_h: sit.LTN_h || 0, LTN_d: sit.LTN_d || 0,
+            SLT: sit.SLT || 0, SLT_h: sit.SLT_h || 0, SLT_d: sit.SLT_d || 0,
+            ASP: sit.ASP || 0, ASP_h: sit.ASP_h || 0, ASP_d: sit.ASP_d || 0,
+            EOA: sit.EOA || 0, EOA_h: sit.EOA_h || 0, EOA_d: sit.EOA_d || 0,
+            MJR: sit.MJR || 0, MJR_h: sit.MJR_h || 0, MJR_d: sit.MJR_d || 0,
+            ADC: sit.ADC || 0, ADC_h: sit.ADC_h || 0, ADC_d: sit.ADC_d || 0,
+            ADJ: sit.ADJ || 0, ADJ_h: sit.ADJ_h || 0, ADJ_d: sit.ADJ_d || 0,
+            MDC: sit.MDC || 0, MDC_h: sit.MDC_h || 0, MDC_d: sit.MDC_d || 0,
+            MDL: sit.MDL || 0, MDL_h: sit.MDL_h || 0, MDL_d: sit.MDL_d || 0,
+            ESOA: sit.ESOA || 0, ESOA_h: sit.ESOA_h || 0, ESOA_d: sit.ESOA_d || 0,
+            MRG: sit.MRG || 0, MRG_h: sit.MRG_h || 0, MRG_d: sit.MRG_d || 0,
+        };
+    });
+});
+
+// Liste des 48 Organismes de Détachement au format Cartes avec décomposition H / D
+const listeOrganismesCards = computed(() => {
+    return props.organismes.map(o => {
+        const sit = (props.organismesCards && props.organismesCards[o.code]) || {};
+        return {
+            id: o.id,
+            code: o.code,
+            nom: o.nom,
+            total: sit.total || 0,
+            total_h: sit.total_h || 0,
+            total_d: sit.total_d || 0,
+            grades: sit.grades || {},
+            GAR: sit.GAR || 0, GAR_h: sit.GAR_h || 0, GAR_d: sit.GAR_d || 0,
+            GCA: sit.GCA || 0, GCA_h: sit.GCA_h || 0, GCA_d: sit.GCA_d || 0,
+            GDD: sit.GDD || 0, GDD_h: sit.GDD_h || 0, GDD_d: sit.GDD_d || 0,
+            GDB: sit.GDB || 0, GDB_h: sit.GDB_h || 0, GDB_d: sit.GDB_d || 0,
+            CLM: sit.CLM || 0, CLM_h: sit.CLM_h || 0, CLM_d: sit.CLM_d || 0,
+            COL: sit.COL || 0, COL_h: sit.COL_h || 0, COL_d: sit.COL_d || 0,
+            LCL: sit.LCL || 0, LCL_h: sit.LCL_h || 0, LCL_d: sit.LCL_d || 0,
+            CES: sit.CES || 0, CES_h: sit.CES_h || 0, CES_d: sit.CES_d || 0,
+            CNE: sit.CNE || 0, CNE_h: sit.CNE_h || 0, CNE_d: sit.CNE_d || 0,
+            LTN: sit.LTN || 0, LTN_h: sit.LTN_h || 0, LTN_d: sit.LTN_d || 0,
+            SLT: sit.SLT || 0, SLT_h: sit.SLT_h || 0, SLT_d: sit.SLT_d || 0,
+            ASP: sit.ASP || 0, ASP_h: sit.ASP_h || 0, ASP_d: sit.ASP_d || 0,
+            EOA: sit.EOA || 0, EOA_h: sit.EOA_h || 0, EOA_d: sit.EOA_d || 0,
+            MJR: sit.MJR || 0, MJR_h: sit.MJR_h || 0, MJR_d: sit.MJR_d || 0,
+            ADC: sit.ADC || 0, ADC_h: sit.ADC_h || 0, ADC_d: sit.ADC_d || 0,
+            ADJ: sit.ADJ || 0, ADJ_h: sit.ADJ_h || 0, ADJ_d: sit.ADJ_d || 0,
+            MDC: sit.MDC || 0, MDC_h: sit.MDC_h || 0, MDC_d: sit.MDC_d || 0,
+            MDL: sit.MDL || 0, MDL_h: sit.MDL_h || 0, MDL_d: sit.MDL_d || 0,
+            ESOA: sit.ESOA || 0, ESOA_h: sit.ESOA_h || 0, ESOA_d: sit.ESOA_d || 0,
+            MRG: sit.MRG || 0, MRG_h: sit.MRG_h || 0, MRG_d: sit.MRG_d || 0,
         };
     });
 });
@@ -702,132 +856,255 @@ const liste20Regions = computed(() => {
             </div>
 
             <!-- ======================================================== -->
-            <!-- TAB 1 : MATRICE DE SITUATION DE PRISE D'ARMES            -->
+            <!-- TAB 1 : SITUATION DES EFFECTIFS (PRISE D'ARMES)          -->
             <!-- ======================================================== -->
-            <div v-if="activeTab === 'spa'" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
-                <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-                    <div>
-                        <div class="flex items-center space-x-2">
-                            <h2 class="text-lg font-black text-slate-800">Matrice de Répartition par Grade et Organisme</h2>
-                            <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800">
-                                {{ stats.total_spa }} militaires en base ({{ stats.total_hommes }} H, {{ stats.total_dames }} D)
-                            </span>
+            <div v-if="activeTab === 'spa'" class="space-y-6">
+                <!-- 1. CARD TOTAL GLOBAL DE LA GENDARMERIE NATIONALE -->
+                <div class="bg-gradient-to-br from-slate-900 via-sky-950 to-slate-900 rounded-2xl border border-sky-800/60 p-6 text-white shadow-xl relative overflow-hidden">
+                    <div class="absolute -right-12 -top-12 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-white/10 relative z-10">
+                        <div>
+                            <div class="flex items-center space-x-2">
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase tracking-wider">
+                                    Situation de Revue & Prise d'Armes
+                                </span>
+                                <span class="px-2 py-0.5 rounded text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">
+                                    Direct Base de Données
+                                </span>
+                            </div>
+                            <h2 class="text-xl sm:text-2xl font-black tracking-tight text-white mt-1.5 flex items-center gap-2">
+                                <i class="pi pi-shield text-amber-400"></i>
+                                <span>TOTAL GLOBAL · GENDARMERIE NATIONALE</span>
+                            </h2>
+                            <p class="text-xs text-sky-200/80 mt-0.5">
+                                Répartition officielle par grade, genre (Hommes/Dames) et structures de déploiement
+                            </p>
                         </div>
-                        <p class="text-xs text-slate-500">
-                            17 Grades × 48 Structures de Détachement • Décomposition Hommes (H) / Dames (D) • 100% conforme au tableau DGGN
-                        </p>
+
+                        <div class="flex items-center gap-2.5 flex-wrap">
+                            <Button
+                                @click="telechargerExcel"
+                                icon="pi pi-file-excel"
+                                label="Exporter la Situation DGGN (Excel .xlsx)"
+                                severity="success"
+                                size="small"
+                                class="!rounded-xl !bg-emerald-600 hover:!bg-emerald-500 !border-emerald-500 shadow-md font-bold"
+                            />
+                        </div>
                     </div>
 
-                    <div class="flex items-center space-x-2">
-                        <Button
-                            @click="telechargerExcel"
-                            icon="pi pi-file-excel"
-                            label="Télécharger XLSX"
-                            severity="success"
-                            size="small"
-                            outlined
-                            class="!rounded-xl"
-                        />
+                    <!-- Métriques Globales Clés -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-5 relative z-10">
+                        <div class="bg-white/5 border border-white/10 rounded-xl p-3.5 backdrop-blur-xs">
+                            <div class="text-[11px] font-bold text-sky-300 uppercase tracking-wider">Effectif Total SPA</div>
+                            <div class="text-2xl sm:text-3xl font-black text-white mt-1 tabular-nums">
+                                {{ fmt(stats.total_spa) }} <span class="text-xs font-semibold text-sky-300">pax</span>
+                            </div>
+                            <div class="text-[10px] text-slate-400 mt-0.5">En activité / Détachement</div>
+                        </div>
+
+                        <div class="bg-white/5 border border-white/10 rounded-xl p-3.5 backdrop-blur-xs">
+                            <div class="text-[11px] font-bold text-sky-300 uppercase tracking-wider flex items-center justify-between">
+                                <span>Hommes (H)</span>
+                                <span class="text-[10px] text-sky-400 font-extrabold">
+                                    {{ stats.total_spa > 0 ? Math.round(((stats.total_hommes || 0) / stats.total_spa) * 100) : 0 }}%
+                                </span>
+                            </div>
+                            <div class="text-2xl sm:text-3xl font-black text-sky-200 mt-1 tabular-nums">
+                                {{ fmt(stats.total_hommes) }}
+                            </div>
+                            <div class="text-[10px] text-slate-400 mt-0.5">Personnels masculins</div>
+                        </div>
+
+                        <div class="bg-white/5 border border-white/10 rounded-xl p-3.5 backdrop-blur-xs">
+                            <div class="text-[11px] font-bold text-rose-300 uppercase tracking-wider flex items-center justify-between">
+                                <span>Dames (D)</span>
+                                <span class="text-[10px] text-rose-400 font-extrabold">
+                                    {{ stats.total_spa > 0 ? Math.round(((stats.total_dames || 0) / stats.total_spa) * 100) : 0 }}%
+                                </span>
+                            </div>
+                            <div class="text-2xl sm:text-3xl font-black text-rose-300 mt-1 tabular-nums">
+                                {{ fmt(stats.total_dames) }}
+                            </div>
+                            <div class="text-[10px] text-slate-400 mt-0.5">Personnels féminins</div>
+                        </div>
+
+                        <div class="bg-white/5 border border-white/10 rounded-xl p-3.5 backdrop-blur-xs">
+                            <div class="text-[11px] font-bold text-amber-300 uppercase tracking-wider">Détachés Externes</div>
+                            <div class="text-2xl sm:text-3xl font-black text-amber-200 mt-1 tabular-nums">
+                                {{ fmt(stats.total_detaches) }}
+                            </div>
+                            <div class="text-[10px] text-slate-400 mt-0.5">Hors Gendarmerie (47 Org.)</div>
+                        </div>
+                    </div>
+
+                    <!-- Décomposition hiérarchique par grandes catégories de grades -->
+                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-4 border-t border-white/10 mt-4 relative z-10 text-xs">
+                        <div class="bg-amber-400/10 border border-amber-400/20 rounded-lg p-2 text-center">
+                            <div class="text-[10px] text-amber-300 font-bold uppercase truncate">Off. Généraux</div>
+                            <div class="text-base font-black text-amber-200 tabular-nums">
+                                {{ fmt(stats.total_officiers_generaux || 0) }}
+                            </div>
+                            <div class="text-[9px] text-amber-400/70">GAR · GCA · GDD · GDB</div>
+                        </div>
+                        <div class="bg-sky-400/10 border border-sky-400/20 rounded-lg p-2 text-center">
+                            <div class="text-[10px] text-sky-300 font-bold uppercase truncate">Off. Supérieurs</div>
+                            <div class="text-base font-black text-sky-200 tabular-nums">
+                                {{ fmt(stats.total_officiers_superieurs || 0) }}
+                            </div>
+                            <div class="text-[9px] text-sky-400/70">CLM · COL · LCL · CES</div>
+                        </div>
+                        <div class="bg-sky-400/10 border border-sky-400/20 rounded-lg p-2 text-center">
+                            <div class="text-[10px] text-sky-300 font-bold uppercase truncate">Off. Subalternes</div>
+                            <div class="text-base font-black text-sky-200 tabular-nums">
+                                {{ fmt(stats.total_officiers_subalternes || 0) }}
+                            </div>
+                            <div class="text-[9px] text-sky-400/70">CNE · LTN · SLT · ASP · EOA</div>
+                        </div>
+                        <div class="bg-emerald-400/10 border border-emerald-400/20 rounded-lg p-2 text-center">
+                            <div class="text-[10px] text-emerald-300 font-bold uppercase truncate">Sous-Officiers</div>
+                            <div class="text-base font-black text-emerald-200 tabular-nums">
+                                {{ fmt(stats.total_sous_officiers || 0) }}
+                            </div>
+                            <div class="text-[9px] text-emerald-400/70">MJR · ADC · ADJ · MDC · MDL</div>
+                        </div>
+                        <div class="bg-slate-400/10 border border-slate-400/20 rounded-lg p-2 text-center col-span-2 sm:col-span-1">
+                            <div class="text-[10px] text-slate-300 font-bold uppercase truncate">Rang & Gendarmes</div>
+                            <div class="text-base font-black text-slate-200 tabular-nums">
+                                {{ fmt(stats.total_militaires_rang || 0) }}
+                            </div>
+                            <div class="text-[9px] text-slate-400/70">MRG · ESOA · Gendarmes</div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- TABLEAU SCROLLABLE DE LA MATRICE (100% IDENTIQUE À LA STRUCTURE EXCEL) -->
-                <div class="overflow-x-auto rounded-xl border border-slate-200 max-h-[650px]">
-                    <table class="min-w-full divide-y divide-slate-200 text-xs">
-                        <thead class="bg-sky-900 text-white sticky top-0 z-20">
-                            <tr>
-                                <th rowspan="2" class="px-3 py-2 text-left font-bold border-r border-sky-800 min-w-[120px] bg-sky-950">
-                                    GRADES
-                                </th>
-                                <template v-for="org in organismes" :key="org.id">
-                                    <th colspan="2" class="px-2 py-1 text-center font-bold border-r border-sky-800 whitespace-nowrap text-[11px]" :title="org.nom">
-                                        {{ org.code }}
-                                    </th>
-                                </template>
-                                <th colspan="3" class="px-3 py-1 text-center font-black bg-amber-600 text-white">
-                                    TOTAUX
-                                </th>
-                            </tr>
-                            <tr class="bg-sky-800 text-[10px] text-sky-200">
-                                <template v-for="org in organismes" :key="'sub_' + org.id">
-                                    <th class="px-1.5 py-1 text-center border-r border-sky-700 font-semibold">H</th>
-                                    <th class="px-1.5 py-1 text-center border-r border-sky-700 font-semibold">D</th>
-                                </template>
-                                <th class="px-2 py-1 text-center bg-amber-700 text-white font-bold">H</th>
-                                <th class="px-2 py-1 text-center bg-amber-700 text-white font-bold">D</th>
-                                <th class="px-2 py-1 text-center bg-amber-800 text-white font-black">TOTAL</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-100 bg-white">
-                            <tr
-                                v-for="(ligne, gradeNom) in matrice"
-                                :key="gradeNom"
-                                class="hover:bg-sky-50/60 transition-colors"
+                <!-- 2. SÉLECTEUR DE VUE CARTES : 20 RÉGIONS vs 48 ORGANISMES DE DÉTACHEMENT -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-5">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                        <div>
+                            <h3 class="text-base font-black text-slate-900">Affichage Cartes des Effectifs par Grade</h3>
+                            <p class="text-xs text-slate-500 mt-0.5">
+                                Chaque case de grade affiche le total ainsi que le décompte distinct <b class="text-sky-700">Hommes (H)</b> et <b class="text-rose-600">Dames (D)</b>. Cliquez sur un grade pour ouvrir la liste nominale.
+                            </p>
+                        </div>
+
+                        <!-- Boutons bascule Régions / Organismes -->
+                        <div class="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200 self-start sm:self-auto">
+                            <button
+                                type="button"
+                                @click="spaCardsView = 'regions'"
+                                :class="[
+                                    'px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer',
+                                    spaCardsView === 'regions'
+                                        ? 'bg-sky-800 text-white shadow-xs'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                                ]"
                             >
-                                <td class="px-3 py-1.5 font-bold text-slate-800 bg-slate-50 border-r border-slate-200 whitespace-nowrap sticky left-0 z-10">
-                                    {{ gradeNom }}
-                                </td>
-                                <template v-for="org in organismes" :key="gradeNom + '_' + org.id">
-                                    <td class="px-1.5 py-1 text-center border-r border-slate-100 text-slate-700">
-                                        {{ ligne[org.code]?.h ? ligne[org.code].h : '' }}
-                                    </td>
-                                    <td class="px-1.5 py-1 text-center border-r border-slate-100 text-rose-600 font-medium">
-                                        {{ ligne[org.code]?.d ? ligne[org.code].d : '' }}
-                                    </td>
-                                </template>
-                                <td class="px-2 py-1 text-center font-bold bg-amber-50 text-slate-800 border-l border-amber-200">
-                                    {{ ligne.total_h ?? 0 }}
-                                </td>
-                                <td class="px-2 py-1 text-center font-bold bg-amber-50 text-rose-700">
-                                    {{ ligne.total_d ?? 0 }}
-                                </td>
-                                <td class="px-2 py-1 text-center font-black bg-amber-100 text-sky-950">
-                                    {{ ligne.total ?? 0 }}
-                                </td>
-                            </tr>
-                        </tbody>
-                        <tfoot class="bg-slate-100 font-black text-slate-900 sticky bottom-0 z-20 border-t-2 border-slate-300">
-                            <tr>
-                                <td class="px-3 py-2 text-left sticky left-0 bg-slate-200 z-10 border-r border-slate-300">
-                                    TOTAL GENERAL
-                                </td>
-                                <template v-for="org in organismes" :key="'tot_' + org.id">
-                                    <td class="px-1.5 py-2 text-center border-r border-slate-200">
-                                        {{ getColTotal(org.code, 'h') || '' }}
-                                    </td>
-                                    <td class="px-1.5 py-2 text-center border-r border-slate-200 text-rose-700">
-                                        {{ getColTotal(org.code, 'd') || '' }}
-                                    </td>
-                                </template>
-                                <td class="px-2 py-2 text-center bg-amber-200 text-slate-900 border-l border-amber-300">
-                                    {{ stats.total_hommes || 0 }}
-                                </td>
-                                <td class="px-2 py-2 text-center bg-amber-200 text-rose-800">
-                                    {{ stats.total_dames || 0 }}
-                                </td>
-                                <td class="px-2 py-2 text-center bg-amber-300 text-sky-950 text-sm">
-                                    {{ stats.total_spa || 0 }}
-                                </td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                                <i class="pi pi-map text-xs"></i>
+                                <span>20 Régions Territoriales</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                @click="spaCardsView = 'organismes'"
+                                :class="[
+                                    'px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer',
+                                    spaCardsView === 'organismes'
+                                        ? 'bg-sky-800 text-white shadow-xs'
+                                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                                ]"
+                            >
+                                <i class="pi pi-sitemap text-xs"></i>
+                                <span>48 Organismes de Détachement</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 3. GRILLE DE CARTES (RÉGIONS OU ORGANISMES) -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div
+                            v-for="item in (spaCardsView === 'regions' ? liste20Regions : listeOrganismesCards)"
+                            :key="item.code"
+                            class="bg-slate-50/80 rounded-2xl border border-slate-200 p-4 hover:shadow-md transition-shadow flex flex-col justify-between"
+                        >
+                            <!-- En-tête de la carte -->
+                            <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200/70">
+                                <div class="flex items-center space-x-2 min-w-0">
+                                    <span class="px-2 py-0.5 rounded-lg text-xs font-black bg-sky-800 text-white shrink-0">
+                                        {{ item.code }}
+                                    </span>
+                                    <h4 class="font-bold text-sm text-slate-800 truncate" :title="item.nom">
+                                        {{ item.nom }}
+                                    </h4>
+                                </div>
+                                <div class="text-right shrink-0 ml-2">
+                                    <span class="text-sm font-black text-sky-950 bg-sky-100 px-2.5 py-0.5 rounded-full tabular-nums">
+                                        {{ fmt(item.total) }} pax
+                                    </span>
+                                    <div class="text-[10px] text-slate-500 font-semibold mt-0.5 flex items-center justify-end gap-1">
+                                        <span class="text-sky-700">H:{{ fmt(item.total_h) }}</span>
+                                        <span>·</span>
+                                        <span class="text-rose-600">D:{{ fmt(item.total_d) }}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Grille des 20 Grades (4 cols x 5 rows) avec H / D et clic modal -->
+                            <div class="grid grid-cols-4 gap-1.5 text-center">
+                                <div
+                                    v-for="g in SPA_CARD_GRADES"
+                                    :key="g.code"
+                                    @click="item[g.code] > 0 ? ouvrirModalGrade(item, g.code, spaCardsView === 'regions' ? 'region' : 'organisme') : null"
+                                    :class="[
+                                        'p-1.5 rounded-lg border transition-all text-center select-none',
+                                        item[g.code] > 0
+                                            ? 'cursor-pointer hover:border-sky-500 hover:shadow-xs active:scale-95'
+                                            : 'opacity-40 cursor-default',
+                                        g.cat === 'gen'
+                                            ? (item[g.code] > 0 ? 'bg-amber-50/90 border-amber-300 hover:bg-amber-100' : 'bg-amber-50/30 border-amber-200/50')
+                                            : (item[g.code] > 0 ? 'bg-white border-slate-200 hover:bg-sky-50/70' : 'bg-slate-50/50 border-slate-200/60')
+                                    ]"
+                                    :title="g.title + (item[g.code] > 0 ? ' • Cliquer pour voir la liste nominale' : '')"
+                                >
+                                    <div
+                                        class="text-[9px] font-black truncate"
+                                        :class="g.cat === 'gen' ? 'text-amber-800' : (g.cat === 'sup' ? 'text-sky-800' : 'text-slate-600')"
+                                    >
+                                        {{ g.code }}
+                                    </div>
+                                    <div
+                                        class="text-xs font-black tabular-nums"
+                                        :class="g.cat === 'gen' ? 'text-amber-950' : (item[g.code] > 0 ? 'text-slate-900' : 'text-slate-400')"
+                                    >
+                                        {{ item[g.code] || 0 }}
+                                    </div>
+                                    <div class="text-[8px] font-bold mt-0.5 flex items-center justify-center gap-0.5">
+                                        <span :class="item[g.code + '_h'] > 0 ? 'text-sky-700 font-extrabold' : 'text-slate-400'">H:{{ item[g.code + '_h'] || 0 }}</span>
+                                        <span class="text-slate-300">·</span>
+                                        <span :class="item[g.code + '_d'] > 0 ? 'text-rose-600 font-extrabold' : 'text-slate-400'">D:{{ item[g.code + '_d'] || 0 }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- ======================================================== -->
-            <!-- TAB 2 : SITUATION PAR RÉGION (19 + 1 DISTRICT BAMAKO)    -->
+            <!-- TAB 2 : SITUATION PAR RÉGION (20 RÉGIONS)                -->
             <!-- ======================================================== -->
             <div v-if="activeTab === 'regions'" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
-                <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
                     <div>
                         <div class="flex items-center space-x-2">
                             <h2 class="text-lg font-black text-slate-800">Déploiement Territorial des 20 Régions du Mali</h2>
                             <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800">
-                                {{ stats.total_spa }} militaires répartis
+                                {{ fmt(stats.total_spa) }} militaires répartis
                             </span>
                         </div>
-                        <p class="text-xs text-slate-500">
-                            District de Bamako (R1) et les 19 Régions Militaires (R2 à R20) avec décompte par grade
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            District de Bamako (R1) et les 19 Régions Militaires (R2 à R20) avec décompte distinct Hommes (H) et Dames (D) par grade
                         </p>
                     </div>
 
@@ -838,7 +1115,7 @@ const liste20Regions = computed(() => {
                         severity="info"
                         size="small"
                         outlined
-                        class="!rounded-xl"
+                        class="!rounded-xl self-start sm:self-auto"
                     />
                 </div>
 
@@ -846,109 +1123,61 @@ const liste20Regions = computed(() => {
                     <div
                         v-for="reg in liste20Regions"
                         :key="reg.code"
-                        class="bg-slate-50 rounded-2xl border border-slate-200 p-4 hover:shadow-md transition-shadow"
+                        class="bg-slate-50/80 rounded-2xl border border-slate-200 p-4 hover:shadow-md transition-shadow flex flex-col justify-between"
                     >
-                        <div class="flex items-center justify-between mb-3">
-                            <div class="flex items-center space-x-2">
-                                <span class="px-2 py-0.5 rounded-lg text-xs font-bold bg-sky-800 text-white">
+                        <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200/70">
+                            <div class="flex items-center space-x-2 min-w-0">
+                                <span class="px-2 py-0.5 rounded-lg text-xs font-black bg-sky-800 text-white shrink-0">
                                     {{ reg.code }}
                                 </span>
                                 <h3 class="font-bold text-sm text-slate-800 truncate">{{ reg.nom }}</h3>
                             </div>
-                            <span class="text-sm font-black text-sky-900 bg-sky-100 px-2.5 py-0.5 rounded-full">
-                                {{ reg.total }} pax
-                            </span>
+                            <div class="text-right shrink-0 ml-2">
+                                <span class="text-sm font-black text-sky-950 bg-sky-100 px-2.5 py-0.5 rounded-full tabular-nums">
+                                    {{ fmt(reg.total) }} pax
+                                </span>
+                                <div class="text-[10px] text-slate-500 font-semibold mt-0.5 flex items-center justify-end gap-1">
+                                    <span class="text-sky-700">H:{{ fmt(reg.total_h) }}</span>
+                                    <span>·</span>
+                                    <span class="text-rose-600">D:{{ fmt(reg.total_d) }}</span>
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="grid grid-cols-4 gap-1.5 text-[11px] text-center">
-                            <!-- LIGNE 1 : OFFICIERS GÉNÉRAUX (DORÉ / AMBRE) -->
-                            <div class="bg-amber-50/80 p-1 rounded border border-amber-200 shadow-2xs" title="Général d'Armée">
-                                <div class="text-[9px] text-amber-800 font-extrabold">GAR</div>
-                                <div class="font-black text-amber-950">{{ reg.GAR || 0 }}</div>
-                            </div>
-                            <div class="bg-amber-50/80 p-1 rounded border border-amber-200 shadow-2xs" title="Général de Corps d'Armée">
-                                <div class="text-[9px] text-amber-800 font-extrabold">GCA</div>
-                                <div class="font-black text-amber-950">{{ reg.GCA || 0 }}</div>
-                            </div>
-                            <div class="bg-amber-50/80 p-1 rounded border border-amber-200 shadow-2xs" title="Général de Division">
-                                <div class="text-[9px] text-amber-800 font-extrabold">GDD</div>
-                                <div class="font-black text-amber-950">{{ reg.GDD || 0 }}</div>
-                            </div>
-                            <div class="bg-amber-50/80 p-1 rounded border border-amber-200 shadow-2xs" title="Général de Brigade">
-                                <div class="text-[9px] text-amber-800 font-extrabold">GDB</div>
-                                <div class="font-black text-amber-950">{{ reg.GDB || 0 }}</div>
-                            </div>
-
-                            <!-- LIGNE 2 : OFFICIERS SUPÉRIEURS -->
-                            <div class="bg-white p-1 rounded border border-slate-200" title="Colonel-Major">
-                                <div class="text-[9px] text-sky-800 font-bold">CLM</div>
-                                <div class="font-bold text-slate-800">{{ reg.CLM || 0 }}</div>
-                            </div>
-                            <div class="bg-white p-1 rounded border border-slate-100" title="Colonel">
-                                <div class="text-[9px] text-sky-800 font-bold">COL</div>
-                                <div class="font-bold text-slate-700">{{ reg.COL || 0 }}</div>
-                            </div>
-                            <div class="bg-white p-1 rounded border border-slate-100" title="Lieutenant-Colonel">
-                                <div class="text-[9px] text-sky-800 font-bold">LCL</div>
-                                <div class="font-bold text-slate-700">{{ reg.LCL || 0 }}</div>
-                            </div>
-                            <div class="bg-white p-1 rounded border border-slate-100" title="Chef d'Escadron / Commandant">
-                                <div class="text-[9px] text-sky-800 font-bold">CES</div>
-                                <div class="font-bold text-slate-700">{{ reg.CES || 0 }}</div>
-                            </div>
-
-                            <!-- LIGNE 3 : OFFICIERS SUBALTERNES -->
-                            <div class="bg-white p-1 rounded border border-slate-100" title="Capitaine">
-                                <div class="text-[9px] text-slate-600 font-bold">CNE</div>
-                                <div class="font-bold text-slate-700">{{ reg.CNE || 0 }}</div>
-                            </div>
-                            <div class="bg-white p-1 rounded border border-slate-100" title="Lieutenant">
-                                <div class="text-[9px] text-slate-600 font-bold">LTN</div>
-                                <div class="font-bold text-slate-700">{{ reg.LTN || 0 }}</div>
-                            </div>
-                            <div class="bg-white p-1 rounded border border-slate-100" title="Sous-Lieutenant">
-                                <div class="text-[9px] text-slate-600 font-bold">SLT</div>
-                                <div class="font-bold text-slate-700">{{ reg.SLT || 0 }}</div>
-                            </div>
-                            <div class="bg-white p-1 rounded border border-slate-100" title="Aspirant">
-                                <div class="text-[9px] text-sky-700 font-bold">ASP</div>
-                                <div class="font-bold text-slate-700">{{ reg.ASP || 0 }}</div>
-                            </div>
-
-                            <!-- LIGNE 4 : ÉLÈVES OFFICIERS & SOUS-OFFICIERS SUPÉRIEURS -->
-                            <div class="bg-white p-1 rounded border border-slate-100" title="Élève Officier d'Active">
-                                <div class="text-[9px] text-sky-700 font-bold">EOA</div>
-                                <div class="font-bold text-slate-700">{{ reg.EOA || 0 }}</div>
-                            </div>
-                            <div class="bg-white p-1 rounded border border-slate-100" title="Adjudant-Chef Major / Major">
-                                <div class="text-[9px] text-slate-500 font-bold">MJR</div>
-                                <div class="font-bold text-slate-700">{{ reg.MJR || 0 }}</div>
-                            </div>
-                            <div class="bg-white p-1 rounded border border-slate-100" title="Adjudant-Chef">
-                                <div class="text-[9px] text-slate-500 font-bold">ADC</div>
-                                <div class="font-bold text-slate-700">{{ reg.ADC || 0 }}</div>
-                            </div>
-                            <div class="bg-white p-1 rounded border border-slate-100" title="Adjudant">
-                                <div class="text-[9px] text-slate-400 font-bold">ADJ</div>
-                                <div class="font-bold text-slate-700">{{ reg.ADJ || 0 }}</div>
-                            </div>
-
-                            <!-- LIGNE 5 : SOUS-OFFICIERS SUBALTERNES, ÉLÈVES SOUS-OFF & MILITAIRES DU RANG -->
-                            <div class="bg-white p-1 rounded border border-slate-100" title="Maréchal des Logis-Chef">
-                                <div class="text-[9px] text-slate-400 font-bold">MDC</div>
-                                <div class="font-bold text-slate-700">{{ reg.MDC || 0 }}</div>
-                            </div>
-                            <div class="bg-white p-1 rounded border border-slate-100" title="Maréchal des Logis">
-                                <div class="text-[9px] text-slate-400 font-bold">MDL</div>
-                                <div class="font-bold text-slate-700">{{ reg.MDL || 0 }}</div>
-                            </div>
-                            <div class="bg-white p-1 rounded border border-slate-100" title="Élève Sous-Officier d'Active">
-                                <div class="text-[9px] text-slate-500 font-bold">ESOA</div>
-                                <div class="font-bold text-slate-700">{{ reg.ESOA || 0 }}</div>
-                            </div>
-                            <div class="bg-white p-1 rounded border border-slate-100" title="Militaire du Rang / Gendarmes / Soldats">
-                                <div class="text-[9px] text-slate-400 font-bold">MRG</div>
-                                <div class="font-bold text-slate-700">{{ reg.MRG || 0 }}</div>
+                        <!-- Grille des 20 Grades avec décompte H/D et clic modal -->
+                        <div class="grid grid-cols-4 gap-1.5 text-center">
+                            <div
+                                v-for="g in SPA_CARD_GRADES"
+                                :key="g.code"
+                                @click="reg[g.code] > 0 ? ouvrirModalGrade(reg, g.code, 'region') : null"
+                                :class="[
+                                    'p-1.5 rounded-lg border transition-all text-center select-none',
+                                    reg[g.code] > 0
+                                        ? 'cursor-pointer hover:border-sky-500 hover:shadow-xs active:scale-95'
+                                        : 'opacity-40 cursor-default',
+                                    g.cat === 'gen'
+                                        ? (reg[g.code] > 0 ? 'bg-amber-50/90 border-amber-300 hover:bg-amber-100' : 'bg-amber-50/30 border-amber-200/50')
+                                        : (reg[g.code] > 0 ? 'bg-white border-slate-200 hover:bg-sky-50/70' : 'bg-slate-50/50 border-slate-200/60')
+                                ]"
+                                :title="g.title + (reg[g.code] > 0 ? ' • Cliquer pour voir la liste nominale' : '')"
+                            >
+                                <div
+                                    class="text-[9px] font-black truncate"
+                                    :class="g.cat === 'gen' ? 'text-amber-800' : (g.cat === 'sup' ? 'text-sky-800' : 'text-slate-600')"
+                                >
+                                    {{ g.code }}
+                                </div>
+                                <div
+                                    class="text-xs font-black tabular-nums"
+                                    :class="g.cat === 'gen' ? 'text-amber-950' : (reg[g.code] > 0 ? 'text-slate-900' : 'text-slate-400')"
+                                >
+                                    {{ reg[g.code] || 0 }}
+                                </div>
+                                <div class="text-[8px] font-bold mt-0.5 flex items-center justify-center gap-0.5">
+                                    <span :class="reg[g.code + '_h'] > 0 ? 'text-sky-700 font-extrabold' : 'text-slate-400'">H:{{ reg[g.code + '_h'] || 0 }}</span>
+                                    <span class="text-slate-300">·</span>
+                                    <span :class="reg[g.code + '_d'] > 0 ? 'text-rose-600 font-extrabold' : 'text-slate-400'">D:{{ reg[g.code + '_d'] || 0 }}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1406,6 +1635,229 @@ const liste20Regions = computed(() => {
                 <div class="flex justify-end gap-2 pt-2">
                     <Button label="Annuler" text severity="secondary" size="small" @click="deleteDialogVisible = false" />
                     <Button label="Supprimer" icon="pi pi-trash" severity="danger" size="small" :loading="deletingRegistre" @click="executeDeleteRegistre" />
+                </div>
+            </template>
+        </Dialog>
+        <!-- Modal consultation nominale par Grade & Structure (Hommes & Dames) -->
+        <Dialog
+            v-model:visible="showGradeModal"
+            modal
+            dismissableMask
+            :style="{ width: '920px', maxWidth: '96vw' }"
+            :header="false"
+            class="overflow-hidden"
+        >
+            <div class="p-4 sm:p-5 space-y-4">
+                <!-- En-tête de la modale -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="px-2.5 py-0.5 rounded-lg text-xs font-black bg-sky-900 text-white">
+                                {{ modalGradeInfo.grade_col }}
+                            </span>
+                            <h3 class="text-lg font-black text-slate-900">
+                                {{ modalGradeInfo.grade_nom }}
+                            </h3>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            Périmètre : <b class="text-slate-800">{{ modalGradeInfo.perimetre }}</b>
+                        </p>
+                    </div>
+
+                    <!-- KPI Badges Total, Hommes, Dames -->
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="px-2.5 py-1 rounded-full text-xs font-black bg-slate-100 text-slate-800 border border-slate-200">
+                            Total : {{ fmt(modalGradeInfo.total) }}
+                        </span>
+                        <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-sky-100 text-sky-800 border border-sky-200 flex items-center gap-1">
+                            <span class="w-2 h-2 rounded-full bg-sky-600"></span>
+                            <span>Hommes : {{ fmt(modalGradeInfo.total_h) }}</span>
+                        </span>
+                        <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200 flex items-center gap-1">
+                            <span class="w-2 h-2 rounded-full bg-rose-600"></span>
+                            <span>Dames : {{ fmt(modalGradeInfo.total_d) }}</span>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Filtres et Recherche rapide dans la modale -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <!-- Onglets Tous / Hommes / Dames -->
+                    <div class="flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 self-start sm:self-auto">
+                        <button
+                            type="button"
+                            @click="modalGradeSexeFilter = 'tous'; modalGradePage = 1"
+                            :class="[
+                                'px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer',
+                                modalGradeSexeFilter === 'tous'
+                                    ? 'bg-sky-800 text-white shadow-xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                            ]"
+                        >
+                            Tous ({{ modalGradeInfo.total || 0 }})
+                        </button>
+                        <button
+                            type="button"
+                            @click="modalGradeSexeFilter = 'H'; modalGradePage = 1"
+                            :class="[
+                                'px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer',
+                                modalGradeSexeFilter === 'H'
+                                    ? 'bg-sky-800 text-white shadow-xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                            ]"
+                        >
+                            Hommes ({{ modalGradeInfo.total_h || 0 }})
+                        </button>
+                        <button
+                            type="button"
+                            @click="modalGradeSexeFilter = 'D'; modalGradePage = 1"
+                            :class="[
+                                'px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer',
+                                modalGradeSexeFilter === 'D'
+                                    ? 'bg-rose-700 text-white shadow-xs'
+                                    : 'text-slate-600 hover:text-slate-900'
+                            ]"
+                        >
+                            Dames ({{ modalGradeInfo.total_d || 0 }})
+                        </button>
+                    </div>
+
+                    <!-- Champ de recherche + Nombre par page -->
+                    <div class="flex items-center gap-2">
+                        <div class="relative w-full sm:w-60">
+                            <i class="pi pi-search absolute left-2.5 top-2.5 text-slate-400 text-xs"></i>
+                            <input
+                                v-model="modalGradeSearch"
+                                type="text"
+                                placeholder="Rechercher nom, matricule..."
+                                class="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-300 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                            />
+                        </div>
+
+                        <select
+                            v-model="modalGradePerPage"
+                            @change="modalGradePage = 1"
+                            class="py-1.5 px-2 text-xs rounded-xl border border-slate-300 bg-white text-slate-700 cursor-pointer"
+                        >
+                            <option :value="10">10 / page</option>
+                            <option :value="25">25 / page</option>
+                            <option :value="50">50 / page</option>
+                            <option :value="100">100 / page</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- État de chargement -->
+                <div v-if="loadingGradeModal" class="py-12 text-center text-slate-500 space-y-2">
+                    <i class="pi pi-spin pi-spinner text-2xl text-sky-700"></i>
+                    <p class="text-xs font-bold">Chargement des militaires en cours...</p>
+                </div>
+
+                <!-- Tableau nominal paginé -->
+                <div v-else-if="modalMilitairesFiltres.length > 0" class="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table class="min-w-full divide-y divide-slate-200 text-xs">
+                        <thead class="bg-slate-100 text-slate-700 font-bold">
+                            <tr>
+                                <th class="px-3 py-2 text-left">MATRICULE / MLE</th>
+                                <th class="px-3 py-2 text-left">GRADE & IDENTITÉ</th>
+                                <th class="px-2 py-2 text-center">SEXE</th>
+                                <th class="px-3 py-2 text-left">UNITÉ</th>
+                                <th class="px-3 py-2 text-left">RÉGION</th>
+                                <th class="px-3 py-2 text-left">POSITION / STATUT</th>
+                                <th class="px-3 py-2 text-center">ACTION</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 bg-white">
+                            <tr
+                                v-for="m in modalMilitairesPagine"
+                                :key="m.id"
+                                class="hover:bg-slate-50/80 transition-colors"
+                            >
+                                <td class="px-3 py-2 font-mono font-bold text-slate-800 whitespace-nowrap">
+                                    {{ m.matricule || m.mle_grm || '-' }}
+                                </td>
+                                <td class="px-3 py-2">
+                                    <div class="font-bold text-slate-900">{{ m.nom_complet }}</div>
+                                    <div class="text-[10px] text-slate-500">{{ m.grade }}</div>
+                                </td>
+                                <td class="px-2 py-2 text-center whitespace-nowrap">
+                                    <span
+                                        class="px-2 py-0.5 rounded text-[10px] font-black"
+                                        :class="m.sexe === 'D' ? 'bg-rose-100 text-rose-800' : 'bg-sky-100 text-sky-800'"
+                                    >
+                                        {{ m.sexe === 'D' ? 'D (Féminin)' : 'H (Masculin)' }}
+                                    </span>
+                                </td>
+                                <td class="px-3 py-2 text-slate-700 truncate max-w-[200px]" :title="m.unite_nom">
+                                    {{ m.unite_nom }}
+                                </td>
+                                <td class="px-3 py-2 text-slate-600 truncate max-w-[150px]">
+                                    {{ m.region_nom }}
+                                </td>
+                                <td class="px-3 py-2 text-slate-600 truncate max-w-[180px]">
+                                    {{ m.position }}
+                                </td>
+                                <td class="px-3 py-2 text-center whitespace-nowrap">
+                                    <Link
+                                        :href="route('militaires.show', m.id)"
+                                        class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-sky-50 text-sky-800 hover:bg-sky-100 border border-sky-200 inline-flex items-center gap-1"
+                                    >
+                                        <i class="pi pi-id-card text-[10px]"></i>
+                                        <span>Fiche</span>
+                                    </Link>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Aucun résultat -->
+                <div v-else class="py-10 text-center text-slate-500 space-y-1 bg-slate-50 rounded-xl border border-slate-200">
+                    <i class="pi pi-inbox text-3xl text-slate-400"></i>
+                    <p class="text-xs font-bold text-slate-700">Aucun militaire trouvé pour ce critère</p>
+                    <p class="text-[11px] text-slate-400">Vérifiez les filtres de recherche ou sélectionnez un autre groupe.</p>
+                </div>
+
+                <!-- Pagination de la modale -->
+                <div v-if="modalMilitairesFiltres.length > 0" class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs text-slate-600">
+                    <div>
+                        Affichage de <b>{{ (modalGradePage - 1) * modalGradePerPage + 1 }}</b> à <b>{{ Math.min(modalGradePage * modalGradePerPage, modalMilitairesFiltres.length) }}</b> sur <b>{{ modalMilitairesFiltres.length }}</b> gendarme(s)
+                    </div>
+
+                    <div class="flex items-center gap-1">
+                        <button
+                            type="button"
+                            @click="modalGradePage = Math.max(1, modalGradePage - 1)"
+                            :disabled="modalGradePage === 1"
+                            class="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-xs"
+                        >
+                            Précédent
+                        </button>
+                        <span class="px-2 py-1 font-bold text-slate-800">
+                            Page {{ modalGradePage }} / {{ modalTotalPages }}
+                        </span>
+                        <button
+                            type="button"
+                            @click="modalGradePage = Math.min(modalTotalPages, modalGradePage + 1)"
+                            :disabled="modalGradePage >= modalTotalPages"
+                            class="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-xs"
+                        >
+                            Suivant
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <template #footer>
+                <div class="flex justify-end p-2 border-t border-slate-200">
+                    <Button
+                        label="Fermer"
+                        icon="pi pi-times"
+                        severity="secondary"
+                        size="small"
+                        class="!rounded-xl"
+                        @click="showGradeModal = false"
+                    />
                 </div>
             </template>
         </Dialog>

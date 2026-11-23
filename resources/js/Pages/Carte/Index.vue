@@ -409,12 +409,15 @@ const showTheatreMilitairesModal = ref(false);
 const theatreMilitaireCategorieFilter = ref('tous'); // 'tous' | 'officiers' | 'sous_officiers' | 'mdr' | 'blesses'
 const loadingTheatreMilitaires = ref(false);
 
-const ouvrirModalMilitairesTheatre = async (cat = 'tous') => {
+const ouvrirModalMilitairesTheatre = async (cat = 'tous', thTarget = null) => {
+    if (thTarget) {
+        selTheatre.value = thTarget.code;
+    }
     theatreMilitaireCategorieFilter.value = cat;
     searchTheatreMilitaire.value = '';
     theatrePage.value = 1;
     showTheatreMilitairesModal.value = true;
-    const th = selTheatreObj.value;
+    const th = thTarget || selTheatreObj.value;
     if (th && (!th.militaires || th.militaires.length === 0)) {
         loadingTheatreMilitaires.value = true;
         try {
@@ -427,6 +430,101 @@ const ouvrirModalMilitairesTheatre = async (cat = 'tous') => {
         }
     }
 };
+
+// =========================================================================
+// CARTE OPÉRATIONNELLE DES THÉÂTRES (DISPOSITIF TACTIQUE SANS CHEVAUCHEMENT)
+// =========================================================================
+const BASE_THEATRES_CONFIG = {
+    'TH-SOKOLO':         { x: 520, y: 240, c: '#f97316', nomCourt: 'Sokolo' },
+    'TH-TOGORE-COUMBE':  { x: 580, y: 275, c: '#f59e0b', nomCourt: 'Togoré-Coumbé' },
+    'TH-MBEWANI':        { x: 465, y: 260, c: '#14b8a6', nomCourt: "M'Béwani" },
+    'TH-DOUGABOUGOU':    { x: 495, y: 295, c: '#10b981', nomCourt: 'Dougabougou' },
+    'TH-TIMISSA':        { x: 545, y: 315, c: '#8b5cf6', nomCourt: 'Timissa' },
+    'TH-SAYE':           { x: 525, y: 338, c: '#6366f1', nomCourt: 'Saye' },
+    'TH-DIALLOUBE':      { x: 645, y: 295, c: '#ef4444', nomCourt: 'Dialloubé' },
+    'TH-KIMPARANA':      { x: 475, y: 385, c: '#22c55e', nomCourt: 'Kimparana' },
+    'TH-DANDERESSO':     { x: 430, y: 440, c: '#0284c7', nomCourt: 'Danderesso' },
+    'TH-KALANA':         { x: 375, y: 465, c: '#38bdf8', nomCourt: 'Kalana' },
+};
+
+const tacticalTheatres = computed(() => {
+    const K = 1.7, CX = 520, CY = 325, OX = 450, OY = 270;
+    const P = (x, y) => [OX + (x - CX) * K, OY + (y - CY) * K];
+    const LW = 158, LH = 44, TOP = 35, BOT = 525;
+
+    const list = props.theatres.map(th => {
+        const conf = BASE_THEATRES_CONFIG[th.code] || {};
+        let x = conf.x;
+        let y = conf.y;
+        if (!x || !y) {
+            if (th.lat !== null && th.lon !== null) {
+                const minLat = 10.0, maxLat = 15.5;
+                const minLon = -9.0, maxLon = -3.0;
+                x = 350 + ((th.lon - minLon) / (maxLon - minLon)) * 320;
+                y = 500 - ((th.lat - minLat) / (maxLat - minLat)) * 320;
+            } else {
+                x = 520;
+                y = 315;
+            }
+        }
+        const [px, py] = P(x, y);
+        const eff = Number(th.effectif || th.effectif_gendarmerie || 0);
+        const col = conf.c || th.couleur || '#38bdf8';
+        const nomCourt = conf.nomCourt || (th.nom ? th.nom.replace(/^Détachement\s+(Opérationnel\s+)?de\s+/i, '') : th.code);
+
+        return {
+            ...th,
+            nomCourt,
+            effectif: eff,
+            couleur: col,
+            px: Math.round(px),
+            py: Math.round(py),
+            markerR: Math.max(8, Math.sqrt(eff) * 0.3 + 7),
+            haloR: Math.max(16, Math.sqrt(eff) * 0.9 + 14),
+            lx: 0,
+            ly: 0,
+            side: 'L',
+            leadD: '',
+        };
+    });
+
+    if (list.length === 0) return [];
+
+    const sorted = [...list].sort((a, b) => a.px - b.px);
+    const mid = sorted[Math.floor(sorted.length / 2)].px;
+    const left = list.filter(t => t.px < mid).sort((a, b) => a.py - b.py);
+    const right = list.filter(t => t.px >= mid).sort((a, b) => a.py - b.py);
+
+    const stack = (col, xPos, side) => {
+        const n = col.length;
+        const step = Math.max(LH + 8, (BOT - TOP) / Math.max(n, 1));
+        const used = (n - 1) * step;
+        const start = Math.max(TOP, (TOP + BOT) / 2 - used / 2);
+        col.forEach((t, i) => {
+            t.lx = xPos;
+            t.ly = Math.round(start + i * step);
+            t.side = side;
+
+            const ex = side === 'L' ? t.lx + LW : t.lx;
+            const ey = Math.round(t.ly + LH / 2);
+            const kx = side === 'L' ? ex + 16 : ex - 16;
+            t.leadD = `M ${t.px} ${t.py} L ${kx} ${ey} L ${ex} ${ey}`;
+        });
+    };
+
+    stack(left, 18, 'L');
+    stack(right, 900 - 18 - LW, 'R');
+
+    return list;
+});
+
+const tacticalTheatresSorted = computed(() => {
+    return [...tacticalTheatres.value].sort((a, b) => b.effectif - a.effectif);
+});
+
+const totalProjeteTheatres = computed(() => {
+    return tacticalTheatres.value.reduce((s, t) => s + (t.effectif || 0), 0);
+});
 
 // Tri strict du grade le plus élevé au plus petit (ordre DESC)
 const theatreMilitairesTriesEtFiltres = computed(() => {
@@ -2040,7 +2138,96 @@ const lignesFiltrees = computed(() => {
                             </div>
                         </transition>
 
+                        <!-- CARTE EN MODE THÉÂTRES D'OPÉRATIONS (DISPOSITIF TACTIQUE SANS CHEVAUCHEMENT) -->
                         <svg
+                            v-if="carteMode === 'theatres'"
+                            viewBox="0 0 900 560"
+                            class="w-full h-full max-h-full block select-none pointer-events-auto"
+                            preserveAspectRatio="xMidYMid meet"
+                            role="img"
+                            aria-label="Carte opérationnelle des théâtres"
+                        >
+                            <defs>
+                                <pattern id="tactical-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                                    <path d="M40 0 H0 V40" fill="none" stroke="#1b2a47" stroke-width="1" />
+                                </pattern>
+                            </defs>
+                            <!-- Fond quadrillé tactique sombre -->
+                            <rect width="900" height="560" fill="url(#tactical-grid)" />
+
+                            <!-- Rayons tactiques proportionnels aux effectifs -->
+                            <circle
+                                v-for="t in tacticalTheatres"
+                                :key="'halo-' + t.code"
+                                :cx="t.px"
+                                :cy="t.py"
+                                :r="t.haloR"
+                                :fill="t.couleur"
+                                fill-opacity="0.14"
+                                :stroke="t.couleur"
+                                stroke-opacity="0.45"
+                                stroke-dasharray="3 3"
+                            />
+
+                            <!-- Groupes interactifs de chaque théâtre (Ligne leader + PC star + Étiquette latérale) -->
+                            <g
+                                v-for="t in tacticalTheatres"
+                                :key="'tactical-' + t.code"
+                                :class="[
+                                    'cursor-pointer transition-opacity duration-150',
+                                    (selTheatre && selTheatre !== t.code) || (hoveredTheatre && hoveredTheatre !== t.code && !selTheatre) ? 'dim' : '',
+                                    selTheatre === t.code ? 'sel' : '',
+                                    hoveredTheatre === t.code ? 'hov' : ''
+                                ]"
+                                @mouseenter="hoveredTheatre = t.code"
+                                @mouseleave="hoveredTheatre = null"
+                                @click="ouvrirModalMilitairesTheatre('tous', t)"
+                            >
+                                <!-- Trait de rappel (leader line sans croisement) -->
+                                <path
+                                    class="lead"
+                                    :d="t.leadD"
+                                    :stroke="t.couleur"
+                                    stroke-width="1.2"
+                                />
+
+                                <!-- Point de commandement central avec étoile ★ -->
+                                <g class="mk" :transform="`translate(${t.px}, ${t.py})`">
+                                    <circle class="halo" :r="t.markerR + 5" :fill="t.couleur" />
+                                    <circle :r="t.markerR" fill="#0b1220" :stroke="t.couleur" stroke-width="3" />
+                                    <text text-anchor="middle" y="4" :fill="t.couleur" font-size="11" font-weight="bold">★</text>
+                                </g>
+
+                                <!-- Étiquette latérale sur 2 colonnes (gauche / droite) sans chevauchement -->
+                                <g class="lab" :transform="`translate(${t.lx}, ${t.ly})`">
+                                    <rect
+                                        width="158"
+                                        height="44"
+                                        :stroke="t.couleur"
+                                    />
+                                    <rect
+                                        width="5"
+                                        height="44"
+                                        rx="2"
+                                        :fill="t.couleur"
+                                        stroke="none"
+                                    />
+                                    <text x="14" y="16" class="s">
+                                        {{ t.code }} · {{ t.nomCourt }}
+                                    </text>
+                                    <text x="14" y="35" class="n">
+                                        {{ fmt(t.effectif) }}
+                                    </text>
+                                    <text :x="14 + String(fmt(t.effectif)).length * 7.4 + 5" y="35" class="s">
+                                        gendarme{{ t.effectif > 1 ? 's' : '' }}
+                                    </text>
+                                </g>
+                            </g>
+                        </svg>
+
+                        <!-- CARTE EN MODE MAILLAGE TERRITORIAL (MALI ENTIER / RÉGIONS / BRIGADES) -->
+                        <svg
+                            v-else
                             ref="svgRef"
                             :viewBox="viewBox.join(' ')"
                             class="w-full h-full max-h-full block select-none pointer-events-auto"
@@ -2071,127 +2258,14 @@ const lignesFiltrees = computed(() => {
                                             hovered: hoveredCode === r.code
                                         }"
                                         :style="{
-                                            fill: carteMode === 'theatres' ? getTheatreFill(r.code) : fillFor(r),
-                                            stroke: carteMode === 'theatres' ? getTheatreStroke(r.code) : '#16212e',
-                                            strokeWidth: carteMode === 'theatres' ? (selTheatre && (regionToTheatreMap[r.code] || []).some(t => t.code === selTheatre) ? 2.8 * zoom : 1.4 * zoom) : 1.2 * zoom
+                                            fill: fillFor(r),
+                                            stroke: '#16212e',
+                                            strokeWidth: 1.2 * zoom
                                         }"
                                         @click="handleRegionClick(r.code)"
-                                        @mouseenter="carteMode === 'theatres' ? (hoveredCode = r.code, hoveredTheatre = (regionToTheatreMap[r.code] || [])[0]?.code) : onHoverRegion(r)"
-                                        @mouseleave="carteMode === 'theatres' ? (hoveredCode = null, hoveredTheatre = null) : onLeaveHover()"
+                                        @mouseenter="onHoverRegion(r)"
+                                        @mouseleave="onLeaveHover()"
                                     />
-                                </template>
-
-                                <!-- MODE THÉÂTRES : COMMAND POSTS (PC) & GRANDS BADGES TACTIQUES IDENTIQUES AU MAILLAGE TERRITORIAL -->
-                                <template v-if="carteMode === 'theatres'">
-                                    <template v-for="th in projectedTheatres" :key="'pc-' + th.code">
-                                        <g
-                                            v-if="th.pt"
-                                            :transform="`translate(${th.pt.x}, ${th.pt.y})`"
-                                            class="cursor-pointer"
-                                            @click.stop="selTheatre = selTheatre === th.code ? null : th.code"
-                                            @mouseenter="hoveredTheatre = th.code; hoveredCode = null"
-                                            @mouseleave="hoveredTheatre = null"
-                                        >
-                                            <!-- Rayonnement tactique du PC -->
-                                            <circle
-                                                r="18"
-                                                :fill="th.couleur"
-                                                fill-opacity="0.22"
-                                                :stroke="th.couleur"
-                                                stroke-width="1.2"
-                                                stroke-dasharray="3 2"
-                                            />
-                                            <!-- Point de Commandement (PC) -->
-                                            <circle
-                                                r="9"
-                                                :fill="th.couleur"
-                                                stroke="#ffffff"
-                                                stroke-width="2"
-                                                filter="url(#badge-glow)"
-                                            />
-                                            <text
-                                                x="0"
-                                                y="3.5"
-                                                text-anchor="middle"
-                                                font-size="9"
-                                                font-weight="bold"
-                                                fill="#ffffff"
-                                                class="pointer-events-none select-none"
-                                            >
-                                                ★
-                                            </text>
-
-                                            <!-- Ligne de rappel tactique (leader line) si le badge a été décalé pour éviter une collision -->
-                                            <line
-                                                v-if="th.hasOffset"
-                                                x1="0"
-                                                :y1="th.badgeOffset.y < 0 ? -14 : 14"
-                                                :x2="th.badgeOffset.x"
-                                                :y2="th.badgeOffset.y < 0 ? th.badgeOffset.y + (hasTheatreAppuis(th) ? 26 : 14) : th.badgeOffset.y - 11"
-                                                :stroke="th.couleur"
-                                                stroke-width="1.4"
-                                                stroke-dasharray="3 2"
-                                                opacity="0.8"
-                                                class="pointer-events-none"
-                                            />
-
-                                            <!-- GRAND BADGE TACTIQUE AVEC EFFECTIF GENDARMERIE ET DÉTAIL DES APPUIS (ex: DTTIA 10 • AA 20 • AT 30) -->
-                                            <g :transform="`translate(${th.badgeOffset.x}, ${th.badgeOffset.y})`" class="pointer-events-none select-none">
-                                                <rect
-                                                    :x="-theatreBadgeWidth(th) / 2"
-                                                    y="-11"
-                                                    :width="theatreBadgeWidth(th)"
-                                                    :height="hasTheatreAppuis(th) ? 36 : 24"
-                                                    rx="5"
-                                                    ry="5"
-                                                    fill="#090e17"
-                                                    :stroke="selTheatre === th.code ? '#ffffff' : th.couleur"
-                                                    :stroke-width="selTheatre === th.code ? 2.2 : 1.5"
-                                                    filter="url(#badge-glow)"
-                                                />
-                                                <!-- Ligne 1 : Code et lieu du PC en majuscules -->
-                                                <text
-                                                    x="0"
-                                                    y="-2"
-                                                    text-anchor="middle"
-                                                    class="tactical-badge-nom"
-                                                    :fill="th.couleur"
-                                                >
-                                                    {{ th.code }} • {{ (th.pc_lieu || 'PC').toUpperCase() }}
-                                                </text>
-                                                <!-- Ligne 2 : CHIFFRE GENDARMERIE -->
-                                                <text
-                                                    x="0"
-                                                    y="9"
-                                                    text-anchor="middle"
-                                                    class="tactical-badge-val"
-                                                >
-                                                    <tspan fill="#ffffff" font-weight="900">{{ fmt(th.effectif) }}</tspan>
-                                                    <tspan fill="#94a3b8" font-size="8.5" font-weight="600"> Gend.</tspan>
-                                                    <template v-if="th.effectif_appui > 0">
-                                                        <tspan fill="#fbbf24" font-weight="800" font-size="9.5"> (+{{ fmt(th.effectif_appui) }})</tspan>
-                                                    </template>
-                                                </text>
-
-                                                <!-- Ligne 3 : TOUS LES APPUIS AFFICHÉS DIRECTEMENT AVEC DES POINTS (ex: DTTIA 10 • AA 20 • AT 30) -->
-                                                <text
-                                                    v-if="hasTheatreAppuis(th)"
-                                                    x="0"
-                                                    y="20"
-                                                    text-anchor="middle"
-                                                    :font-size="th.unites_appui.length > 4 ? 7.2 : 8.2"
-                                                    font-weight="bold"
-                                                    letter-spacing="0.2"
-                                                >
-                                                    <template v-for="(ua, uIdx) in th.unites_appui" :key="ua.id">
-                                                        <tspan :fill="ua.couleur || '#38bdf8'" font-weight="800">{{ ua.code }} </tspan>
-                                                        <tspan fill="#ffffff" font-weight="900">{{ ua.effectif }}</tspan>
-                                                        <tspan v-if="uIdx < th.unites_appui.length - 1" fill="#f59e0b" font-weight="bold"> • </tspan>
-                                                    </template>
-                                                </text>
-                                            </g>
-                                        </g>
-                                    </template>
                                 </template>
 
                                 <!-- Vue nationale MAILLAGE TERRITORIAL : BADGES TACTIQUES HAUTE VISIBILITÉ DES RÉGIONS & CHIFFRES CLAIRS -->
@@ -2674,74 +2748,42 @@ const lignesFiltrees = computed(() => {
                                 </div>
                             </div>
 
-                            <!-- Liste des Théâtres -->
+                            <!-- Liste des 10 Théâtres triée par effectif décroissant -->
                             <div class="flex-1 overflow-y-auto space-y-2 pr-0.5 custom-scrollbar min-h-0">
                                 <div
-                                    v-for="th in theatres"
+                                    v-for="th in tacticalTheatresSorted"
                                     :key="th.id"
-                                    @click="selTheatre = th.code"
-                                    class="p-2.5 rounded-lg border transition cursor-pointer hover:shadow-xs group"
-                                    :class="selTheatre === th.code ? 'border-sky-500 bg-sky-50/60 ring-1 ring-sky-400' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80'"
+                                    @click="ouvrirModalMilitairesTheatre('tous', th)"
+                                    @mouseenter="hoveredTheatre = th.code"
+                                    @mouseleave="hoveredTheatre = null"
+                                    class="p-2.5 rounded-xl border transition-all cursor-pointer hover:shadow-xs group flex items-center justify-between gap-2.5"
+                                    :class="selTheatre === th.code || hoveredTheatre === th.code ? 'border-sky-500 bg-sky-50/80 ring-1 ring-sky-400' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80'"
                                 >
-                                    <div class="flex items-center justify-between gap-1 mb-1">
-                                        <div class="flex items-center gap-1.5">
-                                            <span
-                                                class="w-3 h-3 rounded-full shrink-0 border border-black/20"
-                                                :style="{ backgroundColor: th.couleur }"
-                                            ></span>
-                                            <span class="font-bold text-xs font-mono text-slate-900 group-hover:text-sky-900">{{ th.code }}</span>
-                                        </div>
-                                        <div class="flex items-center gap-1">
-                                            <span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-900 border border-sky-200">
-                                                {{ th.effectif }} gendarme(s)
-                                            </span>
-                                            <span v-if="th.effectif_appui > 0" class="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200">
-                                                +{{ th.effectif_appui }} appui(s)
-                                            </span>
+                                    <div class="flex items-center gap-2.5 min-w-0">
+                                        <span
+                                            class="w-3 h-3 rounded-full shrink-0 border border-black/20"
+                                            :style="{ backgroundColor: th.couleur }"
+                                        ></span>
+                                        <div class="min-w-0">
+                                            <div class="font-black text-xs font-mono text-slate-900 group-hover:text-sky-950 flex items-center gap-1.5">
+                                                <span>{{ th.code }}</span>
+                                                <span v-if="th.pc_lieu" class="text-[10px] font-normal text-slate-400">· PC {{ th.pc_lieu }}</span>
+                                            </div>
+                                            <div class="text-[11px] text-slate-600 truncate">Détachement de {{ th.nomCourt }}</div>
                                         </div>
                                     </div>
 
-                                    <div class="text-xs font-bold text-slate-800 leading-snug line-clamp-1">{{ th.nom }}</div>
-
-                                    <div class="flex items-center justify-between gap-1 text-[11px] text-slate-600 mt-1">
-                                        <span class="flex items-center gap-1 truncate">
-                                            <i class="pi pi-map-marker text-sky-600 text-[10px]"></i>
-                                            <span>PC : {{ th.pc_lieu || 'Non spécifié' }}</span>
+                                    <div class="flex items-center gap-1.5 shrink-0">
+                                        <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-slate-100 text-slate-900 border border-slate-200 tabular-nums">
+                                            {{ fmt(th.effectif) }}
                                         </span>
-                                        <span class="text-[10px] font-semibold text-sky-700 group-hover:underline flex items-center gap-0.5">
-                                            <span>Détails</span>
-                                            <i class="pi pi-chevron-right text-[8px]"></i>
-                                        </span>
-                                    </div>
-
-                                    <!-- Mini badges des unités d'appui (ex: AA 20, AT 35, DTTIA 10, GENIE 15) -->
-                                    <div v-if="th.unites_appui && th.unites_appui.length > 0" class="flex flex-wrap gap-1 mt-1.5 pt-1.5 border-t border-slate-100">
-                                        <span
-                                            v-for="ua in th.unites_appui"
-                                            :key="ua.id"
-                                            class="px-1.5 py-0.2 rounded text-[9.5px] font-bold border"
-                                            :style="{ backgroundColor: (ua.couleur || '#0284c7') + '15', color: ua.couleur || '#0284c7', borderColor: (ua.couleur || '#0284c7') + '40' }"
-                                            :title="ua.nom + ' (' + ua.effectif + ' éléments)'"
-                                        >
-                                            {{ ua.code }}: {{ ua.effectif }}
-                                        </span>
-                                    </div>
-
-                                    <!-- Emprise (Régions) -->
-                                    <div class="flex flex-wrap gap-1 mt-1.5">
-                                        <span
-                                            v-for="rc in th.regions_codes"
-                                            :key="rc"
-                                            class="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-slate-100 text-slate-700 border border-slate-200"
-                                        >
-                                            {{ rc }}
-                                        </span>
+                                        <i class="pi pi-chevron-right text-[10px] text-slate-400 group-hover:text-sky-600 transition-colors"></i>
                                     </div>
                                 </div>
                             </div>
 
                             <p class="text-[10px] text-slate-400 mt-auto pt-1 border-t border-slate-100 flex-none truncate">
-                                Cliquez sur un théâtre ou une région pour afficher son effectif engagé.
+                                Cliquez sur un théâtre pour consulter la liste nominale des militaires déployés.
                             </p>
                         </template>
 
@@ -4354,6 +4396,42 @@ const lignesFiltrees = computed(() => {
     font-weight: 700;
     font-size: 11px;
     font-variant-numeric: tabular-nums;
+}
+
+/* Styles tactiques pour la Carte des Théâtres d'Opérations (conforme maquette RH DGGN) */
+.lead {
+    stroke-width: 1.2;
+    fill: none;
+    opacity: 0.8;
+}
+.lab rect {
+    fill: #0c1527;
+    rx: 7;
+}
+.lab text {
+    fill: #e7edf8;
+    pointer-events: none;
+}
+.lab .n {
+    font-weight: 700;
+    font-size: 12px;
+}
+.lab .s {
+    fill: #8da0c0;
+    font-size: 9.5px;
+}
+.mk {
+    cursor: pointer;
+}
+.mk circle.halo {
+    opacity: 0.25;
+}
+g.dim {
+    opacity: 0.25;
+}
+g.sel .lab rect,
+g.hov .lab rect {
+    stroke-width: 2.5;
 }
 
 .custom-scrollbar {
