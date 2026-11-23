@@ -524,7 +524,7 @@ class DashboardController extends Controller
 
             $militaires = $this->actifs()
                 ->select('id', 'nom', 'prenom', 'matricule', 'grade_actuel', 'date_naissance', 'date_entree_service', 'date_derniere_promotion', 'antecedent_judiciaire', 'antecedent_disciplinaire')
-                ->get();
+                ->cursor(); // un modèle à la fois : évite de saturer la mémoire PHP à 300 000 actifs
 
             $rawCerts = \Illuminate\Support\Facades\DB::table('certificat_militaire')
                 ->join('certificats', 'certificats.id', '=', 'certificat_militaire.certificat_id')
@@ -532,7 +532,7 @@ class DashboardController extends Controller
                 ->whereRaw(\App\Support\Effectif::sqlActivite('militaires.statut'))
                 ->whereNull('militaires.deleted_at')
                 ->select('certificat_militaire.militaire_id', 'certificats.niveau_certificat', 'certificat_militaire.date_obtention')
-                ->get();
+                ->cursor();
 
             $certsMap = [];
             foreach ($rawCerts as $c) {
