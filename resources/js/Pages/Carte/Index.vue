@@ -8,6 +8,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { MALI_VIEW, REGION_SHAPES as SHAPES, project } from './maliRegions.js';
 import { getCerclesByRegion } from './maliCercles.js';
 import { downloadExport } from '@/Utils/exportHelper';
+import axios from 'axios';
 
 const toast = useToast();
 const exportingCarte = ref(false);
@@ -425,14 +426,22 @@ const ouvrirModalMilitairesTheatre = async (cat = 'tous', thTarget = null) => {
     const th = thTarget || selTheatreObj.value || (targetCode ? props.theatres.find(t => t.code === targetCode) : null);
     if (!th || !th.id) return;
 
-    if (theatreMilitairesCache.value[th.id]) {
+    if (theatreMilitairesCache.value[th.id] && Array.isArray(theatreMilitairesCache.value[th.id]) && theatreMilitairesCache.value[th.id].length > 0) {
         currentTheatreMilitaires.value = theatreMilitairesCache.value[th.id];
     } else {
         currentTheatreMilitaires.value = [];
         loadingTheatreMilitaires.value = true;
         try {
-            const res = await axios.get(route('carte.theatres.militaires', th.id));
-            const list = Array.isArray(res.data) ? res.data : [];
+            const url = typeof route === 'function'
+                ? route('carte.theatres.militaires', { theatre: th.id })
+                : `/carte/theatres/${th.id}/militaires`;
+            const res = await fetch(url, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            });
+            if (!res.ok) throw new Error(`Erreur HTTP: ${res.status}`);
+            const data = await res.json();
+            const list = Array.isArray(data) ? data : [];
             theatreMilitairesCache.value = {
                 ...theatreMilitairesCache.value,
                 [th.id]: list
@@ -440,6 +449,7 @@ const ouvrirModalMilitairesTheatre = async (cat = 'tous', thTarget = null) => {
             currentTheatreMilitaires.value = list;
         } catch (e) {
             console.error('Erreur chargement militaires théâtre', e);
+            toast?.add?.({ severity: 'error', summary: 'Erreur', detail: 'Impossible de charger la liste des effectifs de ce théâtre.', life: 4000 });
         } finally {
             loadingTheatreMilitaires.value = false;
         }

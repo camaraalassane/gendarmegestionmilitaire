@@ -192,6 +192,7 @@ class StatistiquesExportController extends Controller
      */
     public function exportStatut(Request $request)
     {
+        ini_set('memory_limit', '512M');
         $type = $request->query('type', 'actifs');
         $region = $request->query('region');
 
@@ -212,6 +213,7 @@ class StatistiquesExportController extends Controller
      */
     public function theatres(Request $request)
     {
+        ini_set('memory_limit', '512M');
         $d = app(CarteController::class)->donnees();
         $theatresCollection = collect($d['theatres'] ?? []);
 

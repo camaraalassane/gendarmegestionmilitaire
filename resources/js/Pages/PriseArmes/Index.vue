@@ -50,9 +50,37 @@ const telechargerExcel = () => {
     window.location.href = route('prise-armes.export');
 };
 
+const localRegistres = ref(Array.isArray(props.registres) && props.registres.length > 0 ? props.registres : []);
+const loadingRegistres = ref(false);
+
+watch(() => props.registres, (newVal) => {
+    if (newVal && newVal.length > 0) {
+        localRegistres.value = newVal;
+    }
+});
+
+const chargerRegistresSiBesoin = async () => {
+    if (localRegistres.value && localRegistres.value.length > 0) return;
+    loadingRegistres.value = true;
+    try {
+        const res = await axios.get(route('prise-armes.registres-data'));
+        localRegistres.value = Array.isArray(res.data) ? res.data : [];
+    } catch (e) {
+        console.error('Erreur lors du chargement des registres', e);
+    } finally {
+        loadingRegistres.value = false;
+    }
+};
+
+watch(activeTab, (tab) => {
+    if (['blesses', 'disparus', 'malades', 'decedes', 'deserteurs'].includes(tab)) {
+        chargerRegistresSiBesoin();
+    }
+}, { immediate: true });
+
 // Filtrage local en temps réel des registres affichés
 const registresFiltres = computed(() => {
-    let list = props.registres;
+    let list = localRegistres.value;
 
     if (activeTab.value === 'blesses') list = list.filter(r => r.type_registre_code === 1);
     else if (activeTab.value === 'disparus') list = list.filter(r => r.type_registre_code === 2);
@@ -1166,7 +1194,15 @@ const listeOrganismesCards = computed(() => {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100 bg-white">
-                            <tr v-if="paginatedRegistres.length === 0">
+                            <tr v-if="loadingRegistres">
+                                <td colspan="10" class="px-4 py-12 text-center text-slate-500 text-xs">
+                                    <div class="flex flex-col items-center justify-center space-y-2">
+                                        <i class="pi pi-spin pi-spinner text-3xl text-sky-600"></i>
+                                        <p class="font-medium text-slate-600">Chargement des données du registre...</p>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr v-else-if="paginatedRegistres.length === 0">
                                 <td colspan="10" class="px-4 py-12 text-center text-slate-400 text-xs">
                                     <div class="flex flex-col items-center justify-center space-y-2">
                                         <i class="pi pi-inbox text-3xl text-slate-300"></i>

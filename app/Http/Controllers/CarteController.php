@@ -6,6 +6,7 @@ use App\Models\Militaire;
 use App\Models\Region;
 use App\Models\Unite;
 use App\Models\Theatre;
+use App\Models\Grade;
 use App\Services\RegionGeo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;

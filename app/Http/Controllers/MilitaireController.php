@@ -237,59 +237,94 @@ class MilitaireController extends Controller
               ->orderBy('militaires.nom', 'asc')
               ->orderBy('militaires.prenom', 'asc');
 
+        $now = \Carbon\Carbon::now();
+        $retraitesMap = Cache::remember('ref:retraites_par_grade_map', 86400, function() {
+            $map = [];
+            foreach (Grade::all(['nom_grade', 'code_grade', 'retraite_obligatoire']) as $g) {
+                if ($g->retraite_obligatoire !== null) {
+                    $age = (int) $g->retraite_obligatoire;
+                    if ($g->nom_grade) {
+                        $map[trim($g->nom_grade)] = $age;
+                        $map[mb_strtolower(trim($g->nom_grade))] = $age;
+                    }
+                    if ($g->code_grade) {
+                        $map[trim($g->code_grade)] = $age;
+                        $map[mb_strtolower(trim($g->code_grade))] = $age;
+                        $map[mb_strtoupper(trim($g->code_grade))] = $age;
+                    }
+                }
+            }
+            return $map;
+        });
+
         $militaires = $query->with(['theatre:id,code,nom'])
             ->withCount(['alertes' => fn($q) => $q->where('est_vue', false)])
             ->paginate(20)
             ->withQueryString()
-            ->through(fn ($militaire) => [
-                'id' => $militaire->id,
-                'grade_id' => $militaire->grade_id,
-                'region_id' => $militaire->region_id,
-                'unite_id' => $militaire->unite_id,
-                'position_id' => $militaire->position_id,
-                'statut_code' => $militaire->statut_code,
-                'sexe_code' => $militaire->sexe_code,
-                'theatre_id' => $militaire->theatre_id,
-                'est_disparu' => $militaire->est_disparu,
-                'est_blesse_guerre' => (bool) $militaire->est_blesse_guerre,
-                'est_non_mobilisable' => (bool) $militaire->est_non_mobilisable,
-                'matricule' => $militaire->matricule,
-                'mle_grm' => $militaire->mle_grm,
-                'numero_info' => $militaire->numero_info,
-                'photo_url' => $militaire->photo_url,
-                'nom' => $militaire->nom,
-                'prenom' => $militaire->prenom,
-                'grade_actuel' => $militaire->grade_actuel,
-                'categorie' => $militaire->categorie,
-                'unite' => $militaire->unite,
-                'region' => $militaire->region,
-                'date_entree_service' => $militaire->date_entree_service?->format('d/m/Y'),
-                'date_derniere_promotion' => $militaire->date_derniere_promotion?->format('d/m/Y'),
-                'specialite' => $militaire->specialite,
-                'position_actuelle' => $militaire->position_actuelle,
-                'fonction_passee' => $militaire->fonction_passee,
-                'fonction_actuelle' => $militaire->fonction_actuelle,
-                'telephone' => $militaire->telephone,
-                'sexe' => $militaire->sexe,
-                'groupe_sanguin' => $militaire->groupe_sanguin,
-                'status_sanitaire' => $militaire->status_sanitaire,
-                'engagement_ops' => $militaire->engagement_ops,
-                'personne_a_contacter' => $militaire->personne_a_contacter,
-                'telephone_personne_contacter' => $militaire->telephone_personne_contacter,
-                'statut' => $militaire->statut,
-                'observations' => $militaire->observations,
-                'is_otage' => $militaire->isOtage(),
-                'theatre_id' => $militaire->theatre_id,
-                'theatre_code' => $militaire->theatre?->code,
-                'theatre_nom' => $militaire->theatre?->nom,
-                'age' => $militaire->age,
-                'anciennete' => $militaire->anciennete,
-                'anciennete_grade' => $militaire->ancienneteGrade,
-                'a_permis_conduire' => $militaire->a_permis_conduire,
-                'alertes_count' => (int) ($militaire->alertes_count ?? 0),
-                'est_eligible_retraite' => $militaire->estEligibleRetraite(),
-                'date_retraite' => $militaire->calculerDateRetraite()?->format('d/m/Y'),
-            ]);
+            ->through(function ($militaire) use ($retraitesMap, $now) {
+                $isOtage = str_contains(mb_strtolower((string) $militaire->position_actuelle), 'otage');
+                $dateRetraite = null;
+                $estEligibleRetraite = false;
+
+                if (!$isOtage && $militaire->date_naissance && $militaire->grade_actuel) {
+                    $gKey = trim($militaire->grade_actuel);
+                    $ageRetraite = $retraitesMap[$gKey] ?? $retraitesMap[mb_strtolower($gKey)] ?? null;
+                    if ($ageRetraite) {
+                        $dateRetraite = $militaire->date_naissance->copy()->addYears($ageRetraite);
+                        $estEligibleRetraite = $dateRetraite->isFuture() && $now->diffInMonths($dateRetraite) <= 6;
+                    }
+                }
+
+                return [
+                    'id' => $militaire->id,
+                    'grade_id' => $militaire->grade_id,
+                    'region_id' => $militaire->region_id,
+                    'unite_id' => $militaire->unite_id,
+                    'position_id' => $militaire->position_id,
+                    'statut_code' => $militaire->statut_code,
+                    'sexe_code' => $militaire->sexe_code,
+                    'theatre_id' => $militaire->theatre_id,
+                    'est_disparu' => $militaire->est_disparu,
+                    'est_blesse_guerre' => (bool) $militaire->est_blesse_guerre,
+                    'est_non_mobilisable' => (bool) $militaire->est_non_mobilisable,
+                    'matricule' => $militaire->matricule,
+                    'mle_grm' => $militaire->mle_grm,
+                    'numero_info' => $militaire->numero_info,
+                    'photo_url' => $militaire->photo_url,
+                    'nom' => $militaire->nom,
+                    'prenom' => $militaire->prenom,
+                    'grade_actuel' => $militaire->grade_actuel,
+                    'categorie' => $militaire->categorie,
+                    'unite' => $militaire->unite,
+                    'region' => $militaire->region,
+                    'date_entree_service' => $militaire->date_entree_service?->format('d/m/Y'),
+                    'date_derniere_promotion' => $militaire->date_derniere_promotion?->format('d/m/Y'),
+                    'specialite' => $militaire->specialite,
+                    'position_actuelle' => $militaire->position_actuelle,
+                    'fonction_passee' => $militaire->fonction_passee,
+                    'fonction_actuelle' => $militaire->fonction_actuelle,
+                    'telephone' => $militaire->telephone,
+                    'sexe' => $militaire->sexe,
+                    'groupe_sanguin' => $militaire->groupe_sanguin,
+                    'status_sanitaire' => $militaire->status_sanitaire,
+                    'engagement_ops' => $militaire->engagement_ops,
+                    'personne_a_contacter' => $militaire->personne_a_contacter,
+                    'telephone_personne_contacter' => $militaire->telephone_personne_contacter,
+                    'statut' => $militaire->statut,
+                    'observations' => $militaire->observations,
+                    'is_otage' => $isOtage,
+                    'theatre_id' => $militaire->theatre_id,
+                    'theatre_code' => $militaire->theatre?->code,
+                    'theatre_nom' => $militaire->theatre?->nom,
+                    'age' => $militaire->age,
+                    'anciennete' => $militaire->anciennete,
+                    'anciennete_grade' => $militaire->ancienneteGrade,
+                    'a_permis_conduire' => $militaire->a_permis_conduire,
+                    'alertes_count' => (int) ($militaire->alertes_count ?? 0),
+                    'est_eligible_retraite' => $estEligibleRetraite,
+                    'date_retraite' => $dateRetraite?->format('d/m/Y'),
+                ];
+            });
 
         $filterRefs = Cache::remember('ref:militaires_filter_options', 86400, function() {
             return [
