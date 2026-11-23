@@ -232,10 +232,14 @@ class DashboardController extends Controller
 
         foreach ($dbPositions as $posNom => $count) {
             if (!in_array(mb_strtolower(trim($posNom)), $handledPositions)) {
-                $positionsDistribution[] = [
-                    'label' => $posNom,
-                    'value' => (int) $count,
-                ];
+                // Agrégation dans "À l'Unité / Au Poste" pour ne pas créer de positions fantômes
+                foreach ($positionsDistribution as &$pos) {
+                    if (strcasecmp($pos['label'], "À l'Unité / Au Poste") === 0) {
+                        $pos['value'] += (int) $count;
+                        break;
+                    }
+                }
+                unset($pos);
             }
         }
 

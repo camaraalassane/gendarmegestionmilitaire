@@ -31,14 +31,8 @@ const localUnites = ref([...(props.unites || [])]);
 const localPositions = ref([...(props.positions || [])].filter(p => !p.nom?.match(/r[eéè]int[eéè]gr/i)));
 const localOrganismes = ref([...(props.organismes_detachement || [])]);
 
-// Si le militaire possède une position actuelle qui n'est pas encore dans la liste des options, on l'ajoute uniquement si valide (pas de "Réintégré")
-if (props.militaire?.position_actuelle && !props.militaire.position_actuelle.match(/r[eéè]int[eéè]gr/i) && !localPositions.value.some(p => p.nom?.toLowerCase() === props.militaire.position_actuelle.toLowerCase())) {
-    localPositions.value.unshift({
-        id: props.militaire.position_id || props.militaire.position_actuelle,
-        nom: props.militaire.position_actuelle,
-        type: 'operationnelle'
-    });
-}
+// Seules les positions officielles configurées en base sont autorisées dans le menu déroulant
+const validPositionMatch = localPositions.value.find(p => p.id === props.militaire?.position_id || p.nom?.toLowerCase() === props.militaire?.position_actuelle?.toLowerCase());
 
 const toast = useToast();
 const saving = ref(false);
@@ -617,7 +611,7 @@ const normalizeSexe = (s, code) => {
 };
 
 const initialPositionNom = (localPositions.value.find(p => p.id === initialPositionId)?.nom) 
-    || (isRawOtage ? "Cas d'otage" : (isRawDetache ? 'En détachement' : (isRawConvalescence ? 'En congé / Convalescence' : ((props.militaire.position_actuelle && !props.militaire.position_actuelle.match(/r[eéè]int[eéè]gr/i)) ? props.militaire.position_actuelle : "À l'Unité / Au Poste"))));
+    || (isRawOtage ? "Cas d'otage" : (isRawDetache ? 'En détachement' : (isRawConvalescence ? 'En congé / Convalescence' : "À l'Unité / Au Poste")));
 
 // Normalisation de la position actuelle si elle contient une mention administrative comme "Réintégré"
 let initialRawPos = props.militaire.position_actuelle || '';
