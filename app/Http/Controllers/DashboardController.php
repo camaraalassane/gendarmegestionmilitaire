@@ -52,8 +52,8 @@ class DashboardController extends Controller
         $v = \App\Models\Militaire::getCacheVersion();
 
         return Inertia::render('Dashboard', [
-            'statistiques' => Inertia::defer(fn () => $this->statistiquesResume($anneeCourante, $v)),
-            'chartsData' => Inertia::defer(fn () => $this->donneesGraphiques($v)),
+            'statistiques' => $this->statistiquesResume($anneeCourante, $v),
+            'chartsData' => $this->donneesGraphiques($v),
         ]);
     }
 

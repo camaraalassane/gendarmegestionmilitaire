@@ -301,7 +301,7 @@ class MilitaireController extends Controller
 
         return Inertia::render('militaires/index', [
             'militaires'   => $militaires,
-            'statistiques' => Inertia::defer(fn () => $statistiques),
+            'statistiques' => $statistiques,
             'filters'      => [
                 'search'        => $request->search,
                 'grade'         => $request->grade,

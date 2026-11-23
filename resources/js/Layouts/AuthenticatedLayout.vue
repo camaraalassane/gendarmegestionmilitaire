@@ -126,12 +126,10 @@ onUnmounted(() => {
                             <div v-if="userMenuOpen"
                                 class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-20 border border-gray-200">
                                 <Link :href="route('profile.edit')"
-                                    prefetch="hover" cache-for="30s"
                                     class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                                     <i class="pi pi-user mr-2"></i> Mon profil
                                 </Link>
                                 <Link :href="route('configurations.index')"
-                                    prefetch="hover" cache-for="30s"
                                     class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                                     <i class="pi pi-cog mr-2 text-sky-800"></i> Configuration
                                 </Link>

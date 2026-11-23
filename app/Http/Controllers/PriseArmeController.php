@@ -106,7 +106,7 @@ class PriseArmeController extends Controller
             'matrice' => $matrice,
             'regionsSituation' => $regionsSituation,
             'organismesCards' => $organismesCards,
-            'registres' => Inertia::defer(fn () => $registresQuery->get()),
+            'registres' => $registresQuery->get(),
             'militairesLookup' => [], // Allégé : recherche dynamique asynchrone via lookup-militaire (évite de transférer 6 700 objets à chaque visite)
             'filters' => $request->only([
                 'type_registre_code',
