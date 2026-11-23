@@ -89,19 +89,33 @@ class Effectif
     }
 
     /**
+     * ID de l'organisme organique principal de la Gendarmerie (GRM).
+     * Mis en cache pour performance maximale.
+     */
+    public static function idOrganismeGrm(): int
+    {
+        static $id = null;
+        if ($id === null) {
+            $id = (int) (\App\Models\OrganismeDetachement::where('code', 'GRM')->value('id') ?? 2);
+        }
+        return $id;
+    }
+
+    /**
      * Filtre un QueryBuilder sur les personnels en détachement (ministères, organismes extérieurs).
      */
     public static function appliquerFiltreDetaches($query, string $prefix = '')
     {
         $p = $prefix ? rtrim($prefix, '.') . '.' : '';
-        return $query->where(function ($q) use ($p) {
+        $grmId = self::idOrganismeGrm();
+        return $query->where(function ($q) use ($p, $grmId) {
             $q->where("{$p}position_id", 26)
               ->orWhere("{$p}position_actuelle", 'ILIKE', '%détach%')
               ->orWhere("{$p}position_actuelle", 'ILIKE', '%detach%')
               ->orWhere("{$p}statut_code", 2)
-              ->orWhere(function ($sq) use ($p) {
+              ->orWhere(function ($sq) use ($p, $grmId) {
                   $sq->whereNotNull("{$p}organisme_detachement_id")
-                     ->where("{$p}organisme_detachement_id", '!=', 1);
+                     ->where("{$p}organisme_detachement_id", '!=', $grmId);
               });
         });
     }
@@ -136,15 +150,16 @@ class Effectif
     }
 
     /**
-     * Filtre un QueryBuilder sur les personnels actifs au poste / corps de troupe Gendarmerie (hors détachés).
+     * Filtre un QueryBuilder sur les personnels actifs au poste / corps de troupe Gendarmerie (hors détachés, hors missions, hors stages).
      */
     public static function appliquerFiltreActifsStricts($query, string $prefix = '')
     {
         $p = $prefix ? rtrim($prefix, '.') . '.' : '';
+        $grmId = self::idOrganismeGrm();
         return $query->where(function ($q) use ($p) {
-            $q->where("{$p}statut_code", 1)->orWhere("{$p}statut", 'actif');
-        })->where(function ($q) use ($p) {
-            $q->where("{$p}organisme_detachement_id", 1)
+            $q->where("{$p}statut_code", 1)->orWhereRaw("LOWER(TRIM(COALESCE({$p}statut, ''))) = 'actif'");
+        })->where(function ($q) use ($p, $grmId) {
+            $q->where("{$p}organisme_detachement_id", $grmId)
               ->orWhereNull("{$p}organisme_detachement_id");
         })->where(function ($q) use ($p) {
             $q->where("{$p}position_id", '!=', 26)->orWhereNull("{$p}position_id");
@@ -153,6 +168,23 @@ class Effectif
                 $sq->where("{$p}position_actuelle", 'NOT ILIKE', '%détach%')
                    ->where("{$p}position_actuelle", 'NOT ILIKE', '%detach%');
             })->orWhereNull("{$p}position_actuelle");
+        })->where(function ($q) use ($p) {
+            $q->where("{$p}position_id", '!=', 29)->orWhereNull("{$p}position_id");
+        })->where(function ($q) use ($p) {
+            $q->where("{$p}position_actuelle", 'NOT ILIKE', '%miss%')
+               ->orWhereNull("{$p}position_actuelle");
+        })->where(function ($q) use ($p) {
+            $q->where("{$p}statut_code", '!=', 3)->orWhereNull("{$p}statut_code");
+        })->where(function ($q) use ($p) {
+            $q->where("{$p}position_id", '!=', 28)->orWhereNull("{$p}position_id");
+        })->where(function ($q) use ($p) {
+            $q->where("{$p}position_actuelle", 'NOT ILIKE', '%stag%')
+               ->where("{$p}position_actuelle", 'NOT ILIKE', '%format%')
+               ->where("{$p}position_actuelle", 'NOT ILIKE', '%cours-sup%')
+               ->where("{$p}position_actuelle", 'NOT ILIKE', '%ecole%')
+               ->orWhereNull("{$p}position_actuelle");
+        })->where(function ($q) use ($p) {
+            $q->where("{$p}statut_code", '!=', 4)->orWhereNull("{$p}statut_code");
         });
     }
 }

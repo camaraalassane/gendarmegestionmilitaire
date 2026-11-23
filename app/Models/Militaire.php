@@ -126,7 +126,8 @@ class Militaire extends Model
                 || in_array($militaire->statut_code, [6, 7, 8, 9]);
 
             if (!$isHorsActivite) {
-                $hasOrganismeExterne = $militaire->organisme_detachement_id && $militaire->organisme_detachement_id != 1;
+                $grmId = \App\Support\Effectif::idOrganismeGrm();
+                $hasOrganismeExterne = $militaire->organisme_detachement_id && $militaire->organisme_detachement_id != $grmId;
                 $isDetache = $militaire->statut === 'détaché' || $militaire->statut_code === 2 || $hasOrganismeExterne;
 
                 if ($isDetache) {

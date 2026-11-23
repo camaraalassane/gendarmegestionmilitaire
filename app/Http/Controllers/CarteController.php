@@ -53,9 +53,10 @@ class CarteController extends Controller
                  OR LOWER(COALESCE(position_actuelle,'')) LIKE '%form%')";
         $cas = fn (string $motif) => 'SUM(CASE WHEN ' . Effectif::sqlStatut($motif) . ' THEN 1 ELSE 0 END)';
 
-        $sqlDetache = "(statut_code = 2 OR position_id = 26 OR LOWER(COALESCE(position_actuelle,'')) LIKE '%détach%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%detach%')";
-        $sqlMission = "(position_id = 29 OR LOWER(COALESCE(position_actuelle,'')) LIKE '%miss%' OR statut_code = 3)";
-        $sqlStage = "(position_id = 28 OR LOWER(COALESCE(position_actuelle,'')) LIKE '%stag%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%format%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%cours-sup%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%ecole%' OR statut_code = 4)";
+        $grmId = Effectif::idOrganismeGrm();
+        $sqlDetache = "(COALESCE(statut_code, 0) = 2 OR COALESCE(position_id, 0) = 26 OR (organisme_detachement_id IS NOT NULL AND organisme_detachement_id != {$grmId}) OR LOWER(COALESCE(position_actuelle,'')) LIKE '%détach%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%detach%')";
+        $sqlMission = "(COALESCE(position_id, 0) = 29 OR LOWER(COALESCE(position_actuelle,'')) LIKE '%miss%' OR COALESCE(statut_code, 0) = 3)";
+        $sqlStage = "(COALESCE(position_id, 0) = 28 OR LOWER(COALESCE(position_actuelle,'')) LIKE '%stag%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%format%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%cours-sup%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%ecole%' OR COALESCE(statut_code, 0) = 4)";
         $sqlActifStrict = "(NOT ({$sqlDetache}) AND NOT ({$sqlMission}) AND NOT ({$sqlStage}))";
 
         $lignes = Militaire::query()
@@ -269,7 +270,11 @@ class CarteController extends Controller
         $limit = 200;
         $total = (clone $query)->count();
 
-        $militaires = (clone $query)->limit($limit)->get()->map(function ($m) use ($retraitesMap) {
+        $regionsMap = Region::pluck('nom', 'id')->all();
+        $unitesMap = Unite::pluck('nom', 'id')->all();
+        $gradesMap = Grade::pluck('nom_grade', 'id')->all();
+
+        $militaires = (clone $query)->limit($limit)->get()->map(function ($m) use ($retraitesMap, $regionsMap, $unitesMap, $gradesMap) {
             $dateRetraite = $retraitesMap[$m->id]['date_retraite_formatted']
                 ?? ($m->calculerDateRetraite()?->format('d/m/Y') ?? '-');
 
@@ -279,9 +284,9 @@ class CarteController extends Controller
                 'mle_grm' => $m->mle_grm,
                 'nom' => $m->nom,
                 'prenom' => $m->prenom,
-                'grade' => $m->grade?->nom_grade ?? $m->grade_actuel ?? '-',
-                'region_nom' => $m->region?->nom ?? '-',
-                'unite_nom' => $m->unite?->nom ?? $m->unite ?? '-',
+                'grade' => $gradesMap[$m->grade_id] ?? $m->grade_actuel ?? '-',
+                'region_nom' => $regionsMap[$m->region_id] ?? (is_string($m->region) ? $m->region : '-'),
+                'unite_nom' => $unitesMap[$m->unite_id] ?? (is_string($m->unite) ? $m->unite : '-'),
                 'statut' => $m->statut ?? '-',
                 'position' => $m->position_actuelle ?? '-',
                 'date_naissance' => $m->date_naissance ? $m->date_naissance->format('d/m/Y') : '-',
