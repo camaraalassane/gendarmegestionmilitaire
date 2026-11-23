@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { router, Deferred } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import DashboardSkeleton from '@/Components/DashboardSkeleton.vue';
 import Chart from 'primevue/chart';
 import Button from 'primevue/button';
 import Toast from 'primevue/toast';
@@ -472,7 +473,13 @@ const horizontalBarOptions = {
 
         <Toast />
 
-        <div class="py-4 sm:py-8 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 space-y-6 sm:space-y-8 min-w-0">
+        <div class="py-4 sm:py-8 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-w-0">
+            <Deferred :data="['statistiques', 'chartsData']">
+                <template #fallback>
+                    <DashboardSkeleton />
+                </template>
+
+                <div class="space-y-6 sm:space-y-8">
             <!-- ========================================================================= -->
             <!-- 1. AXE A : EFFECTIF OPÉRATIONNEL EN ACTIVITÉ (COMPTABILISÉS SÉPARÉMENT)    -->
             <!-- ========================================================================= -->
@@ -1067,6 +1074,8 @@ const horizontalBarOptions = {
                     </div>
                 </div>
             </div>
+                </div>
+            </Deferred>
         </div>
     </AuthenticatedLayout>
 </template>
