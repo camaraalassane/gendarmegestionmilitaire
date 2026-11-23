@@ -452,11 +452,32 @@ class MilitairesImport implements WithMultipleSheets, ToCollection, WithHeadingR
             // Insertion / mise à jour globale des registres opérationnels (blessés de guerre, etc.)
             if (!empty($registresToUpsert)) {
                 $mIdMap = Militaire::whereIn('matricule', array_keys($recordsByMatricule))->pluck('id', 'matricule');
+                $defaultRegistreKeys = [
+                    'militaire_id' => null,
+                    'type_registre_code' => null,
+                    'matricule' => null,
+                    'mle_grm' => null,
+                    'nom' => null,
+                    'prenom' => null,
+                    'grade_id' => null,
+                    'grade_ordre' => 0,
+                    'grade_texte' => null,
+                    'region_id' => null,
+                    'unite_id' => null,
+                    'unite_texte' => null,
+                    'date_evenement' => null,
+                    'circonstances' => null,
+                    'observations' => null,
+                    'est_actif_fichier' => 1,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
                 $uniqueOps = [];
                 $affectedMIds = [];
-                foreach ($registresToUpsert as $item) {
-                    $mId = $mIdMap[$item['matricule']] ?? null;
+                foreach ($registresToUpsert as $rawItem) {
+                    $mId = $mIdMap[$rawItem['matricule']] ?? null;
                     if ($mId) {
+                        $item = array_merge($defaultRegistreKeys, $rawItem);
                         $item['militaire_id'] = $mId;
                         $key = $mId . '_' . $item['type_registre_code'];
                         $uniqueOps[$key] = $item;

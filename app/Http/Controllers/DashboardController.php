@@ -162,6 +162,9 @@ class DashboardController extends Controller
             // 1. STATISTIQUES PAR STATUT (Situation Administrative Statutaire)
         $statutsMeta = [
             'actif' => ['num' => 1, 'label' => 'Actif (En service)', 'color' => '#059669', 'bg' => 'bg-emerald-50 text-emerald-800 border-emerald-200'],
+            'détaché' => ['num' => 2, 'label' => 'Détaché', 'color' => '#0284c7', 'bg' => 'bg-sky-50 text-sky-800 border-sky-200'],
+            'en mission' => ['num' => 3, 'label' => 'En mission', 'color' => '#8b5cf6', 'bg' => 'bg-purple-50 text-purple-800 border-purple-200'],
+            'en stage' => ['num' => 4, 'label' => 'En stage / formation', 'color' => '#f59e0b', 'bg' => 'bg-amber-50 text-amber-800 border-amber-200'],
             'procédure en cours' => ['num' => 5, 'label' => 'Procédure en cours', 'color' => '#d97706', 'bg' => 'bg-amber-50 text-amber-800 border-amber-200'],
             'déserteur' => ['num' => 6, 'label' => 'Déserteur', 'color' => '#ea580c', 'bg' => 'bg-orange-50 text-orange-800 border-orange-200'],
             'retraité' => ['num' => 7, 'label' => 'Retraité', 'color' => '#9333ea', 'bg' => 'bg-purple-50 text-purple-800 border-purple-200'],

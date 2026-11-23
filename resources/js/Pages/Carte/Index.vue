@@ -565,10 +565,86 @@ const getTheatreStroke = (regionCode) => {
 };
 
 const projectedTheatres = computed(() => {
-    return props.theatres.map(th => {
-        if (th.lat === null || th.lon === null || isNaN(Number(th.lat)) || isNaN(Number(th.lon))) return { ...th, pt: null };
+    // 1. Projection initiale avec dimensions et offset par défaut
+    const items = props.theatres.map(th => {
+        if (th.lat === null || th.lon === null || isNaN(Number(th.lat)) || isNaN(Number(th.lon))) {
+            return {
+                ...th,
+                pt: null,
+                w: theatreBadgeWidth(th),
+                h: hasTheatreAppuis(th) ? 36 : 24,
+                badgeOffset: { x: 0, y: 22 },
+                hasOffset: false,
+                isFlipped: false,
+            };
+        }
         const pt = project(Number(th.lat), Number(th.lon));
-        return { ...th, pt };
+        const w = theatreBadgeWidth(th);
+        const h = hasTheatreAppuis(th) ? 36 : 24;
+        return {
+            ...th,
+            pt,
+            w,
+            h,
+            badgeOffset: { x: 0, y: 22 },
+            hasOffset: false,
+            isFlipped: false,
+        };
+    });
+
+    const active = items.filter(t => t.pt !== null);
+
+    // 2. Détection et résolution automatique des collisions
+    // Trier de l'Ouest vers l'Est (x croissant)
+    active.sort((a, b) => a.pt.x - b.pt.x);
+
+    for (let i = 0; i < active.length; i++) {
+        const a = active[i];
+        for (let j = i + 1; j < active.length; j++) {
+            const b = active[j];
+
+            const ax = a.pt.x + a.badgeOffset.x;
+            const ay = a.pt.y + a.badgeOffset.y;
+            const bx = b.pt.x + b.badgeOffset.x;
+            const by = b.pt.y + b.badgeOffset.y;
+
+            const marginX = 14;
+            const marginY = 8;
+            const overlapX = (a.w / 2 + b.w / 2 + marginX) - Math.abs(ax - bx);
+            const overlapY = (a.h / 2 + b.h / 2 + marginY) - Math.abs(ay - by);
+
+            if (overlapX > 0 && overlapY > 0) {
+                // Collision détectée entre les badges des théâtres 'a' et 'b' !
+                // Si aucun n'est encore basculé au-dessus
+                if (!a.isFlipped && !b.isFlipped) {
+                    // Basculer au-dessus du PC le théâtre le plus au nord
+                    if (a.pt.y <= b.pt.y) {
+                        a.badgeOffset.y = -(a.h + 10);
+                        a.isFlipped = true;
+                        a.hasOffset = true;
+                    } else {
+                        b.badgeOffset.y = -(b.h + 10);
+                        b.isFlipped = true;
+                        b.hasOffset = true;
+                    }
+                } else if (Math.abs(a.badgeOffset.y - b.badgeOffset.y) < 18) {
+                    // Les deux sont du même côté (ex: multiples théâtres groupés) : décalage latéral
+                    const push = Math.min(overlapX / 2 + 10, 60);
+                    a.badgeOffset.x -= push;
+                    b.badgeOffset.x += push;
+                    a.hasOffset = true;
+                    b.hasOffset = true;
+                }
+            }
+        }
+    }
+
+    // 3. Ordonnancement SVG (Z-Index visuel) :
+    // Le théâtre sélectionné ou survolé est placé en dernier élément du DOM pour être 100% au premier plan
+    return items.slice().sort((a, b) => {
+        const aActive = (a.code === selTheatre.value || a.code === hoveredTheatre.value) ? 1 : 0;
+        const bActive = (b.code === selTheatre.value || b.code === hoveredTheatre.value) ? 1 : 0;
+        return aActive - bActive;
     });
 });
 
@@ -2027,8 +2103,22 @@ const lignesFiltrees = computed(() => {
                                                 ★
                                             </text>
 
+                                            <!-- Ligne de rappel tactique (leader line) si le badge a été décalé pour éviter une collision -->
+                                            <line
+                                                v-if="th.hasOffset"
+                                                x1="0"
+                                                :y1="th.badgeOffset.y < 0 ? -14 : 14"
+                                                :x2="th.badgeOffset.x"
+                                                :y2="th.badgeOffset.y < 0 ? th.badgeOffset.y + (hasTheatreAppuis(th) ? 26 : 14) : th.badgeOffset.y - 11"
+                                                :stroke="th.couleur"
+                                                stroke-width="1.4"
+                                                stroke-dasharray="3 2"
+                                                opacity="0.8"
+                                                class="pointer-events-none"
+                                            />
+
                                             <!-- GRAND BADGE TACTIQUE AVEC EFFECTIF GENDARMERIE ET DÉTAIL DES APPUIS (ex: DTTIA 10 • AA 20 • AT 30) -->
-                                            <g :transform="`translate(0, 20)`" class="pointer-events-none select-none">
+                                            <g :transform="`translate(${th.badgeOffset.x}, ${th.badgeOffset.y})`" class="pointer-events-none select-none">
                                                 <rect
                                                     :x="-theatreBadgeWidth(th) / 2"
                                                     y="-11"

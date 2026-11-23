@@ -44,11 +44,18 @@ class CoordinatesSeeder extends Seeder
         ];
 
         foreach ($regionsCoords as $code => $data) {
-            Region::where('code', $code)->update([
-                'latitude' => $data['lat'],
-                'longitude' => $data['lng'],
-                'chef_lieu' => $data['chef_lieu'],
-            ]);
+            $nom = (str_starts_with($code, 'R') && is_numeric(substr($code, 1))) ? 'REGION N°' . substr($code, 1) : $code;
+            $ordre = (str_starts_with($code, 'R') && is_numeric(substr($code, 1))) ? (int) substr($code, 1) : 99;
+            Region::updateOrCreate(
+                ['code' => $code],
+                [
+                    'nom' => $nom,
+                    'latitude' => $data['lat'],
+                    'longitude' => $data['lng'],
+                    'chef_lieu' => $data['chef_lieu'],
+                    'ordre' => $ordre,
+                ]
+            );
         }
 
         $regionsByCode = Region::all()->keyBy('code');
@@ -107,11 +114,22 @@ class CoordinatesSeeder extends Seeder
         foreach ($reassignUnits as $unitId => $toRegCode) {
             $u = Unite::find($unitId);
             if ($u && isset($regionsByCode[$toRegCode])) {
+                $targetRegId = $regionsByCode[$toRegCode]->id;
                 $u->updateQuietly([
-                    'region_id' => $regionsByCode[$toRegCode]->id,
+                    'region_id' => $targetRegId,
                 ]);
+                \App\Models\Militaire::where('unite_id', $unitId)->update(['region_id' => $targetRegId]);
             }
         }
+
+        \Illuminate\Support\Facades\DB::statement("
+            UPDATE militaires m
+            SET region_id = u.region_id
+            FROM unites u
+            WHERE m.unite_id = u.id
+              AND u.region_id IS NOT NULL
+              AND (m.region_id IS NULL OR m.region_id != u.region_id)
+        ");
 
         // 3. Coordonnées précises des localités, cercles et communes du Mali
         $localitesPoints = [

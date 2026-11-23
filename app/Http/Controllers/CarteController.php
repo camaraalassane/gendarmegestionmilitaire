@@ -53,7 +53,7 @@ class CarteController extends Controller
                  OR LOWER(COALESCE(position_actuelle,'')) LIKE '%form%')";
         $cas = fn (string $motif) => 'SUM(CASE WHEN ' . Effectif::sqlStatut($motif) . ' THEN 1 ELSE 0 END)';
 
-        $sqlDetache = "(position_id = 26 OR LOWER(COALESCE(position_actuelle,'')) LIKE '%détach%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%detach%' OR (organisme_detachement_id IS NOT NULL AND organisme_detachement_id != 1) OR statut_code = 2)";
+        $sqlDetache = "(statut_code = 2 OR position_id = 26 OR LOWER(COALESCE(position_actuelle,'')) LIKE '%détach%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%detach%')";
         $sqlMission = "(position_id = 29 OR LOWER(COALESCE(position_actuelle,'')) LIKE '%miss%' OR statut_code = 3)";
         $sqlStage = "(position_id = 28 OR LOWER(COALESCE(position_actuelle,'')) LIKE '%stag%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%format%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%cours-sup%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%ecole%' OR statut_code = 4)";
         $sqlActifStrict = "(NOT ({$sqlDetache}) AND NOT ({$sqlMission}) AND NOT ({$sqlStage}))";
@@ -170,21 +170,44 @@ class CarteController extends Controller
                 ->whereNull('deleted_at');
 
             if ($th->code === 'DET-SOKOLO') {
-                $q->where(function($sq) {
-                    $sq->where('position_actuelle', 'ILIKE', '%sokolo%')
+                $q->where(function($sq) use ($th) {
+                    $sq->where('theatre_id', $th->id)
+                       ->orWhere('position_actuelle', 'ILIKE', '%sokolo%')
                        ->orWhere('engagement_ops', 'ILIKE', '%sokolo%')
                        ->orWhere('unite', 'ILIKE', '%sokolo%');
                 });
             } elseif ($th->code === 'DET-SAYE') {
-                $q->where(function($sq) {
-                    $sq->where('position_actuelle', 'ILIKE', '%saye%')
+                $q->where(function($sq) use ($th) {
+                    $sq->where('theatre_id', $th->id)
+                       ->orWhere('position_actuelle', 'ILIKE', '%saye%')
                        ->orWhere('engagement_ops', 'ILIKE', '%saye%')
                        ->orWhere('unite', 'ILIKE', '%saye%');
                 });
             } else {
                 $regionsCodes = is_array($th->regions_codes) ? $th->regions_codes : [];
                 $regIds = $regions->whereIn('code', $regionsCodes)->pluck('id')->all();
-                $q->whereIn('region_id', $regIds);
+                $q->where(function($sq) use ($th, $regIds) {
+                    $sq->where('theatre_id', $th->id)
+                       ->orWhere(function($ssq) use ($regIds) {
+                           $ssq->whereIn('region_id', $regIds)
+                               ->whereNull('theatre_id');
+                       });
+                })
+                // Exclure formellement les détachements spécifiques pour éviter tout double-compte avec le théâtre régional
+                ->where(function($sq) {
+                    $sq->whereNull('position_actuelle')
+                       ->orWhere(function($ssq) {
+                           $ssq->where('position_actuelle', 'NOT ILIKE', '%sokolo%')
+                               ->where('position_actuelle', 'NOT ILIKE', '%saye%');
+                       });
+                })
+                ->where(function($sq) {
+                    $sq->whereNull('unite')
+                       ->orWhere(function($ssq) {
+                           $ssq->where('unite', 'NOT ILIKE', '%sokolo%')
+                               ->where('unite', 'NOT ILIKE', '%saye%');
+                       });
+                });
             }
 
             $st = $q->selectRaw("
@@ -511,21 +534,43 @@ class CarteController extends Controller
         $q = Militaire::enActivite()->with(['grade', 'unite', 'region', 'registresOperationnels']);
 
         if ($theatre->code === 'DET-SOKOLO') {
-            $q->where(function ($sq) {
-                $sq->where('position_actuelle', 'ILIKE', '%sokolo%')
+            $q->where(function ($sq) use ($theatre) {
+                $sq->where('theatre_id', $theatre->id)
+                   ->orWhere('position_actuelle', 'ILIKE', '%sokolo%')
                    ->orWhere('engagement_ops', 'ILIKE', '%sokolo%')
                    ->orWhere('unite', 'ILIKE', '%sokolo%');
             });
         } elseif ($theatre->code === 'DET-SAYE') {
-            $q->where(function ($sq) {
-                $sq->where('position_actuelle', 'ILIKE', '%saye%')
+            $q->where(function ($sq) use ($theatre) {
+                $sq->where('theatre_id', $theatre->id)
+                   ->orWhere('position_actuelle', 'ILIKE', '%saye%')
                    ->orWhere('engagement_ops', 'ILIKE', '%saye%')
                    ->orWhere('unite', 'ILIKE', '%saye%');
             });
         } else {
             $regionsCodes = is_array($theatre->regions_codes) ? $theatre->regions_codes : [];
             $regIds = $regions->whereIn('code', $regionsCodes)->pluck('id')->all();
-            $q->whereIn('region_id', $regIds);
+            $q->where(function ($sq) use ($theatre, $regIds) {
+                $sq->where('theatre_id', $theatre->id)
+                   ->orWhere(function ($ssq) use ($regIds) {
+                       $ssq->whereIn('region_id', $regIds)
+                           ->whereNull('theatre_id');
+                   });
+            })
+            ->where(function ($sq) {
+                $sq->whereNull('position_actuelle')
+                   ->orWhere(function ($ssq) {
+                       $ssq->where('position_actuelle', 'NOT ILIKE', '%sokolo%')
+                           ->where('position_actuelle', 'NOT ILIKE', '%saye%');
+                   });
+            })
+            ->where(function ($sq) {
+                $sq->whereNull('unite')
+                   ->orWhere(function ($ssq) {
+                       $ssq->where('unite', 'NOT ILIKE', '%sokolo%')
+                           ->where('unite', 'NOT ILIKE', '%saye%');
+                   });
+            });
         }
 
         $militaires = $q->get();
