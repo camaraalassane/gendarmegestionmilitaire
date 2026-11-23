@@ -90,6 +90,27 @@ watch([activeTab, filterTypeRegistre, filterRegion, filterGrade, filterAnnee, se
     currentPage.value = 1;
 });
 const totalPages = computed(() => Math.ceil(registresFiltres.value.length / perPage.value) || 1);
+const visiblePages = computed(() => {
+    const total = totalPages.value;
+    const current = currentPage.value;
+    if (total <= 7) {
+        return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    const delta = 2;
+    const range = [];
+    for (let i = Math.max(2, current - delta); i <= Math.min(total - 1, current + delta); i++) {
+        range.push(i);
+    }
+    if (current - delta > 2) {
+        range.unshift('...');
+    }
+    if (current + delta < total - 1) {
+        range.push('...');
+    }
+    range.unshift(1);
+    range.push(total);
+    return range;
+});
 const startIndex = computed(() => (currentPage.value - 1) * perPage.value);
 const endIndex = computed(() => Math.min(startIndex.value + perPage.value, registresFiltres.value.length));
 const paginatedRegistres = computed(() => {
@@ -1138,19 +1159,26 @@ const liste20Regions = computed(() => {
                             class="!text-xs !py-1 !px-2.5"
                         />
                         <div class="flex items-center gap-1 px-1">
-                            <button
-                                v-for="p in totalPages"
-                                :key="p"
-                                @click="currentPage = p"
-                                :class="[
-                                    'w-7 h-7 rounded text-xs font-bold transition-colors flex items-center justify-center',
-                                    currentPage === p
-                                        ? 'bg-sky-800 text-white shadow-xs'
-                                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                                ]"
-                            >
-                                {{ p }}
-                            </button>
+                            <template v-for="(p, idx) in visiblePages" :key="idx">
+                                <span
+                                    v-if="p === '...'"
+                                    class="w-6 text-center text-xs text-slate-400 select-none"
+                                >
+                                    ...
+                                </span>
+                                <button
+                                    v-else
+                                    @click="currentPage = p"
+                                    :class="[
+                                        'w-7 h-7 rounded text-xs font-bold transition-colors flex items-center justify-center cursor-pointer',
+                                        currentPage === p
+                                            ? 'bg-sky-800 text-white shadow-xs'
+                                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                    ]"
+                                >
+                                    {{ p }}
+                                </button>
+                            </template>
                         </div>
                         <Button
                             @click="currentPage = Math.min(totalPages, currentPage + 1)"
