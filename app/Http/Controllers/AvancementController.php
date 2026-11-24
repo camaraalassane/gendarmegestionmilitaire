@@ -179,7 +179,6 @@ class AvancementController extends Controller
                 'a.malus_punition',
                 'a.points_limite_age',
                 'a.total_points',
-                'ec.payload as promo_payload',
                 DB::raw("ROW_NUMBER() OVER (
                     PARTITION BY COALESCE(a.grade_actuel, ec.grade_actuel, m.grade_actuel) 
                     ORDER BY {$windowOrder}
@@ -241,6 +240,14 @@ class AvancementController extends Controller
 
         $rowIds = $rows->pluck('militaire_id')->all();
 
+        // Récupérer les payloads de promotion pour UNIQUEMENT les militaires de la page (économie mémoire majeure)
+        $v = (int) DB::table('eligibilites_calculees')->where('type', 'meta')->max('version');
+        $payloadsMap = DB::table('eligibilites_calculees')
+            ->where('version', $v)
+            ->where('type', 'promotions')
+            ->whereIn('militaire_id', $rowIds)
+            ->pluck('payload', 'militaire_id');
+
         // Récupérer les certificats pour uniquement les militaires de la page
         $certRows = DB::table('certificat_militaire')
             ->join('certificats', 'certificats.id', '=', 'certificat_militaire.certificat_id')
@@ -262,7 +269,8 @@ class AvancementController extends Controller
         foreach ($rows as $r) {
             $isOff = in_array($r->grade_actuel, $officierGrades, true);
             $categorieStatutaire = Grade::determinerCategorie($r->grade_actuel);
-            $promoInfo = $r->promo_payload ? json_decode($r->promo_payload, true) : [];
+            $payloadRaw = $payloadsMap[$r->militaire_id] ?? null;
+            $promoInfo = $payloadRaw ? json_decode($payloadRaw, true) : [];
             $gradeCible = $r->saved_grade_cible ?: ($promoInfo['grade_cible'] ?? '');
             $fonctionNom = $r->fonction_actuelle ?: $r->position_actuelle ?: 'En fonction';
 
@@ -557,7 +565,6 @@ class AvancementController extends Controller
 
         // Vider le cache de l'avancement pour prise en compte immédiate
         \App\Models\Militaire::incrementCacheVersion();
-        Cache::forget("avancements:candidates_list_{$annee}");
 
         if ($request->wantsJson()) {
             return response()->json([
@@ -775,7 +782,6 @@ class AvancementController extends Controller
             // Recalcul des rangs et purge du cache
             $this->recalculerRangsEnBase($annee);
             \App\Models\Militaire::incrementCacheVersion();
-        Cache::forget("avancements:candidates_list_{$annee}");
 
             return response()->json([
                 'success' => true,

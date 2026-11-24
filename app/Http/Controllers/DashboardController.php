@@ -50,9 +50,12 @@ class DashboardController extends Controller
         $anneeCourante = (int) $aujourdhui->year;
 
         $v = \App\Models\Militaire::getCacheVersion();
+        $isWarm = \Illuminate\Support\Facades\Cache::has("v{$v}:dashboard:statistiques_summary");
 
         return Inertia::render('Dashboard', [
-            'statistiques' => $this->statistiquesResume($anneeCourante, $v),
+            'statistiques' => $isWarm
+                ? $this->statistiquesResume($anneeCourante, $v)
+                : Inertia::defer(fn () => $this->statistiquesResume($anneeCourante, $v)),
             'chartsData' => Inertia::defer(fn () => $this->donneesGraphiques($v)),
         ]);
     }

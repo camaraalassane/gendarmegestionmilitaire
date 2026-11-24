@@ -23,18 +23,34 @@ class EligibiliteController extends Controller
         $formationsListe = $this->getFormationsListe();
         $gradesListe = $this->getGradesListe();
 
-        $meta = $this->meta();
-        $promotionsPage = $this->page('promotions', null, null, 1, 30);
+        $v = (int) \App\Models\Militaire::getCacheVersion();
+        $isWarm = Cache::has("eligibilites:meta:v{$v}");
+
+        if ($isWarm) {
+            $meta = $this->meta();
+            $promotionsPage = $this->page('promotions', null, null, 1, 30);
+
+            return Inertia::render('eligibilites/index', [
+                'formationsListe' => $formationsListe,
+                'gradesListe' => $gradesListe,
+                'initialType' => 'promotions',
+                'initialData' => $promotionsPage[0] ?? [],
+                'initialTotal' => $meta['statistiques']['total_promotions'] ?? 0,
+                'initialStatistiques' => $meta['statistiques'],
+                'initialFormationCounts' => $meta['formation_counts'],
+                'initialGradeCounts' => $meta['grade_counts'],
+            ]);
+        }
 
         return Inertia::render('eligibilites/index', [
             'formationsListe' => $formationsListe,
             'gradesListe' => $gradesListe,
             'initialType' => 'promotions',
-            'initialData' => $promotionsPage[0] ?? [],
-            'initialTotal' => $meta['statistiques']['total_promotions'] ?? 0,
-            'initialStatistiques' => $meta['statistiques'],
-            'initialFormationCounts' => $meta['formation_counts'],
-            'initialGradeCounts' => $meta['grade_counts'],
+            'initialData' => Inertia::defer(fn() => $this->page('promotions', null, null, 1, 30)[0] ?? []),
+            'initialTotal' => Inertia::defer(fn() => $this->meta()['statistiques']['total_promotions'] ?? 0),
+            'initialStatistiques' => Inertia::defer(fn() => $this->meta()['statistiques']),
+            'initialFormationCounts' => Inertia::defer(fn() => $this->meta()['formation_counts']),
+            'initialGradeCounts' => Inertia::defer(fn() => $this->meta()['grade_counts']),
         ]);
     }
 
@@ -246,6 +262,44 @@ class EligibiliteController extends Controller
                         $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
                         if ($ancG >= 2) {
                             $gradeCible = 'Adjudant-Chef';
+                            $dateAncienneteStr = $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 2, substr($dPromoStr, 5, 5)) : null;
+                        }
+                    }
+                    break;
+
+                case 'Adjudant-Chef':
+                case 'Adjudant-chef':
+                    if ($conditionsBase) {
+                        $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
+                        $age = $fastDiffYears($dNaissanceStr, $nowY, $nowMd);
+                        $ancTotale = $dEntreeStr ? $fastDiffYears($dEntreeStr, $refY, $refMd) : 0;
+
+                        // Option 1 : Vers Adjudant-Chef Major (diplômes CIA + BA1 + BA2, âge >= 45, ancGrade >= 2)
+                        if (isset($mCerts['CIA']) && isset($mCerts['BA1']) && isset($mCerts['BA2']) && $age >= 45 && $ancG >= 2) {
+                            $gradeCible = 'Adjudant-Chef Major';
+                            if ($dPromoStr && $dNaissanceStr) {
+                                $d2 = sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 2, substr($dPromoStr, 5, 5));
+                                $d45 = sprintf('%04d-%s', (int)substr($dNaissanceStr, 0, 4) + 45, substr($dNaissanceStr, 5, 5));
+                                $dateAncienneteStr = max($d2, $d45);
+                            } else {
+                                $dateAncienneteStr = $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 2, substr($dPromoStr, 5, 5)) : null;
+                            }
+                        }
+                        // Option 2 : Vers Sous-lieutenant (BA2, âge <= 45, ancTotale >= 15, ancGrade >= 2)
+                        elseif (isset($mCerts['BA2']) && $age <= 45 && $ancTotale >= 15 && $ancG >= 2) {
+                            $gradeCible = 'Sous-lieutenant';
+                            $dateAncienneteStr = $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 2, substr($dPromoStr, 5, 5)) : null;
+                        }
+                    }
+                    break;
+
+                case 'Adjudant-Chef major':
+                case 'Adjudant-chef major':
+                case 'Major':
+                    if ($conditionsBase) {
+                        $ancG = $dPromoStr ? $fastDiffYears($dPromoStr, $refY, $refMd) : $fastDiffYears($dEntreeStr, $refY, $refMd);
+                        if (isset($mCerts['BA2']) && $ancG >= 2) {
+                            $gradeCible = 'Sous-lieutenant';
                             $dateAncienneteStr = $dPromoStr ? sprintf('%04d-%s', (int)substr($dPromoStr, 0, 4) + 2, substr($dPromoStr, 5, 5)) : null;
                         }
                     }

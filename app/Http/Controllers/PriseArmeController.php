@@ -73,18 +73,19 @@ class PriseArmeController extends Controller
             ? ($hasFilter ? $this->buildRegistresFlat($request) : Cache::remember("v{$v}:prise_armes:registres_flat", 3600, fn() => $this->buildRegistresFlat($request)))
             : [];
 
-        // Données SPA en cache (lecture ultra-rapide < 5 ms)
-        $dataSpa = $chargerSpa();
+        // Données SPA : rendu direct TIC-TAC si cache chaud, defer non bloquant si cache froid
+        $isWarm = Cache::has("v{$v}:spa:situation_complete");
+        $dataSpa = $isWarm ? $chargerSpa() : null;
 
         return Inertia::render('PriseArmes/Index', [
-            'stats' => $dataSpa['stats'],
+            'stats' => $isWarm ? $dataSpa['stats'] : Inertia::defer(fn() => $chargerSpa()['stats']),
             'organismes' => $organismes,
             'regions' => $regions,
             'grades' => $grades,
             'unites' => $unites,
-            'matrice' => $dataSpa['matrice'],
-            'regionsSituation' => $dataSpa['regionsSituation'],
-            'organismesCards' => $dataSpa['organismesCards'],
+            'matrice' => $isWarm ? $dataSpa['matrice'] : Inertia::defer(fn() => $chargerSpa()['matrice']),
+            'regionsSituation' => $isWarm ? $dataSpa['regionsSituation'] : Inertia::defer(fn() => $chargerSpa()['regionsSituation']),
+            'organismesCards' => $isWarm ? $dataSpa['organismesCards'] : Inertia::defer(fn() => $chargerSpa()['organismesCards']),
             'registres' => $registres,
             'militairesLookup' => [],
             'filters' => $request->only([
