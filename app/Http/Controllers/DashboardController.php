@@ -9,6 +9,7 @@ use App\Models\Grade;
 use App\Models\Region;
 use App\Models\Position;
 use App\Models\Unite;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
