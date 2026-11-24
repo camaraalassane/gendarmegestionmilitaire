@@ -522,40 +522,40 @@ const deleteMilitaire = () => {
 
                                 <!-- TILES STATISTIQUES HERO -->
                                 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-3 border-t border-sky-700/50">
-                                    <div class="bg-white/10 backdrop-blur-xs rounded-lg p-2.5 text-center min-w-0">
-                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium truncate">
-                                            {{ isDetache ? 'Organisme de Détachement' : 'Unité / Escadron' }}
+                                    <div class="bg-white/10 backdrop-blur-xs rounded-lg p-2.5 text-center min-w-0 flex flex-col justify-center min-h-[4.2rem]">
+                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium truncate mb-1">
+                                            {{ isDetache ? 'Détachement' : 'Unité' }}
                                         </div>
-                                        <div class="text-sm font-bold text-white truncate" :title="isDetache ? (militaire.organisme_detachement || 'Organisme extérieur') : (currentAffectation?.unite || militaire.unite || '-')">
+                                        <div class="text-xs sm:text-sm font-bold text-white leading-snug line-clamp-2 break-words" :title="isDetache ? (militaire.organisme_detachement || 'Organisme extérieur') : (currentAffectation?.unite || militaire.unite || '-')">
                                             {{ isDetache ? (militaire.organisme_detachement || 'Organisme extérieur') : (currentAffectation?.unite || militaire.unite || '-') }}
                                         </div>
                                     </div>
-                                    <div class="bg-white/10 backdrop-blur-xs rounded-lg p-2.5 text-center min-w-0">
-                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium truncate">
-                                            {{ isDetache ? 'Région Territoriale' : 'Région' }}
+                                    <div class="bg-white/10 backdrop-blur-xs rounded-lg p-2.5 text-center min-w-0 flex flex-col justify-center min-h-[4.2rem]">
+                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium truncate mb-1">
+                                            {{ isDetache ? 'Détachement' : 'Région' }}
                                         </div>
-                                        <div class="text-sm font-bold text-white truncate" :title="isDetache ? 'Non rattaché (En détachement)' : (currentAffectation?.region || militaire.region || '-')">
-                                            {{ isDetache ? 'Hors région (Détachement)' : (currentAffectation?.region || militaire.region || '-') }}
+                                        <div class="text-xs sm:text-sm font-bold text-white leading-snug line-clamp-2 break-words" :title="isDetache ? 'Non rattaché (En détachement)' : (currentAffectation?.region || militaire.region || '-')">
+                                            {{ isDetache ? 'Hors région' : (currentAffectation?.region || militaire.region || '-') }}
                                         </div>
                                     </div>
-                                    <div class="bg-white/10 backdrop-blur-xs rounded-lg p-2.5 text-center min-w-0">
-                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium truncate">Âge</div>
-                                        <div class="text-sm font-bold text-white truncate">
+                                    <div class="bg-white/10 backdrop-blur-xs rounded-lg p-2.5 text-center min-w-0 flex flex-col justify-center min-h-[4.2rem]">
+                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium truncate mb-1">Âge</div>
+                                        <div class="text-xs sm:text-sm font-bold text-white leading-snug">
                                             {{ militaire.age ? militaire.age + ' ans' : '-' }}
                                         </div>
                                     </div>
-                                    <div class="bg-white/10 backdrop-blur-xs rounded-lg p-2.5 text-center min-w-0">
-                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium truncate">Ancienneté</div>
-                                        <div class="text-sm font-bold text-white truncate">
+                                    <div class="bg-white/10 backdrop-blur-xs rounded-lg p-2.5 text-center min-w-0 flex flex-col justify-center min-h-[4.2rem]">
+                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium truncate mb-1">Ancienneté</div>
+                                        <div class="text-xs sm:text-sm font-bold text-white leading-snug">
                                             {{ formatAnciennete(militaire.anciennete) }}
                                         </div>
                                     </div>
-                                    <div class="bg-white/15 backdrop-blur-xs rounded-lg p-2.5 text-center min-w-0 border border-amber-300/40 col-span-2 sm:col-span-1 lg:col-span-1 shadow-2xs">
-                                        <div class="text-[11px] uppercase tracking-wider text-amber-200 font-bold flex items-center justify-center gap-1 truncate">
+                                    <div class="bg-white/15 backdrop-blur-xs rounded-lg p-2.5 text-center min-w-0 border border-amber-300/40 col-span-2 sm:col-span-1 lg:col-span-1 shadow-2xs flex flex-col justify-center min-h-[4.2rem]">
+                                        <div class="text-[11px] uppercase tracking-wider text-amber-200 font-bold flex items-center justify-center gap-1 truncate mb-1">
                                             <i class="pi pi-shield text-[10px] text-amber-300 shrink-0"></i>
                                             <span>Théâtres OPS</span>
                                         </div>
-                                        <div class="text-sm font-black text-amber-300 truncate">
+                                        <div class="text-xs sm:text-sm font-black text-amber-300 leading-snug">
                                             {{ parsedEngagementOps.countText }}
                                         </div>
                                     </div>

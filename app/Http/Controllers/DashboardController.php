@@ -85,8 +85,12 @@ class DashboardController extends Controller
                 ->whereRaw("((EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCourante}) OR (LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire < {$anneeCourante}))")
                 ->count();
 
-            // 2. Proposables avancement année N (en cache pour ne pas bloquer l'affichage initial)
-            $totalProposablesN = Cache::remember("v{$v}:dashboard:proposables_n_count", 86400, function () {
+            // 2. Proposables avancement année N (source unique d'éligibilités calculées pour performance ultra-rapide)
+            $totalProposablesN = Cache::remember("v{$v}:dashboard:proposables_n_count", 86400, function () use ($v) {
+                $vPrete = (int) DB::table('eligibilites_calculees')->where('type', 'meta')->max('version');
+                if ($vPrete === $v) {
+                    return (int) DB::table('eligibilites_calculees')->where('version', $v)->where('type', 'promotions')->count();
+                }
                 $propBoth = $this->getProposablesBoth();
                 return $propBoth['proposablesN']['total'] ?? 0;
             });
