@@ -410,7 +410,7 @@ const handleRegionClick = (code) => {
     if (carteMode.value === 'theatres') {
         const ths = regionToTheatreMap.value[code] || [];
         if (ths.length > 0) {
-            selTheatre.value = selTheatre.value === ths[0].code ? null : ths[0].code;
+            choisirTheatre(ths[0].code);
         }
         return;
     }
@@ -425,8 +425,25 @@ const selTheatre = ref(null);        // code du théâtre sélectionné (ex: 'TH
 const hoveredTheatre = ref(null);    // code du théâtre survolé
 const searchTheatreMilitaire = ref('');
 
+const choisirTheatre = (code) => {
+    if (!code || selTheatre.value === code) {
+        selTheatre.value = null;
+    } else {
+        selTheatre.value = code;
+    }
+    userZoom.value = 1;
+    panOffset.value = { x: 0, y: 0 };
+};
+
+watch(selTheatre, () => {
+    userZoom.value = 1;
+    panOffset.value = { x: 0, y: 0 };
+});
+
 const switchCarteMode = (mode) => {
     carteMode.value = mode;
+    userZoom.value = 1;
+    panOffset.value = { x: 0, y: 0 };
     if (mode === 'theatres') {
         sel.value = null; // Sortir de la vue régionale pour voir l'emprise des théâtres
     } else {
@@ -1169,10 +1186,56 @@ const onTouchEnd = () => {
     touchStartDist = 0;
 };
 
-// Cadrage de base de la région sélectionnée
+// Cadrage de base de la région sélectionnée ou de la zone de couverture du théâtre
 const baseRegionBox = computed(() => {
     // Vue nationale : cadrage aéré incluant Kayes à l'ouest, Ménaka à l'est, Sikasso au sud et Taoudénit au nord
     const full = [-24, 30, 685, 575];
+
+    // En mode Théâtres d'Opérations : cadrage dynamique sur l'intégralité de la zone de couverture du théâtre
+    if (carteMode.value === 'theatres') {
+        if (!selTheatre.value) return full;
+
+        const th = tacticalTheatres.value.find(t => t.code === selTheatre.value)
+            || (props.theatres || []).find(t => t.code === selTheatre.value);
+        if (!th) return full;
+
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        let hasPoints = false;
+
+        // 1. Inclure le PC (point de commandement) avec une marge pour son badge supérieur
+        if (th.px !== undefined && th.py !== undefined && !isNaN(th.px) && !isNaN(th.py)) {
+            minX = Math.min(minX, th.px - 25);
+            minY = Math.min(minY, th.py - 30);
+            maxX = Math.max(maxX, th.px + 25);
+            maxY = Math.max(maxY, th.py + 25);
+            hasPoints = true;
+        }
+
+        // 2. Inclure toutes les régions couvertes par le théâtre (zone de couverture complète)
+        if (Array.isArray(th.regions_codes) && th.regions_codes.length > 0) {
+            th.regions_codes.forEach(rc => {
+                const shape = SHAPES[rc];
+                if (shape && shape.bb) {
+                    hasPoints = true;
+                    minX = Math.min(minX, shape.bb[0]);
+                    minY = Math.min(minY, shape.bb[1]);
+                    maxX = Math.max(maxX, shape.bb[2]);
+                    maxY = Math.max(maxY, shape.bb[3]);
+                }
+            });
+        }
+
+        if (hasPoints && isFinite(minX) && isFinite(maxX)) {
+            const pw = Math.max(maxX - minX, 40);
+            const ph = Math.max(maxY - minY, 40);
+            // Marge dynamique aérée (8%) pour que l'intégralité de la zone de couverture respire
+            const pad = Math.max(Math.max(pw, ph) * 0.08, 14);
+            return [minX - pad, minY - pad, pw + 2 * pad, ph + 2 * pad];
+        }
+
+        return full;
+    }
+
     const shape = sel.value && SHAPES[sel.value];
     if (!shape) return full;
 
@@ -2104,7 +2167,7 @@ const lignesFiltrees = computed(() => {
                                 <template v-if="selTheatre">
                                     <button
                                         class="chip bg-sky-900 text-white border-sky-900 hover:bg-sky-800 flex items-center gap-1.5 font-bold shadow-xs text-xs px-2.5 py-1 cursor-pointer"
-                                        @click="selTheatre = null"
+                                        @click="choisirTheatre(null)"
                                     >
                                         <i class="pi pi-arrow-left text-[11px]"></i>
                                         <span>← Tous les théâtres</span>
@@ -2141,7 +2204,7 @@ const lignesFiltrees = computed(() => {
                             <select
                                 v-else
                                 :value="selTheatre || ''"
-                                @change="selTheatre = $event.target.value || null"
+                                @change="choisirTheatre($event.target.value || null)"
                                 class="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-700 focus:outline-none focus:border-sky-500 font-semibold"
                                 aria-label="Choisir un théâtre"
                             >
@@ -2452,8 +2515,9 @@ const lignesFiltrees = computed(() => {
                                         stroke-dasharray="3 2"
                                     />
 
-                                    <!-- 2. Traits de rappel (leader lines) reliant le PC au badge sans croisement -->
+                                    <!-- 2. Traits de rappel (leader lines) reliant le PC au badge sans croisement (en vue d'ensemble nationale) -->
                                     <path
+                                        v-if="!selTheatre"
                                         v-for="t in tacticalTheatres"
                                         :key="'lead-' + t.code"
                                         :d="t.leadD"
@@ -2470,7 +2534,7 @@ const lignesFiltrees = computed(() => {
                                         :key="'mk-' + t.code"
                                         class="cursor-pointer transition-transform duration-150 select-none"
                                         :transform="`translate(${t.px}, ${t.py})`"
-                                        @click.stop="ouvrirModalMilitairesTheatre('tous', t)"
+                                        @click.stop="choisirTheatre(t.code)"
                                         @mouseenter="hoveredTheatre = t.code"
                                         @mouseleave="hoveredTheatre = null"
                                     >
@@ -2494,8 +2558,9 @@ const lignesFiltrees = computed(() => {
                                         </text>
                                     </g>
 
-                                    <!-- 4. Badges latéraux sans aucun chevauchement (flanc Ouest et flanc Est) -->
+                                    <!-- 4. Badges latéraux sans aucun chevauchement (flanc Ouest et flanc Est) en vue d'ensemble nationale -->
                                     <g
+                                        v-if="!selTheatre"
                                         v-for="t in tacticalTheatres"
                                         :key="'badge-' + t.code"
                                         class="cursor-pointer select-none transition-opacity duration-150"
@@ -2504,7 +2569,7 @@ const lignesFiltrees = computed(() => {
                                             hoveredTheatre === t.code ? 'font-bold' : ''
                                         ]"
                                         :transform="`translate(${t.lx}, ${t.ly})`"
-                                        @click.stop="ouvrirModalMilitairesTheatre('tous', t)"
+                                        @click.stop="choisirTheatre(t.code)"
                                         @mouseenter="hoveredTheatre = t.code"
                                         @mouseleave="hoveredTheatre = null"
                                     >
@@ -2562,6 +2627,86 @@ const lignesFiltrees = computed(() => {
                                             </template>
                                         </text>
                                     </g>
+
+                                    <!-- 5. Badge tactique contextualisé sur le PC lorsque le théâtre est sélectionné (vue zoomée) -->
+                                    <template v-if="selTheatre">
+                                        <g
+                                            v-for="t in tacticalTheatres.filter(th => th.code === selTheatre)"
+                                            :key="'pc-callout-' + t.code"
+                                            class="pointer-events-none select-none transition-all duration-200"
+                                            :transform="`translate(${t.px}, ${t.py - 16})`"
+                                        >
+                                            <!-- Boîtier du badge centré -->
+                                            <rect
+                                                :x="-65"
+                                                :y="-34"
+                                                width="130"
+                                                height="32"
+                                                rx="6"
+                                                fill="#07101e"
+                                                :stroke="t.couleur"
+                                                stroke-width="2"
+                                                filter="url(#badge-glow)"
+                                            />
+                                            <rect
+                                                :x="-65"
+                                                :y="-34"
+                                                width="4"
+                                                height="32"
+                                                rx="2"
+                                                :fill="t.couleur"
+                                            />
+                                            <!-- Ligne 1 : Code et PC -->
+                                            <text
+                                                :x="-56"
+                                                :y="-21"
+                                                fill="#94a3b8"
+                                                font-size="7.5"
+                                                font-weight="bold"
+                                                font-family="monospace"
+                                            >
+                                                {{ t.code }} · PC {{ t.nomCourt }}
+                                            </text>
+                                            <!-- Ligne 2 : Chiffre effectif -->
+                                            <text
+                                                :x="-56"
+                                                :y="-9"
+                                            >
+                                                <tspan fill="#ffffff" font-size="10.5" font-weight="900">{{ fmt(t.effectif) }}</tspan>
+                                                <tspan fill="#94a3b8" font-size="7.5" font-weight="600"> gendarme{{ t.effectif > 1 ? 's' : '' }}</tspan>
+                                                <tspan v-if="t.hasAppui && t.appuiTotal > 0" fill="#f59e0b" font-size="8" font-weight="bold"> (+{{ t.appuiTotal }})</tspan>
+                                            </text>
+                                            <!-- Petite pointe flèche indicateur vers le bas -->
+                                            <polygon
+                                                points="-4,-2 4,-2 0,2"
+                                                :fill="t.couleur"
+                                            />
+                                        </g>
+
+                                        <!-- Noms des régions couvertes par le théâtre sélectionné -->
+                                        <template v-if="selTheatreObj">
+                                            <template v-for="r in regions" :key="'th-reg-' + r.code">
+                                                <g
+                                                    v-if="SHAPES[r.code] && (selTheatreObj.regions_codes || []).includes(r.code)"
+                                                    class="pointer-events-none select-none opacity-85"
+                                                    :transform="`translate(${SHAPES[r.code].cx}, ${SHAPES[r.code].cy})`"
+                                                >
+                                                    <text
+                                                        x="0"
+                                                        y="0"
+                                                        text-anchor="middle"
+                                                        fill="#ffffff"
+                                                        font-size="9"
+                                                        font-weight="bold"
+                                                        letter-spacing="0.5"
+                                                        filter="url(#badge-glow)"
+                                                    >
+                                                        {{ shortName(r.nom).toUpperCase() }}
+                                                    </text>
+                                                </g>
+                                            </template>
+                                        </template>
+                                    </template>
                                 </template>
 
                                 <!-- CAS B : MODE MAILLAGE TERRITORIAL (BADGES DES RÉGIONS & CHIFFRES CLAIRS) -->
@@ -2853,7 +2998,7 @@ const lignesFiltrees = computed(() => {
                         <button
                             class="px-2 py-0.5 rounded font-semibold transition-all flex items-center gap-1 flex-none cursor-pointer"
                             :class="!selTheatre ? 'bg-sky-900 text-white shadow-xs font-bold' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'"
-                            @click="selTheatre = null"
+                            @click="choisirTheatre(null)"
                             title="Afficher tous les théâtres"
                         >
                             <span>⚔️ Tous les Théâtres</span>
@@ -2864,7 +3009,7 @@ const lignesFiltrees = computed(() => {
                             :key="th.code"
                             class="px-2 py-0.5 rounded font-medium transition-all flex items-center gap-1 flex-none cursor-pointer"
                             :class="selTheatre === th.code ? 'bg-sky-900 text-white shadow-xs font-bold' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'"
-                            @click="selTheatre = selTheatre === th.code ? null : th.code"
+                            @click="choisirTheatre(th.code)"
                             :title="th.nom + ' (PC ' + (th.pc_lieu || 'N/A') + ')'"
                         >
                             <span class="w-2.5 h-2.5 rounded-full flex-none"
@@ -3049,7 +3194,7 @@ const lignesFiltrees = computed(() => {
                                 <div
                                     v-for="th in tacticalTheatresSorted"
                                     :key="th.id"
-                                    @click="ouvrirModalMilitairesTheatre('tous', th)"
+                                    @click="choisirTheatre(th.code)"
                                     @mouseenter="hoveredTheatre = th.code"
                                     @mouseleave="hoveredTheatre = null"
                                     class="p-2.5 rounded-xl border transition-all cursor-pointer hover:shadow-xs group flex items-center justify-between gap-2.5"
@@ -3079,7 +3224,7 @@ const lignesFiltrees = computed(() => {
                             </div>
 
                             <p class="text-[10px] text-slate-400 mt-auto pt-1 border-t border-slate-100 flex-none truncate">
-                                Cliquez sur un théâtre pour consulter la liste nominale des militaires déployés.
+                                Cliquez sur un théâtre pour zoomer sur sa zone de couverture opérationnelle.
                             </p>
                         </template>
 
@@ -3089,7 +3234,7 @@ const lignesFiltrees = computed(() => {
                             <div class="flex items-center justify-between gap-1.5 pb-1.5 border-b border-slate-200 flex-none">
                                 <button
                                     type="button"
-                                    @click="selTheatre = null"
+                                    @click="choisirTheatre(null)"
                                     class="inline-flex items-center gap-1 text-xs text-sky-800 hover:text-sky-950 font-bold hover:underline cursor-pointer"
                                 >
                                     <i class="pi pi-arrow-left text-[10px]"></i>
