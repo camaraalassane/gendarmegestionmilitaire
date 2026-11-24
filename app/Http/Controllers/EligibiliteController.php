@@ -27,32 +27,11 @@ class EligibiliteController extends Controller
             'formationsListe' => $formationsListe,
             'gradesListe' => $gradesListe,
             'initialType' => 'promotions',
-            'initialData' => Inertia::defer(function () {
-                $all = $this->getAllComputedData();
-                return array_slice($all['promotions'] ?? [], 0, 30);
-            }),
-            'initialTotal' => Inertia::defer(function () {
-                $all = $this->getAllComputedData();
-                return count($all['promotions'] ?? []);
-            }),
-            'initialStatistiques' => Inertia::defer(function () {
-                $all = $this->getAllComputedData();
-                return $all['statistiques'] ?? [
-                    'total_promotions' => 0,
-                    'total_formations' => 0,
-                    'total_retraites' => 0,
-                    'total_contrats' => 0,
-                    'total_mutations' => 0,
-                ];
-            }),
-            'initialFormationCounts' => Inertia::defer(function () {
-                $all = $this->getAllComputedData();
-                return $all['formation_counts'] ?? [];
-            }),
-            'initialGradeCounts' => Inertia::defer(function () {
-                $all = $this->getAllComputedData();
-                return $all['grade_counts'] ?? [];
-            }),
+            'initialData' => Inertia::defer(fn () => $this->page('promotions', null, null, 1, 30)[0]),
+            'initialTotal' => Inertia::defer(fn () => $this->meta()['statistiques']['total_promotions'] ?? 0),
+            'initialStatistiques' => Inertia::defer(fn () => $this->meta()['statistiques']),
+            'initialFormationCounts' => Inertia::defer(fn () => $this->meta()['formation_counts']),
+            'initialGradeCounts' => Inertia::defer(fn () => $this->meta()['grade_counts']),
         ]);
     }
 
@@ -67,30 +46,9 @@ class EligibiliteController extends Controller
         $page = max(1, (int) $request->input('page', 1));
         $perPage = min(max((int) $request->input('per_page', 30), 5), 100);
 
-        $allComputed = $this->getAllComputedData();
-
-        $targetKey = in_array($type, ['promotions', 'formations', 'retraites', 'contrats', 'mutations']) ? $type : 'promotions';
-        $items = $allComputed[$targetKey] ?? [];
-
-        // Filtre par grade (supporte nom du grade ou identifiant ID)
-        if (!empty($grade)) {
-            $gradeNom = is_numeric($grade) ? Grade::where('id', (int) $grade)->value('nom_grade') : $grade;
-            $items = array_values(array_filter($items, function ($item) use ($grade, $gradeNom) {
-                $g = $item['militaire']['grade_actuel'] ?? $item['grade_actuel'] ?? '';
-                return $g === $grade || ($gradeNom && $g === $gradeNom);
-            }));
-        }
-
-        // Filtre par formation (uniquement pertinent pour le type 'formations')
-        if (!empty($formation) && $targetKey === 'formations') {
-            $items = array_values(array_filter($items, function ($item) use ($formation) {
-                return ($item['formation'] ?? '') === $formation;
-            }));
-        }
-
-        $total = count($items);
-        $offset = ($page - 1) * $perPage;
-        $paginated = array_slice($items, $offset, $perPage);
+        $targetKey = in_array($type, self::TYPES, true) ? $type : 'promotions';
+        [$paginated, $total] = $this->page($targetKey, $grade, $formation, $page, $perPage);
+        $meta = $this->meta();
 
         return response()->json([
             'data' => $paginated,
@@ -98,41 +56,16 @@ class EligibiliteController extends Controller
             'per_page' => $perPage,
             'current_page' => $page,
             'last_page' => (int) max(1, ceil($total / $perPage)),
-            'statistiques' => $allComputed['statistiques'] ?? [
-                'total_promotions' => 0,
-                'total_formations' => 0,
-                'total_retraites' => 0,
-                'total_contrats' => 0,
-                'total_mutations' => 0,
-            ],
-            'formation_counts' => $allComputed['formation_counts'] ?? [],
-            'grade_counts' => $allComputed['grade_counts'] ?? [],
+            'statistiques' => $meta['statistiques'],
+            'formation_counts' => $meta['formation_counts'],
+            'grade_counts' => $meta['grade_counts'],
         ]);
     }
 
-    /** Résultat gardé en mémoire pour la durée de la requête : évite de relire le gros tableau du cache 5 fois. */
-    protected ?array $computedMemo = null;
-    protected ?int $computedMemoVersion = null;
-
     /**
-     * Récupère toutes les données d'éligibilités calculées et mises en cache.
+     * Calcule l'ensemble des éligibilités de manière ultra-optimisée par lots de 2 000.
      */
-    public function getAllComputedData(): array
-    {
-        $v = \App\Models\Militaire::getCacheVersion();
-        if ($this->computedMemo !== null && $this->computedMemoVersion === $v) {
-            return $this->computedMemo;
-        }
-        $this->computedMemoVersion = $v;
-        return $this->computedMemo = Cache::remember("v{$v}:eligibilites:all_computed_data", 86400, function () {
-            return $this->computeAll();
-        });
-    }
-
-    /**
-     * Calcule l'ensemble des éligibilités de manière ultra-optimisée.
-     */
-    private function computeAll(): array
+    private function computeAll(int $version): array
     {
         $now = Carbon::now();
         $refYear = (int) $now->year;
@@ -156,52 +89,10 @@ class EligibiliteController extends Controller
             return max(0, $diff);
         };
 
-        // 1. Indexation directe des certificats en O(1)
-        $rawCerts = DB::table('certificat_militaire')
-            ->join('certificats', 'certificats.id', '=', 'certificat_militaire.certificat_id')
-            ->select('certificat_militaire.militaire_id', 'certificats.niveau_certificat', 'certificat_militaire.date_obtention')
-            ->get();
-
-        $certsMap = [];
-        foreach ($rawCerts as $c) {
-            $certsMap[$c->militaire_id][$c->niveau_certificat] = $c->date_obtention ? substr((string)$c->date_obtention, 0, 10) : true;
-        }
-
-        // 2. Contrats actifs indexés
-        $contratsMap = DB::table('contrats')
-            ->where('statut', 'actif')
-            ->select('id', 'militaire_id', 'date_fin', 'date_debut')
-            ->get()
-            ->keyBy('militaire_id')
-            ->all();
-
-        // 3. Affectations les plus récentes indexées
-        $latestAffectations = [];
-        $affectationRows = DB::table('affectations')
-            ->select('militaire_id', 'unite', 'region', 'date_mutation')
-            ->orderBy('date_mutation', 'desc')
-            ->get();
-        foreach ($affectationRows as $aff) {
-            if (!isset($latestAffectations[$aff->militaire_id])) {
-                $latestAffectations[$aff->militaire_id] = $aff;
-            }
-        }
-
         // 4. Grades de retraite
         $gradesRetraite = DB::table('grades')->whereNotNull('retraite_obligatoire')->pluck('retraite_obligatoire', 'nom_grade')->toArray();
 
-        // 5. Lecture en streaming par curseur PDO (évite d'allouer des centaines de milliers d'objets en RAM à grande échelle)
-        $militaires = DB::table('militaires')
-            ->whereRaw(\App\Support\Effectif::sqlActivite('statut'))
-            ->whereNull('deleted_at')
-            ->select([
-                'id', 'matricule', 'nom', 'prenom', 'grade_id', 'grade_actuel', 'grade_ordre',
-                'date_entree_service', 'date_derniere_promotion',
-                'statut', 'statut_code', 'position_actuelle', 'a_permis_conduire', 'antecedent_judiciaire',
-                'antecedent_disciplinaire', 'date_naissance',
-                'unite', 'region', 'date_mutation'
-            ])
-            ->cursor();
+        $totaux = ['promotions' => 0, 'formations' => 0, 'retraites' => 0, 'contrats' => 0, 'mutations' => 0];
 
         $allPromotions = [];
         $allFormations = [];
@@ -217,7 +108,62 @@ class EligibiliteController extends Controller
             'Sapeur 1ère classe' => true
         ];
 
-        foreach ($militaires as $m) {
+        // Lecture par lots de 2 000 militaires (keyset sur l'id) : la mémoire ne dépend plus du nombre de militaires.
+        // Certificats, contrats et affectations ne sont chargés que pour les militaires du lot.
+        $dernierId = 0;
+        while (true) {
+            $lot = DB::table('militaires')
+                ->whereRaw(\App\Support\Effectif::sqlActivite('statut'))
+                ->whereNull('deleted_at')
+                ->where('id', '>', $dernierId)
+                ->select([
+                    'id', 'matricule', 'nom', 'prenom', 'grade_id', 'grade_actuel', 'grade_ordre',
+                    'date_entree_service', 'date_derniere_promotion',
+                    'statut', 'statut_code', 'position_actuelle', 'a_permis_conduire', 'antecedent_judiciaire',
+                    'antecedent_disciplinaire', 'date_naissance',
+                    'unite', 'region', 'date_mutation'
+                ])
+                ->orderBy('id')
+                ->limit(2000)
+                ->get();
+
+            if ($lot->isEmpty()) {
+                break;
+            }
+            $dernierId = $lot->last()->id;
+            $ids = $lot->pluck('id')->all();
+
+            $certsMap = [];
+            $rawCerts = DB::table('certificat_militaire')
+                ->join('certificats', 'certificats.id', '=', 'certificat_militaire.certificat_id')
+                ->whereIn('certificat_militaire.militaire_id', $ids)
+                ->select('certificat_militaire.militaire_id', 'certificats.niveau_certificat', 'certificat_militaire.date_obtention')
+                ->get();
+            foreach ($rawCerts as $c) {
+                $certsMap[$c->militaire_id][$c->niveau_certificat] = $c->date_obtention ? substr((string)$c->date_obtention, 0, 10) : true;
+            }
+
+            $contratsMap = DB::table('contrats')
+                ->where('statut', 'actif')
+                ->whereIn('militaire_id', $ids)
+                ->select('id', 'militaire_id', 'date_fin', 'date_debut')
+                ->get()
+                ->keyBy('militaire_id')
+                ->all();
+
+            $latestAffectations = [];
+            $affectationRows = DB::table('affectations')
+                ->whereIn('militaire_id', $ids)
+                ->select('militaire_id', 'unite', 'region', 'date_mutation')
+                ->orderBy('date_mutation', 'desc')
+                ->get();
+            foreach ($affectationRows as $aff) {
+                if (!isset($latestAffectations[$aff->militaire_id])) {
+                    $latestAffectations[$aff->militaire_id] = $aff;
+                }
+            }
+
+            foreach ($lot as $m) {
             $grade = $m->grade_actuel;
             $hasAntecedents = ($m->antecedent_judiciaire || $m->antecedent_disciplinaire);
             $conditionsBase = !$hasAntecedents;
@@ -660,28 +606,158 @@ class EligibiliteController extends Controller
             }
         }
 
-        // Tri
-        usort($allPromotions, fn($a, $b) => strcmp($a['date_estimation'] ?? '', $b['date_estimation'] ?? ''));
-        usort($allFormations, fn($a, $b) => strcmp($a['date_estimation'] ?? '', $b['date_estimation'] ?? ''));
-        usort($allRetraites, fn($a, $b) => $a['date_retraite'] <=> $b['date_retraite']);
-        usort($allContrats, fn($a, $b) => $b['annees_service'] <=> $a['annees_service']);
-        usort($allMutations, fn($a, $b) => ($b['duree_annees'] ?? 0) <=> ($a['duree_annees'] ?? 0));
+            $this->viderVersTable('promotions', $allPromotions, $version, $totaux);
+            $this->viderVersTable('formations', $allFormations, $version, $totaux);
+            $this->viderVersTable('retraites', $allRetraites, $version, $totaux);
+            $this->viderVersTable('contrats', $allContrats, $version, $totaux);
+            $this->viderVersTable('mutations', $allMutations, $version, $totaux);
+        } // fin while lots
 
         return [
-            'promotions' => $allPromotions,
-            'formations' => $allFormations,
-            'retraites' => $allRetraites,
-            'contrats' => $allContrats,
-            'mutations' => $allMutations,
             'statistiques' => [
-                'total_promotions' => count($allPromotions),
-                'total_formations' => count($allFormations),
-                'total_retraites' => count($allRetraites),
-                'total_contrats' => count($allContrats),
-                'total_mutations' => count($allMutations),
+                'total_promotions' => $totaux['promotions'],
+                'total_formations' => $totaux['formations'],
+                'total_retraites' => $totaux['retraites'],
+                'total_contrats' => $totaux['contrats'],
+                'total_mutations' => $totaux['mutations'],
             ],
             'formation_counts' => $formationCounts,
             'grade_counts' => $gradeCounts,
+        ];
+    }
+
+    /**
+     * Écrit un lot d'éligibilités dans la table pré-calculée puis vide le tableau mémoire.
+     * Clé de tri : promotions/formations = 0 (ordre d'id) ; retraites = date de retraite (AAAAMMJJ) ;
+     * contrats = -années de service ; mutations = -durée en années (même ordre que l'ancien usort).
+     */
+    private function viderVersTable(string $type, array &$items, int $version, array &$totaux): void
+    {
+        if (!$items) {
+            return;
+        }
+        $rows = [];
+        foreach ($items as $it) {
+            $mil = $it['militaire'] ?? $it;
+            $tri = 0;
+            if ($type === 'retraites') {
+                $tri = (int) str_replace('-', '', (string) ($it['date_retraite'] ?? '0'));
+            } elseif ($type === 'contrats') {
+                $tri = -((int) ($it['annees_service'] ?? 0));
+            } elseif ($type === 'mutations') {
+                $tri = -((int) ($it['duree_annees'] ?? 0));
+            }
+            $rows[] = [
+                'version' => $version,
+                'type' => $type,
+                'militaire_id' => (int) ($mil['id'] ?? 0),
+                'grade_actuel' => $mil['grade_actuel'] ?? null,
+                'formation' => $type === 'formations' ? ($it['formation'] ?? null) : null,
+                'tri' => $tri,
+                'payload' => json_encode($it, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            ];
+        }
+        foreach (array_chunk($rows, 500) as $part) {
+            DB::table('eligibilites_calculees')->insert($part);
+        }
+        $totaux[$type] += count($items);
+        $items = [];
+    }
+
+    /**
+     * S'assure que la table pré-calculée correspond à la version actuelle des données ; sinon la reconstruit
+     * (un seul processus à la fois). Retourne la version à lire.
+     */
+    public function assurerCalcul(): int
+    {
+        $v = (int) \App\Models\Militaire::getCacheVersion();
+        if ((int) Cache::get('eligibilites:table_version') === $v && Cache::has("eligibilites:meta:v{$v}")) {
+            return $v;
+        }
+
+        Cache::lock('eligibilites:rebuild', 600)->block(300, function () use (&$v) {
+            $v = (int) \App\Models\Militaire::getCacheVersion();
+            if ((int) Cache::get('eligibilites:table_version') === $v && Cache::has("eligibilites:meta:v{$v}")) {
+                return;
+            }
+            DB::table('eligibilites_calculees')->where('version', $v)->delete(); // reprise propre
+            $meta = $this->computeAll($v);
+            Cache::forever("eligibilites:meta:v{$v}", $meta);
+            Cache::forever('eligibilites:table_version', $v);
+            // Nettoyage des anciennes versions par petits lots
+            do {
+                $n = DB::table('eligibilites_calculees')->where('version', '<>', $v)->limit(5000)->delete();
+            } while ($n > 0);
+        });
+
+        return $v;
+    }
+
+    /** Statistiques et compteurs (petit tableau). */
+    public function meta(): array
+    {
+        $v = $this->assurerCalcul();
+        return Cache::get("eligibilites:meta:v{$v}") ?? [
+            'statistiques' => ['total_promotions' => 0, 'total_formations' => 0, 'total_retraites' => 0, 'total_contrats' => 0, 'total_mutations' => 0],
+            'formation_counts' => [],
+            'grade_counts' => [],
+        ];
+    }
+
+    public const TYPES = ['promotions', 'formations', 'retraites', 'contrats', 'mutations'];
+
+    private function requeteType(int $v, string $type, $grade = null, $formation = null)
+    {
+        $q = DB::table('eligibilites_calculees')->where('version', $v)->where('type', $type);
+        if (!empty($grade)) {
+            $gradeNom = is_numeric($grade) ? Grade::where('id', (int) $grade)->value('nom_grade') : $grade;
+            $q->whereIn('grade_actuel', array_filter([(string) $grade, $gradeNom]));
+        }
+        if (!empty($formation) && $type === 'formations') {
+            $q->where('formation', $formation);
+        }
+        return $q;
+    }
+
+    /** Une page d'éligibilités (SQL) : [items, total]. */
+    public function page(string $type, $grade, $formation, int $page, int $perPage): array
+    {
+        $type = in_array($type, self::TYPES, true) ? $type : 'promotions';
+        $v = $this->assurerCalcul();
+        $q = $this->requeteType($v, $type, $grade, $formation);
+        $total = (clone $q)->count();
+        $items = $q->orderBy('tri')->orderBy('id')
+            ->offset(($page - 1) * $perPage)->limit($perPage)
+            ->pluck('payload')
+            ->map(fn ($p) => json_decode($p, true))
+            ->all();
+        return [$items, $total];
+    }
+
+    /** Parcours en flux d'un type d'éligibilités (mémoire constante côté appelant s'il n'accumule pas). */
+    public function iterer(string $type, $grade = null, $formation = null): \Generator
+    {
+        $v = $this->assurerCalcul();
+        foreach ($this->requeteType($v, $type, $grade, $formation)->orderBy('tri')->orderBy('id')->select('id', 'payload')->cursor() as $row) {
+            yield json_decode($row->payload, true);
+        }
+    }
+
+    /**
+     * Rétro-compatibilité : si un composant appelle encore getAllComputedData().
+     */
+    public function getAllComputedData(): array
+    {
+        $meta = $this->meta();
+        return [
+            'promotions' => iterator_to_array($this->iterer('promotions'), false),
+            'formations' => iterator_to_array($this->iterer('formations'), false),
+            'retraites'  => iterator_to_array($this->iterer('retraites'), false),
+            'contrats'   => iterator_to_array($this->iterer('contrats'), false),
+            'mutations'  => iterator_to_array($this->iterer('mutations'), false),
+            'statistiques' => $meta['statistiques'],
+            'formation_counts' => $meta['formation_counts'],
+            'grade_counts' => $meta['grade_counts'],
         ];
     }
 
@@ -726,21 +802,11 @@ class EligibiliteController extends Controller
         $grade = $request->input('grade', '');
         $exportAll = filter_var($request->input('export_all', false), FILTER_VALIDATE_BOOLEAN) || ($type === 'all');
 
-        $allComputed = $this->getAllComputedData();
-
         $exportData = [];
-        $categories = $exportAll ? ['promotions', 'formations', 'retraites', 'contrats', 'mutations'] : ([$type] ?: ['promotions']);
+        $categories = $exportAll ? self::TYPES : [in_array($type, self::TYPES, true) ? $type : 'promotions'];
 
         foreach ($categories as $cat) {
-            $catItems = $allComputed[$cat] ?? [];
-            if (!empty($grade)) {
-                $gradeNom = is_numeric($grade) ? Grade::where('id', (int) $grade)->value('nom_grade') : $grade;
-                $catItems = array_values(array_filter($catItems, fn($it) => ($it['militaire']['grade_actuel'] ?? $it['grade_actuel'] ?? '') === $grade || ($gradeNom && ($it['militaire']['grade_actuel'] ?? $it['grade_actuel'] ?? '') === $gradeNom)));
-            }
-            if (!empty($formation) && $cat === 'formations') {
-                $catItems = array_values(array_filter($catItems, fn($it) => ($it['formation'] ?? '') === $formation));
-            }
-            $exportData[$cat] = $catItems;
+            $exportData[$cat] = iterator_to_array($this->iterer($cat, $grade ?: null, $formation ?: null), false);
         }
 
         $totalItems = 0;

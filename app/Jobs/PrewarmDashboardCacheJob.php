@@ -36,7 +36,7 @@ class PrewarmDashboardCacheJob implements ShouldQueue
 
             // 2. Pré-calcul Éligibilités
             $eligibiliteCtrl = app(\App\Http\Controllers\EligibiliteController::class);
-            $eligibiliteCtrl->getAllComputedData();
+            $eligibiliteCtrl->assurerCalcul();
 
             // 3. Pré-calcul Avancements session courante
             $avancementCtrl = app(\App\Http\Controllers\AvancementController::class);

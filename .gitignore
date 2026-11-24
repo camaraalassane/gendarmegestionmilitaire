@@ -35,6 +35,7 @@ test_import_militaires.csv
 /dump_r6_json.php
 /check_units_in_props.php
 /scratch/
+/storage/backups/
 
 # IDE helpers
 _ide_helper.php

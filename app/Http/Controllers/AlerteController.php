@@ -370,7 +370,14 @@ class AlerteController extends Controller
 
         // 3. Récupérer les données officielles d'éligibilité pour une synchronisation 100% exacte
         $eligibiliteController = app(EligibiliteController::class);
-        $data = $eligibiliteController->getAllComputedData();
+        // Lecture en flux depuis la table pré-calculée (chaque type n'est parcouru qu'une fois)
+        $data = [
+            'promotions' => $eligibiliteController->iterer('promotions'),
+            'formations' => $eligibiliteController->iterer('formations'),
+            'contrats'   => $eligibiliteController->iterer('contrats'),
+            'mutations'  => $eligibiliteController->iterer('mutations'),
+            'retraites'  => $eligibiliteController->iterer('retraites'),
+        ];
 
         $now = now();
         $nowStr = $now->toDateTimeString();

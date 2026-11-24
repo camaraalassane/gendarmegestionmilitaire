@@ -449,8 +449,7 @@ class AvancementController extends Controller
         return Cache::remember("v{$v}:avancements:candidates_list_{$annee}", 86400, function () use ($annee) {
             // 1. Récupération des promotions éligibles depuis EligibiliteController
             $eligibiliteController = app(EligibiliteController::class);
-            $computedData = $eligibiliteController->getAllComputedData();
-            $promotions = $computedData['promotions'] ?? [];
+            $promotions = $eligibiliteController->iterer('promotions');
 
             // Hiérarchie des grades
             $gradesHierarchy = Grade::pluck('ordre', 'nom_grade')->all();
