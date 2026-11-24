@@ -41,7 +41,7 @@ class CarteController extends Controller
     {
         // 1) Régions + unités
         $regions = Region::with(['unites' => fn ($q) => $q
-            ->select('id', 'region_id', 'nom', 'type', 'ville', 'latitude', 'longitude', 'est_operationnelle')
+            ->select('id', 'region_id', 'nom', 'code', 'type', 'type_categorie', 'ville', 'latitude', 'longitude', 'est_operationnelle')
             ->orderBy('nom')])
             ->orderByRaw('COALESCE(ordre, 999)')->orderBy('nom')
             ->get(['id', 'code', 'nom', 'chef_lieu', 'latitude', 'longitude']);
@@ -162,6 +162,8 @@ class CarteController extends Controller
                 'nom' => $u->nom,
                 'code' => $u->code,
                 'type' => $u->type,
+                'type_categorie' => (int) ($u->type_categorie ?? 1),
+                'is_detachement' => (int) ($u->type_categorie ?? 1) === 2,
                 'region_id' => $r->id,
                 'region_code' => $r->code,
                 'region_nom' => $r->nom,
@@ -172,6 +174,8 @@ class CarteController extends Controller
                 'effectif' => (int) ($parUnite->get($u->id)->total ?? 0),
             ])->values();
 
+            $effGend = (int) $unites->where('type_categorie', 1)->sum('effectif');
+            $effDet = (int) $unites->where('type_categorie', 2)->sum('effectif');
             $total = (int) $l->sum('total');
             $h = $horsEffectif->get($r->id);
 
@@ -183,6 +187,8 @@ class CarteController extends Controller
                 'chef_lat' => $r->latitude !== null ? (float) $r->latitude : null,
                 'chef_lon' => $r->longitude !== null ? (float) $r->longitude : null,
                 'effectif' => $total,
+                'effectif_gendarmerie' => $effGend,
+                'effectif_detachement' => $effDet,
                 'absents' => (int) $l->sum('absents'),
                 'hommes' => max(0, $total - (int) $l->sum('femmes')),
                 'femmes' => (int) $l->sum('femmes'),
@@ -272,7 +278,9 @@ class CarteController extends Controller
             'non_rattaches_liste' => $nonRattachesListe,
             'stats' => [
                 'non_rattaches' => $nonRattaches,
-                'total_detaches' => $totalDetaches,
+                'total_detaches' => (int) $out->sum('effectif_detachement'),
+                'total_gendarmerie' => (int) $out->sum('effectif_gendarmerie'),
+                'total_global' => (int) $out->sum('effectif'),
                 'annee' => $annee,
                 'total_theatres' => $theatres->count(),
                 'effectif_theatres' => (int) $theatres->sum('effectif_gendarmerie'),

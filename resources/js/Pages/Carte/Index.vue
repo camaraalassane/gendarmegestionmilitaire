@@ -28,7 +28,7 @@ const props = defineProps({
 const carteZoneRef = ref(null);
 const isFullscreen = ref(false);
 const showSidePanelInFullscreen = ref(true);
-const sidebarTab = ref('liste');
+const sidebarTab = ref('gendarmerie'); // 'gendarmerie' | 'detachement' | 'effectif'
 
 // Gestion des organismes et structures de détachement (SPA)
 const searchDetachements = ref('');
@@ -232,8 +232,7 @@ onUnmounted(() => {
 });
 
 const METRICS = {
-    eff: { label: 'Effectif Réel (Commandement Direct)', unit: '' },
-    eff_global: { label: 'Effectif Global (avec Détachés)', unit: '' },
+    eff: { label: 'Effectif Total', unit: '' },
     pres: { label: 'Présents', unit: '' },
     abs: { label: 'Absents', unit: '' },
     fem: { label: 'Femmes', unit: '' },
@@ -252,6 +251,9 @@ watch(searchInput, (val) => {
         searchQuery.value = val;
     }, 150);
 });
+watch(sidebarTab, () => {
+    selUnit.value = null;
+});
 const hoveredItem = ref(null); // objet survolé (région ou unité)
 const hoveredCode = ref(null); // code de la région survolée
 
@@ -264,13 +266,23 @@ const shortName = (n) => n.replace(/^(Région de |Région du |District de )/, ''
 // ---------- Valeurs par région ----------
 const opCount = (r) => r.unites.filter((u) => u.operationnelle).length;
 const valueOf = (r) => {
+    if (!r) return 0;
+    if (sidebarTab.value === 'detachement') {
+        return Number(r.effectif_detachement) || 0;
+    }
+    const effBase = (r.effectif_gendarmerie !== undefined && r.effectif_gendarmerie !== null)
+        ? Number(r.effectif_gendarmerie)
+        : (r.actifs ?? r.effectif);
     switch (metric.value) {
         case 'eff_global': return r.effectif;
-        case 'pres': return r.effectif - r.absents;
+        case 'pres': return effBase - r.absents;
         case 'abs': return r.absents;
         case 'fem': return r.femmes;
-        case 'opp': return r.unites.length ? Math.round((opCount(r) / r.unites.length) * 100) : 0;
-        default: return (r.actifs !== undefined && r.actifs !== null) ? r.actifs : r.effectif;
+        case 'opp': {
+            const uGend = (r.unites || []).filter(u => u.type_categorie !== 2 && !u.is_detachement);
+            return uGend.length ? Math.round((uGend.filter(u => u.operationnelle).length / uGend.length) * 100) : 0;
+        }
+        default: return effBase;
     }
 };
 
@@ -361,7 +373,9 @@ const choisir = (code) => {
     parcelFilterType.value = withEffCount > 0 ? 'with_eff' : 'all';
     userZoom.value = 1;
     panOffset.value = { x: 0, y: 0 };
-    sidebarTab.value = 'liste';
+    if (sidebarTab.value === 'effectif') {
+        sidebarTab.value = 'gendarmerie';
+    }
 };
 
 const retour = () => {
@@ -374,7 +388,9 @@ const retour = () => {
     parcelFilterType.value = 'all';
     userZoom.value = 1;
     panOffset.value = { x: 0, y: 0 };
-    sidebarTab.value = 'liste';
+    if (sidebarTab.value === 'effectif') {
+        sidebarTab.value = 'gendarmerie';
+    }
 };
 
 const onSelectRegionDropdown = (code) => {
@@ -1001,7 +1017,12 @@ const saveNewAppuiOnMap = () => {
 const handleUnitClick = (id) => {
     if (hasDragged.value) return;
     toggleUnit(id);
-    sidebarTab.value = 'liste';
+    const uObj = (selRegion.value?.unites || []).find(u => u.id === id);
+    if (uObj?.type_categorie === 2 || uObj?.is_detachement) {
+        sidebarTab.value = 'detachement';
+    } else if (sidebarTab.value === 'effectif') {
+        sidebarTab.value = 'gendarmerie';
+    }
 };
 
 // Contrôles de zoom (+ / - / recentrer)
@@ -1217,6 +1238,11 @@ const countZeroEff = computed(() => (selRegion.value?.unites || []).filter(u => 
 // Prédicat de visibilité unitaire d'après les filtres actifs et la recherche (affichage seulement)
 const isUnitVisible = (unit) => {
     if (!unit) return false;
+    // Filtrage strict Gendarmerie vs Détachement
+    const isDet = (unit.type_categorie === 2 || unit.is_detachement);
+    if (sidebarTab.value === 'detachement' && !isDet) return false;
+    if (sidebarTab.value === 'gendarmerie' && isDet) return false;
+
     const eff = Number(unit.effectif) || 0;
     if (parcelFilterType.value === 'with_eff' && eff === 0) return false;
     if (parcelFilterType.value === 'zero_eff' && eff > 0) return false;
@@ -1286,7 +1312,7 @@ const isPointInRings = (x, y, rings) => {
 // Calculé sur l'intégralité des unités de la région (selRegion.unites) pour un maillage géographique stable
 const regionalParcels = computed(() => {
     if (!sel.value || !selRegion.value) return [];
-    const units = selRegion.value.unites || [];
+    const units = (selRegion.value.unites || []).filter(u => isUnitVisible(u));
     const n = units.length;
     if (n === 0) return [];
 
@@ -1350,7 +1376,7 @@ const regionalParcels = computed(() => {
     //    et positionnement de repli stable et déterministe pour les unités sans GPS
     const coLocSeen = new Map();
     const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-    const allRegionUnits = selRegion.value?.unites || [];
+    const allRegionUnits = units;
     const totalInRegion = Math.max(1, allRegionUnits.length);
 
     let points = [];
@@ -1635,30 +1661,46 @@ const valStat = (k) => {
 
 const kpis = computed(() => {
     const r = selRegion.value;
-    const eff = r ? r.effectif : (tot((x) => x.effectif) + totalDetaches.value + (Number(props.stats?.non_rattaches) || 0));
+    const isDet = sidebarTab.value === 'detachement';
+    const totalGend = Number(props.stats?.total_gendarmerie) || tot((x) => x.effectif_gendarmerie || x.effectif);
+    const totalDet = Number(props.stats?.total_detaches) || tot((x) => x.effectif_detachement || 0);
+
+    let eff = 0;
+    if (r) {
+        eff = isDet ? (Number(r.effectif_detachement) || 0) : (Number(r.effectif_gendarmerie) || r.effectif);
+    } else {
+        eff = isDet ? totalDet : totalGend;
+    }
+
     const abs = r ? r.absents : tot((x) => x.absents);
-    const nU = r ? r.unites.length : tot((x) => x.unites.length);
+    const uList = r ? (r.unites || []) : [];
+    const nU = isDet
+        ? (r ? uList.filter(u => u.type_categorie === 2 || u.is_detachement).length : 23)
+        : (r ? uList.filter(u => u.type_categorie !== 2 && !u.is_detachement).length : tot((x) => (x.unites || []).filter(u => u.type_categorie !== 2).length));
     const nOp = r ? opCount(r) : tot(opCount);
+
     return [
         {
-            label: r ? 'Effectif région' : 'Effectif total',
+            label: isDet ? (r ? 'Détachés ' + shortName(r.nom) : 'Effectif Détachement (SPA)') : (r ? 'Effectif Gendarmerie' : 'Effectif Gendarmerie'),
             value: fmt(eff),
-            hint: r ? r.nom : `${fmt(tot((x) => x.effectif))} en région • ${fmt(totalDetaches.value)} détachés SPA`
+            hint: isDet
+                ? `${fmt(totalDet)} gendarmes en détachement extérieur`
+                : `${fmt(totalGend)} gendarmes en unités territoriales`
         },
         {
             label: 'Présents',
-            value: fmt(eff - abs),
-            hint: eff ? Math.round(((eff - abs) / eff) * 100) + ' % d’activité' : '—'
+            value: fmt(Math.max(0, eff - (isDet ? 0 : abs))),
+            hint: eff ? Math.round(((eff - (isDet ? 0 : abs)) / (eff || 1)) * 100) + ' % en service' : '—'
         },
         {
-            label: 'Absents',
-            value: fmt(abs),
-            hint: 'congés, missions, stages'
+            label: isDet ? 'Structures SPA' : 'Unités territoriales',
+            value: fmt(nU),
+            hint: isDet ? 'Structures publiques autonomes' : `${nOp} unités opérationnelles`
         },
         {
-            label: 'Unités opérationnelles',
-            value: `${fmt(nOp)} / ${fmt(nU)}`,
-            hint: nU ? Math.round((nOp / nU) * 100) + ' % maillage' : '—'
+            label: 'Taux op.',
+            value: nU ? `${Math.round((nOp / (nU || 1)) * 100)} %` : '100 %',
+            hint: 'Capacité opérationnelle'
         },
     ];
 });
@@ -1706,17 +1748,27 @@ const detail = computed(() => {
 const lignes = computed(() => {
     if (selRegion.value) {
         const r = selRegion.value;
-        const rows = r.unites.map((u) => ({
+        let units = r.unites || [];
+        if (sidebarTab.value === 'detachement') {
+            units = units.filter(u => u.type_categorie === 2 || u.is_detachement);
+        } else if (sidebarTab.value === 'gendarmerie') {
+            units = units.filter(u => u.type_categorie !== 2 && !u.is_detachement);
+        }
+
+        const rows = units.map((u) => ({
             key: 'u' + u.id,
             nom: u.nom,
+            code: u.code,
             value: u.effectif,
             op: u.operationnelle,
             horsCarte: u.lat === null || u.lon === null,
             active: selUnit.value === u.id,
             rawUnit: u,
+            isDetachement: u.type_categorie === 2 || u.is_detachement,
             click: () => toggleUnit(u.id),
         }));
-        if (r.sans_unite > 0) {
+
+        if (sidebarTab.value === 'gendarmerie' && r.sans_unite > 0) {
             rows.push({
                 key: 'su',
                 nom: 'Sans unité précise',
@@ -1732,6 +1784,39 @@ const lignes = computed(() => {
         return rows.map((x) => ({ ...x, pct: (x.value / hi) * 100 }));
     }
 
+    // Vue Nationale (Mali entier)
+    if (sidebarTab.value === 'detachement') {
+        const allDetUnites = [];
+        for (const reg of props.regions) {
+            for (const u of (reg.unites || [])) {
+                if (u.type_categorie === 2 || u.is_detachement) {
+                    allDetUnites.push({
+                        key: 'u' + u.id,
+                        nom: u.nom,
+                        code: u.code,
+                        regionNom: reg.nom,
+                        regionCode: reg.code,
+                        value: u.effectif,
+                        op: u.operationnelle,
+                        horsCarte: u.lat === null || u.lon === null,
+                        active: selUnit.value === u.id,
+                        rawUnit: u,
+                        rawRegion: reg,
+                        isDetachement: true,
+                        click: () => {
+                            choisir(reg.code);
+                            setTimeout(() => toggleUnit(u.id), 200);
+                        },
+                    });
+                }
+            }
+        }
+        allDetUnites.sort((a, b) => b.value - a.value);
+        const hi = allDetUnites[0]?.value || 1;
+        return allDetUnites.map((x) => ({ ...x, pct: (x.value / hi) * 100 }));
+    }
+
+    // Mode Gendarmerie : classement des 20 régions par effectif gendarmerie
     const rows = props.regions
         .map((r) => ({
             key: r.code,
@@ -1938,48 +2023,7 @@ const lignesFiltrees = computed(() => {
                 </div>
             </div>
 
-            <!-- Détachements extérieurs SPA (Hors maillage territorial : Présidence, EMGA, Ministères...) -->
-            <div
-                v-if="totalDetaches > 0"
-                class="rounded-lg border border-sky-200 bg-gradient-to-r from-sky-50 via-slate-50 to-blue-50 text-sky-950 text-xs px-3 py-2 flex flex-wrap items-center justify-between gap-2 flex-none shadow-2xs"
-            >
-                <div class="flex items-center gap-2">
-                    <span class="w-6 h-6 rounded-full bg-sky-200 text-sky-800 flex items-center justify-center shrink-0">
-                        <i class="pi pi-briefcase text-xs"></i>
-                    </span>
-                    <div>
-                        <div class="font-bold text-sky-950 flex items-center gap-2">
-                            <span>{{ fmt(totalDetaches) }} militaires en détachement (Hors maillage territorial)</span>
-                            <span class="text-[10px] font-semibold bg-sky-100 text-sky-800 px-1.5 py-0.2 rounded border border-sky-300">
-                                23 structures publiques
-                            </span>
-                        </div>
-                        <div class="text-[11px] text-sky-800">
-                            Gendarmes mis à disposition d'organismes publics autonomes (Présidence, EMGA, Ministères...) classés à part du maillage des brigades.
-                        </div>
-                    </div>
-                </div>
-                <div class="flex items-center gap-2">
-                    <button
-                        type="button"
-                        @click="sidebarTab = 'detachements'"
-                        class="px-2.5 py-1.5 bg-sky-800 hover:bg-sky-900 text-white rounded-md font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-                        title="Classer les effectifs par organisme de détachement"
-                    >
-                        <i class="pi pi-building-columns text-xs"></i>
-                        <span>Classer par Organisme ({{ fmt(totalDetaches) }})</span>
-                    </button>
-                    <button
-                        type="button"
-                        @click="ouvrirModalStatut('detaches')"
-                        class="px-2.5 py-1.5 bg-white hover:bg-sky-50 text-sky-800 border border-sky-300 rounded-md font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
-                        title="Consulter la liste nominative complète des 1 210 détachés"
-                    >
-                        <i class="pi pi-users text-xs"></i>
-                        <span>Liste complète</span>
-                    </button>
-                </div>
-            </div>
+
 
             <!-- 2. Zone principale : Cadre blanc standard, SEUL LE CANEVAS DE LA CARTE EST EN BLEU ARDOISE (#16212e) -->
             <div
@@ -1987,8 +2031,8 @@ const lignesFiltrees = computed(() => {
                 class="flex-1 min-h-0 grid grid-rows-1 gap-2 items-stretch transition-all duration-200"
                 :class="[
                     isFullscreen
-                        ? 'fixed inset-0 z-50 p-2 sm:p-3 bg-slate-100 w-screen h-screen ' + (showSidePanelInFullscreen ? 'lg:grid-cols-[1fr_295px] xl:grid-cols-[1fr_310px]' : 'grid-cols-1')
-                        : 'lg:grid-cols-[1fr_295px] xl:grid-cols-[1fr_310px]'
+                        ? 'fixed inset-0 z-50 p-2 sm:p-3 bg-slate-100 w-screen h-screen ' + (showSidePanelInFullscreen ? 'lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_340px]' : 'grid-cols-1')
+                        : 'lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_340px]'
                 ]"
             >
                 <!-- PANNEAU CARTE (Cadre blanc standard, en-tête clair, et uniquement l'endroit de la carte en fond sombre #16212e) -->
@@ -2631,7 +2675,7 @@ const lignesFiltrees = computed(() => {
                                                 filter="url(#badge-glow)"
                                             />
                                             <text x="0" y="-2" text-anchor="middle" class="tactical-bamako-nom">
-                                                ★ BAMAKO (HQ)
+                                                {{ sidebarTab === 'detachement' ? '★ BAMAKO (DÉTACHÉS)' : '★ BAMAKO (HQ)' }}
                                             </text>
                                             <text x="0" y="8" text-anchor="middle" class="tactical-bamako-val">
                                                 {{ fmt(valueOf(r)) }}
@@ -3352,50 +3396,54 @@ const lignesFiltrees = computed(() => {
                         </div>
                     </div>
 
-                    <!-- Onglets de bascule : Unités Gend. / Régions vs Détachements SPA vs Stats Effectif -->
-                    <div class="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-medium my-1 flex-none gap-0.5">
+                    <!-- Onglets de bascule : Gendarmerie vs Détachements vs Stats Effectif -->
+                    <div class="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-medium my-1 flex-none gap-1">
                         <button
                             type="button"
-                            @click="sidebarTab = 'liste'"
-                            class="flex-1 py-1 px-1.5 rounded-md transition-all flex items-center justify-center gap-1 cursor-pointer text-[11px]"
-                            :class="sidebarTab === 'liste' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                            @click="sidebarTab = 'gendarmerie'"
+                            class="flex-1 min-w-0 py-1.5 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer text-[11px]"
+                            :class="sidebarTab === 'gendarmerie' ? 'bg-white text-sky-950 font-bold shadow-xs border border-slate-200/80' : 'text-slate-600 hover:text-slate-900'"
+                            title="Classer par Unités propres à la Gendarmerie (Brigades, Escadrons, Groupements...)"
                         >
-                            <i class="pi pi-list text-[10px]"></i>
-                            <span class="truncate">{{ sel ? 'Unités (' + selRegion.unites.length + ')' : 'Unités / Régions' }}</span>
+                            <i class="pi pi-building text-[10px] text-sky-700 shrink-0"></i>
+                            <span class="truncate">Gendarmerie</span>
                         </button>
                         <button
                             type="button"
-                            @click="sidebarTab = 'detachements'"
-                            class="flex-1 py-1 px-1.5 rounded-md transition-all flex items-center justify-center gap-1 cursor-pointer text-[11px]"
-                            :class="sidebarTab === 'detachements' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'"
-                            :title="`23 Organismes de Détachement (${fmt(totalDetaches)} gendarmes)`"
+                            @click="sidebarTab = 'detachement'"
+                            class="flex-1 min-w-0 py-1.5 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer text-[11px]"
+                            :class="sidebarTab === 'detachement' ? 'bg-white text-sky-950 font-bold shadow-xs border border-slate-200/80' : 'text-slate-600 hover:text-slate-900'"
+                            :title="`Classer par Structures de Détachement (${fmt(totalDetaches)} gendarmes)`"
                         >
-                            <i class="pi pi-briefcase text-[10px]"></i>
-                            <span class="truncate">Détachements ({{ fmt(totalDetaches) }})</span>
+                            <i class="pi pi-briefcase text-[10px] text-sky-700 shrink-0"></i>
+                            <span class="truncate">Détachements</span>
                         </button>
                         <button
                             type="button"
                             @click="sidebarTab = 'effectif'"
-                            class="flex-1 py-1 px-1.5 rounded-md transition-all flex items-center justify-center gap-1 cursor-pointer text-[11px]"
-                            :class="sidebarTab === 'effectif' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                            class="flex-none py-1.5 px-2.5 rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer text-[11px]"
+                            :class="sidebarTab === 'effectif' ? 'bg-white text-sky-950 font-bold shadow-xs border border-slate-200/80' : 'text-slate-600 hover:text-slate-900'"
+                            title="Détail des statistiques d'effectifs"
                         >
-                            <i class="pi pi-chart-pie text-[10px]"></i>
-                            <span class="truncate">Stats</span>
+                            <i class="pi pi-chart-pie text-[10px] text-sky-700 shrink-0"></i>
+                            <span>Stats</span>
                         </button>
                     </div>
 
-                    <!-- VUE 1 : LISTE D'UNITÉS / RÉGIONS (DÉFAUT - PLEINE HAUTEUR FLUIDE & SCROLLABLE) -->
-                    <template v-if="sidebarTab === 'liste'">
+                    <!-- VUE 1 : LISTE D'UNITÉS / RÉGIONS (GENDARMERIE OU DÉTACHEMENT - PLEINE HAUTEUR FLUIDE & SCROLLABLE) -->
+                    <template v-if="sidebarTab === 'gendarmerie' || sidebarTab === 'detachement'">
                         <!-- Titre de liste + Barre de recherche instantanée -->
                         <div class="flex items-center justify-between gap-1.5 mb-1 flex-none">
                             <h3 class="text-xs font-bold text-slate-900 truncate">
-                                {{ sel ? 'Unités de la région' : 'Classement : ' + METRICS[metric].label }}
+                                {{ sel
+                                    ? (sidebarTab === 'detachement' ? 'Structures de Détachement' : 'Unités Gendarmerie') + ' (' + lignesFiltrees.length + ')'
+                                    : (sidebarTab === 'detachement' ? 'Structures de Détachement (SPA)' : 'Classement : ' + METRICS[metric].label) }}
                             </h3>
                             <div class="relative w-36 sm:w-40">
                                 <input
                                     v-model="searchInput"
                                     type="text"
-                                    :placeholder="sel ? 'Filtrer brigades...' : 'Filtrer régions...'"
+                                    :placeholder="sel ? 'Filtrer unités...' : (sidebarTab === 'detachement' ? 'Filtrer structures...' : 'Filtrer régions...')"
                                     class="w-full text-[11px] py-0.5 pl-5 pr-5 rounded border border-slate-200 bg-white placeholder-slate-400 focus:outline-none focus:border-sky-500"
                                 />
                                 <i class="pi pi-search absolute left-1.5 top-1.5 text-[9px] text-slate-400"></i>
@@ -3421,6 +3469,9 @@ const lignesFiltrees = computed(() => {
                                     <div class="font-bold text-sky-950 truncate flex items-center gap-1.5">
                                         <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: parcelFill(selectedUnitObj) }"></span>
                                         <span class="truncate">{{ selectedUnitObj.nom }}</span>
+                                        <span v-if="selectedUnitObj.type_categorie === 2 || selectedUnitObj.is_detachement" class="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded bg-sky-200 text-sky-900 border border-sky-300">
+                                            Détachement
+                                        </span>
                                     </div>
                                     <div class="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
                                         <span v-if="selectedUnitObj.ville" class="font-medium text-slate-700">📍 {{ selectedUnitObj.ville }}</span>
@@ -3455,27 +3506,30 @@ const lignesFiltrees = computed(() => {
                                             <i
                                                 v-if="sel"
                                                 class="dot"
-                                                :style="{ background: row.op ? '#10b981' : '#f59e0b' }"
+                                                :style="{ background: row.isDetachement ? '#0284c7' : (row.op ? '#10b981' : '#f59e0b') }"
                                             ></i>
                                             <i
                                                 v-else
                                                 class="dot"
-                                                :style="{ background: fillFor(row.rawRegion) }"
+                                                :style="{ background: row.isDetachement ? '#0284c7' : fillFor(row.rawRegion) }"
                                             ></i>
-                                            <span class="truncate text-slate-700 font-medium">{{ row.nom }}</span>
+                                            <span class="truncate text-slate-700 font-medium">
+                                                {{ row.nom }}
+                                                <small v-if="row.regionNom" class="text-sky-700 text-[10px] ml-1 font-semibold">📍 {{ row.regionNom }}</small>
+                                            </span>
                                             <small v-if="row.horsCarte" class="ml-1 text-amber-700 text-[9px]" title="Pas de coordonnées GPS">
                                                 (sans GPS)
                                             </small>
                                         </span>
                                         <span class="t">
-                                            <i :style="{ width: Math.max(3, row.pct) + '%', background: sel ? '#0284c7' : '#1d4f91' }"></i>
+                                            <i :style="{ width: Math.max(3, row.pct) + '%', background: row.isDetachement ? '#0284c7' : (sel ? '#0284c7' : '#1d4f91') }"></i>
                                         </span>
                                         <span class="v text-slate-900 font-bold">
-                                            {{ fmt(row.value) }}{{ sel ? '' : METRICS[metric].unit }}
+                                            {{ fmt(row.value) }}{{ sel ? '' : (sidebarTab === 'detachement' ? '' : METRICS[metric].unit) }}
                                         </span>
                                     </button>
                                     <button
-                                        v-if="sel && row.rawUnit"
+                                        v-if="row.rawUnit"
                                         type="button"
                                         @click.stop="openEditCoords(row.rawUnit)"
                                         class="p-1 rounded text-slate-400 hover:text-sky-700 hover:bg-sky-50 transition cursor-pointer flex-none"
@@ -3491,74 +3545,7 @@ const lignesFiltrees = computed(() => {
                         </div>
                     </template>
 
-                    <!-- VUE 2 : DÉTACHEMENTS EXTÉRIEURS SPA (HORS MAILLAGE TERRITORIAL) -->
-                    <template v-else-if="sidebarTab === 'detachements'">
-                        <!-- Titre de liste + Barre de recherche instantanée -->
-                        <div class="flex items-center justify-between gap-1.5 mb-1 flex-none">
-                            <h3 class="text-xs font-bold text-sky-950 truncate flex items-center gap-1">
-                                <i class="pi pi-building-columns text-sky-700 text-xs"></i>
-                                <span>Structures SPA ({{ filteredOrganismes.length }})</span>
-                            </h3>
-                            <div class="relative w-36 sm:w-40">
-                                <input
-                                    v-model="searchDetachements"
-                                    type="text"
-                                    placeholder="Filtrer structures..."
-                                    class="w-full text-[11px] py-0.5 pl-5 pr-5 rounded border border-slate-200 bg-white placeholder-slate-400 focus:outline-none focus:border-sky-500"
-                                />
-                                <i class="pi pi-search absolute left-1.5 top-1.5 text-[9px] text-slate-400"></i>
-                                <button
-                                    v-if="searchDetachements"
-                                    @click="searchDetachements = ''"
-                                    class="absolute right-1 top-1 text-slate-400 hover:text-slate-600 text-[10px]"
-                                    title="Effacer"
-                                >
-                                    <i class="pi pi-times"></i>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- LISTE DES ORGANISMES DE DÉTACHEMENT (SCROLLABLE) -->
-                        <div class="flex-1 min-h-0 max-h-[380px] lg:max-h-[410px] xl:max-h-[440px] overflow-y-auto pr-1 space-y-1.5 custom-scrollbar overscroll-contain">
-                            <div class="p-2 rounded-lg bg-sky-50/70 border border-sky-200 text-xs flex items-center justify-between">
-                                <span class="text-sky-900 font-bold">Total Détachés :</span>
-                                <span class="font-extrabold text-sky-950 bg-white px-2 py-0.5 rounded border border-sky-200">{{ fmt(totalDetaches) }} gendarmes</span>
-                            </div>
-
-                            <ul v-if="filteredOrganismes.length > 0" class="space-y-1">
-                                <li v-for="org in filteredOrganismes" :key="org.id">
-                                    <button
-                                        type="button"
-                                        @click="ouvrirModalStatut('detaches', org.id)"
-                                        class="w-full p-2 rounded-lg border border-slate-200/90 bg-white hover:bg-sky-50/60 hover:border-sky-400 flex items-center justify-between gap-2 text-left cursor-pointer transition-all shadow-2xs group"
-                                        :title="`Cliquer pour voir la liste nominative des gendarmes détachés auprès de ${org.nom}`"
-                                    >
-                                        <div class="min-w-0 flex-1">
-                                            <div class="flex items-center gap-1.5">
-                                                <span class="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded bg-sky-100 text-sky-900 border border-sky-200 shrink-0">
-                                                    {{ org.code }}
-                                                </span>
-                                                <span class="text-xs font-semibold text-slate-800 truncate group-hover:text-sky-950">
-                                                    {{ org.nom }}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div class="flex items-center gap-1 shrink-0">
-                                            <span class="font-extrabold text-xs text-sky-900 tabular-nums">
-                                                {{ fmt(org.effectif) }}
-                                            </span>
-                                            <i class="pi pi-chevron-right text-[10px] text-slate-400 group-hover:text-sky-700"></i>
-                                        </div>
-                                    </button>
-                                </li>
-                            </ul>
-                            <div v-else class="py-6 text-center text-xs text-slate-400">
-                                Aucun organisme pour « {{ searchDetachements }} »
-                            </div>
-                        </div>
-                    </template>
-
-                    <!-- VUE 3 : DÉTAIL DE L'EFFECTIF (AFFICHÉ QUAND ON CLIQUE SUR L'ONGLET STATS) -->
+                    <!-- VUE 2 : DÉTAIL DE L'EFFECTIF (AFFICHÉ QUAND ON CLIQUE SUR L'ONGLET STATS) -->
                     <template v-else-if="sidebarTab === 'effectif'">
                         <div class="flex-1 min-h-0 max-h-[380px] lg:max-h-[410px] xl:max-h-[440px] overflow-y-auto pr-1 space-y-2 custom-scrollbar text-xs overscroll-contain">
                             <!-- En activité -->

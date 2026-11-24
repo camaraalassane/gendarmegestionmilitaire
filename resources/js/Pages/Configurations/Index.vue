@@ -27,6 +27,13 @@ const activeTab = ref('unites');
 const searchUnite = ref('');
 const filterRegion = ref(null);
 const filterOperationnel = ref(null);
+const filterCategorie = ref(null);
+
+const categorieOptions = [
+    { label: 'Toutes les catégories', value: null },
+    { label: 'Propre à la Gendarmerie (1)', value: 1 },
+    { label: 'Structure de Détachement (2)', value: 2 },
+];
 
 const searchRegion = ref('');
 const searchPosition = ref('');
@@ -84,7 +91,10 @@ const filteredUnites = computed(() => {
         const matchesOp = filterOperationnel.value === null || filterOperationnel.value === undefined ||
             Number(u.est_operationnelle) === Number(filterOperationnel.value);
 
-        return matchesSearch && matchesRegion && matchesOp;
+        const matchesCat = filterCategorie.value === null || filterCategorie.value === undefined ||
+            Number(u.type_categorie ?? 1) === Number(filterCategorie.value);
+
+        return matchesSearch && matchesRegion && matchesOp && matchesCat;
     });
 });
 
@@ -92,7 +102,7 @@ const filteredUnites = computed(() => {
 const unitesPerPage = 25;
 const unitesCurrentPage = ref(1);
 
-watch([searchUnite, filterRegion, filterOperationnel], () => {
+watch([searchUnite, filterRegion, filterOperationnel, filterCategorie], () => {
     unitesCurrentPage.value = 1;
 });
 
@@ -315,6 +325,7 @@ const uniteForm = ref({
     nom: '',
     code: '',
     type: 'Brigade Territoriale',
+    type_categorie: 1,
     ville: '',
     latitude: null,
     longitude: null,
@@ -329,6 +340,7 @@ const openCreateUniteDialog = () => {
         nom: '',
         code: '',
         type: 'Brigade Territoriale',
+        type_categorie: 1,
         ville: '',
         latitude: null,
         longitude: null,
@@ -345,6 +357,7 @@ const editUnite = (u) => {
         nom: u.nom,
         code: u.code || '',
         type: u.type || 'Autre',
+        type_categorie: Number(u.type_categorie) || 1,
         ville: u.ville || '',
         latitude: u.latitude !== null && u.latitude !== undefined ? u.latitude : null,
         longitude: u.longitude !== null && u.longitude !== undefined ? u.longitude : null,
@@ -980,6 +993,15 @@ const deleteAppui = (ua) => {
                                 placeholder="Statut opérationnel"
                                 class="w-full sm:w-48 text-xs"
                             />
+
+                            <Select
+                                v-model="filterCategorie"
+                                :options="categorieOptions"
+                                optionLabel="label"
+                                optionValue="value"
+                                placeholder="Catégorie"
+                                class="w-full sm:w-52 text-xs"
+                            />
                         </div>
 
                         <Button
@@ -996,6 +1018,7 @@ const deleteAppui = (ua) => {
                             <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
                                 <tr>
                                     <th class="py-2.5 px-3">Nom de l'Unité / Brigade / Direction</th>
+                                    <th class="py-2.5 px-3">Catégorie</th>
                                     <th class="py-2.5 px-3">Région de Rattachement</th>
                                     <th class="py-2.5 px-3">Type</th>
                                     <th class="py-2.5 px-3 text-center">Statut</th>
@@ -1026,6 +1049,20 @@ const deleteAppui = (ua) => {
                                                 Sans GPS
                                             </span>
                                         </div>
+                                    </td>
+                                    <td class="py-2.5 px-3">
+                                        <span
+                                            v-if="Number(u.type_categorie) === 2"
+                                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-900 border border-sky-300"
+                                        >
+                                            <i class="pi pi-briefcase text-[9px]"></i> Détachement
+                                        </span>
+                                        <span
+                                            v-else
+                                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200"
+                                        >
+                                            <i class="pi pi-building text-[9px]"></i> Gendarmerie
+                                        </span>
                                     </td>
                                     <td class="py-2.5 px-3">
                                         <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-semibold bg-sky-50 text-sky-800 border border-sky-200">
@@ -1072,7 +1109,7 @@ const deleteAppui = (ua) => {
                                     </td>
                                 </tr>
                                 <tr v-if="filteredUnites.length === 0">
-                                    <td colspan="5" class="py-8 text-center text-slate-400 italic">
+                                    <td colspan="6" class="py-8 text-center text-slate-400 italic">
                                         Aucune unité ne correspond aux critères de recherche.
                                     </td>
                                 </tr>
@@ -1609,6 +1646,23 @@ const deleteAppui = (ua) => {
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">
+                            Catégorie d'Unité <span class="text-red-500">*</span>
+                        </label>
+                        <Select
+                            v-model="uniteForm.type_categorie"
+                            :options="[
+                                { label: '1 - Propre à la Gendarmerie (Brigade, Escadron...)', value: 1 },
+                                { label: '2 - Structure de Détachement (Présidence, Ministères...)', value: 2 }
+                            ]"
+                            optionLabel="label"
+                            optionValue="value"
+                            placeholder="Choisir la catégorie"
+                            class="w-full text-xs"
+                        />
+                    </div>
+
+                    <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Type d'Unité</label>
                         <Select
                             v-model="uniteForm.type"
@@ -1617,15 +1671,15 @@ const deleteAppui = (ua) => {
                             class="w-full text-xs"
                         />
                     </div>
+                </div>
 
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-700 mb-1">Code abrégé</label>
-                        <InputText
-                            v-model="uniteForm.code"
-                            placeholder="Ex: BT-SENOU, ESC-2/1"
-                            class="w-full text-xs"
-                        />
-                    </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Code abrégé</label>
+                    <InputText
+                        v-model="uniteForm.code"
+                        placeholder="Ex: BT-SENOU, ESC-2/1, PRM, EMGA..."
+                        class="w-full text-xs"
+                    />
                 </div>
 
                 <!-- Ville et Coordonnées GPS -->

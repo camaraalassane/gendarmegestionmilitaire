@@ -11,11 +11,15 @@ class Unite extends Model
 {
     use HasFactory;
 
+    public const CATEGORIE_GENDARMERIE = 1;
+    public const CATEGORIE_DETACHEMENT = 2;
+
     protected $fillable = [
         'region_id',
         'nom',
         'code',
         'type',
+        'type_categorie',
         'compagnie',
         'groupement',
         'latitude',
@@ -25,10 +29,21 @@ class Unite extends Model
     ];
 
     protected $casts = [
+        'type_categorie' => 'integer',
         'est_operationnelle' => 'integer',
         'latitude' => 'float',
         'longitude' => 'float',
     ];
+
+    public function isDetachement(): bool
+    {
+        return (int) $this->type_categorie === self::CATEGORIE_DETACHEMENT;
+    }
+
+    public function isGendarmerie(): bool
+    {
+        return (int) $this->type_categorie !== self::CATEGORIE_DETACHEMENT;
+    }
 
     /**
      * Région de rattachement.

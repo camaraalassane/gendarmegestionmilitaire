@@ -811,7 +811,7 @@ const quickRegionForm = ref({ code: '', nom: '' });
 
 const quickUniteVisible = ref(false);
 const quickUniteLoading = ref(false);
-const quickUniteForm = ref({ region_id: null, nom: '', type: 'Brigade Territoriale', est_operationnelle: true });
+const quickUniteForm = ref({ region_id: null, nom: '', type: 'Brigade Territoriale', type_categorie: 1, est_operationnelle: true });
 
 const quickPositionVisible = ref(false);
 const quickPositionLoading = ref(false);
@@ -1009,6 +1009,7 @@ const openQuickAddUnite = (idx) => {
         region_id: preselectedRegionId || (localRegions.value[0]?.id ?? null),
         nom: '',
         type: 'Brigade Territoriale',
+        type_categorie: 1,
         est_operationnelle: true
     };
     quickUniteVisible.value = true;
@@ -2627,9 +2628,15 @@ const cancel = () => {
                     <label class="block font-semibold text-slate-700 mb-1">Nom de l'Unité / Brigade / Escadron <span class="text-red-500">*</span></label>
                     <InputText v-model="quickUniteForm.nom" class="w-full text-xs" placeholder="Ex: Brigade Territoriale de..." />
                 </div>
-                <div>
-                    <label class="block font-semibold text-slate-700 mb-1">Type d'unité</label>
-                    <Select v-model="quickUniteForm.type" :options="['Brigade Territoriale', 'Brigade de Recherches', 'Escadron', 'Peloton PSIG', 'État-Major', 'Direction / Service', 'Autre']" class="w-full text-xs" />
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Catégorie</label>
+                        <Select v-model="quickUniteForm.type_categorie" :options="[{ label: 'Gendarmerie (1)', value: 1 }, { label: 'Détachement (2)', value: 2 }]" optionLabel="label" optionValue="value" class="w-full text-xs" />
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-700 mb-1">Type d'unité</label>
+                        <Select v-model="quickUniteForm.type" :options="['Brigade Territoriale', 'Brigade de Recherches', 'Escadron', 'Peloton PSIG', 'État-Major', 'Direction / Service', 'Autre']" class="w-full text-xs" />
+                    </div>
                 </div>
             </div>
             <template #footer>
