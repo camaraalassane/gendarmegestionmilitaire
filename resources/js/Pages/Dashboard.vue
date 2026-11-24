@@ -474,12 +474,7 @@ const horizontalBarOptions = {
         <Toast />
 
         <div class="py-4 sm:py-8 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 min-w-0">
-            <Deferred :data="['statistiques', 'chartsData']">
-                <template #fallback>
-                    <DashboardSkeleton />
-                </template>
-
-                <div class="space-y-6 sm:space-y-8">
+            <div class="space-y-6 sm:space-y-8">
             <!-- ========================================================================= -->
             <!-- 1. AXE A : EFFECTIF OPÉRATIONNEL EN ACTIVITÉ (COMPTABILISÉS SÉPARÉMENT)    -->
             <!-- ========================================================================= -->
@@ -751,9 +746,24 @@ const horizontalBarOptions = {
             </div>
 
             <!-- ========================================================================= -->
-            <!-- 2. SECTION CLEF : STATUT vs POSITION (DISTINCTION IMPORTANTE)             -->
+            <!-- 2. SECTION CLEF : STATUT vs POSITION & GRAPHIQUES (CHARGEMENT DIFFÉRÉ)    -->
             <!-- ========================================================================= -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Deferred data="chartsData">
+                <template #fallback>
+                    <div class="space-y-6 pt-2 animate-pulse">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div class="bg-white p-5 rounded-2xl border border-slate-200 h-80 shadow-xs"></div>
+                            <div class="bg-white p-5 rounded-2xl border border-slate-200 h-80 shadow-xs"></div>
+                        </div>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div class="bg-white p-5 rounded-2xl border border-slate-200 h-80 shadow-xs"></div>
+                            <div class="bg-white p-5 rounded-2xl border border-slate-200 h-80 shadow-xs"></div>
+                        </div>
+                    </div>
+                </template>
+
+                <div class="space-y-6 sm:space-y-8">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                 <!-- --------------------------------------------------------------------- -->
                 <!-- GRAPHIQUE A : PAR STATUT (SITUATION ADMINISTRATIVE DE L'AGENT)         -->
@@ -1074,8 +1084,9 @@ const horizontalBarOptions = {
                     </div>
                 </div>
             </div>
-                </div>
+            </div>
             </Deferred>
+            </div>
         </div>
     </AuthenticatedLayout>
 </template>

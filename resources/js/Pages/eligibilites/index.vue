@@ -511,15 +511,10 @@ onMounted(() => {
                     </div>
                 </div>
 
-                <!-- Tableau des éligibilités différé avec squelette animé -->
-                <Deferred :data="['initialData', 'initialStatistiques']">
-                    <template #fallback>
-                        <AvancementSkeleton :rows="8" />
-                    </template>
-
-                    <div>
-                        <!-- Loading -->
-                        <div v-if="loading" class="flex justify-center py-12">
+                <!-- Tableau des éligibilités - Rendu direct TIC-TAC -->
+                <div>
+                    <!-- Loading -->
+                    <div v-if="loading" class="flex justify-center py-12">
                     <i class="pi pi-spin pi-spinner text-3xl text-sky-800"></i>
                 </div>
 
@@ -758,8 +753,7 @@ onMounted(() => {
                     <i class="pi pi-hand-point-up text-5xl text-sky-300 mb-3"></i>
                     <p class="text-gray-500">Cliquez sur une carte pour voir les éligibilités</p>
                 </div>
-                    </div>
-                </Deferred>
+            </div>
             </div>
         </div>
 

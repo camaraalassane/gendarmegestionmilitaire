@@ -767,15 +767,10 @@ const printTable = () => {
             </div>
 
             <!-- ========================================================================================= -->
-            <!-- TABLEAU DES CANDIDATS (OFFICIERS / SOUS-OFFICIERS) SOUS DEFERRED                          -->
+            <!-- TABLEAU DES CANDIDATS (OFFICIERS / SOUS-OFFICIERS) - AFFICHAGE DIRECT TIC-TAC              -->
             <!-- ========================================================================================= -->
-            <Deferred :data="['candidates', 'stats']">
-                <template #fallback>
-                    <AvancementSkeleton :rows="10" />
-                </template>
-
-                <div>
-                    <!-- Liste vide -->
+            <div>
+                <!-- Liste vide -->
                     <div v-if="paginatedCandidates.length === 0"
                 class="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs">
                 <i class="pi pi-inbox text-5xl text-slate-300 mb-3"></i>
@@ -1240,8 +1235,7 @@ const printTable = () => {
                     </div>
                 </div>
             </div>
-                </div>
-            </Deferred>
+        </div>
         </div>
 
         <!-- MODAL DE CONFIRMATION D'IMPORTATION EXCEL -->

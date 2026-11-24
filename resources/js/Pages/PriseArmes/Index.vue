@@ -884,15 +884,9 @@ const listeOrganismesCards = computed(() => {
             </div>
 
             <!-- ======================================================== -->
-            <!-- TAB 1 : SITUATION DES EFFECTIFS (PRISE D'ARMES)          -->
+            <!-- TAB 1 : SITUATION DES EFFECTIFS (PRISE D'ARMES) - TIC-TAC   -->
             <!-- ======================================================== -->
-            <Deferred :data="['stats', 'matrice', 'regionsSituation', 'organismesCards']">
-                <template #fallback>
-                    <div class="py-4">
-                        <AvancementSkeleton :rows="12" />
-                    </div>
-                </template>
-                <div v-if="activeTab === 'spa'" class="space-y-6">
+            <div v-if="activeTab === 'spa'" class="space-y-6">
                 <!-- 1. CARD TOTAL GLOBAL DE LA GENDARMERIE NATIONALE (FOND BLANC PROFESSIONNEL ÉLÉGANT) -->
                 <div class="bg-white rounded-2xl border border-slate-200 p-6 text-slate-800 shadow-sm relative overflow-hidden">
                     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-100 relative z-10">
@@ -1372,7 +1366,6 @@ const listeOrganismesCards = computed(() => {
                     </div>
                 </div>
             </div>
-            </Deferred>
 
             <!-- ======================================================== -->
             <!-- TAB 8 : GESTION DES ORGANISMES DE DÉTACHEMENT (48)      -->

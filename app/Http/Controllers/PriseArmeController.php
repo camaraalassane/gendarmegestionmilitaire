@@ -73,15 +73,18 @@ class PriseArmeController extends Controller
             ? ($hasFilter ? $this->buildRegistresFlat($request) : Cache::remember("v{$v}:prise_armes:registres_flat", 3600, fn() => $this->buildRegistresFlat($request)))
             : [];
 
+        // Données SPA en cache (lecture ultra-rapide < 5 ms)
+        $dataSpa = $chargerSpa();
+
         return Inertia::render('PriseArmes/Index', [
-            'stats' => Inertia::defer(fn() => $chargerSpa()['stats']),
+            'stats' => $dataSpa['stats'],
             'organismes' => $organismes,
             'regions' => $regions,
             'grades' => $grades,
             'unites' => $unites,
-            'matrice' => Inertia::defer(fn() => $chargerSpa()['matrice']),
-            'regionsSituation' => Inertia::defer(fn() => $chargerSpa()['regionsSituation']),
-            'organismesCards' => Inertia::defer(fn() => $chargerSpa()['organismesCards']),
+            'matrice' => $dataSpa['matrice'],
+            'regionsSituation' => $dataSpa['regionsSituation'],
+            'organismesCards' => $dataSpa['organismesCards'],
             'registres' => $registres,
             'militairesLookup' => [],
             'filters' => $request->only([

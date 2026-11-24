@@ -23,15 +23,18 @@ class EligibiliteController extends Controller
         $formationsListe = $this->getFormationsListe();
         $gradesListe = $this->getGradesListe();
 
+        $meta = $this->meta();
+        $promotionsPage = $this->page('promotions', null, null, 1, 30);
+
         return Inertia::render('eligibilites/index', [
             'formationsListe' => $formationsListe,
             'gradesListe' => $gradesListe,
             'initialType' => 'promotions',
-            'initialData' => Inertia::defer(fn () => $this->page('promotions', null, null, 1, 30)[0]),
-            'initialTotal' => Inertia::defer(fn () => $this->meta()['statistiques']['total_promotions'] ?? 0),
-            'initialStatistiques' => Inertia::defer(fn () => $this->meta()['statistiques']),
-            'initialFormationCounts' => Inertia::defer(fn () => $this->meta()['formation_counts']),
-            'initialGradeCounts' => Inertia::defer(fn () => $this->meta()['grade_counts']),
+            'initialData' => $promotionsPage[0] ?? [],
+            'initialTotal' => $meta['statistiques']['total_promotions'] ?? 0,
+            'initialStatistiques' => $meta['statistiques'],
+            'initialFormationCounts' => $meta['formation_counts'],
+            'initialGradeCounts' => $meta['grade_counts'],
         ]);
     }
 
