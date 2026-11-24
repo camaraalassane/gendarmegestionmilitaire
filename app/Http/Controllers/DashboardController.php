@@ -531,7 +531,7 @@ class DashboardController extends Controller
                 ->whereRaw(\App\Support\Effectif::sqlActivite('statut'))
                 ->whereNull('deleted_at')
                 ->select('id', 'nom', 'prenom', 'matricule', 'grade_actuel', 'date_naissance', 'date_entree_service', 'date_derniere_promotion', 'antecedent_judiciaire', 'antecedent_disciplinaire')
-                ->get();
+                ->cursor();
 
             $propN = [];
             $propN1 = [];

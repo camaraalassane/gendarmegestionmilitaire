@@ -65,7 +65,7 @@ class EligibiliteController extends Controller
     /**
      * Calcule l'ensemble des éligibilités de manière ultra-optimisée par lots de 2 000.
      */
-    private function computeAll(int $version): array
+    public function computeAll(int $version): array
     {
         $now = Carbon::now();
         $refYear = (int) $now->year;
@@ -665,30 +665,37 @@ class EligibiliteController extends Controller
     }
 
     /**
-     * S'assure que la table pré-calculée correspond à la version actuelle des données ; sinon la reconstruit
-     * (un seul processus à la fois). Retourne la version à lire.
+     * S'assure que la table pré-calculée correspond à la version actuelle des données.
+     * Si la version actuelle n'est pas encore prête :
+     * 1. Déclenche la reconstruction en arrière-plan (job asynchrone sans bloquer l'utilisateur).
+     * 2. Retourne immédiatement la dernière version disponible en base (zéro seconde d'attente).
+     * 3. Ne fait le calcul synchrone qu'au tout premier démarrage si aucune version précédente n'existe.
      */
     public function assurerCalcul(): int
     {
         $v = (int) \App\Models\Militaire::getCacheVersion();
-        if ((int) Cache::get('eligibilites:table_version') === $v && Cache::has("eligibilites:meta:v{$v}")) {
+        $tableV = (int) Cache::get('eligibilites:table_version');
+
+        if ($tableV === $v && Cache::has("eligibilites:meta:v{$v}")) {
             return $v;
         }
 
-        Cache::lock('eligibilites:rebuild', 600)->block(300, function () use (&$v) {
-            $v = (int) \App\Models\Militaire::getCacheVersion();
-            if ((int) Cache::get('eligibilites:table_version') === $v && Cache::has("eligibilites:meta:v{$v}")) {
-                return;
-            }
-            DB::table('eligibilites_calculees')->where('version', $v)->delete(); // reprise propre
-            $meta = $this->computeAll($v);
-            Cache::forever("eligibilites:meta:v{$v}", $meta);
-            Cache::forever('eligibilites:table_version', $v);
-            // Nettoyage des anciennes versions par petits lots
-            do {
-                $n = DB::table('eligibilites_calculees')->where('version', '<>', $v)->limit(5000)->delete();
-            } while ($n > 0);
-        });
+        // Déclencher la reconstruction en arrière-plan via la file d'attente
+        if (Cache::add('eligibilites:rebuild:lock', 1, 600)) {
+            \App\Jobs\RebuildEligibilitesTableJob::dispatch($v);
+        }
+
+        // Si une version précédente est disponible, la servir immédiatement sans faire attendre l'utilisateur
+        if ($tableV > 0 && Cache::has("eligibilites:meta:v{$tableV}")) {
+            return $tableV;
+        }
+
+        // Premier démarrage à froid sur base vierge : calcul synchrone initial de secours
+        DB::table('eligibilites_calculees')->where('version', $v)->delete();
+        $meta = $this->computeAll($v);
+        Cache::forever("eligibilites:meta:v{$v}", $meta);
+        Cache::forever('eligibilites:table_version', $v);
+        Cache::forget('eligibilites:rebuild:lock');
 
         return $v;
     }
