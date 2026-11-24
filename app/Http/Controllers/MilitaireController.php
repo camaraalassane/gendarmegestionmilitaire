@@ -215,23 +215,72 @@ class MilitaireController extends Controller
         }
 
         $v = Militaire::getCacheVersion();
-        $statistiques = Cache::remember("v{$v}:militaires:stats_summary", 600, function () use ($anneeN) {
+        $statsCacheKey = "v{$v}:militaires:stats_summary";
+        $computeStats = function () use ($anneeN) {
+            $agg = DB::table('militaires')
+                ->whereNull('deleted_at')
+                ->selectRaw("
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN statut_code BETWEEN 1 AND 4 THEN 1 END) as actifs,
+                    COUNT(CASE WHEN statut_code BETWEEN 1 AND 4 AND (
+                        (position_actuelle IS NULL OR position_actuelle = '')
+                        OR (
+                            position_actuelle NOT ILIKE '%detache%' AND position_actuelle NOT ILIKE '%détach%'
+                            AND position_actuelle NOT ILIKE '%mission%' AND position_actuelle NOT ILIKE '%stage%'
+                        )
+                    ) THEN 1 END) as actifs_stricts,
+                    COUNT(CASE WHEN statut_code BETWEEN 1 AND 4 AND (position_actuelle ILIKE '%detache%' OR position_actuelle ILIKE '%détach%') THEN 1 END) as detaches,
+                    COUNT(CASE WHEN statut_code BETWEEN 1 AND 4 AND (region_id IS NULL OR region_id = 0) AND (unite_id IS NULL OR unite_id = 0) THEN 1 END) as non_rattaches
+                ")->first();
+
+            $retraitesN = DB::table('militaires')
+                ->join('grades', 'militaires.grade_id', '=', 'grades.id')
+                ->whereNotNull('militaires.date_naissance')
+                ->whereNotNull('grades.retraite_obligatoire')
+                ->where(function ($q) {
+                    $q->whereNull('militaires.position_actuelle')
+                      ->orWhere('militaires.position_actuelle', 'not ilike', '%otage%');
+                })
+                ->where(function ($q) {
+                    $q->whereNull('militaires.observations')
+                      ->orWhere('militaires.observations', 'not ilike', '%otage%');
+                })
+                ->where('militaires.est_disparu', 0)
+                ->whereNull('militaires.deleted_at')
+                ->whereRaw("((EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeN}) OR (LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire < {$anneeN}))")
+                ->count();
+
+            $retraitesN1 = DB::table('militaires')
+                ->join('grades', 'militaires.grade_id', '=', 'grades.id')
+                ->whereNotNull('militaires.date_naissance')
+                ->whereNotNull('grades.retraite_obligatoire')
+                ->where(function ($q) {
+                    $q->whereNull('militaires.position_actuelle')
+                      ->orWhere('militaires.position_actuelle', 'not ilike', '%otage%');
+                })
+                ->where(function ($q) {
+                    $q->whereNull('militaires.observations')
+                      ->orWhere('militaires.observations', 'not ilike', '%otage%');
+                })
+                ->where('militaires.est_disparu', 0)
+                ->whereNull('militaires.deleted_at')
+                ->whereRaw("((EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = " . ($anneeN + 1) . ") OR (LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire < " . ($anneeN + 1) . "))")
+                ->count();
+
             return [
-                'total'         => Militaire::count(),
-                'actifs'        => Militaire::whereRaw(Effectif::sqlActivite('statut'))->count(),
-                'actifs_stricts'=> Effectif::appliquerFiltreActifsStricts(Militaire::query())->count(),
-                'detaches'      => Effectif::appliquerFiltreDetaches(Militaire::query())->count(),
-                'non_rattaches' => Militaire::whereRaw(Effectif::sqlActivite('statut'))
-                    ->where(function ($q) {
-                        $q->whereNull('region_id')->orWhere('region_id', 0);
-                    })
-                    ->where(function ($q) {
-                        $q->whereNull('unite_id')->orWhere('unite_id', 0);
-                    })->count(),
-                'retraites_n'   => count($this->getIdsRetraitePourAnnee($anneeN)),
-                'retraites_n1'  => count($this->getIdsRetraitePourAnnee($anneeN + 1)),
+                'total'          => (int) ($agg->total ?? 0),
+                'actifs'         => (int) ($agg->actifs ?? 0),
+                'actifs_stricts' => (int) ($agg->actifs_stricts ?? 0),
+                'detaches'       => (int) ($agg->detaches ?? 0),
+                'non_rattaches'  => (int) ($agg->non_rattaches ?? 0),
+                'retraites_n'    => (int) $retraitesN,
+                'retraites_n1'   => (int) $retraitesN1,
             ];
-        });
+        };
+
+        $statistiques = Cache::has($statsCacheKey)
+            ? Cache::get($statsCacheKey)
+            : Inertia::defer(fn() => Cache::remember($statsCacheKey, 86400, $computeStats));
 
         $query->orderBy('militaires.grade_ordre', 'desc')
               ->orderBy('militaires.nom', 'asc')

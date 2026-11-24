@@ -403,6 +403,7 @@ const loadMilitaires = (page = 1) => {
     }, {
         preserveState: true,
         preserveScroll: true,
+        only: ['militaires', 'filters'],
         onSuccess: () => { loading.value = false; },
         onError: () => {
             loading.value = false;
