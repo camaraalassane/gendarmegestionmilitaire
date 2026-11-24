@@ -16,6 +16,7 @@ import Toast from 'primevue/toast';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
 import { useToast } from 'primevue/usetoast';
+import { downloadExport } from '@/Utils/exportHelper';
 
 const toast = useToast();
 const uploading = ref(false);
@@ -118,12 +119,29 @@ const submitForm = () => {
     });
 };
 
-const downloadTemplate = () => {
-    window.location.href = route('militaires.import.template.xlsx');
+const downloadingXlsx = ref(false);
+const downloadingCsv = ref(false);
+
+const downloadTemplate = async () => {
+    await downloadExport(route('militaires.import.template.xlsx'), {
+        defaultFilename: 'modele_importation_militaires.xlsx',
+        toast,
+        onStart: () => { downloadingXlsx.value = true; },
+        onFinish: () => { downloadingXlsx.value = false; },
+        loadingMessage: 'Préparation du modèle Excel... Veuillez patienter.',
+        successMessage: 'Modèle Excel téléchargé avec succès !'
+    });
 };
 
-const downloadTemplateCSV = () => {
-    window.location.href = route('militaires.import.template.csv');
+const downloadTemplateCSV = async () => {
+    await downloadExport(route('militaires.import.template.csv'), {
+        defaultFilename: 'modele_importation_militaires.csv',
+        toast,
+        onStart: () => { downloadingCsv.value = true; },
+        onFinish: () => { downloadingCsv.value = false; },
+        loadingMessage: 'Préparation du modèle CSV... Veuillez patienter.',
+        successMessage: 'Modèle CSV téléchargé avec succès !'
+    });
 };
 
 const cancel = () => {
@@ -670,11 +688,17 @@ const cancel = () => {
                                 <div class="mt-4">
                                     <h6 class="font-medium text-gray-700 mb-3">📄 Télécharger le modèle d'import :</h6>
                                     <div class="flex flex-wrap items-center gap-3">
-                                        <Button label="Modèle Excel (.xlsx)" icon="pi pi-download"
-                                            class="p-button-outlined border-sky-800 text-sky-900 hover:bg-sky-50"
+                                        <Button :label="downloadingXlsx ? 'Téléchargement...' : 'Modèle Excel (.xlsx)'"
+                                            :icon="downloadingXlsx ? 'pi pi-spin pi-spinner' : 'pi pi-download'"
+                                            :loading="downloadingXlsx"
+                                            :disabled="downloadingXlsx || downloadingCsv"
+                                            class="p-button-outlined border-sky-800 text-sky-900 hover:bg-sky-50 cursor-pointer disabled:opacity-50"
                                             @click="downloadTemplate" />
-                                        <Button label="Modèle CSV (.csv)" icon="pi pi-download"
-                                            class="p-button-outlined border-gray-400 text-gray-600 hover:bg-gray-50"
+                                        <Button :label="downloadingCsv ? 'Téléchargement...' : 'Modèle CSV (.csv)'"
+                                            :icon="downloadingCsv ? 'pi pi-spin pi-spinner' : 'pi pi-download'"
+                                            :loading="downloadingCsv"
+                                            :disabled="downloadingXlsx || downloadingCsv"
+                                            class="p-button-outlined border-gray-400 text-gray-600 hover:bg-gray-50 cursor-pointer disabled:opacity-50"
                                             @click="downloadTemplateCSV" />
                                         <small class="text-gray-500">
                                             Le modèle contient les en-têtes de colonnes et un exemple de données.

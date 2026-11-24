@@ -10,6 +10,7 @@ import Dialog from 'primevue/dialog';
 import Toast from 'primevue/toast';
 import Tag from 'primevue/tag';
 import { useToast } from 'primevue/usetoast';
+import { downloadExport } from '@/Utils/exportHelper';
 
 const props = defineProps({
     stats: { type: Object, default: () => ({}) },
@@ -46,9 +47,18 @@ const appliedFilters = () => {
     return f;
 };
 
-// Téléchargement Excel Officiel (100% données réelles de la base)
-const telechargerExcel = () => {
-    window.location.href = route('prise-armes.export');
+// Téléchargement Excel Officiel avec progression et notifications
+const exportingExcel = ref(false);
+
+const telechargerExcel = async () => {
+    await downloadExport(route('prise-armes.export'), {
+        defaultFilename: `situation_prise_armes_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        toast,
+        onStart: () => { exportingExcel.value = true; },
+        onFinish: () => { exportingExcel.value = false; },
+        loadingMessage: 'Préparation du fichier Excel de la Prise d\'Armes... Veuillez patienter.',
+        successMessage: 'Situation officielle Prise d\'Armes téléchargée avec succès !'
+    });
 };
 
 const localRegistres = ref(Array.isArray(props.registres) && props.registres.length > 0 ? props.registres : []);
@@ -638,11 +648,13 @@ const listeOrganismesCards = computed(() => {
                     <div class="flex items-center space-x-2">
                         <Button
                             @click="telechargerExcel"
-                            icon="pi pi-download"
-                            label="Exporter Excel Officiel"
+                            :icon="exportingExcel ? 'pi pi-spin pi-spinner' : 'pi pi-download'"
+                            :label="exportingExcel ? 'Exportation...' : 'Exporter Excel Officiel'"
+                            :loading="exportingExcel"
+                            :disabled="exportingExcel"
                             severity="warning"
                             size="small"
-                            class="!rounded-xl !shadow-lg !font-bold"
+                            class="!rounded-xl !shadow-lg !font-bold cursor-pointer disabled:opacity-50"
                         />
                     </div>
                 </div>
@@ -905,11 +917,13 @@ const listeOrganismesCards = computed(() => {
                         <div class="flex items-center gap-2.5 flex-wrap">
                             <Button
                                 @click="telechargerExcel"
-                                icon="pi pi-file-excel"
-                                label="Exporter la Situation DGGN (Excel .xlsx)"
+                                :icon="exportingExcel ? 'pi pi-spin pi-spinner' : 'pi pi-file-excel'"
+                                :label="exportingExcel ? 'Génération en cours...' : 'Exporter la Situation DGGN (Excel .xlsx)'"
+                                :loading="exportingExcel"
+                                :disabled="exportingExcel"
                                 severity="success"
                                 size="small"
-                                class="!rounded-xl !bg-emerald-600 hover:!bg-emerald-500 !border-emerald-500 shadow-sm font-bold"
+                                class="!rounded-xl !bg-emerald-600 hover:!bg-emerald-500 !border-emerald-500 shadow-sm font-bold cursor-pointer disabled:opacity-50"
                             />
                         </div>
                     </div>

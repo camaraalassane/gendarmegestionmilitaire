@@ -678,6 +678,7 @@ const executeBulkAssign = () => {
 
 <template>
     <AuthenticatedLayout>
+        <Toast position="top-right" />
         <template #header>
             <div class="flex items-center justify-between">
                 <h2 class="font-semibold text-xl text-white leading-tight">

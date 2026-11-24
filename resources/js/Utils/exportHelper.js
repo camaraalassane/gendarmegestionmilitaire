@@ -22,8 +22,11 @@ export async function downloadExport(url, options = {}) {
         onStart = null,
         onFinish = null,
         onProgress = null,
+        loadingSummary = 'Export en cours',
         loadingMessage = 'Génération du fichier Excel en cours... Veuillez patienter.',
+        successSummary = 'Export terminé',
         successMessage = 'Fichier téléchargé avec succès !',
+        errorSummary = 'Échec de l\'export',
         errorMessage = 'Une erreur est survenue lors du téléchargement de l\'export.'
     } = options;
 
@@ -34,9 +37,9 @@ export async function downloadExport(url, options = {}) {
     if (toast) {
         toast.add({
             severity: 'info',
-            summary: 'Export en cours',
+            summary: loadingSummary,
             detail: loadingMessage,
-            life: 6000
+            life: 10000
         });
     }
 
@@ -94,9 +97,9 @@ export async function downloadExport(url, options = {}) {
         if (toast) {
             toast.add({
                 severity: 'success',
-                summary: 'Export terminé',
+                summary: successSummary,
                 detail: successMessage,
-                life: 3000
+                life: 4000
             });
         }
 
@@ -106,9 +109,9 @@ export async function downloadExport(url, options = {}) {
         if (toast) {
             toast.add({
                 severity: 'error',
-                summary: 'Échec de l\'export',
+                summary: errorSummary,
                 detail: errorMessage,
-                life: 5000
+                life: 6000
             });
         }
         return false;
