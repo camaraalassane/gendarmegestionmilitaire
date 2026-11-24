@@ -105,6 +105,15 @@ const isOtage = computed(() => {
     return pos.includes('otage') || obs.includes('otage');
 });
 
+const isDetache = computed(() => {
+    if (props.militaire?.is_detache !== undefined) return Boolean(props.militaire.is_detache);
+    const pos = (props.militaire?.position_actuelle || '').toLowerCase();
+    const st = (props.militaire?.statut || '').toLowerCase();
+    const orgCode = (props.militaire?.organisme_detachement_code || '').toUpperCase();
+    const hasExternalOrg = Boolean(props.militaire?.organisme_detachement_id) && orgCode !== 'GRM';
+    return hasExternalOrg || pos.includes('détach') || pos.includes('detach') || st.includes('détach') || st.includes('detach');
+});
+
 // Trier les affectations de la plus récente à la plus ancienne (l'actuelle est toujours la plus récente)
 const sortedAffectations = computed(() => {
     if (!props.affectations || !props.affectations.length) return [];
@@ -514,15 +523,19 @@ const deleteMilitaire = () => {
                                 <!-- TILES STATISTIQUES HERO -->
                                 <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-3 border-t border-sky-700/50">
                                     <div class="bg-white/10 backdrop-blur-xs rounded-lg p-2.5 text-center min-w-0">
-                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium truncate">Unité / Escadron</div>
-                                        <div class="text-sm font-bold text-white truncate" :title="currentAffectation?.unite || militaire.unite || '-'">
-                                            {{ currentAffectation?.unite || militaire.unite || '-' }}
+                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium truncate">
+                                            {{ isDetache ? 'Organisme de Détachement' : 'Unité / Escadron' }}
+                                        </div>
+                                        <div class="text-sm font-bold text-white truncate" :title="isDetache ? (militaire.organisme_detachement || 'Organisme extérieur') : (currentAffectation?.unite || militaire.unite || '-')">
+                                            {{ isDetache ? (militaire.organisme_detachement || 'Organisme extérieur') : (currentAffectation?.unite || militaire.unite || '-') }}
                                         </div>
                                     </div>
                                     <div class="bg-white/10 backdrop-blur-xs rounded-lg p-2.5 text-center min-w-0">
-                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium truncate">Région</div>
-                                        <div class="text-sm font-bold text-white truncate" :title="currentAffectation?.region || militaire.region || '-'">
-                                            {{ currentAffectation?.region || militaire.region || '-' }}
+                                        <div class="text-[11px] uppercase tracking-wider text-sky-200 font-medium truncate">
+                                            {{ isDetache ? 'Région Territoriale' : 'Région' }}
+                                        </div>
+                                        <div class="text-sm font-bold text-white truncate" :title="isDetache ? 'Non rattaché (En détachement)' : (currentAffectation?.region || militaire.region || '-')">
+                                            {{ isDetache ? 'Hors région (Détachement)' : (currentAffectation?.region || militaire.region || '-') }}
                                         </div>
                                     </div>
                                     <div class="bg-white/10 backdrop-blur-xs rounded-lg p-2.5 text-center min-w-0">
@@ -647,26 +660,99 @@ const deleteMilitaire = () => {
                                 <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Spécialité</span>
                                 <span class="text-sm font-medium text-slate-800">{{ militaire.specialite || '-' }}</span>
                             </div>
-                            <div class="sm:col-span-2">
+                            <div v-if="isDetache" class="sm:col-span-2 p-3 rounded-lg bg-sky-50/70 border border-sky-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div>
+                                    <span class="text-xs font-bold text-sky-900 uppercase tracking-wide block">Position administrative</span>
+                                    <span class="text-sm font-extrabold text-sky-950">{{ militaire.position_actuelle || 'En détachement' }}</span>
+                                </div>
+                                <div class="text-xs text-sky-800">
+                                    Organisme d'accueil : <span class="font-bold text-sky-950">{{ militaire.organisme_detachement || '-' }}</span>
+                                </div>
+                            </div>
+                            <div v-else class="sm:col-span-2">
                                 <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide block">Position administrative</span>
                                 <span class="text-sm font-medium text-slate-800">{{ militaire.position_actuelle || '-' }}</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- CARTE 3A : AFFECTATION & MAILLAGE TERRITORIAL (CARTE DE LA 2ÈME PHOTO) -->
+                    <!-- CARTE 3A : AFFECTATION TERRITORIALE OU DÉTACHEMENT -->
                     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 min-w-0">
                         <div class="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 min-w-0 gap-2">
                             <div class="flex items-center gap-2 text-sky-900 font-bold text-base min-w-0 truncate">
-                                <i class="pi pi-building text-sky-800 shrink-0"></i>
-                                <span class="truncate">Affectation & Maillage Territorial</span>
+                                <i :class="isDetache ? 'pi pi-briefcase text-sky-800 shrink-0' : 'pi pi-building text-sky-800 shrink-0'"></i>
+                                <span class="truncate">{{ isDetache ? 'Situation de Détachement (Hors Maillage)' : 'Affectation & Maillage Territorial' }}</span>
                             </div>
-                            <span class="text-xs text-slate-500 font-medium shrink-0">
+                            <Tag v-if="isDetache" value="En détachement" severity="info" class="text-xs font-bold uppercase tracking-wider" />
+                            <span v-else class="text-xs text-slate-500 font-medium shrink-0">
                                 {{ affectations && affectations.length ? affectations.length + ' affectation(s)' : '1 affectation' }}
                             </span>
                         </div>
 
-                        <div v-if="sortedAffectations && sortedAffectations.length" class="space-y-3">
+                        <!-- VUE SPÉCIALE DÉTACHEMENT : Hors région et hors brigade -->
+                        <div v-if="isDetache" class="space-y-4">
+                            <div class="p-4 rounded-xl border border-sky-200 bg-sky-50/70 flex items-start gap-3.5 shadow-2xs">
+                                <div class="w-10 h-10 rounded-xl bg-sky-700 text-white flex items-center justify-center shrink-0 shadow-xs">
+                                    <i class="pi pi-building-columns text-lg"></i>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex flex-wrap items-center gap-2 mb-1">
+                                        <span v-if="militaire.organisme_detachement_code" class="text-xs font-black uppercase tracking-wider px-2 py-0.5 rounded bg-sky-200 text-sky-900 border border-sky-300">
+                                            {{ militaire.organisme_detachement_code }}
+                                        </span>
+                                        <span class="text-sm font-extrabold text-sky-950">
+                                            {{ militaire.organisme_detachement || 'Organisme extérieur' }}
+                                        </span>
+                                    </div>
+                                    <p class="text-xs text-sky-900 leading-relaxed font-medium">
+                                        Ce militaire est placé en position de détachement auprès d'un organisme extérieur.
+                                        Conformément aux règles statutaires, <strong>il n'est rattaché à aucune région territoriale ni brigade de la Gendarmerie</strong> pendant toute la durée de son détachement.
+                                    </p>
+                                    <div class="mt-3 pt-2.5 border-t border-sky-200/80 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+                                        <div class="flex items-center gap-1.5 text-slate-700">
+                                            <i class="pi pi-map-marker text-slate-400 text-xs"></i>
+                                            <span class="text-slate-500">Région :</span>
+                                            <span class="font-bold text-slate-700">Non rattaché (Hors région)</span>
+                                        </div>
+                                        <div class="flex items-center gap-1.5 text-slate-700">
+                                            <i class="pi pi-building text-slate-400 text-xs"></i>
+                                            <span class="text-slate-500">Unité :</span>
+                                            <span class="font-bold text-slate-700">Non affecté (Détaché)</span>
+                                        </div>
+                                        <div v-if="militaire.date_mutation" class="flex items-center gap-1.5 text-slate-700 bg-white px-2.5 py-1 rounded-md border border-sky-200 shadow-2xs">
+                                            <i class="pi pi-calendar text-sky-600 text-xs"></i>
+                                            <span class="text-slate-500 text-[11px]">Date d'effet :</span>
+                                            <span class="font-bold text-slate-900 text-[11px]">{{ militaire.date_mutation }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Historique d'affectations territoriales passées si existant -->
+                            <div v-if="sortedAffectations && sortedAffectations.length" class="space-y-2 pt-2">
+                                <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Historique des affectations territoriales antérieures</h4>
+                                <div v-for="(aff, idx) in sortedAffectations" :key="idx"
+                                    class="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70">
+                                    <div class="flex items-start gap-3 min-w-0">
+                                        <div class="w-6 h-6 rounded-full bg-slate-400 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                                            {{ idx + 1 }}
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <span class="font-bold text-slate-800 text-xs leading-snug break-words">
+                                                {{ aff.unite || 'Unité non renseignée' }}
+                                            </span>
+                                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] text-slate-500">
+                                                <span>Région : <strong>{{ aff.region || '-' }}</strong></span>
+                                                <span v-if="aff.date_mutation">Date : <strong>{{ aff.date_mutation }}</strong></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- VUE NORMALE TERRITORIALE (Militaire non détaché) -->
+                        <div v-else-if="sortedAffectations && sortedAffectations.length" class="space-y-3">
                             <div v-for="(aff, idx) in sortedAffectations" :key="idx"
                                 class="p-4 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition-colors">
                                 <div class="flex items-start gap-3 min-w-0">

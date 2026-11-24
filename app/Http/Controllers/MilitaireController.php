@@ -677,7 +677,17 @@ class MilitaireController extends Controller
             $q->orderBy('date_mutation', 'desc')->orderBy('id', 'desc');
         }, 'alertes' => function($q) {
             $q->orderBy('created_at', 'desc')->limit(10);
-        }]);
+        }, 'organismeDetachement']);
+
+        $grmId = Effectif::idOrganismeGrm();
+        $isDetache = (bool) (
+            ($militaire->organisme_detachement_id && (int)$militaire->organisme_detachement_id !== $grmId) ||
+            stripos((string)$militaire->position_actuelle, 'détach') !== false ||
+            stripos((string)$militaire->position_actuelle, 'detach') !== false ||
+            $militaire->statut === 'détaché' ||
+            (int)$militaire->statut_code === 2 ||
+            (int)$militaire->position_id === 26
+        );
 
         $plusRecenteAff = $militaire->affectations->sortByDesc('date_mutation')->first();
 
@@ -692,7 +702,7 @@ class MilitaireController extends Controller
             'date_mutation_raw' => $aff->date_mutation?->format('Y-m-d'),
         ])->toArray();
 
-        if (empty($affectationsList) && ($militaire->unite || $militaire->region || $militaire->date_mutation)) {
+        if (!$isDetache && empty($affectationsList) && ($militaire->unite || $militaire->region || $militaire->date_mutation)) {
             $affectationsList[] = [
                 'id' => null,
                 'unite' => $militaire->unite,
@@ -754,6 +764,10 @@ class MilitaireController extends Controller
             'specialite' => $militaire->specialite,
             'origine_formation' => $militaire->origine_formation,
             'position_actuelle' => $militaire->position_actuelle,
+            'is_detache' => $isDetache,
+            'organisme_detachement_id' => $militaire->organisme_detachement_id,
+            'organisme_detachement' => $militaire->organismeDetachement?->nom ?? ($isDetache ? $militaire->unite : null),
+            'organisme_detachement_code' => $militaire->organismeDetachement?->code,
             'unite' => $militaire->unite,
             'region' => $militaire->region,
             'date_mutation' => $militaire->date_mutation?->format('d/m/Y'),
@@ -1322,28 +1336,33 @@ class MilitaireController extends Controller
             $data['categorie'] = $grade ? $grade->categorie_statutaire : Grade::determinerCategorie($data['grade_actuel']);
         }
 
-        // Si le militaire est en détachement, son unité prend le nom officiel de l'organisme et unite_id est vidé
-        $isDetache = (!empty($data['position_actuelle']) && (stripos($data['position_actuelle'], 'détach') !== false || stripos($data['position_actuelle'], 'detach') !== false))
-            || (!empty($data['position_id']) && (int) $data['position_id'] === 26);
-        if ($isDetache && !empty($data['organisme_detachement_id'])) {
-            $org = \App\Models\OrganismeDetachement::find($data['organisme_detachement_id']);
-            if ($org) {
-                $data['unite'] = $org->nom;
-                $data['unite_id'] = null;
-            }
-        }
+        // Règle stricte : Soit dans une région (territoriale), soit détaché (organisme extérieur hors région)
+        $grmId = Effectif::idOrganismeGrm();
+        $isDetache = (!empty($data['organisme_detachement_id']) && (int)$data['organisme_detachement_id'] !== $grmId)
+            || (!empty($data['position_actuelle']) && (stripos($data['position_actuelle'], 'détach') !== false || stripos($data['position_actuelle'], 'detach') !== false))
+            || (!empty($data['position_id']) && (int) $data['position_id'] === 26)
+            || (!empty($data['statut']) && in_array(mb_strtolower(trim($data['statut'])), ['détaché', 'detache']))
+            || (!empty($data['statut_code']) && (int) $data['statut_code'] === 2);
 
-        // Synchronisation du theatre_id avec les théâtres d'opérations officiels
-        if ($request->has('theatre_id')) {
-            $thVal = $request->input('theatre_id');
-            $data['theatre_id'] = ($thVal && $thVal !== 'remove') ? (int) $thVal : null;
-        } elseif (!empty($data['engagement_ops'])) {
-            $th = \App\Models\Theatre::get()->first(function ($t) use ($data) {
-                return str_contains(mb_strtolower($data['engagement_ops']), mb_strtolower($t->nom))
-                    || str_contains(mb_strtolower($data['engagement_ops']), mb_strtolower($t->code))
-                    || str_contains(mb_strtolower($data['engagement_ops']), mb_strtolower($t->pc_lieu));
-            });
-            $data['theatre_id'] = $th ? $th->id : null;
+        if ($isDetache) {
+            $data['unite_id'] = null;
+            $data['unite'] = null;
+            $data['region_id'] = null;
+            $data['region'] = null;
+            $data['theatre_id'] = null;
+        } else {
+            // Synchronisation du theatre_id avec les théâtres d'opérations officiels
+            if ($request->has('theatre_id')) {
+                $thVal = $request->input('theatre_id');
+                $data['theatre_id'] = ($thVal && $thVal !== 'remove') ? (int) $thVal : null;
+            } elseif (!empty($data['engagement_ops'])) {
+                $th = \App\Models\Theatre::get()->first(function ($t) use ($data) {
+                    return str_contains(mb_strtolower($data['engagement_ops']), mb_strtolower($t->nom))
+                        || str_contains(mb_strtolower($data['engagement_ops']), mb_strtolower($t->code))
+                        || str_contains(mb_strtolower($data['engagement_ops']), mb_strtolower($t->pc_lieu));
+                });
+                $data['theatre_id'] = $th ? $th->id : null;
+            }
         }
 
         return $data;
@@ -1354,6 +1373,21 @@ class MilitaireController extends Controller
      */
     private function syncAffectations(Militaire $militaire, Request $request): void
     {
+        $grmId = Effectif::idOrganismeGrm();
+        $isDetache = (bool) (
+            ($militaire->organisme_detachement_id && (int)$militaire->organisme_detachement_id !== $grmId) ||
+            stripos((string)$militaire->position_actuelle, 'détach') !== false ||
+            stripos((string)$militaire->position_actuelle, 'detach') !== false ||
+            $militaire->statut === 'détaché' ||
+            (int)$militaire->statut_code === 2 ||
+            (int)$militaire->position_id === 26
+        );
+
+        if ($isDetache) {
+            $militaire->affectations()->delete();
+            return;
+        }
+
         $affectationsData = $request->input('affectations');
         if (is_string($affectationsData)) {
             $affectationsData = json_decode($affectationsData, true);

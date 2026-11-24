@@ -1221,8 +1221,15 @@ const submitForm = () => {
     saving.value = true;
     errors.value = {};
 
-    // Synchroniser l'affectation la plus récente (par date de mutation) dans les champs principaux
-    if (form.affectations && form.affectations.length > 0) {
+    // Si en détachement : vider complètement toute affectation territoriale (soit détaché, soit dans une région)
+    if (isDetache.value) {
+        form.unite_id = null;
+        form.unite = '';
+        form.region_id = null;
+        form.region = '';
+        form.theatre_id = null;
+        form.affectations = [];
+    } else if (form.affectations && form.affectations.length > 0) {
         const sorted = [...form.affectations].filter(a => a.unite_id || a.unite || a.region_id || a.region || a.date_mutation);
         sorted.sort((a, b) => {
             const dateA = a.date_mutation ? new Date(a.date_mutation).getTime() : 0;
