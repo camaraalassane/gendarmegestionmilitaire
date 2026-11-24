@@ -190,7 +190,7 @@ class EligibiliteController extends Controller
         // 4. Grades de retraite
         $gradesRetraite = DB::table('grades')->whereNotNull('retraite_obligatoire')->pluck('retraite_obligatoire', 'nom_grade')->toArray();
 
-        // 5. Lecture ultra-rapide par DB Query Builder (évite l'hydratation lourde de 6800 modèles Eloquent)
+        // 5. Lecture en streaming par curseur PDO (évite d'allouer des centaines de milliers d'objets en RAM à grande échelle)
         $militaires = DB::table('militaires')
             ->whereRaw(\App\Support\Effectif::sqlActivite('statut'))
             ->whereNull('deleted_at')
@@ -201,7 +201,7 @@ class EligibiliteController extends Controller
                 'antecedent_disciplinaire', 'date_naissance',
                 'unite', 'region', 'date_mutation'
             ])
-            ->get();
+            ->cursor();
 
         $allPromotions = [];
         $allFormations = [];
