@@ -674,41 +674,65 @@ class EligibiliteController extends Controller
     public function assurerCalcul(): int
     {
         $v = (int) \App\Models\Militaire::getCacheVersion();
-        $tableV = (int) Cache::get('eligibilites:table_version');
+        $prete = $this->versionPrete(); // lue dans la BASE : survit à cache:clear et aux redéploiements
 
-        if ($tableV === $v && Cache::has("eligibilites:meta:v{$v}")) {
+        if ($prete === $v) {
             return $v;
         }
 
-        // Déclencher la reconstruction en arrière-plan via la file d'attente
+        // Reconstruction en arrière-plan (file d'attente) : un seul job à la fois
         if (Cache::add('eligibilites:rebuild:lock', 1, 600)) {
             \App\Jobs\RebuildEligibilitesTableJob::dispatch($v);
         }
 
-        // Si une version précédente est disponible, la servir immédiatement sans faire attendre l'utilisateur
-        if ($tableV > 0 && Cache::has("eligibilites:meta:v{$tableV}")) {
-            return $tableV;
+        // Une version précédente existe : on la sert tout de suite, sans faire attendre l'utilisateur
+        if ($prete > 0) {
+            return $prete;
         }
 
-        // Premier démarrage à froid sur base vierge : calcul synchrone initial de secours
+        // Aucune version disponible (toute première utilisation) : calcul initial synchrone de secours
         DB::table('eligibilites_calculees')->where('version', $v)->delete();
-        $meta = $this->computeAll($v);
-        Cache::forever("eligibilites:meta:v{$v}", $meta);
-        Cache::forever('eligibilites:table_version', $v);
+        $this->finaliserVersion($v, $this->computeAll($v));
         Cache::forget('eligibilites:rebuild:lock');
 
         return $v;
     }
 
-    /** Statistiques et compteurs (petit tableau). */
+    /** Dernière version COMPLÈTE : celle dont la ligne de fin (type 'meta') a été écrite. 0 si aucune. */
+    public function versionPrete(): int
+    {
+        return (int) DB::table('eligibilites_calculees')->where('type', 'meta')->max('version');
+    }
+
+    /**
+     * Marque une version comme complète en écrivant sa ligne 'meta' EN DERNIER, puis supprime les anciennes versions.
+     * Tant que cette ligne n'existe pas, la version en cours de construction n'est jamais lue.
+     */
+    public function finaliserVersion(int $v, array $meta): void
+    {
+        DB::table('eligibilites_calculees')->insert([
+            'version' => $v, 'type' => 'meta', 'militaire_id' => 0, 'grade_actuel' => null,
+            'formation' => null, 'tri' => 0,
+            'payload' => json_encode($meta, JSON_UNESCAPED_UNICODE),
+        ]);
+        do {
+            $n = DB::table('eligibilites_calculees')->where('version', '<>', $v)->limit(5000)->delete();
+        } while ($n > 0);
+    }
+
+    /** Statistiques et compteurs (petit tableau), lus dans la ligne 'meta' de la version servie. */
     public function meta(): array
     {
         $v = $this->assurerCalcul();
-        return Cache::get("eligibilites:meta:v{$v}") ?? [
+        $vide = [
             'statistiques' => ['total_promotions' => 0, 'total_formations' => 0, 'total_retraites' => 0, 'total_contrats' => 0, 'total_mutations' => 0],
             'formation_counts' => [],
             'grade_counts' => [],
         ];
+        return Cache::remember("eligibilites:meta:v{$v}", 3600, function () use ($v, $vide) {
+            $json = DB::table('eligibilites_calculees')->where('type', 'meta')->where('version', $v)->value('payload');
+            return $json ? (json_decode($json, true) ?: $vide) : $vide;
+        });
     }
 
     public const TYPES = ['promotions', 'formations', 'retraites', 'contrats', 'mutations'];

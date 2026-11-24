@@ -29,13 +29,7 @@ class RebuildEligibilitesTableJob implements ShouldQueue
             // Calcul par lots de 2 000 militaires avec insertion continue dans eligibilites_calculees
             $meta = $controller->computeAll($v);
 
-            Cache::forever("eligibilites:meta:v{$v}", $meta);
-            Cache::forever('eligibilites:table_version', $v);
-
-            // Nettoyage progressif des anciennes versions par petits lots
-            do {
-                $n = DB::table('eligibilites_calculees')->where('version', '<>', $v)->limit(5000)->delete();
-            } while ($n > 0);
+            $controller->finaliserVersion($v, $meta); // ligne de fin + nettoyage des anciennes versions
 
             Log::info("RebuildEligibilitesTableJob : table pré-calculée (v{$v}) reconstruite avec succès.");
         } catch (\Throwable $e) {
