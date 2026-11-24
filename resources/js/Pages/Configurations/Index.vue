@@ -854,54 +854,54 @@ const deleteAppui = (ua) => {
 
         <div class="py-6 max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
             <!-- Statistiques de synthèse -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 flex items-center gap-4">
-                    <div class="w-12 h-12 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center text-xl shrink-0">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+                <div class="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200 flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center text-lg shrink-0">
                         <i class="pi pi-map"></i>
                     </div>
-                    <div>
-                        <div class="text-2xl font-bold text-slate-900">{{ stats.total_regions }}</div>
-                        <div class="text-xs text-slate-500 font-medium">Régions & Commandements</div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-2xl font-bold text-slate-900 leading-tight">{{ stats.total_regions }}</div>
+                        <div class="text-xs text-slate-500 font-medium truncate">Régions</div>
                     </div>
                 </div>
 
-                <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 flex items-center gap-4">
-                    <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-xl shrink-0">
+                <div class="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200 flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-lg shrink-0">
                         <i class="pi pi-shield"></i>
                     </div>
-                    <div>
-                        <div class="text-2xl font-bold text-slate-900">{{ stats.total_unites }}</div>
-                        <div class="text-xs text-slate-500 font-medium">Total Unités répertoriées</div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-2xl font-bold text-slate-900 leading-tight">{{ stats.total_unites }}</div>
+                        <div class="text-xs text-slate-500 font-medium truncate">Total Unités</div>
                     </div>
                 </div>
 
-                <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 flex items-center gap-4">
-                    <div class="w-12 h-12 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center text-xl shrink-0">
+                <div class="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200 flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center text-lg shrink-0">
                         <i class="pi pi-check-circle"></i>
                     </div>
-                    <div>
-                        <div class="text-2xl font-bold text-teal-700">{{ stats.unites_operationnelles }}</div>
-                        <div class="text-xs text-slate-500 font-medium">Unités Opérationnelles</div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-2xl font-bold text-teal-700 leading-tight">{{ stats.unites_operationnelles }}</div>
+                        <div class="text-xs text-slate-500 font-medium truncate">Opérationnelles</div>
                     </div>
                 </div>
 
-                <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 flex items-center gap-4">
-                    <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center text-xl shrink-0">
+                <div class="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200 flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center text-lg shrink-0">
                         <i class="pi pi-compass"></i>
                     </div>
-                    <div>
-                        <div class="text-2xl font-bold text-slate-900">{{ stats.total_positions }}</div>
-                        <div class="text-xs text-slate-500 font-medium">Positions administratives / OPS</div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-2xl font-bold text-slate-900 leading-tight">{{ stats.total_positions }}</div>
+                        <div class="text-xs text-slate-500 font-medium truncate">Positions</div>
                     </div>
                 </div>
 
-                <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 flex items-center gap-4">
-                    <div class="w-12 h-12 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center text-xl shrink-0">
+                <div class="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200 flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center text-lg shrink-0">
                         <i class="pi pi-flag"></i>
                     </div>
-                    <div>
-                        <div class="text-2xl font-bold text-sky-900">{{ stats.total_theatres || theatres.length }}</div>
-                        <div class="text-xs text-slate-500 font-medium">Théâtres d'Opérations</div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-2xl font-bold text-sky-900 leading-tight">{{ stats.total_theatres || theatres.length }}</div>
+                        <div class="text-xs text-slate-500 font-medium truncate">Théâtres OPS</div>
                     </div>
                 </div>
             </div>
@@ -919,7 +919,7 @@ const deleteAppui = (ua) => {
                         ]"
                     >
                         <i class="pi pi-shield"></i>
-                        <span>Unités & Écoles / Directions ({{ unites.length }})</span>
+                        <span>Unités ({{ unites.length }})</span>
                     </button>
 
                     <button
@@ -932,7 +932,7 @@ const deleteAppui = (ua) => {
                         ]"
                     >
                         <i class="pi pi-map"></i>
-                        <span>Régions & Commandements ({{ regions.length }})</span>
+                        <span>Régions ({{ regions.length }})</span>
                     </button>
 
                     <button
@@ -945,7 +945,7 @@ const deleteAppui = (ua) => {
                         ]"
                     >
                         <i class="pi pi-compass"></i>
-                        <span>Positions (Où se trouvent les personnels) ({{ positions.length }})</span>
+                        <span>Positions ({{ positions.length }})</span>
                     </button>
 
                     <button
@@ -958,7 +958,7 @@ const deleteAppui = (ua) => {
                         ]"
                     >
                         <i class="pi pi-flag text-sky-700"></i>
-                        <span>Théâtres d'Opérations ({{ theatres.length }})</span>
+                        <span>Théâtres ({{ theatres.length }})</span>
                     </button>
                 </div>
 

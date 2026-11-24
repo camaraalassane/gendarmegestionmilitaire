@@ -1226,11 +1226,16 @@ const baseRegionBox = computed(() => {
         }
 
         if (hasPoints && isFinite(minX) && isFinite(maxX)) {
-            const pw = Math.max(maxX - minX, 40);
-            const ph = Math.max(maxY - minY, 40);
-            // Marge dynamique aérée (8%) pour que l'intégralité de la zone de couverture respire
-            const pad = Math.max(Math.max(pw, ph) * 0.08, 14);
-            return [minX - pad, minY - pad, pw + 2 * pad, ph + 2 * pad];
+            const cx = (minX + maxX) / 2;
+            const cy = (minY + maxY) / 2;
+            // Échelle équilibrée : garantir une envergure minimale confortable (min 230x180)
+            // pour que la région et sa zone de couverture respirent sans zoom excessif
+            const targetW = Math.max(maxX - minX, 230);
+            const targetH = Math.max(maxY - minY, 180);
+            const pad = Math.max(targetW, targetH) * 0.12;
+            const boxW = targetW + 2 * pad;
+            const boxH = targetH + 2 * pad;
+            return [cx - boxW / 2, cy - boxH / 2, boxW, boxH];
         }
 
         return full;
@@ -2534,22 +2539,23 @@ const lignesFiltrees = computed(() => {
                                         :key="'mk-' + t.code"
                                         class="cursor-pointer transition-transform duration-150 select-none"
                                         :transform="`translate(${t.px}, ${t.py})`"
+                                        :opacity="selTheatre && selTheatre !== t.code ? 0.35 : 1"
                                         @click.stop="choisirTheatre(t.code)"
                                         @mouseenter="hoveredTheatre = t.code"
                                         @mouseleave="hoveredTheatre = null"
                                     >
                                         <circle
-                                            :r="selTheatre === t.code || hoveredTheatre === t.code ? 9.5 : 7.5"
+                                            :r="(selTheatre === t.code || hoveredTheatre === t.code ? 9.5 : 7.5) * (selTheatre ? 0.7 : 1)"
                                             :fill="t.couleur"
                                             stroke="#ffffff"
-                                            stroke-width="2"
+                                            :stroke-width="selTheatre ? 1.4 : 2"
                                             filter="url(#badge-glow)"
                                         />
                                         <text
                                             x="0"
-                                            y="3.2"
+                                            :y="selTheatre ? 2.4 : 3.2"
                                             text-anchor="middle"
-                                            font-size="8.5"
+                                            :font-size="selTheatre ? 6 : 8.5"
                                             font-weight="bold"
                                             fill="#ffffff"
                                             class="pointer-events-none select-none"
@@ -2634,34 +2640,34 @@ const lignesFiltrees = computed(() => {
                                             v-for="t in tacticalTheatres.filter(th => th.code === selTheatre)"
                                             :key="'pc-callout-' + t.code"
                                             class="pointer-events-none select-none transition-all duration-200"
-                                            :transform="`translate(${t.px}, ${t.py - 16})`"
+                                            :transform="`translate(${t.px}, ${t.py - 12})`"
                                         >
-                                            <!-- Boîtier du badge centré -->
+                                            <!-- Boîtier du badge centré proportionné -->
                                             <rect
-                                                :x="-65"
-                                                :y="-34"
-                                                width="130"
-                                                height="32"
-                                                rx="6"
+                                                :x="-48"
+                                                :y="-24"
+                                                width="96"
+                                                height="24"
+                                                rx="5"
                                                 fill="#07101e"
                                                 :stroke="t.couleur"
-                                                stroke-width="2"
+                                                stroke-width="1.6"
                                                 filter="url(#badge-glow)"
                                             />
                                             <rect
-                                                :x="-65"
-                                                :y="-34"
-                                                width="4"
-                                                height="32"
-                                                rx="2"
+                                                :x="-48"
+                                                :y="-24"
+                                                width="3.5"
+                                                height="24"
+                                                rx="1.5"
                                                 :fill="t.couleur"
                                             />
                                             <!-- Ligne 1 : Code et PC -->
                                             <text
-                                                :x="-56"
-                                                :y="-21"
+                                                :x="-41"
+                                                :y="-14"
                                                 fill="#94a3b8"
-                                                font-size="7.5"
+                                                font-size="5.5"
                                                 font-weight="bold"
                                                 font-family="monospace"
                                             >
@@ -2669,16 +2675,16 @@ const lignesFiltrees = computed(() => {
                                             </text>
                                             <!-- Ligne 2 : Chiffre effectif -->
                                             <text
-                                                :x="-56"
-                                                :y="-9"
+                                                :x="-41"
+                                                :y="-4.5"
                                             >
-                                                <tspan fill="#ffffff" font-size="10.5" font-weight="900">{{ fmt(t.effectif) }}</tspan>
-                                                <tspan fill="#94a3b8" font-size="7.5" font-weight="600"> gendarme{{ t.effectif > 1 ? 's' : '' }}</tspan>
-                                                <tspan v-if="t.hasAppui && t.appuiTotal > 0" fill="#f59e0b" font-size="8" font-weight="bold"> (+{{ t.appuiTotal }})</tspan>
+                                                <tspan fill="#ffffff" font-size="8" font-weight="900">{{ fmt(t.effectif) }}</tspan>
+                                                <tspan fill="#94a3b8" font-size="5.5" font-weight="600"> gendarme{{ t.effectif > 1 ? 's' : '' }}</tspan>
+                                                <tspan v-if="t.hasAppui && t.appuiTotal > 0" fill="#f59e0b" font-size="6" font-weight="bold"> (+{{ t.appuiTotal }})</tspan>
                                             </text>
                                             <!-- Petite pointe flèche indicateur vers le bas -->
                                             <polygon
-                                                points="-4,-2 4,-2 0,2"
+                                                points="-3,-1 3,-1 0,2"
                                                 :fill="t.couleur"
                                             />
                                         </g>
@@ -2696,7 +2702,7 @@ const lignesFiltrees = computed(() => {
                                                         y="0"
                                                         text-anchor="middle"
                                                         fill="#ffffff"
-                                                        font-size="9"
+                                                        font-size="6"
                                                         font-weight="bold"
                                                         letter-spacing="0.5"
                                                         filter="url(#badge-glow)"

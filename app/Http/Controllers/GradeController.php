@@ -13,6 +13,55 @@ class GradeController extends Controller
      */
     public function index(Request $request)
     {
+        $hasFilters = $request->filled('search') || $request->filled('type');
+        $v = \App\Models\Militaire::getCacheVersion();
+
+        // Vue par défaut mise en cache ultra-rapide (TIC-TAC)
+        if (! $hasFilters && ! $request->has('page')) {
+            $cached = \Illuminate\Support\Facades\Cache::remember("v{$v}:grades:index_default", 86400, function () {
+                $grades = Grade::query()
+                    ->withCount([
+                        'militaires as effectif_total',
+                        'militaires as effectif_actif' => fn ($q) => $q->whereBetween('statut_code', [1, 4]),
+                    ])
+                    ->orderByDesc('ordre')
+                    ->paginate(20)
+                    ->through(fn ($grade) => [
+                        'id' => $grade->id,
+                        'code_grade' => $grade->code_grade,
+                        'nom_grade' => $grade->nom_grade,
+                        'type_grade' => $grade->type_grade,
+                        'ordre' => $grade->ordre,
+                        'effectif_actif' => $grade->effectif_actif,
+                        'effectif_total' => $grade->effectif_total,
+                    ]);
+
+                $statistiques = [
+                    'total_grades' => Grade::count(),
+                    'types_grades' => Grade::distinct('type_grade')->count('type_grade'),
+                    'total_militaires' => \App\Models\Militaire::whereBetween('statut_code', [1, 4])->count(),
+                ];
+
+                $typesGrades = Grade::distinct('type_grade')
+                    ->pluck('type_grade')
+                    ->map(fn ($type) => ['label' => $type, 'value' => $type])
+                    ->toArray();
+
+                return [
+                    'grades' => $grades,
+                    'statistiques' => $statistiques,
+                    'typesGrades' => $typesGrades,
+                ];
+            });
+
+            return Inertia::render('grades/index', [
+                'grades' => $cached['grades'],
+                'statistiques' => $cached['statistiques'],
+                'filters' => $request->only(['search', 'type']),
+                'typesGrades' => $cached['typesGrades'],
+            ]);
+        }
+
         $query = Grade::query();
 
         // RECHERCHE AMÉLIORÉE AVEC GESTION DES ESPACES (CORRECTION SERVEUR)

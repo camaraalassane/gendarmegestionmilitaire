@@ -21,6 +21,45 @@ class ConfigurationController extends Controller
      */
     public function index(Request $request)
     {
+        $hasFilters = $request->filled('region_id') || $request->filled('search_unite');
+        $v = \App\Models\Militaire::getCacheVersion();
+
+        if (! $hasFilters) {
+            $cached = \Illuminate\Support\Facades\Cache::remember("v{$v}:configurations:index_default", 86400, function () {
+                $regions = Region::withCount('unites')
+                    ->orderBy('ordre')
+                    ->orderBy('nom')
+                    ->get();
+
+                $unites = Unite::with('region')->orderBy('nom')->get();
+                $positions = Position::orderBy('nom')->get();
+                $theatres = Theatre::withCount('militaires')->with('unitesAppui')->orderBy('nom')->get();
+
+                $stats = [
+                    'total_regions' => $regions->count(),
+                    'total_unites' => $unites->count(),
+                    'unites_operationnelles' => $unites->where('est_operationnelle', true)->count(),
+                    'unites_non_operationnelles' => $unites->where('est_operationnelle', false)->count(),
+                    'total_positions' => $positions->count(),
+                    'total_theatres' => $theatres->count(),
+                    'theatres_actifs' => $theatres->where('statut', 'actif')->count(),
+                    'total_unites_appui' => TheatreUniteAppui::count(),
+                    'effectif_total_appui' => (int) TheatreUniteAppui::sum('effectif'),
+                ];
+
+                return compact('regions', 'unites', 'positions', 'theatres', 'stats');
+            });
+
+            return Inertia::render('Configurations/Index', [
+                'regions' => $cached['regions'],
+                'unites' => $cached['unites'],
+                'positions' => $cached['positions'],
+                'theatres' => $cached['theatres'],
+                'stats' => $cached['stats'],
+                'filters' => $request->only(['region_id', 'search_unite']),
+            ]);
+        }
+
         $regions = Region::withCount('unites')
             ->orderBy('ordre')
             ->orderBy('nom')
