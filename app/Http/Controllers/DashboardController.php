@@ -87,10 +87,10 @@ class DashboardController extends Controller
                 ->count();
 
             // 2. Proposables avancement année N (source unique d'éligibilités calculées pour performance ultra-rapide)
-            $totalProposablesN = Cache::remember("v{$v}:dashboard:proposables_n_count", 86400, function () use ($v) {
+            $totalProposablesN = Cache::remember("v{$v}:dashboard:proposables_n_count", 86400, function () {
                 $vPrete = (int) DB::table('eligibilites_calculees')->where('type', 'meta')->max('version');
-                if ($vPrete === $v) {
-                    return (int) DB::table('eligibilites_calculees')->where('version', $v)->where('type', 'promotions')->count();
+                if ($vPrete > 0) {
+                    return (int) DB::table('eligibilites_calculees')->where('version', $vPrete)->where('type', 'promotions')->count();
                 }
                 $propBoth = $this->getProposablesBoth();
                 return $propBoth['proposablesN']['total'] ?? 0;
