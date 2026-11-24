@@ -44,7 +44,8 @@ class PrewarmDashboardCacheJob implements ShouldQueue
 
             Log::info("PrewarmDashboardCacheJob : Caches lourds (v{$v}) pré-calculés avec succès en tâche de fond.");
         } catch (\Throwable $e) {
-            Log::warning("PrewarmDashboardCacheJob : Erreur lors du pré-calcul en arrière-plan : " . $e->getMessage());
+            Log::error("PrewarmDashboardCacheJob : échec du pré-calcul : " . $e->getMessage(), ['exception' => $e]);
+            \Illuminate\Support\Facades\Cache::forget('prewarm:dashboard:lock'); // permet une nouvelle tentative
         }
     }
 }

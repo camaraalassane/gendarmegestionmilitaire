@@ -110,13 +110,21 @@ class EligibiliteController extends Controller
         ]);
     }
 
+    /** Résultat gardé en mémoire pour la durée de la requête : évite de relire le gros tableau du cache 5 fois. */
+    protected ?array $computedMemo = null;
+    protected ?int $computedMemoVersion = null;
+
     /**
      * Récupère toutes les données d'éligibilités calculées et mises en cache.
      */
     public function getAllComputedData(): array
     {
         $v = \App\Models\Militaire::getCacheVersion();
-        return Cache::remember("v{$v}:eligibilites:all_computed_data", 86400, function () {
+        if ($this->computedMemo !== null && $this->computedMemoVersion === $v) {
+            return $this->computedMemo;
+        }
+        $this->computedMemoVersion = $v;
+        return $this->computedMemo = Cache::remember("v{$v}:eligibilites:all_computed_data", 86400, function () {
             return $this->computeAll();
         });
     }

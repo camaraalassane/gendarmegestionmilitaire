@@ -33,28 +33,33 @@ class PriseArmeController extends Controller
         $unites = Cache::remember('ref:unites_spa', 86400, fn() => Unite::orderBy('nom')->get(['id', 'nom', 'code', 'region_id']));
 
         // 2. Calculs dynamiques de situation SPA (mis en cache rapide par version d'effectifs)
-        $spaData = Cache::remember("v{$v}:spa:situation_complete", 3600, function() use ($spaService, $regions) {
-            $stats = $spaService->calculerStatsGlobales();
-            $matrice = $spaService->calculerMatriceDynamique();
-            $regionsSituation = $spaService->calculerRegionsDynamique();
-            $organismesCards = $spaService->calculerOrganismesCardsDynamique();
+        // Calcul exécuté une seule fois, et seulement quand une propriété différée est demandée
+        // (la page s'affiche donc avant le calcul, et non après).
+        $spaData = null;
+        $chargerSpa = function () use (&$spaData, $v, $spaService, $regions) {
+            return $spaData ??= Cache::remember("v{$v}:spa:situation_complete", 3600, function() use ($spaService, $regions) {
+                $stats = $spaService->calculerStatsGlobales();
+                $matrice = $spaService->calculerMatriceDynamique();
+                $regionsSituation = $spaService->calculerRegionsDynamique();
+                $organismesCards = $spaService->calculerOrganismesCardsDynamique();
 
-            foreach ($regions as $r) {
-                if (!isset($regionsSituation[$r->code])) {
-                    $regionsSituation[$r->code] = [
-                        'id' => $r->id, 'nom' => $r->nom, 'code' => $r->code,
-                        'total' => 0, 'total_h' => 0, 'total_d' => 0, 'grades' => [],
-                        'GAR' => 0, 'GCA' => 0, 'GDD' => 0, 'GDB' => 0,
-                        'CLM' => 0, 'COL' => 0, 'LCL' => 0, 'CES' => 0,
-                        'CNE' => 0, 'LTN' => 0, 'SLT' => 0, 'ASP' => 0,
-                        'EOA' => 0, 'MJR' => 0, 'ADC' => 0, 'ADJ' => 0,
-                        'MDC' => 0, 'MDL' => 0, 'ESOA' => 0, 'MRG' => 0,
-                    ];
+                foreach ($regions as $r) {
+                    if (!isset($regionsSituation[$r->code])) {
+                        $regionsSituation[$r->code] = [
+                            'id' => $r->id, 'nom' => $r->nom, 'code' => $r->code,
+                            'total' => 0, 'total_h' => 0, 'total_d' => 0, 'grades' => [],
+                            'GAR' => 0, 'GCA' => 0, 'GDD' => 0, 'GDB' => 0,
+                            'CLM' => 0, 'COL' => 0, 'LCL' => 0, 'CES' => 0,
+                            'CNE' => 0, 'LTN' => 0, 'SLT' => 0, 'ASP' => 0,
+                            'EOA' => 0, 'MJR' => 0, 'ADC' => 0, 'ADJ' => 0,
+                            'MDC' => 0, 'MDL' => 0, 'ESOA' => 0, 'MRG' => 0,
+                        ];
+                    }
                 }
-            }
 
-            return compact('stats', 'matrice', 'regionsSituation', 'organismesCards');
-        });
+                return compact('stats', 'matrice', 'regionsSituation', 'organismesCards');
+            });
+        };
 
         // 3. Registres opérationnels : requête aplatie ultra-légère (divise la charge payload par 4)
         $hasFilter = $request->filled('type_registre_code') || $request->filled('region_id')
@@ -69,14 +74,14 @@ class PriseArmeController extends Controller
             : [];
 
         return Inertia::render('PriseArmes/Index', [
-            'stats' => Inertia::defer(fn() => $spaData['stats']),
+            'stats' => Inertia::defer(fn() => $chargerSpa()['stats']),
             'organismes' => $organismes,
             'regions' => $regions,
             'grades' => $grades,
             'unites' => $unites,
-            'matrice' => Inertia::defer(fn() => $spaData['matrice']),
-            'regionsSituation' => Inertia::defer(fn() => $spaData['regionsSituation']),
-            'organismesCards' => Inertia::defer(fn() => $spaData['organismesCards']),
+            'matrice' => Inertia::defer(fn() => $chargerSpa()['matrice']),
+            'regionsSituation' => Inertia::defer(fn() => $chargerSpa()['regionsSituation']),
+            'organismesCards' => Inertia::defer(fn() => $chargerSpa()['organismesCards']),
             'registres' => $registres,
             'militairesLookup' => [],
             'filters' => $request->only([

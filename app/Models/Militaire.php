@@ -539,8 +539,14 @@ class Militaire extends Model
         \Illuminate\Support\Facades\Cache::forget('dashboard:statistiques_cards');
 
         // Pré-réchauffement des caches lourds en arrière-plan sans ralentir la réponse HTTP
-        if (!static::$isImporting) {
-            dispatch(new \App\Jobs\PrewarmDashboardCacheJob())->afterResponse();
+        // Limite : au plus un pré-calcul toutes les 2 minutes (évite N calculs lourds pour N fiches enregistrées).
+        if (!static::$isImporting && \Illuminate\Support\Facades\Cache::add('prewarm:dashboard:lock', 1, 120)) {
+            $job = new \App\Jobs\PrewarmDashboardCacheJob();
+            if (config('queue.default') === 'sync') {
+                dispatch($job)->afterResponse(); // pas de worker : exécuté après l'envoi de la réponse
+            } else {
+                dispatch($job)->delay(now()->addSeconds(20)); // vrai arrière-plan via le worker
+            }
         }
     }
 
