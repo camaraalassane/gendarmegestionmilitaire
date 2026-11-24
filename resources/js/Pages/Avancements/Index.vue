@@ -18,6 +18,9 @@ const props = defineProps({
     selectedGrade: { type: String, default: 'all' },
     initialTab: { type: String, default: 'officiers' },
     search: { type: String, default: '' },
+    currentPage: { type: Number, default: 1 },
+    perPage: { type: Number, default: 25 },
+    totalItems: { type: Number, default: 0 },
     stats: {
         type: Object,
         default: () => ({
@@ -40,8 +43,16 @@ const saving = ref(false);
 const hasUnsavedChanges = ref(false);
 
 // Pagination
-const currentPage = ref(1);
-const perPage = ref(25);
+const currentPage = ref(props.currentPage || 1);
+const perPage = ref(props.perPage || 25);
+const serverTotalItems = ref(props.totalItems || 0);
+
+watch(() => props.currentPage, (val) => { currentPage.value = val; });
+watch(() => props.perPage, (val) => { perPage.value = val; });
+watch(() => props.totalItems, (val) => { serverTotalItems.value = val; });
+watch(() => props.selectedGrade, (val) => { currentGrade.value = val; });
+watch(() => props.initialTab, (val) => { activeTab.value = val; });
+watch(() => props.search, (val) => { searchQuery.value = val; });
 
 const dateImpression = new Date().toLocaleDateString('fr-FR', {
     day: '2-digit',
@@ -128,11 +139,42 @@ const onCellKeydown = (event, colName) => {
     }
 };
 
+let searchDebounceTimer = null;
+
 onUnmounted(() => {
     if (countdownInterval) {
         clearInterval(countdownInterval);
     }
+    if (searchDebounceTimer) {
+        clearTimeout(searchDebounceTimer);
+    }
 });
+
+const fetchServerPage = (options = {}) => {
+    const tab = options.tab !== undefined ? options.tab : activeTab.value;
+    const grade = options.grade !== undefined ? options.grade : currentGrade.value;
+    const search = options.search !== undefined ? options.search : searchQuery.value;
+    const page = options.page !== undefined ? options.page : currentPage.value;
+    const pp = options.perPage !== undefined ? options.perPage : perPage.value;
+
+    router.get(
+        '/avancements',
+        {
+            annee: currentAnnee.value,
+            tab,
+            grade,
+            search: (search || '').trim(),
+            page,
+            per_page: pp
+        },
+        {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+            only: ['candidates', 'totalItems', 'currentPage', 'perPage', 'selectedGrade', 'search', 'initialTab']
+        }
+    );
+};
 
 /**
  * Changement d'onglet
@@ -144,6 +186,31 @@ const switchTab = (tab) => {
     activeTab.value = tab;
     currentGrade.value = 'all';
     currentPage.value = 1;
+    fetchServerPage({ tab, grade: 'all', page: 1 });
+};
+
+const onGradeChange = () => {
+    currentPage.value = 1;
+    fetchServerPage({ grade: currentGrade.value, page: 1 });
+};
+
+const onSearchInput = () => {
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+        currentPage.value = 1;
+        fetchServerPage({ search: searchQuery.value, page: 1 });
+    }, 350);
+};
+
+const onPerPageChange = () => {
+    currentPage.value = 1;
+    fetchServerPage({ perPage: perPage.value, page: 1 });
+};
+
+const goToPage = (p) => {
+    if (p < 1 || p > totalPages.value || p === currentPage.value) return;
+    currentPage.value = p;
+    fetchServerPage({ page: p });
 };
 
 /**
@@ -218,40 +285,10 @@ const recalculerRangsOfficiers = () => {
 };
 
 /**
- * Candidats filtrés par l'onglet actif, puis le grade et la recherche
+ * Pagination & Affichage (candidats déjà paginés et ordonnés côté serveur)
  */
-const tabCandidates = computed(() => {
-    if (activeTab.value === 'officiers') {
-        return localCandidates.value.filter(c => !!c.is_officier);
-    } else {
-        return localCandidates.value.filter(c => !c.is_officier);
-    }
-});
-
-const filteredCandidates = computed(() => {
-    let list = tabCandidates.value;
-
-    if (currentGrade.value && currentGrade.value !== 'all') {
-        list = list.filter(c => (c.grade_actuel || '') === currentGrade.value);
-    }
-
-    if (searchQuery.value) {
-        const q = searchQuery.value.toLowerCase().trim();
-        list = list.filter(c =>
-            (c.nom && c.nom.toLowerCase().includes(q)) ||
-            (c.prenom && c.prenom.toLowerCase().includes(q)) ||
-            (c.matricule && c.matricule.toLowerCase().includes(q)) ||
-            (c.mle_grm && c.mle_grm.toLowerCase().includes(q))
-        );
-    }
-    return list;
-});
-
-/**
- * Pagination
- */
-const totalItems = computed(() => filteredCandidates.value.length);
-const totalPages = computed(() => Math.ceil(totalItems.value / perPage.value) || 1);
+const totalItems = computed(() => serverTotalItems.value);
+const totalPages = computed(() => Math.ceil(serverTotalItems.value / perPage.value) || 1);
 
 const visiblePages = computed(() => {
     const pages = [];
@@ -268,15 +305,11 @@ const visiblePages = computed(() => {
 });
 
 const paginatedCandidates = computed(() => {
-    if (perPage.value >= 9999) {
-        return filteredCandidates.value;
-    }
-    const start = (currentPage.value - 1) * perPage.value;
-    return filteredCandidates.value.slice(start, start + perPage.value);
+    return localCandidates.value;
 });
 
 const paginationInfo = computed(() => {
-    const total = totalItems.value;
+    const total = serverTotalItems.value;
     if (total === 0) return { from: 0, to: 0, total: 0 };
     const from = (currentPage.value - 1) * perPage.value + 1;
     const to = Math.min(currentPage.value * perPage.value, total);
@@ -603,7 +636,7 @@ const printTable = () => {
                         <!-- Filtre par Grade -->
                         <div class="flex items-center gap-1.5">
                             <label class="text-xs font-bold text-slate-600 uppercase">Grade :</label>
-                            <select v-model="currentGrade" @change="currentPage = 1"
+                            <select v-model="currentGrade" @change="onGradeChange"
                                 class="px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 focus:ring-2 focus:ring-sky-500">
                                 <option value="all">Tous les grades ({{ activeAvailableGrades.length }})</option>
                                 <option v-for="g in activeAvailableGrades" :key="g" :value="g">
@@ -615,14 +648,14 @@ const printTable = () => {
                         <!-- Recherche -->
                         <div class="relative flex-1 min-w-[170px]">
                             <i class="pi pi-search absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                            <input type="text" v-model="searchQuery" @input="currentPage = 1" placeholder="Rechercher nom, matricule..."
+                            <input type="text" v-model="searchQuery" @input="onSearchInput" placeholder="Rechercher nom, matricule..."
                                 class="w-full pl-7 pr-2.5 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-sky-500 focus:border-sky-500" />
                         </div>
 
                         <!-- Éléments par page -->
                         <div class="flex items-center gap-1.5 text-xs text-slate-600">
                             <label class="font-bold">Afficher :</label>
-                            <select v-model.number="perPage" @change="currentPage = 1"
+                            <select v-model.number="perPage" @change="onPerPageChange"
                                 class="px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-sky-500">
                                 <option :value="15">15 / page</option>
                                 <option :value="25">25 / page</option>
@@ -993,12 +1026,12 @@ const printTable = () => {
                     </div>
 
                     <div v-if="totalPages > 1" class="flex items-center gap-1">
-                        <button @click="currentPage = Math.max(1, currentPage - 1)" :disabled="currentPage === 1"
+                        <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1"
                             class="px-2 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-xs cursor-pointer">
                             ← Précédent
                         </button>
 
-                        <button v-for="p in visiblePages" :key="p" @click="currentPage = p"
+                        <button v-for="p in visiblePages" :key="p" @click="goToPage(p)"
                             :class="[
                                 'px-2.5 py-1 border rounded text-xs font-bold transition-colors cursor-pointer',
                                 currentPage === p ? 'bg-sky-800 text-white border-sky-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
@@ -1006,7 +1039,7 @@ const printTable = () => {
                             {{ p }}
                         </button>
 
-                        <button @click="currentPage = Math.min(totalPages, currentPage + 1)" :disabled="currentPage === totalPages"
+                        <button @click="goToPage(currentPage + 1)" :disabled="currentPage === totalPages"
                             class="px-2 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-xs cursor-pointer">
                             Suivant →
                         </button>
@@ -1183,12 +1216,12 @@ const printTable = () => {
                     </div>
 
                     <div v-if="totalPages > 1" class="flex items-center gap-1">
-                        <button @click="currentPage = Math.max(1, currentPage - 1)" :disabled="currentPage === 1"
+                        <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1"
                             class="px-2 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-xs cursor-pointer">
                             ← Précédent
                         </button>
 
-                        <button v-for="p in visiblePages" :key="p" @click="currentPage = p"
+                        <button v-for="p in visiblePages" :key="p" @click="goToPage(p)"
                             :class="[
                                 'px-2.5 py-1 border rounded text-xs font-bold transition-colors cursor-pointer',
                                 currentPage === p ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
@@ -1196,7 +1229,7 @@ const printTable = () => {
                             {{ p }}
                         </button>
 
-                        <button @click="currentPage = Math.min(totalPages, currentPage + 1)" :disabled="currentPage === totalPages"
+                        <button @click="goToPage(currentPage + 1)" :disabled="currentPage === totalPages"
                             class="px-2 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-xs cursor-pointer">
                             Suivant →
                         </button>

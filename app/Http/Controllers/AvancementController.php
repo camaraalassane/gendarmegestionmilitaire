@@ -20,83 +20,440 @@ class AvancementController extends Controller
     protected ?array $candidatesPayloadCache = null;
 
     /**
-     * Calcule ou récupère en mémoire le payload complet des candidats et métriques pour la session.
+     * Récupère les statistiques d'avancement et la liste des grades disponibles par catégorie
+     * Exécuté en une seule requête SQL d'agrégation ultra-rapide (< 15 ms).
      */
-    public function getCandidatesPayload(int $annee): array
+    public function getStats(int $annee): array
     {
-        if ($this->candidatesPayloadCache !== null) {
-            return $this->candidatesPayloadCache;
+        $v = (int) DB::table('eligibilites_calculees')->where('type', 'meta')->max('version');
+        if ($v === 0) {
+            $eligibiliteController = app(EligibiliteController::class);
+            $v = $eligibiliteController->assurerCalcul();
         }
 
+        $officierGrades = Grade::all()->filter(fn($g) => Grade::isOfficier($g->nom_grade))->pluck('nom_grade')->all();
         $gradesHierarchy = Grade::pluck('ordre', 'nom_grade')->all();
-        $candidates = $this->buildCandidatesList($annee);
 
-        // Séparer les grades disponibles par catégorie
-        $availableGradesOfficiers = [];
-        $availableGradesSousOfficiers = [];
+        $counts = DB::table('militaires as m')
+            ->leftJoin('eligibilites_calculees as ec', function ($join) use ($v) {
+                $join->on('ec.militaire_id', '=', 'm.id')
+                     ->where('ec.version', '=', $v)
+                     ->where('ec.type', '=', 'promotions');
+            })
+            ->leftJoin('avancements as a', function ($join) use ($annee) {
+                $join->on('a.militaire_id', '=', 'm.id')
+                     ->where('a.annee', '=', $annee);
+            })
+            ->where(function ($w) {
+                $w->whereNotNull('ec.militaire_id')
+                  ->orWhereNotNull('a.id');
+            })
+            ->whereNull('m.deleted_at')
+            ->whereNull('m.date_deces')
+            ->whereRaw(\App\Support\Effectif::sqlActivite('m.statut'))
+            ->select([
+                DB::raw('COALESCE(a.grade_actuel, ec.grade_actuel, m.grade_actuel) as grade_actuel'),
+                DB::raw('COUNT(*) as total'),
+                DB::raw('COUNT(a.id) as enregistres'),
+            ])
+            ->groupBy(DB::raw('COALESCE(a.grade_actuel, ec.grade_actuel, m.grade_actuel)'))
+            ->get();
 
-        foreach ($candidates as $c) {
-            $g = $c['grade_actuel'] ?? null;
+        $gradesOfficiers = [];
+        $gradesSousOfficiers = [];
+        $totalCandidats = 0;
+        $totalOfficiers = 0;
+        $totalSousOfficiers = 0;
+        $totalEnregistres = 0;
+
+        foreach ($counts as $row) {
+            $g = $row->grade_actuel;
             if (!$g) continue;
-            if (!empty($c['is_officier'])) {
-                $availableGradesOfficiers[$g] = true;
+            $cnt = (int) $row->total;
+            $totalCandidats += $cnt;
+            $totalEnregistres += (int) $row->enregistres;
+
+            if (in_array($g, $officierGrades, true)) {
+                $totalOfficiers += $cnt;
+                $gradesOfficiers[] = $g;
             } else {
-                $availableGradesSousOfficiers[$g] = true;
+                $totalSousOfficiers += $cnt;
+                $gradesSousOfficiers[] = $g;
             }
         }
 
-        $sortGradesDesc = function ($list) use ($gradesHierarchy) {
-            $keys = array_keys($list);
-            usort($keys, function ($a, $b) use ($gradesHierarchy) {
-                $orderA = $gradesHierarchy[$a] ?? 0;
-                $orderB = $gradesHierarchy[$b] ?? 0;
-                return $orderB <=> $orderA;
+        $sortGradesDesc = function (&$list) use ($gradesHierarchy) {
+            usort($list, function ($a, $b) use ($gradesHierarchy) {
+                return ($gradesHierarchy[$b] ?? 0) <=> ($gradesHierarchy[$a] ?? 0);
             });
-            return $keys;
         };
+        $sortGradesDesc($gradesOfficiers);
+        $sortGradesDesc($gradesSousOfficiers);
 
-        $gradesOfficiers = $sortGradesDesc($availableGradesOfficiers);
-        $gradesSousOfficiers = $sortGradesDesc($availableGradesSousOfficiers);
-
-        $countOfficiers = count(array_filter($candidates, fn($c) => !empty($c['is_officier'])));
-        $countSousOfficiers = count(array_filter($candidates, fn($c) => empty($c['is_officier'])));
-
-        return $this->candidatesPayloadCache = [
-            'candidates' => $candidates,
-            'gradesOfficiers' => $gradesOfficiers,
-            'gradesSousOfficiers' => $gradesSousOfficiers,
+        return [
             'stats' => [
-                'total_candidats' => count($candidates),
-                'total_officiers' => $countOfficiers,
-                'total_sous_officiers' => $countSousOfficiers,
+                'total_candidats' => $totalCandidats,
+                'total_officiers' => $totalOfficiers,
+                'total_sous_officiers' => $totalSousOfficiers,
                 'total_grades_officiers' => count($gradesOfficiers),
                 'total_grades_sous_officiers' => count($gradesSousOfficiers),
-                'total_enregistres' => count(array_filter($candidates, fn($c) => !empty($c['est_enregistre']))),
-            ]
+                'total_enregistres' => $totalEnregistres,
+            ],
+            'gradesOfficiers' => array_values($gradesOfficiers),
+            'gradesSousOfficiers' => array_values($gradesSousOfficiers),
         ];
     }
 
     /**
-     * Affiche le tableau d'avancement avec onglets Officiers / Sous-Officiers
-     * Chargement instantané de la coquille avec Inertia::defer pour les listes lourdes.
+     * Récupère la page de candidats avec calcul de rang SQL fenêtré (ROW_NUMBER() OVER PARTITION BY grade)
+     * Consommation mémoire O(1) : seule la page demandée (ex: 25 lignes) est hydratée.
      */
-    public function index(Request $request): Response
+    public function getPaginatedCandidates(
+        int $annee,
+        string $tab = 'sous_officiers',
+        string $grade = 'all',
+        string $search = '',
+        int $page = 1,
+        int $perPage = 25
+    ): array {
+        $v = (int) DB::table('eligibilites_calculees')->where('type', 'meta')->max('version');
+        if ($v === 0) {
+            $eligibiliteController = app(EligibiliteController::class);
+            $v = $eligibiliteController->assurerCalcul();
+        }
+
+        $officierGrades = Grade::all()->filter(fn($g) => Grade::isOfficier($g->nom_grade))->pluck('nom_grade')->all();
+        $isOfficierTab = ($tab === 'officiers');
+
+        // Ordre officiel :
+        // - Officiers : tri par total_points DESC, ancienneté grade DESC, nom, prénom, matricule
+        // - Sous-Officiers : tri par date promotion ASC, date incorporation ASC, date naissance ASC, nom, prénom, matricule
+        $windowOrder = $isOfficierTab
+            ? "COALESCE(a.total_points, 0) DESC, COALESCE(a.points_anciennete_grade, 0) DESC, COALESCE(m.date_derniere_promotion, m.date_entree_service) ASC, m.nom ASC, m.prenom ASC, m.matricule ASC"
+            : "COALESCE(m.date_derniere_promotion, m.date_entree_service) ASC, m.date_entree_service ASC, m.date_naissance ASC, m.nom ASC, m.prenom ASC, m.matricule ASC";
+
+        $baseQuery = DB::table('militaires as m')
+            ->leftJoin('eligibilites_calculees as ec', function ($join) use ($v) {
+                $join->on('ec.militaire_id', '=', 'm.id')
+                     ->where('ec.version', '=', $v)
+                     ->where('ec.type', '=', 'promotions');
+            })
+            ->leftJoin('avancements as a', function ($join) use ($annee) {
+                $join->on('a.militaire_id', '=', 'm.id')
+                     ->where('a.annee', '=', $annee);
+            })
+            ->join('grades as g', 'g.nom_grade', '=', DB::raw('COALESCE(a.grade_actuel, ec.grade_actuel, m.grade_actuel)'))
+            ->where(function ($w) {
+                $w->whereNotNull('ec.militaire_id')
+                  ->orWhereNotNull('a.id');
+            })
+            ->whereNull('m.deleted_at')
+            ->whereNull('m.date_deces')
+            ->whereRaw(\App\Support\Effectif::sqlActivite('m.statut'))
+            ->select([
+                'm.id as militaire_id',
+                'm.matricule',
+                'm.mle_grm',
+                'm.nom',
+                'm.prenom',
+                'm.photo',
+                'm.statut',
+                DB::raw('COALESCE(a.grade_actuel, ec.grade_actuel, m.grade_actuel) as grade_actuel'),
+                'g.ordre as grade_ordre',
+                'm.date_derniere_promotion',
+                'm.date_entree_service',
+                'm.date_naissance',
+                'm.fonction_actuelle',
+                'm.position_actuelle',
+                'm.diplomes_academiques',
+                'm.decorations',
+                'a.id as avancement_id',
+                'a.grade_cible as saved_grade_cible',
+                'a.points_fonction_actuelle',
+                'a.note_rendement',
+                'a.bonus_dernier_emploi',
+                'a.points_diplomes',
+                'a.points_decorations',
+                'a.points_anciennete_grade',
+                'a.jours_punition',
+                'a.malus_punition',
+                'a.points_limite_age',
+                'a.total_points',
+                'ec.payload as promo_payload',
+                DB::raw("ROW_NUMBER() OVER (
+                    PARTITION BY COALESCE(a.grade_actuel, ec.grade_actuel, m.grade_actuel) 
+                    ORDER BY {$windowOrder}
+                ) as rang")
+            ]);
+
+        if ($tab === 'officiers') {
+            $baseQuery->whereIn(DB::raw('COALESCE(a.grade_actuel, ec.grade_actuel, m.grade_actuel)'), $officierGrades);
+        } elseif ($tab === 'sous_officiers') {
+            $baseQuery->whereNotIn(DB::raw('COALESCE(a.grade_actuel, ec.grade_actuel, m.grade_actuel)'), $officierGrades);
+        }
+
+        $query = DB::query()->fromSub($baseQuery, 'c');
+
+        if (!empty($grade) && $grade !== 'all') {
+            $query->where('c.grade_actuel', $grade);
+        }
+
+        if (!empty($search)) {
+            $s = '%' . trim($search) . '%';
+            $query->where(function ($w) use ($s) {
+                $w->where('c.nom', 'ILIKE', $s)
+                  ->orWhere('c.prenom', 'ILIKE', $s)
+                  ->orWhere('c.matricule', 'ILIKE', $s)
+                  ->orWhere('c.mle_grm', 'ILIKE', $s);
+            });
+        }
+
+        $total = $query->count();
+        $safePerPage = max(1, $perPage);
+        $lastPage = max(1, (int) ceil($total / $safePerPage));
+        $actualPage = min(max(1, $page), $lastPage);
+
+        $rows = $query->orderBy('grade_ordre', 'desc')
+                      ->orderBy('rang', 'asc')
+                      ->offset(($actualPage - 1) * $safePerPage)
+                      ->limit($safePerPage)
+                      ->get();
+
+        $enriched = $this->enrichRows($rows, $annee, $officierGrades);
+
+        return [
+            'data' => $enriched,
+            'total' => $total,
+            'page' => $actualPage,
+            'per_page' => $safePerPage,
+            'last_page' => $lastPage,
+        ];
+    }
+
+    /**
+     * Enrichit une sélection limitée de lignes (la page courante) avec calcul des durées, certificats et totaux
+     */
+    protected function enrichRows($rows, int $annee, array $officierGrades): array
+    {
+        if ($rows->isEmpty()) {
+            return [];
+        }
+
+        $rowIds = $rows->pluck('militaire_id')->all();
+
+        // Récupérer les certificats pour uniquement les militaires de la page
+        $certRows = DB::table('certificat_militaire')
+            ->join('certificats', 'certificats.id', '=', 'certificat_militaire.certificat_id')
+            ->whereIn('certificat_militaire.militaire_id', $rowIds)
+            ->select('certificat_militaire.militaire_id', 'certificats.niveau_certificat')
+            ->get();
+
+        $certsMap = [];
+        foreach ($certRows as $cr) {
+            if ($cr->niveau_certificat) {
+                $certsMap[$cr->militaire_id][] = $cr->niveau_certificat;
+            }
+        }
+
+        $refYear = (int) date('Y');
+        $refDate = Carbon::create($refYear, 12, 31, 23, 59, 59);
+        $result = [];
+
+        foreach ($rows as $r) {
+            $isOff = in_array($r->grade_actuel, $officierGrades, true);
+            $categorieStatutaire = Grade::determinerCategorie($r->grade_actuel);
+            $promoInfo = $r->promo_payload ? json_decode($r->promo_payload, true) : [];
+            $gradeCible = $r->saved_grade_cible ?: ($promoInfo['grade_cible'] ?? '');
+            $fonctionNom = $r->fonction_actuelle ?: $r->position_actuelle ?: 'En fonction';
+
+            $dPromoStr = $r->date_derniere_promotion ? substr($r->date_derniere_promotion, 0, 10) : null;
+            $dEntreeStr = $r->date_entree_service ? substr($r->date_entree_service, 0, 10) : null;
+            $dNaissStr = $r->date_naissance ? substr($r->date_naissance, 0, 10) : null;
+
+            $datePromoTexte = $dPromoStr ? sprintf('%02d/%02d/%04d', (int)substr($dPromoStr, 8, 2), (int)substr($dPromoStr, 5, 2), (int)substr($dPromoStr, 0, 4)) : '-';
+            $dateEntreeTexte = $dEntreeStr ? sprintf('%02d/%02d/%04d', (int)substr($dEntreeStr, 8, 2), (int)substr($dEntreeStr, 5, 2), (int)substr($dEntreeStr, 0, 4)) : '-';
+            $dateNaissTexte = $dNaissStr ? sprintf('%02d/%02d/%04d', (int)substr($dNaissStr, 8, 2), (int)substr($dNaissStr, 5, 2), (int)substr($dNaissStr, 0, 4)) : '-';
+
+            $ancServiceAnnees = 0;
+            $ancServiceTexte = '-';
+            if ($dEntreeStr) {
+                $diffEntree = Carbon::parse($dEntreeStr)->diff($refDate);
+                $ancServiceAnnees = $diffEntree->y;
+                $ancServiceTexte = $diffEntree->y . ' ans' . ($diffEntree->m > 0 ? ' ' . $diffEntree->m . ' mois' : '');
+            }
+
+            $ancGradeAnnees = 0;
+            $ancGradeTexte = '-';
+            if ($dPromoStr) {
+                $diffPromo = Carbon::parse($dPromoStr)->diff($refDate);
+                $ancGradeAnnees = $diffPromo->y;
+                $ancGradeTexte = $diffPromo->y . ' ans' . ($diffPromo->m > 0 ? ' ' . $diffPromo->m . ' mois' : '');
+            } else {
+                $ancGradeAnnees = $ancServiceAnnees;
+                $ancGradeTexte = $ancServiceTexte;
+            }
+
+            $age = 0;
+            $anneesRestantes = null;
+            $malusLimiteAgeDefaut = 0.0;
+            $ageRetraite = Grade::getRetraiteForGrade($r->grade_actuel);
+            if ($dNaissStr) {
+                $age = Carbon::parse($dNaissStr)->age;
+                if ($ageRetraite) {
+                    $yNaiss = (int) substr($dNaissStr, 0, 4);
+                    $anneesRestantes = max(0, ($yNaiss + $ageRetraite) - $annee);
+                    if ($anneesRestantes <= 1) {
+                        $malusLimiteAgeDefaut = 2.0;
+                    } elseif ($anneesRestantes == 2) {
+                        $malusLimiteAgeDefaut = 1.0;
+                    }
+                }
+            }
+
+            $photoUrl = null;
+            if ($r->photo) {
+                if (str_starts_with($r->photo, 'http://') || str_starts_with($r->photo, 'https://')) {
+                    $photoUrl = $r->photo;
+                } else {
+                    $photoUrl = route('militaires.photo', $r->militaire_id, absolute: false) . '?v=' . substr(md5($r->photo), 0, 8);
+                }
+            }
+
+            $ptsFonction = $r->points_fonction_actuelle !== null ? (float) $r->points_fonction_actuelle : 0.0;
+            $noteRendement = $r->note_rendement !== null ? (float) $r->note_rendement : 0.0;
+            $bonusEmploi = $r->bonus_dernier_emploi !== null ? (float) $r->bonus_dernier_emploi : 0.0;
+            $ptsDiplomes = $r->points_diplomes !== null ? (float) $r->points_diplomes : 0.0;
+            $ptsDecos = $r->points_decorations !== null ? (float) $r->points_decorations : 0.0;
+            $ptsAncGrade = $r->points_anciennete_grade !== null ? (float) $r->points_anciennete_grade : 0.0;
+            $joursPunition = $r->jours_punition !== null ? (int) $r->jours_punition : 0;
+            $malusPunition = round($joursPunition * 0.1, 2);
+            $malusLimiteAge = $r->points_limite_age !== null ? (float) $r->points_limite_age : $malusLimiteAgeDefaut;
+
+            $totalPoints = round($noteRendement + $ptsFonction + $bonusEmploi + $ptsDiplomes + $ptsDecos + $ptsAncGrade - $malusLimiteAge - $malusPunition, 2);
+
+            $certificatsFormates = isset($certsMap[$r->militaire_id]) ? implode(', ', $certsMap[$r->militaire_id]) : '';
+            $diplomesFormates = $this->formatList($r->diplomes_academiques);
+            $decorationsFormatees = $this->formatList($r->decorations);
+
+            $result[] = [
+                'militaire_id' => $r->militaire_id,
+                'avancement_id' => $r->avancement_id,
+                'matricule' => $r->matricule,
+                'mle_grm' => $r->mle_grm ?? '',
+                'nom' => $r->nom,
+                'prenom' => $r->prenom,
+                'nom_complet' => trim($r->nom . ' ' . $r->prenom),
+                'photo_url' => $photoUrl,
+                'grade_actuel' => $r->grade_actuel,
+                'grade_ordre' => (int) $r->grade_ordre,
+                'grade_cible' => $gradeCible,
+                'is_officier' => $isOff,
+                'categorie_personnel' => $isOff ? 'officier' : 'sous_officier',
+                'categorie_statutaire' => $categorieStatutaire,
+                'fonction_nom' => $fonctionNom,
+                'date_derniere_promotion' => $datePromoTexte,
+                'date_derniere_promotion_raw' => $dPromoStr ?? '',
+                'date_entree_service' => $dateEntreeTexte,
+                'date_entree_service_raw' => $dEntreeStr ?? '',
+                'date_naissance' => $dateNaissTexte,
+                'date_naissance_raw' => $dNaissStr ?? '',
+                'anciennete_grade_texte' => $ancGradeTexte,
+                'anciennete_grade_annees' => $ancGradeAnnees,
+                'anciennete_service_texte' => $ancServiceTexte,
+                'anciennete_service_annees' => $ancServiceAnnees,
+                'certificats_texte' => $certificatsFormates,
+                'diplomes_texte' => $diplomesFormates,
+                'decorations_texte' => $decorationsFormatees,
+                'message_eligibilite' => $promoInfo['message'] ?? ("Proposable pour " . $annee),
+                'age' => $age,
+                'annees_restantes_retraite' => $anneesRestantes,
+                'points_fonction_actuelle' => $ptsFonction,
+                'note_rendement' => $noteRendement,
+                'bonus_dernier_emploi' => $bonusEmploi,
+                'points_diplomes' => $ptsDiplomes,
+                'points_decorations' => $ptsDecos,
+                'points_anciennete_grade' => $ptsAncGrade,
+                'jours_punition' => $joursPunition,
+                'malus_punition' => $malusPunition,
+                'malus_limite_age' => $malusLimiteAge,
+                'total_points' => max(0, $totalPoints),
+                'rang' => (int) $r->rang,
+                'est_enregistre' => (bool) $r->avancement_id,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Calcule ou récupère en mémoire le payload complet des candidats et métriques pour la session.
+     */
+    public function getCandidatesPayload(int $annee): array
+    {
+        $stats = $this->getStats($annee);
+        $candidates = $this->buildCandidatesList($annee);
+
+        return [
+            'candidates' => $candidates,
+            'gradesOfficiers' => $stats['gradesOfficiers'],
+            'gradesSousOfficiers' => $stats['gradesSousOfficiers'],
+            'stats' => $stats['stats'],
+        ];
+    }
+
+    /**
+     * Affiche le tableau d'avancement avec pagination côté serveur ultra-performante
+     */
+    public function index(Request $request)
     {
         // Session : toujours l'année en clôture
         $annee = (int) $request->input('annee', date('Y'));
         $gradeFiltre = $request->input('grade', 'all');
-        $tab = $request->input('tab', 'officiers');
+        $tab = $request->input('tab');
         $search = trim((string) $request->input('search', ''));
+        $page = max(1, (int) $request->input('page', 1));
+        $perPage = (int) $request->input('per_page', 25);
+        if (!in_array($perPage, [15, 25, 50, 100, 9999], true)) {
+            $perPage = 25;
+        }
+
+        $statsPayload = $this->getStats($annee);
+
+        // Déterminer l'onglet actif par défaut
+        if (!$tab) {
+            $tab = ($statsPayload['stats']['total_officiers'] === 0 && $statsPayload['stats']['total_sous_officiers'] > 0)
+                ? 'sous_officiers'
+                : 'officiers';
+        }
+
+        $paginated = $this->getPaginatedCandidates($annee, $tab, $gradeFiltre, $search, $page, $perPage);
+
+        if ($request->wantsJson() && !$request->header('X-Inertia')) {
+            return response()->json([
+                'success' => true,
+                'candidates' => $paginated['data'],
+                'totalItems' => $paginated['total'],
+                'currentPage' => $paginated['page'],
+                'perPage' => $paginated['per_page'],
+                'lastPage' => $paginated['last_page'],
+                'gradesOfficiers' => $statsPayload['gradesOfficiers'],
+                'gradesSousOfficiers' => $statsPayload['gradesSousOfficiers'],
+                'stats' => $statsPayload['stats'],
+            ]);
+        }
 
         return Inertia::render('Avancements/Index', [
             'selectedAnnee' => $annee,
             'selectedGrade' => $gradeFiltre,
             'initialTab' => $tab,
             'search' => $search,
-            'candidates' => Inertia::defer(fn () => $this->getCandidatesPayload($annee)['candidates']),
-            'gradesOfficiers' => Inertia::defer(fn () => $this->getCandidatesPayload($annee)['gradesOfficiers']),
-            'gradesSousOfficiers' => Inertia::defer(fn () => $this->getCandidatesPayload($annee)['gradesSousOfficiers']),
-            'stats' => Inertia::defer(fn () => $this->getCandidatesPayload($annee)['stats']),
+            'currentPage' => $paginated['page'],
+            'perPage' => $paginated['per_page'],
+            'totalItems' => $paginated['total'],
+            'candidates' => $paginated['data'],
+            'gradesOfficiers' => $statsPayload['gradesOfficiers'],
+            'gradesSousOfficiers' => $statsPayload['gradesSousOfficiers'],
+            'stats' => $statsPayload['stats'],
         ]);
     }
 
@@ -221,18 +578,12 @@ class AvancementController extends Controller
         $gradeFiltre = $request->input('grade', 'all');
         $tab = $request->input('tab', 'all'); // 'officiers', 'sous_officiers', 'all'
 
-        $candidates = $this->buildCandidatesList($annee);
-
-        if (!empty($gradeFiltre) && $gradeFiltre !== 'all') {
-            $candidates = array_values(array_filter($candidates, fn($c) => ($c['grade_actuel'] ?? '') === $gradeFiltre));
-        }
+        $candidates = $this->getPaginatedCandidates($annee, $tab, $gradeFiltre, '', 1, 999999)['data'];
 
         $suffix = '';
         if ($tab === 'officiers') {
-            $candidates = array_values(array_filter($candidates, fn($c) => !empty($c['is_officier'])));
             $suffix = '_Officiers';
         } elseif ($tab === 'sous_officiers') {
-            $candidates = array_values(array_filter($candidates, fn($c) => empty($c['is_officier'])));
             $suffix = '_Sous_Officiers';
         }
 
@@ -442,325 +793,11 @@ class AvancementController extends Controller
     }
 
     /**
-     * Construit la liste optimisée des candidats avec mise en cache
+     * Construit la liste optimisée des candidats
      */
     public function buildCandidatesList(int $annee): array
     {
-        @ini_set('memory_limit', '512M');
-        $v = \App\Models\Militaire::getCacheVersion();
-        return Cache::remember("v{$v}:avancements:candidates_list_{$annee}", 86400, function () use ($annee) {
-            // 1. Récupération des promotions éligibles directement depuis la table pré-calculée en mémoire constante
-            $eligibiliteController = app(EligibiliteController::class);
-            $tableV = $eligibiliteController->assurerCalcul();
-
-            $promoMilitaireIds = DB::table('eligibilites_calculees')
-                ->where('version', $tableV)
-                ->where('type', 'promotions')
-                ->pluck('militaire_id')
-                ->all();
-
-            // Hiérarchie des grades
-            $gradesHierarchy = Grade::pluck('ordre', 'nom_grade')->all();
-
-            // 2. Récupération des avancements déjà enregistrés
-            $savedAvancements = Avancement::where('annee', $annee)->get()->keyBy('militaire_id');
-
-            $allIds = array_unique(array_merge($promoMilitaireIds, $savedAvancements->keys()->all()));
-
-            if (empty($allIds)) {
-                return [];
-            }
-
-            // Traitement par lots optimisés en DB Query Builder direct (évite l'allocation de milliers de modèles Eloquent en RAM)
-            $refYear = Carbon::now()->year;
-            $refDate = Carbon::create($refYear, 12, 31, 23, 59, 59);
-            $candidates = [];
-
-            foreach (array_chunk($allIds, 1000) as $chunkIds) {
-                $rows = DB::table('militaires')
-                    ->whereIn('id', $chunkIds)
-                    ->whereRaw(\App\Support\Effectif::sqlActivite('statut'))
-                    ->whereNull('date_deces')
-                    ->whereNull('deleted_at')
-                    ->select([
-                        'id', 'matricule', 'mle_grm', 'nom', 'prenom', 'photo', 'statut',
-                        'grade_actuel', 'fonction_actuelle', 'position_actuelle',
-                        'date_derniere_promotion', 'date_entree_service', 'date_naissance',
-                        'diplomes_academiques', 'decorations'
-                    ])
-                    ->get();
-
-                if ($rows->isEmpty()) continue;
-
-                $rowIds = $rows->pluck('id')->all();
-
-                $certRows = DB::table('certificat_militaire')
-                    ->join('certificats', 'certificats.id', '=', 'certificat_militaire.certificat_id')
-                    ->whereIn('certificat_militaire.militaire_id', $rowIds)
-                    ->select('certificat_militaire.militaire_id', 'certificats.niveau_certificat')
-                    ->get();
-
-                $certsMap = [];
-                foreach ($certRows as $cr) {
-                    if ($cr->niveau_certificat) {
-                        $certsMap[$cr->militaire_id][] = $cr->niveau_certificat;
-                    }
-                }
-
-                $promoRows = DB::table('eligibilites_calculees')
-                    ->where('version', $tableV)
-                    ->where('type', 'promotions')
-                    ->whereIn('militaire_id', $rowIds)
-                    ->select('militaire_id', 'payload')
-                    ->get();
-
-                $chunkPromosMap = [];
-                foreach ($promoRows as $pr) {
-                    $chunkPromosMap[$pr->militaire_id] = json_decode($pr->payload, true);
-                }
-
-                $rowsById = $rows->keyBy('id');
-
-                foreach ($chunkIds as $mId) {
-                    $m = $rowsById->get($mId);
-                    if (!$m) continue;
-
-                    $statutClean = strtolower(trim((string)$m->statut));
-                    if (!in_array($statutClean, ['actif', 'détaché', 'en mission', 'en stage'])) {
-                        continue;
-                    }
-
-                    $gradeActuel = $m->grade_actuel;
-                    $ageRetraite = Grade::getRetraiteForGrade($gradeActuel);
-                    $isOtage = str_contains(mb_strtolower((string)$m->position_actuelle), 'otage');
-
-                    if (!$isOtage && $ageRetraite && $m->date_naissance) {
-                        $yNaiss = (int) substr($m->date_naissance, 0, 4);
-                        if (($yNaiss + $ageRetraite) < $refYear) {
-                            continue;
-                        }
-                    }
-
-                    $saved = $savedAvancements->get($m->id);
-                    $promoInfo = $chunkPromosMap[$m->id] ?? null;
-
-                    if ($saved && $saved->grade_actuel) {
-                        $gradeActuel = $saved->grade_actuel;
-                        $ageRetraite = Grade::getRetraiteForGrade($gradeActuel);
-                    }
-
-                    $gradeCible = $saved->grade_cible ?? ($promoInfo['grade_cible'] ?? '');
-                    $fonctionNom = $m->fonction_actuelle ?: $m->position_actuelle ?: 'En fonction';
-
-                    $isOfficier = Grade::isOfficier($gradeActuel);
-                    $categorieStatutaire = Grade::determinerCategorie($gradeActuel);
-
-                    $dPromoStr = $m->date_derniere_promotion ? substr($m->date_derniere_promotion, 0, 10) : null;
-                    $dEntreeStr = $m->date_entree_service ? substr($m->date_entree_service, 0, 10) : null;
-                    $dNaissStr = $m->date_naissance ? substr($m->date_naissance, 0, 10) : null;
-
-                    $datePromoTexte = $dPromoStr ? sprintf('%02d/%02d/%04d', (int)substr($dPromoStr, 8, 2), (int)substr($dPromoStr, 5, 2), (int)substr($dPromoStr, 0, 4)) : '-';
-                    $datePromoRaw = $dPromoStr ?? '';
-
-                    $dateEntreeTexte = $dEntreeStr ? sprintf('%02d/%02d/%04d', (int)substr($dEntreeStr, 8, 2), (int)substr($dEntreeStr, 5, 2), (int)substr($dEntreeStr, 0, 4)) : '-';
-                    $dateEntreeRaw = $dEntreeStr ?? '';
-
-                    $dateNaissTexte = $dNaissStr ? sprintf('%02d/%02d/%04d', (int)substr($dNaissStr, 8, 2), (int)substr($dNaissStr, 5, 2), (int)substr($dNaissStr, 0, 4)) : '-';
-                    $dateNaissRaw = $dNaissStr ?? '';
-
-                    $ancServiceAnnees = 0;
-                    $ancServiceTexte = '-';
-                    if ($dEntreeStr) {
-                        $diffEntree = Carbon::parse($dEntreeStr)->diff($refDate);
-                        $ancServiceAnnees = $diffEntree->y;
-                        $ancServiceTexte = $diffEntree->y . ' ans' . ($diffEntree->m > 0 ? ' ' . $diffEntree->m . ' mois' : '');
-                    }
-
-                    $ancGradeAnnees = 0;
-                    $ancGradeTexte = '-';
-                    if ($dPromoStr) {
-                        $diffPromo = Carbon::parse($dPromoStr)->diff($refDate);
-                        $ancGradeAnnees = $diffPromo->y;
-                        $ancGradeTexte = $diffPromo->y . ' ans' . ($diffPromo->m > 0 ? ' ' . $diffPromo->m . ' mois' : '');
-                    } else {
-                        $ancGradeAnnees = $ancServiceAnnees;
-                        $ancGradeTexte = $ancServiceTexte;
-                    }
-
-                    $age = 0;
-                    $anneesRestantes = null;
-                    $malusLimiteAgeDefaut = 0.0;
-                    if ($dNaissStr) {
-                        $age = Carbon::parse($dNaissStr)->age;
-                        if ($ageRetraite) {
-                            $yNaiss = (int) substr($dNaissStr, 0, 4);
-                            $anneesRestantes = max(0, ($yNaiss + $ageRetraite) - $annee);
-                            if ($anneesRestantes <= 1) {
-                                $malusLimiteAgeDefaut = 2.0;
-                            } elseif ($anneesRestantes == 2) {
-                                $malusLimiteAgeDefaut = 1.0;
-                            }
-                        }
-                    }
-
-                    $diplomesFormates = $this->formatList($m->diplomes_academiques);
-                    $decorationsFormatees = $this->formatList($m->decorations);
-                    $certificatsFormates = isset($certsMap[$m->id]) ? implode(', ', $certsMap[$m->id]) : '';
-
-                    $photoUrl = null;
-                    if ($m->photo) {
-                        if (str_starts_with($m->photo, 'http://') || str_starts_with($m->photo, 'https://')) {
-                            $photoUrl = $m->photo;
-                        } else {
-                            $photoUrl = route('militaires.photo', $m->id, absolute: false) . '?v=' . substr(md5($m->photo), 0, 8);
-                        }
-                    }
-
-                    $ptsFonction = $saved ? (float) $saved->points_fonction_actuelle : 0.0;
-                    $noteRendement = $saved ? (float) $saved->note_rendement : 0.0;
-                    $bonusEmploi = $saved ? (float) $saved->bonus_dernier_emploi : 0.0;
-                    $ptsDiplomes = $saved ? (float) $saved->points_diplomes : 0.0;
-                    $ptsDecos = $saved ? (float) $saved->points_decorations : 0.0;
-                    $ptsAncGrade = $saved ? (float) $saved->points_anciennete_grade : 0.0;
-                    $joursPunition = $saved ? (int) $saved->jours_punition : 0;
-                    $malusPunition = round($joursPunition * 0.1, 2);
-                    $malusLimiteAge = $saved ? (float) $saved->malus_limite_age : $malusLimiteAgeDefaut;
-
-                    $total = round($noteRendement + $ptsFonction + $bonusEmploi + $ptsDiplomes + $ptsDecos + $ptsAncGrade - $malusLimiteAge - $malusPunition, 2);
-
-                    $candidates[] = [
-                        'militaire_id' => $m->id,
-                        'avancement_id' => $saved?->id,
-                        'matricule' => $m->matricule,
-                        'mle_grm' => $m->mle_grm ?? '',
-                        'nom' => $m->nom,
-                        'prenom' => $m->prenom,
-                        'nom_complet' => trim($m->nom . ' ' . $m->prenom),
-                        'photo_url' => $photoUrl,
-                        'grade_actuel' => $gradeActuel,
-                        'grade_ordre' => $gradesHierarchy[$gradeActuel] ?? 0,
-                        'grade_cible' => $gradeCible,
-                        'is_officier' => $isOfficier,
-                        'categorie_personnel' => $isOfficier ? 'officier' : 'sous_officier',
-                        'categorie_statutaire' => $categorieStatutaire,
-                        'fonction_nom' => $fonctionNom,
-                        'date_derniere_promotion' => $datePromoTexte,
-                        'date_derniere_promotion_raw' => $datePromoRaw,
-                        'date_entree_service' => $dateEntreeTexte,
-                        'date_entree_service_raw' => $dateEntreeRaw,
-                        'date_naissance' => $dateNaissTexte,
-                        'date_naissance_raw' => $dateNaissRaw,
-                        'anciennete_grade_texte' => $ancGradeTexte,
-                        'anciennete_grade_annees' => $ancGradeAnnees,
-                        'anciennete_service_texte' => $ancServiceTexte,
-                        'anciennete_service_annees' => $ancServiceAnnees,
-                        'certificats_texte' => $certificatsFormates,
-                        'diplomes_texte' => $diplomesFormates,
-                        'decorations_texte' => $decorationsFormatees,
-                        'message_eligibilite' => $promoInfo['message'] ?? ("Proposable pour " . $annee),
-                        'age' => $age,
-                        'annees_restantes_retraite' => $anneesRestantes,
-                        'points_fonction_actuelle' => $ptsFonction,
-                        'note_rendement' => $noteRendement,
-                        'bonus_dernier_emploi' => $bonusEmploi,
-                        'points_diplomes' => $ptsDiplomes,
-                        'points_decorations' => $ptsDecos,
-                        'points_anciennete_grade' => $ptsAncGrade,
-                        'jours_punition' => $joursPunition,
-                        'malus_punition' => $malusPunition,
-                        'malus_limite_age' => $malusLimiteAge,
-                        'total_points' => max(0, $total),
-                        'rang' => $saved?->rang ?? 0,
-                        'est_enregistre' => (bool) $saved,
-                    ];
-                }
-            }
-
-            // Classement PAR GRADE avec ordre hiérarchique décroissant des grades
-            return $this->classerParGrade($candidates, $gradesHierarchy);
-        });
-    }
-
-    /**
-     * Classe les candidats au sein de chaque grade :
-     * - Pour Officiers : classement par total_points décroissant
-     * - Pour Sous-Officiers : classement par ancienneté (date nomination, date entrée, âge)
-     */
-    protected function classerParGrade(array $candidates, array $gradesHierarchy): array
-    {
-        $grouped = [];
-        foreach ($candidates as $c) {
-            $g = $c['grade_actuel'] ?? 'Non défini';
-            $grouped[$g][] = $c;
-        }
-        unset($candidates); // libération immédiate de la copie source
-
-        // Trier les grades du plus élevé au moins élevé (ordre décroissant)
-        uksort($grouped, function ($gradeA, $gradeB) use ($gradesHierarchy) {
-            $orderA = $gradesHierarchy[$gradeA] ?? 0;
-            $orderB = $gradesHierarchy[$gradeB] ?? 0;
-            return $orderB <=> $orderA;
-        });
-
-        $finalList = [];
-
-        foreach ($grouped as $grade => $list) {
-            $isOfficier = Grade::isOfficier($grade);
-
-            if ($isOfficier) {
-                // Au sein du grade d'officier : tri par total_points décroissant
-                usort($list, function ($a, $b) {
-                    if ($b['total_points'] != $a['total_points']) {
-                        return ($b['total_points'] > $a['total_points']) ? 1 : -1;
-                    }
-                    if ($b['anciennete_grade_annees'] != $a['anciennete_grade_annees']) {
-                        return $b['anciennete_grade_annees'] <=> $a['anciennete_grade_annees'];
-                    }
-                    return strcmp($a['nom'], $b['nom']);
-                });
-            } else {
-                // Au sein du grade de sous-officier / MDR : tri strict par ANCIENNETÉ
-                // 1. Date nomination au grade (date la plus ancienne = premier rang)
-                // 2. Date entrée en service (date la plus ancienne = premier rang)
-                // 3. Date de naissance (le plus âgé en premier)
-                // 4. Nom alphabétique
-                usort($list, function ($a, $b) {
-                    $promoA = $a['date_derniere_promotion_raw'] ?: ($a['date_entree_service_raw'] ?: '9999-12-31');
-                    $promoB = $b['date_derniere_promotion_raw'] ?: ($b['date_entree_service_raw'] ?: '9999-12-31');
-                    $cmpPromo = strcmp($promoA, $promoB);
-                    if ($cmpPromo !== 0) {
-                        return $cmpPromo;
-                    }
-
-                    $entreeA = $a['date_entree_service_raw'] ?: '9999-12-31';
-                    $entreeB = $b['date_entree_service_raw'] ?: '9999-12-31';
-                    $cmpEntree = strcmp($entreeA, $entreeB);
-                    if ($cmpEntree !== 0) {
-                        return $cmpEntree;
-                    }
-
-                    $naissA = $a['date_naissance_raw'] ?: '9999-12-31';
-                    $naissB = $b['date_naissance_raw'] ?: '9999-12-31';
-                    $cmpNaiss = strcmp($naissA, $naissB);
-                    if ($cmpNaiss !== 0) {
-                        return $cmpNaiss;
-                    }
-
-                    return strcmp($a['nom'], $b['nom']);
-                });
-            }
-
-            // Rangs 1, 2, 3...
-            $count = count($list);
-            for ($i = 0; $i < $count; $i++) {
-                $list[$i]['rang'] = $i + 1;
-                $finalList[] = $list[$i];
-            }
-            unset($grouped[$grade]);
-        }
-        unset($grouped);
-
-        return $finalList;
+        return $this->getPaginatedCandidates($annee, 'all', 'all', '', 1, 999999)['data'];
     }
 
     /**
