@@ -1,8 +1,9 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
-import { router, Head, Link } from '@inertiajs/vue3';
+import { router, Head, Link, Deferred } from '@inertiajs/vue3';
 import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import AvancementSkeleton from '@/Components/AvancementSkeleton.vue';
 import InputText from 'primevue/inputtext';
 import Button from 'primevue/button';
 import Dialog from 'primevue/dialog';
@@ -873,7 +874,13 @@ const listeOrganismesCards = computed(() => {
             <!-- ======================================================== -->
             <!-- TAB 1 : SITUATION DES EFFECTIFS (PRISE D'ARMES)          -->
             <!-- ======================================================== -->
-            <div v-if="activeTab === 'spa'" class="space-y-6">
+            <Deferred :data="['stats', 'matrice', 'regionsSituation', 'organismesCards']">
+                <template #fallback>
+                    <div class="py-4">
+                        <AvancementSkeleton :rows="12" />
+                    </div>
+                </template>
+                <div v-if="activeTab === 'spa'" class="space-y-6">
                 <!-- 1. CARD TOTAL GLOBAL DE LA GENDARMERIE NATIONALE (FOND BLANC PROFESSIONNEL ÉLÉGANT) -->
                 <div class="bg-white rounded-2xl border border-slate-200 p-6 text-slate-800 shadow-sm relative overflow-hidden">
                     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-100 relative z-10">
@@ -1351,6 +1358,7 @@ const listeOrganismesCards = computed(() => {
                     </div>
                 </div>
             </div>
+            </Deferred>
 
             <!-- ======================================================== -->
             <!-- TAB 8 : GESTION DES ORGANISMES DE DÉTACHEMENT (48)      -->

@@ -1,8 +1,9 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { ref, computed, onMounted, watch } from 'vue';
+import { router, Deferred } from '@inertiajs/vue3';
 import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import AvancementSkeleton from '@/Components/AvancementSkeleton.vue';
 import Button from 'primevue/button';
 import Select from 'primevue/select';
 import DataTable from 'primevue/datatable';
@@ -52,6 +53,38 @@ const selectedFormation = ref('');
 const selectedGrade = ref('');
 const formationCounts = ref(props.initialFormationCounts || {});
 const gradeCounts = ref(props.initialGradeCounts || {});
+
+// Synchronisation réactive des props différées (Inertia::defer)
+watch(() => props.initialData, (newVal) => {
+    if (newVal && newVal.length > 0) {
+        if (selectedType.value === 'promotions') promotions.value = newVal;
+        else if (selectedType.value === 'formations') formations.value = newVal;
+        else if (selectedType.value === 'retraites') retraites.value = newVal;
+        else if (selectedType.value === 'contrats') contrats.value = newVal;
+        else if (selectedType.value === 'mutations') mutations.value = newVal;
+    }
+});
+
+watch(() => props.initialTotal, (newVal) => {
+    if (newVal !== undefined) totalItems.value = newVal;
+});
+
+watch(() => props.initialStatistiques, (newVal) => {
+    if (newVal) {
+        totalPromotions.value = newVal.total_promotions || 0;
+        totalFormations.value = newVal.total_formations || 0;
+        totalContrats.value = newVal.total_contrats || 0;
+        totalMutations.value = newVal.total_mutations || 0;
+    }
+});
+
+watch(() => props.initialFormationCounts, (newVal) => {
+    if (newVal) formationCounts.value = newVal;
+});
+
+watch(() => props.initialGradeCounts, (newVal) => {
+    if (newVal) gradeCounts.value = newVal;
+});
 
 const gradeOrder = [
     'Général de division', 'Général de brigade', 'Colonel-Major', 'Colonel',
@@ -478,8 +511,15 @@ onMounted(() => {
                     </div>
                 </div>
 
-                <!-- Loading -->
-                <div v-if="loading" class="flex justify-center py-12">
+                <!-- Tableau des éligibilités différé avec squelette animé -->
+                <Deferred :data="['initialData', 'initialStatistiques']">
+                    <template #fallback>
+                        <AvancementSkeleton :rows="8" />
+                    </template>
+
+                    <div>
+                        <!-- Loading -->
+                        <div v-if="loading" class="flex justify-center py-12">
                     <i class="pi pi-spin pi-spinner text-3xl text-sky-800"></i>
                 </div>
 
@@ -718,6 +758,8 @@ onMounted(() => {
                     <i class="pi pi-hand-point-up text-5xl text-sky-300 mb-3"></i>
                     <p class="text-gray-500">Cliquez sur une carte pour voir les éligibilités</p>
                 </div>
+                    </div>
+                </Deferred>
             </div>
         </div>
 

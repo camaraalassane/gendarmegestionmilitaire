@@ -537,6 +537,11 @@ class Militaire extends Model
         \Illuminate\Support\Facades\Cache::forget('dashboard:statistiques');
         \Illuminate\Support\Facades\Cache::forget('dashboard:grades_distribution');
         \Illuminate\Support\Facades\Cache::forget('dashboard:statistiques_cards');
+
+        // Pré-réchauffement des caches lourds en arrière-plan sans ralentir la réponse HTTP
+        if (!static::$isImporting) {
+            dispatch(new \App\Jobs\PrewarmDashboardCacheJob())->afterResponse();
+        }
     }
 
     // =========================================================

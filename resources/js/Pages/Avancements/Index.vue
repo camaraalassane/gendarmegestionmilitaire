@@ -1,8 +1,9 @@
 <script setup>
 import { ref, computed, watch, onUnmounted } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { router, Deferred } from '@inertiajs/vue3';
 import axios from 'axios';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import AvancementSkeleton from '@/Components/AvancementSkeleton.vue';
 import Toast from 'primevue/toast';
 import { useToast } from 'primevue/usetoast';
 import { downloadExport } from '@/Utils/exportHelper';
@@ -732,8 +733,17 @@ const printTable = () => {
                 </div>
             </div>
 
-            <!-- Liste vide -->
-            <div v-if="paginatedCandidates.length === 0"
+            <!-- ========================================================================================= -->
+            <!-- TABLEAU DES CANDIDATS (OFFICIERS / SOUS-OFFICIERS) SOUS DEFERRED                          -->
+            <!-- ========================================================================================= -->
+            <Deferred :data="['candidates', 'stats']">
+                <template #fallback>
+                    <AvancementSkeleton :rows="10" />
+                </template>
+
+                <div>
+                    <!-- Liste vide -->
+                    <div v-if="paginatedCandidates.length === 0"
                 class="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs">
                 <i class="pi pi-inbox text-5xl text-slate-300 mb-3"></i>
                 <h3 class="text-base font-semibold text-slate-700">Aucun candidat trouvé pour cette sélection</h3>
@@ -1197,6 +1207,8 @@ const printTable = () => {
                     </div>
                 </div>
             </div>
+                </div>
+            </Deferred>
         </div>
 
         <!-- MODAL DE CONFIRMATION D'IMPORTATION EXCEL -->

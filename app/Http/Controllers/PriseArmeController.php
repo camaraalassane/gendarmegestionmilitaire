@@ -69,14 +69,14 @@ class PriseArmeController extends Controller
             : [];
 
         return Inertia::render('PriseArmes/Index', [
-            'stats' => $spaData['stats'],
+            'stats' => Inertia::defer(fn() => $spaData['stats']),
             'organismes' => $organismes,
             'regions' => $regions,
             'grades' => $grades,
             'unites' => $unites,
-            'matrice' => $spaData['matrice'],
-            'regionsSituation' => $spaData['regionsSituation'],
-            'organismesCards' => $spaData['organismesCards'],
+            'matrice' => Inertia::defer(fn() => $spaData['matrice']),
+            'regionsSituation' => Inertia::defer(fn() => $spaData['regionsSituation']),
+            'organismesCards' => Inertia::defer(fn() => $spaData['organismesCards']),
             'registres' => $registres,
             'militairesLookup' => [],
             'filters' => $request->only([

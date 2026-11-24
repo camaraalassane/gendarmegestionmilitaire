@@ -16,20 +16,18 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class AvancementController extends Controller
 {
+    protected ?array $candidatesPayloadCache = null;
+
     /**
-     * Affiche le tableau d'avancement avec onglets Officiers / Sous-Officiers
+     * Calcule ou récupère en mémoire le payload complet des candidats et métriques pour la session.
      */
-    public function index(Request $request): Response
+    public function getCandidatesPayload(int $annee): array
     {
-        // Session : toujours l'année en clôture
-        $annee = (int) $request->input('annee', date('Y'));
-        $gradeFiltre = $request->input('grade', 'all');
-        $tab = $request->input('tab', 'officiers'); // 'officiers' | 'sous_officiers'
-        $search = trim((string) $request->input('search', ''));
+        if ($this->candidatesPayloadCache !== null) {
+            return $this->candidatesPayloadCache;
+        }
 
-        // Récupérer la hiérarchie des grades pour le tri du plus élevé au plus bas
         $gradesHierarchy = Grade::pluck('ordre', 'nom_grade')->all();
-
         $candidates = $this->buildCandidatesList($annee);
 
         // Séparer les grades disponibles par catégorie
@@ -51,7 +49,7 @@ class AvancementController extends Controller
             usort($keys, function ($a, $b) use ($gradesHierarchy) {
                 $orderA = $gradesHierarchy[$a] ?? 0;
                 $orderB = $gradesHierarchy[$b] ?? 0;
-                return $orderB <=> $orderA; // Décroissant : plus haut grade en premier
+                return $orderB <=> $orderA;
             });
             return $keys;
         };
@@ -59,20 +57,13 @@ class AvancementController extends Controller
         $gradesOfficiers = $sortGradesDesc($availableGradesOfficiers);
         $gradesSousOfficiers = $sortGradesDesc($availableGradesSousOfficiers);
 
-        $defaultTab = count($gradesOfficiers) > 0 ? 'officiers' : 'sous_officiers';
-        $tab = $request->input('tab', $defaultTab);
-
         $countOfficiers = count(array_filter($candidates, fn($c) => !empty($c['is_officier'])));
         $countSousOfficiers = count(array_filter($candidates, fn($c) => empty($c['is_officier'])));
 
-        return Inertia::render('Avancements/Index', [
+        return $this->candidatesPayloadCache = [
             'candidates' => $candidates,
             'gradesOfficiers' => $gradesOfficiers,
             'gradesSousOfficiers' => $gradesSousOfficiers,
-            'selectedAnnee' => $annee,
-            'selectedGrade' => $gradeFiltre,
-            'initialTab' => $tab,
-            'search' => $search,
             'stats' => [
                 'total_candidats' => count($candidates),
                 'total_officiers' => $countOfficiers,
@@ -81,6 +72,30 @@ class AvancementController extends Controller
                 'total_grades_sous_officiers' => count($gradesSousOfficiers),
                 'total_enregistres' => count(array_filter($candidates, fn($c) => !empty($c['est_enregistre']))),
             ]
+        ];
+    }
+
+    /**
+     * Affiche le tableau d'avancement avec onglets Officiers / Sous-Officiers
+     * Chargement instantané de la coquille avec Inertia::defer pour les listes lourdes.
+     */
+    public function index(Request $request): Response
+    {
+        // Session : toujours l'année en clôture
+        $annee = (int) $request->input('annee', date('Y'));
+        $gradeFiltre = $request->input('grade', 'all');
+        $tab = $request->input('tab', 'officiers');
+        $search = trim((string) $request->input('search', ''));
+
+        return Inertia::render('Avancements/Index', [
+            'selectedAnnee' => $annee,
+            'selectedGrade' => $gradeFiltre,
+            'initialTab' => $tab,
+            'search' => $search,
+            'candidates' => Inertia::defer(fn () => $this->getCandidatesPayload($annee)['candidates']),
+            'gradesOfficiers' => Inertia::defer(fn () => $this->getCandidatesPayload($annee)['gradesOfficiers']),
+            'gradesSousOfficiers' => Inertia::defer(fn () => $this->getCandidatesPayload($annee)['gradesSousOfficiers']),
+            'stats' => Inertia::defer(fn () => $this->getCandidatesPayload($annee)['stats']),
         ]);
     }
 

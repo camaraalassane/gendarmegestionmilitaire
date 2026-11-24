@@ -23,26 +23,36 @@ class EligibiliteController extends Controller
         $formationsListe = $this->getFormationsListe();
         $gradesListe = $this->getGradesListe();
 
-        $allComputed = $this->getAllComputedData();
-
-        $initialPromotions = array_slice($allComputed['promotions'] ?? [], 0, 30);
-        $initialTotal = count($allComputed['promotions'] ?? []);
-
         return Inertia::render('eligibilites/index', [
             'formationsListe' => $formationsListe,
             'gradesListe' => $gradesListe,
             'initialType' => 'promotions',
-            'initialData' => $initialPromotions,
-            'initialTotal' => $initialTotal,
-            'initialStatistiques' => $allComputed['statistiques'] ?? [
-                'total_promotions' => 0,
-                'total_formations' => 0,
-                'total_retraites' => 0,
-                'total_contrats' => 0,
-                'total_mutations' => 0,
-            ],
-            'initialFormationCounts' => $allComputed['formation_counts'] ?? [],
-            'initialGradeCounts' => $allComputed['grade_counts'] ?? [],
+            'initialData' => Inertia::defer(function () {
+                $all = $this->getAllComputedData();
+                return array_slice($all['promotions'] ?? [], 0, 30);
+            }),
+            'initialTotal' => Inertia::defer(function () {
+                $all = $this->getAllComputedData();
+                return count($all['promotions'] ?? []);
+            }),
+            'initialStatistiques' => Inertia::defer(function () {
+                $all = $this->getAllComputedData();
+                return $all['statistiques'] ?? [
+                    'total_promotions' => 0,
+                    'total_formations' => 0,
+                    'total_retraites' => 0,
+                    'total_contrats' => 0,
+                    'total_mutations' => 0,
+                ];
+            }),
+            'initialFormationCounts' => Inertia::defer(function () {
+                $all = $this->getAllComputedData();
+                return $all['formation_counts'] ?? [];
+            }),
+            'initialGradeCounts' => Inertia::defer(function () {
+                $all = $this->getAllComputedData();
+                return $all['grade_counts'] ?? [];
+            }),
         ]);
     }
 
