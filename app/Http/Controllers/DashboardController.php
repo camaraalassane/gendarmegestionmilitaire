@@ -152,47 +152,39 @@ class DashboardController extends Controller
         $v ??= \App\Models\Militaire::getCacheVersion();
 
         return Cache::remember("v{$v}:dashboard:charts_data", 86400, function () {
-            // 1. STATISTIQUES PAR STATUT (Situation Administrative Statutaire)
-        $statutsMeta = [
-            'actif' => ['num' => 1, 'label' => 'Actif (En service)', 'color' => '#059669', 'bg' => 'bg-emerald-50 text-emerald-800 border-emerald-200'],
-            'détaché' => ['num' => 2, 'label' => 'Détaché', 'color' => '#0284c7', 'bg' => 'bg-sky-50 text-sky-800 border-sky-200'],
-            'en mission' => ['num' => 3, 'label' => 'En mission', 'color' => '#8b5cf6', 'bg' => 'bg-purple-50 text-purple-800 border-purple-200'],
-            'en stage' => ['num' => 4, 'label' => 'En stage / formation', 'color' => '#f59e0b', 'bg' => 'bg-amber-50 text-amber-800 border-amber-200'],
-            'procédure en cours' => ['num' => 5, 'label' => 'Procédure en cours', 'color' => '#d97706', 'bg' => 'bg-amber-50 text-amber-800 border-amber-200'],
-            'déserteur' => ['num' => 6, 'label' => 'Déserteur', 'color' => '#ea580c', 'bg' => 'bg-orange-50 text-orange-800 border-orange-200'],
-            'retraité' => ['num' => 7, 'label' => 'Retraité', 'color' => '#9333ea', 'bg' => 'bg-purple-50 text-purple-800 border-purple-200'],
-            'radié' => ['num' => 8, 'label' => 'Radié', 'color' => '#64748b', 'bg' => 'bg-slate-50 text-slate-800 border-slate-200'],
-            'décédé' => ['num' => 9, 'label' => 'Décédé', 'color' => '#e11d48', 'bg' => 'bg-rose-50 text-rose-800 border-rose-200'],
-        ];
+        // 1. STATISTIQUES PAR STATUT (Situation Administrative Statutaire & Opérationnelle)
+        // Utilise les filtres unifiés d'Effectif pour une cohérence rigoureuse à 100% avec les fiches et la liste
+        $countDetaches = (int) Effectif::appliquerFiltreDetaches(Militaire::whereNull('deleted_at'))->count();
+        $countActifsStricts = (int) Effectif::appliquerFiltreActifsStricts(Militaire::whereNull('deleted_at'))->count();
+        $countMissions = (int) Effectif::appliquerFiltreMissions(Militaire::whereNull('deleted_at'))->count();
+        $countStages = (int) Effectif::appliquerFiltreStages(Militaire::whereNull('deleted_at'))->count();
 
-        // Comptage direct et ultra-rapide par statut_code indexé
-        $statutCounts = Militaire::selectRaw('statut_code, COUNT(*) AS c')
+        $statutCounts = Militaire::whereNull('deleted_at')
+            ->selectRaw('statut_code, COUNT(*) AS c')
             ->groupBy('statut_code')
             ->pluck('c', 'statut_code')
             ->toArray();
 
+        $statutsMeta = [
+            'actif_strict' => ['val' => $countActifsStricts, 'code' => 'actif_strict', 'label' => 'Actif (En service)', 'color' => '#059669', 'bg' => 'bg-emerald-50 text-emerald-800 border-emerald-200'],
+            'détaché'      => ['val' => $countDetaches,      'code' => 'détaché',      'label' => 'Détaché',            'color' => '#0284c7', 'bg' => 'bg-sky-50 text-sky-800 border-sky-200'],
+            'en mission'   => ['val' => $countMissions,      'code' => 'mission',      'label' => 'En mission',         'color' => '#8b5cf6', 'bg' => 'bg-purple-50 text-purple-800 border-purple-200'],
+            'en stage'     => ['val' => $countStages,        'code' => 'stage',        'label' => 'En stage / formation', 'color' => '#f59e0b', 'bg' => 'bg-amber-50 text-amber-800 border-amber-200'],
+            'procédure en cours' => ['val' => (int) ($statutCounts[5] ?? 0), 'code' => '5', 'label' => 'Procédure en cours', 'color' => '#d97706', 'bg' => 'bg-amber-50 text-amber-800 border-amber-200'],
+            'déserteur'    => ['val' => (int) ($statutCounts[6] ?? 0), 'code' => '6', 'label' => 'Déserteur',          'color' => '#ea580c', 'bg' => 'bg-orange-50 text-orange-800 border-orange-200'],
+            'retraité'     => ['val' => (int) ($statutCounts[7] ?? 0), 'code' => '7', 'label' => 'Retraité',           'color' => '#9333ea', 'bg' => 'bg-purple-50 text-purple-800 border-purple-200'],
+            'radié'        => ['val' => (int) ($statutCounts[8] ?? 0), 'code' => '8', 'label' => 'Radié',              'color' => '#64748b', 'bg' => 'bg-slate-50 text-slate-800 border-slate-200'],
+            'décédé'       => ['val' => (int) ($statutCounts[9] ?? 0), 'code' => '9', 'label' => 'Décédé',             'color' => '#e11d48', 'bg' => 'bg-rose-50 text-rose-800 border-rose-200'],
+        ];
+
         $statutsDistribution = [];
-        $totalStatuts = array_sum(array_map('intval', $statutCounts));
-        $totalClasse = 0;
-        foreach ($statutsMeta as $code => $meta) {
-            $cnt = (int) ($statutCounts[$meta['num']] ?? 0);
-            $totalClasse += $cnt;
+        foreach ($statutsMeta as $meta) {
             $statutsDistribution[] = [
-                'code' => $code,
+                'code'  => $meta['code'],
                 'label' => $meta['label'],
-                'value' => $cnt,
+                'value' => $meta['val'],
                 'color' => $meta['color'],
-                'bg' => $meta['bg'],
-            ];
-        }
-        // Statuts inconnus ou vides : visibles au lieu de disparaître silencieusement
-        if ($totalStatuts - $totalClasse > 0) {
-            $statutsDistribution[] = [
-                'code' => 'autres',
-                'label' => 'Autres / non classés',
-                'value' => $totalStatuts - $totalClasse,
-                'color' => '#94a3b8',
-                'bg' => 'bg-slate-50 text-slate-800 border-slate-200',
+                'bg'    => $meta['bg'],
             ];
         }
 
