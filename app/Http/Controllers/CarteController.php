@@ -103,19 +103,56 @@ class CarteController extends Controller
 
         $parUnite = $lignes->whereNotNull('unite_id')->keyBy('unite_id');
         $parRegion = $lignes->whereNotNull('region_id')->groupBy('region_id');
-        $nonRattaches = (int) $lignes->whereNull('region_id')->whereNull('unite_id')->sum('total');
+        $nonRattaches = (int) $lignes->whereNull('region_id')->whereNull('unite_id')->sum('n_actifs');
 
-        // Liste nominative des recrues et militaires actifs sans région ni unité pour correction rapide
+        $grmId = Effectif::idOrganismeGrm();
+        // Vraies recrues ou militaires actifs sans unité/région et non détachés dans un organisme extérieur
         $nonRattachesListe = Militaire::query()
             ->whereRaw(Effectif::sqlActivite())
             ->whereNull('region_id')
             ->where(function ($q) {
                 $q->whereNull('unite_id')->orWhere('unite_id', 0);
             })
+            ->where(function ($q) use ($grmId) {
+                $q->whereNull('organisme_detachement_id')
+                  ->orWhere('organisme_detachement_id', $grmId);
+            })
+            ->where(function ($q) {
+                $q->where('position_actuelle', '!=', 'En détachement')
+                  ->where('position_id', '!=', 26)
+                  ->where('statut', '!=', 'détaché')
+                  ->where('statut_code', '!=', 2);
+            })
             ->select('id', 'matricule', 'mle_grm', 'nom', 'prenom', 'grade_actuel', 'statut', 'position_actuelle')
             ->orderBy('nom')
             ->orderBy('prenom')
             ->get();
+
+        // Organismes et structures de détachement (SPA / Ministères / Présidence...) classés à part
+        $organismesDetachement = \App\Models\OrganismeDetachement::where('code', '!=', 'GRM')
+            ->where('est_actif', true)
+            ->withCount(['militaires' => function ($q) {
+                $q->whereNull('deleted_at')
+                  ->where(function ($sq) {
+                      $sq->where('position_actuelle', 'En détachement')
+                         ->orWhere('position_id', 26)
+                         ->orWhere('statut', 'détaché')
+                         ->orWhere('statut_code', 2);
+                  });
+            }])
+            ->orderByDesc('militaires_count')
+            ->orderBy('nom')
+            ->get()
+            ->filter(fn ($o) => $o->militaires_count > 0)
+            ->map(fn ($o) => [
+                'id' => $o->id,
+                'code' => $o->code,
+                'nom' => $o->nom,
+                'effectif' => (int) $o->militaires_count,
+            ])
+            ->values();
+
+        $totalDetaches = (int) $organismesDetachement->sum('effectif');
 
         // 3) Mise en forme pour la vue
         $out = $regions->map(function ($r) use ($parUnite, $parRegion, $horsEffectif, $retraitesParRegion) {
@@ -231,9 +268,11 @@ class CarteController extends Controller
         return [
             'regions' => $out,
             'theatres' => $theatres,
+            'organismes_detachement' => $organismesDetachement,
             'non_rattaches_liste' => $nonRattachesListe,
             'stats' => [
                 'non_rattaches' => $nonRattaches,
+                'total_detaches' => $totalDetaches,
                 'annee' => $annee,
                 'total_theatres' => $theatres->count(),
                 'effectif_theatres' => (int) $theatres->sum('effectif_gendarmerie'),
@@ -242,7 +281,7 @@ class CarteController extends Controller
                 'effectif_theatres_global' => (int) $theatres->sum('effectif_global'),
                 'hors_region' => [
                     'actifs' => (int) $lignes->whereNull('region_id')->sum('n_actifs'),
-                    'detaches' => (int) $lignes->whereNull('region_id')->sum('n_detaches'),
+                    'detaches' => $totalDetaches,
                     'missions' => (int) $lignes->whereNull('region_id')->sum('n_missions'),
                     'stages' => (int) $lignes->whereNull('region_id')->sum('n_stages'),
                     'radies' => (int) ($horsEffectif->get(0)->radies ?? 0),
@@ -263,8 +302,9 @@ class CarteController extends Controller
     {
         $type = $request->query('type', 'actifs');
         $region = $request->query('region');
+        $organismeId = $request->query('organisme_id') ? (int) $request->query('organisme_id') : null;
 
-        $info = self::buildQueryStatut($type, $region);
+        $info = self::buildQueryStatut($type, $region, $organismeId);
         $query = $info['query'];
         $retraitesMap = $info['retraitesMap'];
 
@@ -274,10 +314,16 @@ class CarteController extends Controller
         $regionsMap = Region::pluck('nom', 'id')->all();
         $unitesMap = Unite::pluck('nom', 'id')->all();
         $gradesMap = Grade::pluck('nom_grade', 'id')->all();
+        $orgsMap = \App\Models\OrganismeDetachement::pluck('nom', 'id')->all();
 
-        $militaires = (clone $query)->limit($limit)->get()->map(function ($m) use ($retraitesMap, $regionsMap, $unitesMap, $gradesMap) {
+        $militaires = (clone $query)->limit($limit)->get()->map(function ($m) use ($retraitesMap, $regionsMap, $unitesMap, $gradesMap, $orgsMap) {
             $dateRetraite = $retraitesMap[$m->id]['date_retraite_formatted']
                 ?? ($m->calculerDateRetraite()?->format('d/m/Y') ?? '-');
+
+            $orgNom = $orgsMap[$m->organisme_detachement_id] ?? null;
+            $uniteNom = ($m->organisme_detachement_id && $orgNom)
+                ? $orgNom
+                : ($unitesMap[$m->unite_id] ?? (is_string($m->unite) ? $m->unite : '-'));
 
             return [
                 'id' => $m->id,
@@ -286,8 +332,9 @@ class CarteController extends Controller
                 'nom' => $m->nom,
                 'prenom' => $m->prenom,
                 'grade' => $gradesMap[$m->grade_id] ?? $m->grade_actuel ?? '-',
-                'region_nom' => $regionsMap[$m->region_id] ?? (is_string($m->region) ? $m->region : '-'),
-                'unite_nom' => $unitesMap[$m->unite_id] ?? (is_string($m->unite) ? $m->unite : '-'),
+                'region_nom' => $regionsMap[$m->region_id] ?? (is_string($m->region) ? $m->region : ($orgNom ? 'Détachement SPA' : '-')),
+                'unite_nom' => $uniteNom,
+                'organisme_nom' => $orgNom,
                 'statut' => $m->statut ?? '-',
                 'position' => $m->position_actuelle ?? '-',
                 'date_naissance' => $m->date_naissance ? $m->date_naissance->format('d/m/Y') : '-',
@@ -310,7 +357,7 @@ class CarteController extends Controller
     /**
      * Construit la requête Eloquent et les métadonnées pour un statut et un périmètre donné
      */
-    public static function buildQueryStatut(string $type, ?string $regionCode = null): array
+    public static function buildQueryStatut(string $type, ?string $regionCode = null, ?int $organismeId = null): array
     {
         $region = null;
         if ($regionCode && $regionCode !== 'national' && $regionCode !== 'all') {
@@ -322,6 +369,13 @@ class CarteController extends Controller
         $perimetre = $region 
             ? (str_starts_with($region->nom, 'Région') ? "{$region->nom} ({$region->code})" : "Région de {$region->nom} ({$region->code})")
             : "Mali entier (Toutes régions)";
+
+        if ($organismeId) {
+            $org = \App\Models\OrganismeDetachement::find($organismeId);
+            if ($org) {
+                $perimetre = "Structure : {$org->nom} [{$org->code}]";
+            }
+        }
 
         $retraitesMap = [];
 
@@ -354,10 +408,13 @@ class CarteController extends Controller
         if ($region) {
             $query->where('region_id', $region->id);
         }
+        if ($organismeId) {
+            $query->where('organisme_detachement_id', $organismeId);
+        }
 
         $titre = match ($type) {
             'actifs' => 'Militaires actifs au poste',
-            'detaches' => 'Militaires en détachement',
+            'detaches' => ($organismeId && isset($org)) ? "Militaires détachés : {$org->nom} [{$org->code}]" : 'Militaires en détachement',
             'missions' => 'Militaires en mission',
             'stages' => 'Militaires en stage / formation',
             'radies' => 'Personnels radiés des cadres',

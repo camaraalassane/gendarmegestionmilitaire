@@ -18,8 +18,9 @@ const exportingTheatresExcel = ref(false);
 const props = defineProps({
     regions: { type: Array, default: () => [] },
     theatres: { type: Array, default: () => [] },
+    organismes_detachement: { type: Array, default: () => [] },
     non_rattaches_liste: { type: Array, default: () => [] },
-    stats: { type: Object, default: () => ({ non_rattaches: 0, generated_at: '', annee: new Date().getFullYear(), hors_region: {} }) },
+    stats: { type: Object, default: () => ({ non_rattaches: 0, total_detaches: 0, generated_at: '', annee: new Date().getFullYear(), hors_region: {} }) },
     regionInitiale: { type: String, default: null },
 });
 
@@ -29,7 +30,22 @@ const isFullscreen = ref(false);
 const showSidePanelInFullscreen = ref(true);
 const sidebarTab = ref('liste');
 
-// Modal pour consulter et corriger les recrues non rattachées
+// Gestion des organismes et structures de détachement (SPA)
+const searchDetachements = ref('');
+const organismesDetachement = computed(() => props.organismes_detachement || []);
+const totalDetaches = computed(() => Number(props.stats?.total_detaches) || 0);
+
+const filteredOrganismes = computed(() => {
+    const list = organismesDetachement.value;
+    if (!searchDetachements.value || !searchDetachements.value.trim()) return list;
+    const q = searchDetachements.value.toLowerCase().trim();
+    return list.filter(o =>
+        (o.nom && o.nom.toLowerCase().includes(q)) ||
+        (o.code && o.code.toLowerCase().includes(q))
+    );
+});
+
+// Modal pour consulter et corriger les recrues non rattachées (s'il en existe)
 const showNonRattachesModal = ref(false);
 const searchRecrues = ref('');
 
@@ -74,7 +90,7 @@ const statutMilitairesFiltres = computed(() => {
     );
 });
 
-const ouvrirModalStatut = async (type) => {
+const ouvrirModalStatut = async (type, organismeId = null) => {
     statutModalType.value = type;
     searchStatutModal.value = '';
     statutModalMilitaires.value = [];
@@ -83,7 +99,9 @@ const ouvrirModalStatut = async (type) => {
 
     try {
         const params = new URLSearchParams({ type });
-        if (sel.value) {
+        if (organismeId) {
+            params.append('organisme_id', organismeId);
+        } else if (sel.value) {
             params.append('region', sel.value);
         }
         const res = await fetch(`/carte/militaires-statut?${params.toString()}`);
@@ -1617,7 +1635,7 @@ const valStat = (k) => {
 
 const kpis = computed(() => {
     const r = selRegion.value;
-    const eff = r ? r.effectif : (tot((x) => x.effectif) + (Number(props.stats?.non_rattaches) || 0));
+    const eff = r ? r.effectif : (tot((x) => x.effectif) + totalDetaches.value + (Number(props.stats?.non_rattaches) || 0));
     const abs = r ? r.absents : tot((x) => x.absents);
     const nU = r ? r.unites.length : tot((x) => x.unites.length);
     const nOp = r ? opCount(r) : tot(opCount);
@@ -1625,7 +1643,7 @@ const kpis = computed(() => {
         {
             label: r ? 'Effectif région' : 'Effectif total',
             value: fmt(eff),
-            hint: r ? r.nom : `${fmt(tot((x) => x.effectif))} en région • ${fmt(props.stats?.non_rattaches || 0)} en attente`
+            hint: r ? r.nom : `${fmt(tot((x) => x.effectif))} en région • ${fmt(totalDetaches.value)} détachés SPA`
         },
         {
             label: 'Présents',
@@ -1917,6 +1935,49 @@ const lignesFiltrees = computed(() => {
                         <i class="pi pi-external-link text-[10px]"></i>
                         <span>Dans l'annuaire</span>
                     </Link>
+                </div>
+            </div>
+
+            <!-- Détachements extérieurs SPA (Hors maillage territorial : Présidence, EMGA, Ministères...) -->
+            <div
+                v-if="totalDetaches > 0"
+                class="rounded-lg border border-sky-200 bg-gradient-to-r from-sky-50 via-slate-50 to-blue-50 text-sky-950 text-xs px-3 py-2 flex flex-wrap items-center justify-between gap-2 flex-none shadow-2xs"
+            >
+                <div class="flex items-center gap-2">
+                    <span class="w-6 h-6 rounded-full bg-sky-200 text-sky-800 flex items-center justify-center shrink-0">
+                        <i class="pi pi-briefcase text-xs"></i>
+                    </span>
+                    <div>
+                        <div class="font-bold text-sky-950 flex items-center gap-2">
+                            <span>{{ fmt(totalDetaches) }} militaires en détachement (Hors maillage territorial)</span>
+                            <span class="text-[10px] font-semibold bg-sky-100 text-sky-800 px-1.5 py-0.2 rounded border border-sky-300">
+                                23 structures publiques
+                            </span>
+                        </div>
+                        <div class="text-[11px] text-sky-800">
+                            Gendarmes mis à disposition d'organismes publics autonomes (Présidence, EMGA, Ministères...) classés à part du maillage des brigades.
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        @click="sidebarTab = 'detachements'"
+                        class="px-2.5 py-1.5 bg-sky-800 hover:bg-sky-900 text-white rounded-md font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                        title="Classer les effectifs par organisme de détachement"
+                    >
+                        <i class="pi pi-building-columns text-xs"></i>
+                        <span>Classer par Organisme ({{ fmt(totalDetaches) }})</span>
+                    </button>
+                    <button
+                        type="button"
+                        @click="ouvrirModalStatut('detaches')"
+                        class="px-2.5 py-1.5 bg-white hover:bg-sky-50 text-sky-800 border border-sky-300 rounded-md font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                        title="Consulter la liste nominative complète des 1 210 détachés"
+                    >
+                        <i class="pi pi-users text-xs"></i>
+                        <span>Liste complète</span>
+                    </button>
                 </div>
             </div>
 
@@ -3291,25 +3352,35 @@ const lignesFiltrees = computed(() => {
                         </div>
                     </div>
 
-                    <!-- Onglets de bascule : Liste vs Détail Effectif -->
-                    <div class="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-medium my-1 flex-none">
+                    <!-- Onglets de bascule : Unités Gend. / Régions vs Détachements SPA vs Stats Effectif -->
+                    <div class="flex items-center bg-slate-100 p-0.5 rounded-lg text-xs font-medium my-1 flex-none gap-0.5">
                         <button
                             type="button"
                             @click="sidebarTab = 'liste'"
-                            class="flex-1 py-0.5 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer text-[11px]"
+                            class="flex-1 py-1 px-1.5 rounded-md transition-all flex items-center justify-center gap-1 cursor-pointer text-[11px]"
                             :class="sidebarTab === 'liste' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'"
                         >
                             <i class="pi pi-list text-[10px]"></i>
-                            <span>{{ sel ? 'Unités (' + selRegion.unites.length + ')' : (regions.length === 20 ? '19 Régions + 1 District (20)' : 'Régions (' + regions.length + ')') }}</span>
+                            <span class="truncate">{{ sel ? 'Unités (' + selRegion.unites.length + ')' : 'Unités / Régions' }}</span>
+                        </button>
+                        <button
+                            type="button"
+                            @click="sidebarTab = 'detachements'"
+                            class="flex-1 py-1 px-1.5 rounded-md transition-all flex items-center justify-center gap-1 cursor-pointer text-[11px]"
+                            :class="sidebarTab === 'detachements' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'"
+                            :title="`23 Organismes de Détachement (${fmt(totalDetaches)} gendarmes)`"
+                        >
+                            <i class="pi pi-briefcase text-[10px]"></i>
+                            <span class="truncate">Détachements ({{ fmt(totalDetaches) }})</span>
                         </button>
                         <button
                             type="button"
                             @click="sidebarTab = 'effectif'"
-                            class="flex-1 py-0.5 px-2 rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer text-[11px]"
+                            class="flex-1 py-1 px-1.5 rounded-md transition-all flex items-center justify-center gap-1 cursor-pointer text-[11px]"
                             :class="sidebarTab === 'effectif' ? 'bg-white text-sky-900 font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'"
                         >
                             <i class="pi pi-chart-pie text-[10px]"></i>
-                            <span>Détail Effectif</span>
+                            <span class="truncate">Stats</span>
                         </button>
                     </div>
 
@@ -3420,8 +3491,75 @@ const lignesFiltrees = computed(() => {
                         </div>
                     </template>
 
-                    <!-- VUE 2 : DÉTAIL DE L'EFFECTIF (AFFICHÉ QUAND ON CLIQUE SUR L'ONGLET) -->
-                    <template v-else>
+                    <!-- VUE 2 : DÉTACHEMENTS EXTÉRIEURS SPA (HORS MAILLAGE TERRITORIAL) -->
+                    <template v-else-if="sidebarTab === 'detachements'">
+                        <!-- Titre de liste + Barre de recherche instantanée -->
+                        <div class="flex items-center justify-between gap-1.5 mb-1 flex-none">
+                            <h3 class="text-xs font-bold text-sky-950 truncate flex items-center gap-1">
+                                <i class="pi pi-building-columns text-sky-700 text-xs"></i>
+                                <span>Structures SPA ({{ filteredOrganismes.length }})</span>
+                            </h3>
+                            <div class="relative w-36 sm:w-40">
+                                <input
+                                    v-model="searchDetachements"
+                                    type="text"
+                                    placeholder="Filtrer structures..."
+                                    class="w-full text-[11px] py-0.5 pl-5 pr-5 rounded border border-slate-200 bg-white placeholder-slate-400 focus:outline-none focus:border-sky-500"
+                                />
+                                <i class="pi pi-search absolute left-1.5 top-1.5 text-[9px] text-slate-400"></i>
+                                <button
+                                    v-if="searchDetachements"
+                                    @click="searchDetachements = ''"
+                                    class="absolute right-1 top-1 text-slate-400 hover:text-slate-600 text-[10px]"
+                                    title="Effacer"
+                                >
+                                    <i class="pi pi-times"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- LISTE DES ORGANISMES DE DÉTACHEMENT (SCROLLABLE) -->
+                        <div class="flex-1 min-h-0 max-h-[380px] lg:max-h-[410px] xl:max-h-[440px] overflow-y-auto pr-1 space-y-1.5 custom-scrollbar overscroll-contain">
+                            <div class="p-2 rounded-lg bg-sky-50/70 border border-sky-200 text-xs flex items-center justify-between">
+                                <span class="text-sky-900 font-bold">Total Détachés :</span>
+                                <span class="font-extrabold text-sky-950 bg-white px-2 py-0.5 rounded border border-sky-200">{{ fmt(totalDetaches) }} gendarmes</span>
+                            </div>
+
+                            <ul v-if="filteredOrganismes.length > 0" class="space-y-1">
+                                <li v-for="org in filteredOrganismes" :key="org.id">
+                                    <button
+                                        type="button"
+                                        @click="ouvrirModalStatut('detaches', org.id)"
+                                        class="w-full p-2 rounded-lg border border-slate-200/90 bg-white hover:bg-sky-50/60 hover:border-sky-400 flex items-center justify-between gap-2 text-left cursor-pointer transition-all shadow-2xs group"
+                                        :title="`Cliquer pour voir la liste nominative des gendarmes détachés auprès de ${org.nom}`"
+                                    >
+                                        <div class="min-w-0 flex-1">
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="text-[10px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded bg-sky-100 text-sky-900 border border-sky-200 shrink-0">
+                                                    {{ org.code }}
+                                                </span>
+                                                <span class="text-xs font-semibold text-slate-800 truncate group-hover:text-sky-950">
+                                                    {{ org.nom }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <span class="font-extrabold text-xs text-sky-900 tabular-nums">
+                                                {{ fmt(org.effectif) }}
+                                            </span>
+                                            <i class="pi pi-chevron-right text-[10px] text-slate-400 group-hover:text-sky-700"></i>
+                                        </div>
+                                    </button>
+                                </li>
+                            </ul>
+                            <div v-else class="py-6 text-center text-xs text-slate-400">
+                                Aucun organisme pour « {{ searchDetachements }} »
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- VUE 3 : DÉTAIL DE L'EFFECTIF (AFFICHÉ QUAND ON CLIQUE SUR L'ONGLET STATS) -->
+                    <template v-else-if="sidebarTab === 'effectif'">
                         <div class="flex-1 min-h-0 max-h-[380px] lg:max-h-[410px] xl:max-h-[440px] overflow-y-auto pr-1 space-y-2 custom-scrollbar text-xs overscroll-contain">
                             <!-- En activité -->
                             <div class="p-2.5 rounded-lg border border-slate-200 bg-slate-50/70 space-y-2">
