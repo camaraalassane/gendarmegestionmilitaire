@@ -19,6 +19,8 @@ class Position extends Model
     public const CODE_CONGE = 'CONGE';
     public const CODE_ATTENTE = 'ATTENTE';
     public const CODE_DISPONIBILITE = 'DISPONIBILITE';
+    public const CODE_DESERTION = 'DESERTION';
+    public const CODE_RETRAIT_EMPLOI = 'RETRAIT_EMPLOI';
 
     // Identifiants par défaut
     public const ID_UNITE = 21;
