@@ -83,7 +83,7 @@ class DashboardController extends Controller
                 })
                 ->where('militaires.est_disparu', 0)
                 ->whereNull('militaires.deleted_at')
-                ->whereRaw("((EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCourante}) OR (LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire < {$anneeCourante}))")
+                ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCourante})")
                 ->count();
 
             // 2. Proposables avancement année N (source unique d'éligibilités calculées pour performance ultra-rapide)
@@ -426,13 +426,13 @@ class DashboardController extends Controller
                 ]);
 
             $retN = $baseQuery()
-                ->whereRaw("((EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCourante}) OR (LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire < {$anneeCourante}))")
+                ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCourante})")
                 ->get()
                 ->map($mapRetraite)
                 ->all();
 
             $retN1 = $baseQuery()
-                ->whereRaw("(LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeN1})")
+                ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeN1})")
                 ->get()
                 ->map($mapRetraite)
                 ->all();

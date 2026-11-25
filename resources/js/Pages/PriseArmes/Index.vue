@@ -47,19 +47,44 @@ const appliedFilters = () => {
     return f;
 };
 
-// Téléchargement Excel Officiel avec progression et notifications
+// Téléchargement Excel Officiel (Global vs Onglet contextuel)
 const exportingExcel = ref(false);
 
-const telechargerExcel = async () => {
-    await downloadExport(route('prise-armes.export'), {
-        defaultFilename: `situation_prise_armes_${new Date().toISOString().slice(0, 10)}.xlsx`,
+const telechargerExcelGlobal = async () => {
+    await downloadExport(route('prise-armes.export', { tab: 'global' }), {
+        defaultFilename: `situation_prise_armes_officielle_complete_${new Date().toISOString().slice(0, 10)}.xlsx`,
         toast,
         onStart: () => { exportingExcel.value = true; },
         onFinish: () => { exportingExcel.value = false; },
-        loadingMessage: 'Préparation du fichier Excel de la Prise d\'Armes... Veuillez patienter.',
-        successMessage: 'Situation officielle Prise d\'Armes téléchargée avec succès !'
+        loadingMessage: 'Préparation du classeur Excel Officiel Global (toutes les feuilles)... Veuillez patienter.',
+        successMessage: 'Classeur officiel complet téléchargé avec succès !'
     });
 };
+
+const telechargerExcelOnglet = async (tab) => {
+    const targetTab = tab || activeTab.value || 'spa';
+    const tabLabels = {
+        'spa': 'Situation de Prise d\'Armes (DGGN)',
+        'blesses': 'Registre des Blessés de Guerre',
+        'disparus': 'Registre des Portés Disparus et Otages',
+        'malades': 'Registre des Grands Malades et Inaptes',
+        'decedes': 'Registre des Décédés en Opération',
+        'deserteurs': 'Registre des Déserteurs',
+    };
+    const tabLabel = tabLabels[targetTab] || 'Onglet actif';
+
+    await downloadExport(route('prise-armes.export', { tab: targetTab }), {
+        defaultFilename: `${targetTab}_${new Date().toISOString().slice(0, 10)}.xlsx`,
+        toast,
+        onStart: () => { exportingExcel.value = true; },
+        onFinish: () => { exportingExcel.value = false; },
+        loadingMessage: `Préparation de l'export Excel pour "${tabLabel}"... Veuillez patienter.`,
+        successMessage: `Export Excel pour "${tabLabel}" téléchargé avec succès !`
+    });
+};
+
+// Rétrocompatibilité
+const telechargerExcel = telechargerExcelGlobal;
 
 const localRegistres = ref(Array.isArray(props.registres) && props.registres.length > 0 ? props.registres : []);
 const loadingRegistres = ref(false);
@@ -535,14 +560,39 @@ const SPA_CARD_GRADES = [
     { code: 'MRG', title: "Militaire du Rang / Gendarmes", cat: 'mrg' },
 ];
 
+// Noms officiels complets des 20 Régions (19 Régions + 1 District de Bamako)
+const REGION_OFFICIAL_NAMES = {
+    'R1':  'DISTRICT DE BAMAKO',
+    'R2':  'KAYES',
+    'R3':  'KOULIKORO',
+    'R4':  'SIKASSO',
+    'R5':  'SÉGOU',
+    'R6':  'MOPTI',
+    'R7':  'TOMBOUCTOU',
+    'R8':  'GAO',
+    'R9':  'KIDAL',
+    'R10': 'NIORO DU SAHEL',
+    'R11': 'MÉNAKA',
+    'R12': 'KITA',
+    'R13': 'DIOÏLA',
+    'R14': 'NARA',
+    'R15': 'BOUGOUNI',
+    'R16': 'KOUTIALA',
+    'R17': 'SAN',
+    'R18': 'DOUENTZA',
+    'R19': 'BANDIAGARA',
+    'R20': 'TAOUDÉNIT',
+};
+
 // Liste ordonnée des 20 régions (19 régions + 1 District de Bamako) depuis la base avec décomposition H / D
 const liste20Regions = computed(() => {
     return props.regions.map(r => {
         const sit = props.regionsSituation[r.code] || {};
+        const nomOfficiel = (r.nom && !r.nom.startsWith('REGION N°')) ? r.nom : (REGION_OFFICIAL_NAMES[r.code] || r.nom || r.code);
         return {
             id: r.id,
             code: r.code,
-            nom: r.nom,
+            nom: nomOfficiel,
             total: sit.total || 0,
             total_h: sit.total_h || 0,
             total_d: sit.total_d || 0,
@@ -647,7 +697,7 @@ const listeOrganismesCards = computed(() => {
                     <!-- BOUTON EXPORT EXCEL OFFICIEL IDENTIQUE -->
                     <div class="flex items-center space-x-2">
                         <Button
-                            @click="telechargerExcel"
+                            @click="telechargerExcelGlobal"
                             :icon="exportingExcel ? 'pi pi-spin pi-spinner' : 'pi pi-download'"
                             :label="exportingExcel ? 'Exportation...' : 'Exporter Excel Officiel'"
                             :loading="exportingExcel"
@@ -910,7 +960,7 @@ const listeOrganismesCards = computed(() => {
 
                         <div class="flex items-center gap-2.5 flex-wrap">
                             <Button
-                                @click="telechargerExcel"
+                                @click="telechargerExcelOnglet('spa')"
                                 :icon="exportingExcel ? 'pi pi-spin pi-spinner' : 'pi pi-file-excel'"
                                 :label="exportingExcel ? 'Génération en cours...' : 'Exporter la Situation DGGN (Excel .xlsx)'"
                                 :loading="exportingExcel"
@@ -1137,6 +1187,16 @@ const listeOrganismesCards = computed(() => {
                     </div>
 
                     <div class="flex items-center space-x-2">
+                        <Button
+                            @click="telechargerExcelOnglet(activeTab)"
+                            :icon="exportingExcel ? 'pi pi-spin pi-spinner' : 'pi pi-file-excel'"
+                            label="Exporter ce registre (Excel .xlsx)"
+                            :loading="exportingExcel"
+                            :disabled="exportingExcel"
+                            severity="success"
+                            size="small"
+                            class="!rounded-xl !bg-emerald-600 hover:!bg-emerald-500 !border-emerald-500 shadow-sm font-bold cursor-pointer disabled:opacity-50"
+                        />
                         <Button
                             @click="openNewRegistreModal(activeTab === 'blesses' ? 1 : activeTab === 'disparus' ? 2 : activeTab === 'malades' ? 3 : activeTab === 'decedes' ? 4 : 5)"
                             icon="pi pi-plus"

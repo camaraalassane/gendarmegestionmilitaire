@@ -653,7 +653,20 @@ class PriseArmeController extends Controller
 
     public function export(Request $request)
     {
-        $nomFichier = sprintf('SITUATION_PRISE_ARMES_GRM_%s.xlsx', now()->format('Ymd_His'));
-        return Excel::download(new SituationPriseArmesExport(), $nomFichier);
+        $tab = $request->query('tab');
+
+        $prefixes = [
+            'spa'        => 'SITUATION_PRISE_ARMES_DGGN',
+            'blesses'    => 'REGISTRE_BLESSES_DE_GUERRE',
+            'disparus'   => 'REGISTRE_PORTES_DISPARUS_OTAGES',
+            'malades'    => 'REGISTRE_GRANDS_MALADES',
+            'decedes'    => 'REGISTRE_DECES_OPERATION',
+            'deserteurs' => 'REGISTRE_DESERTEURS',
+        ];
+
+        $prefix = ($tab && isset($prefixes[$tab])) ? $prefixes[$tab] : 'SITUATION_PRISE_ARMES_OFFICIELLE_COMPLETE';
+        $nomFichier = sprintf('%s_%s.xlsx', $prefix, now()->format('Ymd_His'));
+
+        return Excel::download(new SituationPriseArmesExport($tab), $nomFichier);
     }
 }

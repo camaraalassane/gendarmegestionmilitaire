@@ -246,11 +246,11 @@ class MilitaireController extends Controller
                 ->whereNull('militaires.deleted_at');
 
             $retraitesN = (int) $baseRetraiteQuery()
-                ->whereRaw("((EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeN}) OR (LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire < {$anneeN}))")
+                ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeN})")
                 ->count();
 
             $retraitesN1 = (int) $baseRetraiteQuery()
-                ->whereRaw("(LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = " . ($anneeN + 1) . ")")
+                ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = " . ($anneeN + 1) . ")")
                 ->count();
 
             return [
@@ -2129,11 +2129,7 @@ class MilitaireController extends Controller
               })
               ->where('militaires.est_disparu', 0);
 
-        if ($anneeCible === $anneeCourante) {
-            $query->whereRaw("((EXTRACT(YEAR FROM militaires.date_naissance) + g_retraite.retraite_obligatoire = {$anneeCible}) OR (LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + g_retraite.retraite_obligatoire < {$anneeCible}))");
-        } else {
-            $query->whereRaw("(LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + g_retraite.retraite_obligatoire = {$anneeCible})");
-        }
+        $query->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + g_retraite.retraite_obligatoire = {$anneeCible})");
     }
 
     /**
@@ -2143,8 +2139,6 @@ class MilitaireController extends Controller
     {
         $v = Militaire::getCacheVersion();
         return Cache::remember("v{$v}:militaires:ids_retraite_{$anneeCible}", 1800, function () use ($anneeCible) {
-            $anneeCourante = (int) Carbon::now()->year;
-
             return DB::table('militaires')
                 ->join('grades', 'militaires.grade_id', '=', 'grades.id')
                 ->whereNotNull('militaires.date_naissance')
@@ -2158,10 +2152,7 @@ class MilitaireController extends Controller
                       ->orWhere('militaires.observations', 'not ilike', '%otage%');
                 })
                 ->where('militaires.est_disparu', 0)
-                ->whereRaw(($anneeCible === $anneeCourante)
-                    ? "((EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCible}) OR (LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire < {$anneeCible}))"
-                    : "(LOWER(militaires.statut) LIKE 'actif%' AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCible})"
-                )
+                ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCible})")
                 ->pluck('militaires.id')
                 ->toArray();
         });

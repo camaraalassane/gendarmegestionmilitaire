@@ -95,7 +95,7 @@ class CarteController extends Controller
             ->whereNotNull('grades.retraite_obligatoire')
             ->where('militaires.est_disparu', 0)
             ->whereNull('militaires.deleted_at')
-            ->whereRaw("((EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$annee}) OR (militaires.statut_code = 1 AND EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire < {$annee}))")
+            ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$annee})")
             ->groupBy('militaires.region_id')
             ->selectRaw('militaires.region_id, count(*) as cnt')
             ->pluck('cnt', 'region_id')

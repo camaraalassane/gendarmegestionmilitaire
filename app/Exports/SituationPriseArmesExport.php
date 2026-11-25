@@ -13,7 +13,7 @@ use App\Services\SituationPriseArmeService;
 
 class SituationPriseArmesExport implements WithMultipleSheets
 {
-    public function __construct()
+    public function __construct(private ?string $tab = null)
     {
     }
 
@@ -44,7 +44,7 @@ class SituationPriseArmesExport implements WithMultipleSheets
             'organismes' => $organismes,
             'matrice' => $matrice,
         ];
-        $sheets[] = new SpaMatriceSheet($matriceData);
+        $sheetMatrice = new SpaMatriceSheet($matriceData);
 
         // 2. Feuille Situation par Région (19 Régions + 1 District de Bamako)
         if (empty($regionsData)) {
@@ -53,7 +53,12 @@ class SituationPriseArmesExport implements WithMultipleSheets
                 $regionsData[$r->code] = ['nom' => $r->nom];
             }
         }
-        $sheets[] = new SpaRegionsSheet($regionsData);
+        $sheetRegions = new SpaRegionsSheet($regionsData);
+
+        // Si l'export demandé est contextuel pour l'onglet SPA : uniquement SPA (Matrice + Régions)
+        if ($this->tab === 'spa') {
+            return [$sheetMatrice, $sheetRegions];
+        }
 
         // 3. Feuille Blessés de Guerre & en opération (depuis registres_operationnels)
         $blesses = RegistreOperationnel::blesses()->with(['region', 'unite.region'])->orderBy('numero_ordre')->get()->map(function ($b, $i) {
@@ -72,12 +77,15 @@ class SituationPriseArmesExport implements WithMultipleSheets
                 $b->observations ?? 'Opération',
             ];
         })->toArray();
-        $sheets[] = new SpaRegistresSheet(
+        $sheetBlesses = new SpaRegistresSheet(
             'Blessés de Guerre',
             'LISTE DU PERSONNEL DE LA GENDARMERIE BLESSES EN OPERATION ET BLESSES DE GUERRE',
             ['N° ord', 'Grade', 'Prénoms', 'Noms', 'Mles', 'Région', 'Unités', 'Circonstances', 'Dates', 'Ob.'],
             $blesses
         );
+        if ($this->tab === 'blesses') {
+            return [$sheetBlesses];
+        }
 
         // 4. Feuille Portés disparus & Otages (depuis registres_operationnels)
         $disparus = RegistreOperationnel::disparus()->with(['region', 'unite.region'])->orderBy('numero_ordre')->get()->map(function ($d, $i) {
@@ -96,12 +104,15 @@ class SituationPriseArmesExport implements WithMultipleSheets
                 $d->observations ?? 'Porté disparu / Otage',
             ];
         })->toArray();
-        $sheets[] = new SpaRegistresSheet(
+        $sheetDisparus = new SpaRegistresSheet(
             'Portés Disparus',
             'ETAT DE SUIVI DES PORTES DISPARUS ET OTAGES DE LA GENDARMERIE NATIONALE',
             ['N° ord', 'Grade', 'Prénoms', 'Noms', 'Mle', 'Région', 'Dernières Unité', 'Dates disparition', 'Circonstances', 'Ob.'],
             $disparus
         );
+        if ($this->tab === 'disparus') {
+            return [$sheetDisparus];
+        }
 
         // 5. Feuille Déserteurs (depuis registres_operationnels)
         $deserteurs = RegistreOperationnel::deserteurs()->with(['region', 'unite.region'])->orderBy('numero_ordre')->get()->map(function ($des, $i) {
@@ -119,12 +130,15 @@ class SituationPriseArmesExport implements WithMultipleSheets
                 $des->observations ?? '',
             ];
         })->toArray();
-        $sheets[] = new SpaRegistresSheet(
+        $sheetDeserteurs = new SpaRegistresSheet(
             'Déserteurs',
             'SITUATION DES DESERTEURS DE LA GENDARMERIE NATIONALE',
             ['N° ord', 'Mle', 'Prénoms', 'Noms', 'Grade', 'Région', 'Unité', 'Année / Date', 'Observations'],
             $deserteurs
         );
+        if ($this->tab === 'deserteurs') {
+            return [$sheetDeserteurs];
+        }
 
         // 6. Feuille Décédés (depuis registres_operationnels)
         $decedes = RegistreOperationnel::decedes()->with(['region', 'unite.region'])->orderBy('numero_ordre')->get()->map(function ($dec, $i) {
@@ -142,12 +156,15 @@ class SituationPriseArmesExport implements WithMultipleSheets
                 $dec->circonstances ?? '',
             ];
         })->toArray();
-        $sheets[] = new SpaRegistresSheet(
+        $sheetDecedes = new SpaRegistresSheet(
             'Décédés en Opération',
             'LISTE DES MILITAIRES DECEDES EN OPERATIONS OU SERVICE COMMANDE OU D\'AUTRES CIRCONSTANCES',
             ['N° ord', 'Prénoms', 'Noms', 'Mle', 'Grade', 'Région', 'Unité', 'Date Décès', 'Circonstances'],
             $decedes
         );
+        if ($this->tab === 'decedes') {
+            return [$sheetDecedes];
+        }
 
         // 7. Feuille Non Mobilisables (Grands Malades) (depuis registres_operationnels)
         $malades = RegistreOperationnel::grandsMalades()->with(['region', 'unite.region'])->orderBy('numero_ordre')->get()->map(function ($m, $i) {
@@ -165,13 +182,25 @@ class SituationPriseArmesExport implements WithMultipleSheets
                 $m->observations ?? '',
             ];
         })->toArray();
-        $sheets[] = new SpaRegistresSheet(
+        $sheetMalades = new SpaRegistresSheet(
             'Non Mobilisables',
             'SITUATION DES ELEMENTS NON MOBILISABLES (GRANDS MALADES ET RECLASSEMENTS SEDENTAIRES)',
             ['N° ord', 'Grade', 'Prénoms', 'Noms', 'Mle', 'Région', 'Unité', 'Nature / Pathologie', 'Ob.'],
             $malades
         );
+        if ($this->tab === 'malades') {
+            return [$sheetMalades];
+        }
 
-        return $sheets;
+        // Export Global complet avec toutes les feuilles (Photo 2 - Exporter Excel Officiel)
+        return [
+            $sheetMatrice,
+            $sheetRegions,
+            $sheetBlesses,
+            $sheetDisparus,
+            $sheetDeserteurs,
+            $sheetDecedes,
+            $sheetMalades,
+        ];
     }
 }

@@ -583,24 +583,23 @@ class EligibiliteController extends Controller
                 }
             }
 
-            // 3. RETRAITES
+            // 3. RETRAITES (Strictement les militaires partant à la retraite durant l'année en cours N)
             $isOtage = str_contains(mb_strtolower((string) $m->position_actuelle), 'otage');
             if (!$isOtage && $dNaissanceStr && $grade) {
                 $ageRetraite = $gradesRetraite[$grade] ?? null;
                 if ($ageRetraite) {
                     $anneeRetraite = (int)substr($dNaissanceStr, 0, 4) + $ageRetraite;
-                    if ($anneeRetraite === $nowY || $anneeRetraite === $nowY + 1) {
+                    if ($anneeRetraite === $nowY) {
                         $dRetraite = Carbon::parse($dNaissanceStr)->addYears($ageRetraite);
                         $diffJours = $now->diffInDays($dRetraite, false);
-                        $moisRestants = floor($diffJours / 30);
-                        if ($moisRestants <= 12 && $diffJours >= 0) {
-                            $allRetraites[] = [
-                                'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
-                                'date_retraite' => $dRetraite->format('Y-m-d'),
-                                'date_retraite_formatted' => $dRetraite->format('d/m/Y'),
-                                'mois_restants' => $moisRestants,
-                            ];
-                        }
+                        $moisRestants = (int) round($diffJours / 30);
+                        $allRetraites[] = [
+                            'militaire' => ['id' => $m->id, 'matricule' => $m->matricule, 'nom' => $m->nom, 'prenom' => $m->prenom, 'grade_actuel' => $grade],
+                            'date_retraite' => $dRetraite->format('Y-m-d'),
+                            'date_retraite_formatted' => $dRetraite->format('d/m/Y'),
+                            'mois_restants' => $moisRestants,
+                            'annee_retraite' => $anneeRetraite,
+                        ];
                     }
                 }
             }

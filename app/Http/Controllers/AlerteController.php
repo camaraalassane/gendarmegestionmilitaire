@@ -439,12 +439,18 @@ class AlerteController extends Controller
             ];
         }
 
-        // --- E. Alertes Retraites (13) ---
+        // --- E. Alertes Retraites (Strictement l'année en cours N) ---
         foreach ($data['retraites'] ?? [] as $r) {
+            $dateFmt = $r['date_retraite_formatted'] ?? Carbon::parse($r['date_retraite'])->format('d/m/Y');
+            $mois = (int) ($r['mois_restants'] ?? 0);
+            $msg = ($mois > 0)
+                ? "Retraite dans {$mois} mois (le {$dateFmt})"
+                : "Retraite échue le {$dateFmt} (année {$now->year})";
+
             $allAlertes[] = [
                 'militaire_id'  => $r['militaire']['id'],
                 'type_alerte'   => 'retraite',
-                'message'       => "Retraite dans {$r['mois_restants']} mois (le {$r['date_retraite_formatted']})",
+                'message'       => $msg,
                 'date_echeance' => $r['date_retraite'],
                 'est_vue'       => false,
                 'created_at'    => $nowStr,
