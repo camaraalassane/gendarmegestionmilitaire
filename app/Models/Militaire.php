@@ -257,7 +257,7 @@ class Militaire extends Model
                 || $militaire->statut === 'détaché'
                 || $militaire->statut_code === 2;
             if (!$isDetache && empty($militaire->organisme_detachement_id)) {
-                $grmId = \App\Models\OrganismeDetachement::where('code', 'GRM')->value('id') ?? 1;
+                $grmId = \App\Support\Effectif::idOrganismeGrm();
                 $militaire->organisme_detachement_id = $grmId;
             }
 
@@ -583,7 +583,7 @@ class Militaire extends Model
             if (config('queue.default') === 'sync') {
                 dispatch($job)->afterResponse(); // pas de worker : exécuté après l'envoi de la réponse
             } else {
-                dispatch($job)->delay(now()->addSeconds(20)); // vrai arrière-plan via le worker
+                dispatch($job)->delay(now()->addSeconds(2)); // vrai arrière-plan via le worker
             }
         }
     }

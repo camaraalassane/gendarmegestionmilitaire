@@ -26,14 +26,24 @@ class ConfigurationController extends Controller
 
         if (! $hasFilters) {
             $cached = \Illuminate\Support\Facades\Cache::remember("v{$v}:configurations:index_default", 86400, function () {
-                $regions = Region::withCount('unites')
+                $regions = Region::select(['id', 'nom', 'code', 'ordre'])
+                    ->withCount('unites')
                     ->orderBy('ordre')
                     ->orderBy('nom')
                     ->get();
 
-                $unites = Unite::with('region')->orderBy('nom')->get();
-                $positions = Position::orderBy('nom')->get();
-                $theatres = Theatre::withCount('militaires')->with('unitesAppui')->orderBy('nom')->get();
+                $unites = Unite::with('region:id,nom,code')
+                    ->select(['id', 'region_id', 'nom', 'code', 'type', 'type_categorie', 'compagnie', 'groupement', 'est_operationnelle', 'ville', 'latitude', 'longitude'])
+                    ->orderBy('nom')
+                    ->get();
+
+                $positions = Position::select(['id', 'nom', 'code', 'type', 'description'])->orderBy('nom')->get();
+
+                $theatres = Theatre::select(['id', 'nom', 'code', 'statut', 'couleur', 'pc_lieu', 'latitude', 'longitude', 'description'])
+                    ->withCount('militaires')
+                    ->with('unitesAppui:id,theatre_id,nom,code,effectif,chef_detachement,couleur')
+                    ->orderBy('nom')
+                    ->get();
 
                 $stats = [
                     'total_regions' => $regions->count(),
@@ -52,7 +62,7 @@ class ConfigurationController extends Controller
 
             return Inertia::render('Configurations/Index', [
                 'regions' => $cached['regions'],
-                'unites' => $cached['unites'],
+                'unites' => Inertia::defer(fn () => $cached['unites']),
                 'positions' => $cached['positions'],
                 'theatres' => $cached['theatres'],
                 'stats' => $cached['stats'],

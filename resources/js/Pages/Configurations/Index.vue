@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
-import { router, usePage } from '@inertiajs/vue3';
+import { router, usePage, Deferred } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputText from 'primevue/inputtext';
 import Select from 'primevue/select';
@@ -919,7 +919,7 @@ const deleteAppui = (ua) => {
                         ]"
                     >
                         <i class="pi pi-shield"></i>
-                        <span>Unités ({{ unites.length }})</span>
+                        <span>Unités ({{ stats.total_unites || (unites && unites.length) || 0 }})</span>
                     </button>
 
                     <button
@@ -1012,8 +1012,16 @@ const deleteAppui = (ua) => {
                         />
                     </div>
 
-                    <!-- Tableau des unités -->
-                    <div class="overflow-x-auto border border-slate-200 rounded-lg">
+                    <!-- Tableau des unités (chargement différé) -->
+                    <Deferred data="unites">
+                        <template #fallback>
+                            <div class="py-12 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
+                                <i class="pi pi-spin pi-spinner text-2xl text-sky-600 mb-2"></i>
+                                <span class="text-xs">Chargement des unités en cours...</span>
+                            </div>
+                        </template>
+
+                        <div class="overflow-x-auto border border-slate-200 rounded-lg">
                         <table class="w-full text-left text-xs border-collapse">
                             <thead class="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
                                 <tr>
@@ -1140,6 +1148,7 @@ const deleteAppui = (ua) => {
                             />
                         </div>
                     </div>
+                    </Deferred>
                 </div>
 
                 <!-- CONTENU DE L'ONGLET 2 : RÉGIONS -->

@@ -49,118 +49,182 @@ class DashboardController extends Controller
     {
         $aujourdhui = Carbon::now();
         $anneeCourante = (int) $aujourdhui->year;
-
         $v = \App\Models\Militaire::getCacheVersion();
-        $isWarm = \Illuminate\Support\Facades\Cache::has("v{$v}:dashboard:statistiques_summary");
 
         return Inertia::render('Dashboard', [
-            'statistiques' => $isWarm
-                ? $this->statistiquesResume($anneeCourante, $v)
-                : Inertia::defer(fn () => $this->statistiquesResume($anneeCourante, $v)),
+            'statistiques' => $this->statistiquesResume($anneeCourante, $v),
             'chartsData' => Inertia::defer(fn () => $this->donneesGraphiques($v)),
         ]);
     }
 
-    /** Indicateurs clés du dashboard (en cache). Utilisés par l'écran ET par l'export Excel. */
+    /**
+     * Déclenche le préchauffage en arrière-plan sans bloquer la requête HTTP courante.
+     */
+    private function declencherPrechauffageBackground(int $v): void
+    {
+        if (\Illuminate\Support\Facades\Cache::add("prewarm:dashboard:stale_trigger:{$v}", 1, 60)) {
+            $job = new \App\Jobs\PrewarmDashboardCacheJob();
+            if (config('queue.default') === 'sync') {
+                dispatch($job)->afterResponse();
+            } else {
+                dispatch($job);
+            }
+        }
+    }
+
+    /** Indicateurs clés du dashboard (avec Stale-While-Revalidate). Utilisés par l'écran ET par l'export Excel. */
     public function statistiquesResume(?int $anneeCourante = null, ?int $v = null): array
     {
         $anneeCourante ??= (int) Carbon::now()->year;
         $v ??= \App\Models\Militaire::getCacheVersion();
+        $key = "v{$v}:dashboard:statistiques_summary";
 
-        return Cache::remember("v{$v}:dashboard:statistiques_summary", 86400, function () use ($anneeCourante, $v) {
-            // 1. Départs en retraite année N (incluant déserteurs et procédures échus)
-            $totalRetraitesN = \Illuminate\Support\Facades\DB::table('militaires')
-                ->join('grades', 'militaires.grade_id', '=', 'grades.id')
-                ->whereNotNull('militaires.date_naissance')
-                ->whereNotNull('grades.retraite_obligatoire')
-                ->where(function ($q) {
-                    $q->whereNull('militaires.position_actuelle')
-                      ->orWhere('militaires.position_actuelle', 'not ilike', '%otage%');
-                })
-                ->where(function ($q) {
-                    $q->whereNull('militaires.observations')
-                      ->orWhere('militaires.observations', 'not ilike', '%otage%');
-                })
-                ->where('militaires.est_disparu', 0)
-                ->whereIn('militaires.statut_code', \App\Support\Effectif::CODES_RETRAITABLES)
-                ->whereNull('militaires.deleted_at')
-                ->where(function ($q) use ($anneeCourante) {
-                    $q->where(function ($sq) use ($anneeCourante) {
-                        $sq->whereIn('militaires.statut_code', [1, 2, 3, 4])
-                           ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCourante})");
-                    })->orWhere(function ($sq) use ($anneeCourante) {
-                        $sq->whereIn('militaires.statut_code', [5, 6])
-                           ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire <= {$anneeCourante})");
-                    });
-                })
-                ->count();
+        // 1. Si la version courante est déjà en cache, retour immédiat (ultra-rapide)
+        if (Cache::has($key)) {
+            return (array) Cache::get($key);
+        }
 
-            // 2. Proposables avancement année N (source unique d'éligibilités calculées pour performance ultra-rapide)
-            $totalProposablesN = Cache::remember("v{$v}:dashboard:proposables_n_count", 86400, function () {
-                $vPrete = (int) DB::table('eligibilites_calculees')->where('type', 'meta')->max('version');
-                if ($vPrete > 0) {
-                    return (int) DB::table('eligibilites_calculees')->where('version', $vPrete)->where('type', 'promotions')->count();
-                }
-                $propBoth = $this->getProposablesBoth();
-                return $propBoth['proposablesN']['total'] ?? 0;
-            });
+        // 2. STALE-WHILE-REVALIDATE : si une version précédente prête existe (ex: après modif d'une fiche),
+        // on sert immédiatement l'ancienne version (0 ms d'attente pour l'utilisateur)
+        // pendant que le job de préchauffage calcule la nouvelle version en tâche de fond.
+        $lastReady = Cache::get('dashboard:statistiques_summary:last_ready');
+        if ($lastReady && is_array($lastReady)) {
+            $this->declencherPrechauffageBackground($v);
+            return $lastReady;
+        }
 
-            // 3. Synthèse globale des effectifs en 1 seule requête SQL agrégée ultra-rapide
-            $stats = Militaire::whereNull('deleted_at')->selectRaw("
-                COUNT(CASE WHEN " . Effectif::sqlActivite('statut') . " THEN 1 END) as total_actifs,
-                COUNT(CASE WHEN " . Effectif::sqlActivite('statut') . " AND (position_actuelle ILIKE '%detache%' OR position_actuelle ILIKE '%détach%') THEN 1 END) as detaches,
-                COUNT(CASE WHEN " . Effectif::sqlActivite('statut') . " AND (position_actuelle ILIKE '%mission%') THEN 1 END) as missions,
-                COUNT(CASE WHEN " . Effectif::sqlActivite('statut') . " AND (position_actuelle ILIKE '%stage%') THEN 1 END) as stages,
-                COUNT(CASE WHEN " . Effectif::sqlActivite('statut') . " AND (
-                    (position_actuelle IS NULL OR position_actuelle = '')
-                    OR (
-                        position_actuelle NOT ILIKE '%detache%' AND position_actuelle NOT ILIKE '%détach%'
-                        AND position_actuelle NOT ILIKE '%mission%'
-                        AND position_actuelle NOT ILIKE '%stage%'
-                    )
-                ) THEN 1 END) as actifs_stricts,
-                COUNT(CASE WHEN statut_code = 9 OR (date_deces >= '{$anneeCourante}-01-01' AND date_deces <= '{$anneeCourante}-12-31') THEN 1 END) as decedes,
-                COUNT(CASE WHEN statut_code = 6 OR LOWER(motif_radiation) LIKE '%desert%' THEN 1 END) as deserteurs,
-                COUNT(CASE WHEN statut_code = 8 OR statut = 'radié' THEN 1 END) as radies,
-                COUNT(CASE WHEN statut_code IS NULL AND statut IS NULL THEN 1 END) as non_classes
-            ")->first();
+        // 3. Fallback : premier démarrage absolu sans aucun cache préalable
+        $data = $this->calculerStatistiquesResume($anneeCourante, $v);
+        Cache::put($key, $data, 86400);
+        Cache::put('dashboard:statistiques_summary:last_ready', $data, 86400);
 
-            // 4. Registres opérationnels en 1 seule requête SQL
-            $regStats = \App\Models\RegistreOperationnel::selectRaw("
-                COUNT(CASE WHEN type_registre_code = " . \App\Models\RegistreOperationnel::TYPE_BLESSE . " THEN 1 END) as blesses,
-                COUNT(CASE WHEN type_registre_code = " . \App\Models\RegistreOperationnel::TYPE_GRAND_MALADE . " THEN 1 END) as grands_malades,
-                COUNT(CASE WHEN type_registre_code = " . \App\Models\RegistreOperationnel::TYPE_DISPARU . " THEN 1 END) as disparus
-            ")->first();
-
-            $totalActifs = (int) ($stats->total_actifs ?? 0);
-
-            return [
-                'annee' => $anneeCourante,
-                'total_militaires' => $totalActifs,
-                'militaires_actifs' => $totalActifs,
-                'actifs_stricts' => (int) ($stats->actifs_stricts ?? 0),
-                'detaches' => (int) ($stats->detaches ?? 0),
-                'missions' => (int) ($stats->missions ?? 0),
-                'stages' => (int) ($stats->stages ?? 0),
-                'radies' => (int) ($stats->radies ?? 0),
-                'non_classes' => (int) ($stats->non_classes ?? 0),
-                'proposables_n' => (int) $totalProposablesN,
-                'retraites_n' => (int) $totalRetraitesN,
-                'decedes_cette_annee' => (int) ($stats->decedes ?? 0),
-                'deserteurs' => (int) ($stats->deserteurs ?? 0),
-                'total_blesses' => (int) ($regStats->blesses ?? 0),
-                'total_grands_malades' => (int) ($regStats->grands_malades ?? 0),
-                'total_disparus' => (int) ($regStats->disparus ?? 0),
-            ];
-        });
+        return $data;
     }
 
-    /** Données des graphiques du dashboard (en cache). Utilisées par l'écran ET par l'export Excel. */
+    /**
+     * Calcul SQL complet des métriques du dashboard.
+     */
+    public function calculerStatistiquesResume(int $anneeCourante, int $v): array
+    {
+        // 1. Départs en retraite année N (incluant déserteurs et procédures échus)
+        $totalRetraitesN = \Illuminate\Support\Facades\DB::table('militaires')
+            ->join('grades', 'militaires.grade_id', '=', 'grades.id')
+            ->whereNotNull('militaires.date_naissance')
+            ->whereNotNull('grades.retraite_obligatoire')
+            ->where(function ($q) {
+                $q->whereNull('militaires.position_actuelle')
+                  ->orWhere('militaires.position_actuelle', 'not ilike', '%otage%');
+            })
+            ->where(function ($q) {
+                $q->whereNull('militaires.observations')
+                  ->orWhere('militaires.observations', 'not ilike', '%otage%');
+            })
+            ->where('militaires.est_disparu', 0)
+            ->whereIn('militaires.statut_code', \App\Support\Effectif::CODES_RETRAITABLES)
+            ->whereNull('militaires.deleted_at')
+            ->where(function ($q) use ($anneeCourante) {
+                $q->where(function ($sq) use ($anneeCourante) {
+                    $sq->whereIn('militaires.statut_code', [1, 2, 3, 4])
+                       ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCourante})");
+                })->orWhere(function ($sq) use ($anneeCourante) {
+                    $sq->whereIn('militaires.statut_code', [5, 6])
+                       ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire <= {$anneeCourante})");
+                });
+            })
+            ->count();
+
+        // 2. Proposables avancement année N (source unique d'éligibilités calculées pour performance ultra-rapide)
+        $totalProposablesN = Cache::remember("v{$v}:dashboard:proposables_n_count", 86400, function () {
+            $vPrete = (int) DB::table('eligibilites_calculees')->where('type', 'meta')->max('version');
+            if ($vPrete > 0) {
+                return (int) DB::table('eligibilites_calculees')->where('version', $vPrete)->where('type', 'promotions')->count();
+            }
+            $propBoth = $this->getProposablesBoth();
+            return $propBoth['proposablesN']['total'] ?? 0;
+        });
+
+        // 3. Synthèse globale des effectifs en 1 seule requête SQL agrégée ultra-rapide
+        $stats = Militaire::whereNull('deleted_at')->selectRaw("
+            COUNT(CASE WHEN " . Effectif::sqlActivite('statut') . " THEN 1 END) as total_actifs,
+            COUNT(CASE WHEN " . Effectif::sqlActivite('statut') . " AND (position_actuelle ILIKE '%detache%' OR position_actuelle ILIKE '%détach%') THEN 1 END) as detaches,
+            COUNT(CASE WHEN " . Effectif::sqlActivite('statut') . " AND (position_actuelle ILIKE '%mission%') THEN 1 END) as missions,
+            COUNT(CASE WHEN " . Effectif::sqlActivite('statut') . " AND (position_actuelle ILIKE '%stage%') THEN 1 END) as stages,
+            COUNT(CASE WHEN " . Effectif::sqlActivite('statut') . " AND (
+                (position_actuelle IS NULL OR position_actuelle = '')
+                OR (
+                    position_actuelle NOT ILIKE '%detache%' AND position_actuelle NOT ILIKE '%détach%'
+                    AND position_actuelle NOT ILIKE '%mission%'
+                    AND position_actuelle NOT ILIKE '%stage%'
+                )
+            ) THEN 1 END) as actifs_stricts,
+            COUNT(CASE WHEN statut_code = 9 OR (date_deces >= '{$anneeCourante}-01-01' AND date_deces <= '{$anneeCourante}-12-31') THEN 1 END) as decedes,
+            COUNT(CASE WHEN statut_code = 6 OR LOWER(motif_radiation) LIKE '%desert%' THEN 1 END) as deserteurs,
+            COUNT(CASE WHEN statut_code = 8 OR statut = 'radié' THEN 1 END) as radies,
+            COUNT(CASE WHEN statut_code IS NULL AND statut IS NULL THEN 1 END) as non_classes
+        ")->first();
+
+        // 4. Registres opérationnels en 1 seule requête SQL
+        $regStats = \App\Models\RegistreOperationnel::selectRaw("
+            COUNT(CASE WHEN type_registre_code = " . \App\Models\RegistreOperationnel::TYPE_BLESSE . " THEN 1 END) as blesses,
+            COUNT(CASE WHEN type_registre_code = " . \App\Models\RegistreOperationnel::TYPE_GRAND_MALADE . " THEN 1 END) as grands_malades,
+            COUNT(CASE WHEN type_registre_code = " . \App\Models\RegistreOperationnel::TYPE_DISPARU . " THEN 1 END) as disparus
+        ")->first();
+
+        $totalActifs = (int) ($stats->total_actifs ?? 0);
+
+        return [
+            'annee' => $anneeCourante,
+            'total_militaires' => $totalActifs,
+            'militaires_actifs' => $totalActifs,
+            'actifs_stricts' => (int) ($stats->actifs_stricts ?? 0),
+            'detaches' => (int) ($stats->detaches ?? 0),
+            'missions' => (int) ($stats->missions ?? 0),
+            'stages' => (int) ($stats->stages ?? 0),
+            'radies' => (int) ($stats->radies ?? 0),
+            'non_classes' => (int) ($stats->non_classes ?? 0),
+            'proposables_n' => (int) $totalProposablesN,
+            'retraites_n' => (int) $totalRetraitesN,
+            'decedes_cette_annee' => (int) ($stats->decedes ?? 0),
+            'deserteurs' => (int) ($stats->deserteurs ?? 0),
+            'total_blesses' => (int) ($regStats->blesses ?? 0),
+            'total_grands_malades' => (int) ($regStats->grands_malades ?? 0),
+            'total_disparus' => (int) ($regStats->disparus ?? 0),
+        ];
+    }
+
+    /** Données des graphiques du dashboard (avec Stale-While-Revalidate). Utilisées par l'écran ET par l'export Excel. */
     public function donneesGraphiques(?int $v = null): array
     {
         $v ??= \App\Models\Militaire::getCacheVersion();
+        $key = "v{$v}:dashboard:charts_data";
 
-        return Cache::remember("v{$v}:dashboard:charts_data", 86400, function () {
+        // 1. Si la version courante est prête en cache, retour immédiat
+        if (Cache::has($key)) {
+            return (array) Cache::get($key);
+        }
+
+        // 2. STALE-WHILE-REVALIDATE : si une version précédente prête existe (ex: après modif de fiches),
+        // on sert immédiatement l'ancienne version (0 ms d'attente pour l'utilisateur)
+        // et on lance le calcul de la nouvelle version en tâche de fond.
+        $lastReady = Cache::get('dashboard:charts_data:last_ready');
+        if ($lastReady && is_array($lastReady)) {
+            $this->declencherPrechauffageBackground($v);
+            return $lastReady;
+        }
+
+        // 3. Fallback : premier démarrage absolu sans aucun cache préalable
+        $data = $this->calculerDonneesGraphiques($v);
+        Cache::put($key, $data, 86400);
+        Cache::put('dashboard:charts_data:last_ready', $data, 86400);
+
+        return $data;
+    }
+
+    /**
+     * Calcul SQL complet des graphiques du dashboard.
+     */
+    public function calculerDonneesGraphiques(int $v): array
+    {
         // 1. STATISTIQUES PAR STATUT (Situation Administrative Statutaire & Opérationnelle)
         // Utilise les filtres unifiés d'Effectif pour une cohérence rigoureuse à 100% avec les fiches et la liste
         $countDetaches = (int) Effectif::appliquerFiltreDetaches(Militaire::whereNull('deleted_at'))->count();
@@ -305,14 +369,13 @@ class DashboardController extends Controller
             ->map(fn($g) => ['label' => $g->nom_grade, 'value' => (int) $g->militaires_count])
             ->toArray();
 
-            return [
-                'statuts' => $statutsDistribution,
-                'positions' => $positionsDistribution,
-                'regions' => $regionsDistribution,
-                'categories' => $categoriesDistribution,
-                'grades' => $gradesDistribution,
-            ];
-        });
+        return [
+            'statuts' => $statutsDistribution,
+            'positions' => $positionsDistribution,
+            'regions' => $regionsDistribution,
+            'categories' => $categoriesDistribution,
+            'grades' => $gradesDistribution,
+        ];
     }
 
     /**

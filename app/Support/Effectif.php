@@ -104,7 +104,7 @@ class Effectif
     {
         static $id = null;
         if ($id === null) {
-            $id = (int) (\App\Models\OrganismeDetachement::where('code', 'GRM')->value('id') ?? 2);
+            $id = (int) (\App\Models\OrganismeDetachement::where('code', 'GRM')->value('id') ?? 1);
         }
         return $id;
     }
