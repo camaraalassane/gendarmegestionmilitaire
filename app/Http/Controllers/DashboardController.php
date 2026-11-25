@@ -82,6 +82,7 @@ class DashboardController extends Controller
                       ->orWhere('militaires.observations', 'not ilike', '%otage%');
                 })
                 ->where('militaires.est_disparu', 0)
+                ->whereIn('militaires.statut_code', \App\Support\Effectif::CODES_RETRAITABLES)
                 ->whereNull('militaires.deleted_at')
                 ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCourante})")
                 ->count();
@@ -418,6 +419,7 @@ class DashboardController extends Controller
                       ->orWhere('militaires.observations', 'not ilike', '%otage%');
                 })
                 ->where('militaires.est_disparu', 0)
+                ->whereIn('militaires.statut_code', \App\Support\Effectif::CODES_RETRAITABLES)
                 ->whereNull('militaires.deleted_at')
                 ->select([
                     'militaires.id', 'militaires.matricule', 'militaires.nom', 'militaires.prenom',

@@ -28,6 +28,14 @@ class Effectif
     /** Codes numériques des statuts en activité. */
     public const CODES_ACTIVITE = [1, 2, 3, 4];
 
+    /**
+     * Statuts concernés par le calcul des départs en retraite :
+     * les actifs (1-4), les procédures en cours (5) et les déserteurs (6) dont le sort est inconnu
+     * restent dans le calcul et les alertes. Sont exclus : retraités (7), radiés (8) et décédés (9),
+     * déjà comptés dans leur propre statut.
+     */
+    public const CODES_RETRAITABLES = [1, 2, 3, 4, 5, 6];
+
     /** Motifs SQL historiques conservés pour rétrocompatibilité. */
     public const MOTIFS = ['actif', 'actif%', 'd_tach_%', 'detach%', '%mission%', '%stage%', '%format%'];
 

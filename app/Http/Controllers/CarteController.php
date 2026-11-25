@@ -94,6 +94,7 @@ class CarteController extends Controller
             ->whereNotNull('militaires.date_naissance')
             ->whereNotNull('grades.retraite_obligatoire')
             ->where('militaires.est_disparu', 0)
+            ->whereIn('militaires.statut_code', \App\Support\Effectif::CODES_RETRAITABLES)
             ->whereNull('militaires.deleted_at')
             ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$annee})")
             ->groupBy('militaires.region_id')

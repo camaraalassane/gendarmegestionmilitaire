@@ -49,8 +49,9 @@ class SyncRetraites extends Command
 
             // 1. Départs passés (2025, 2024, 2023...) : doivent avoir le statut 'retraité'
             if ($anneeRetraite < $anneeCourante) {
-                if (str_starts_with(mb_strtolower($militaire->statut ?? ''), 'actif')) {
+                if (in_array((int) $militaire->statut_code, \App\Support\Effectif::CODES_ACTIVITE, true)) {
                     $militaire->statut = 'retraité';
+                    $militaire->statut_code = 7;
                     $militaire->save();
                     $basculesEnRetraite++;
                     $this->line(" -> [PASSÉ -> RETRAITÉ] {$militaire->matricule} {$militaire->nom} {$militaire->prenom} ({$militaire->grade_actuel}, retraite échue en {$anneeRetraite})");
@@ -74,7 +75,8 @@ class SyncRetraites extends Command
         }
 
         // Vider tous les caches pour actualiser instantanément le Dashboard et la liste Militaires
-        Cache::flush();
+        // Pas de Cache::flush() : il remettrait à zéro le compteur de version et les verrous. On invalide par version.
+        Militaire::incrementCacheVersion();
 
         $this->newLine();
         $this->info("Bilan de la synchronisation :");

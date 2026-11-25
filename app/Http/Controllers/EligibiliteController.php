@@ -669,6 +669,44 @@ class EligibiliteController extends Controller
             $this->viderVersTable('mutations', $allMutations, $version, $totaux);
         } // fin while lots
 
+        // Déserteurs (6) et procédures en cours (5) : tant que leur sort n'est pas tranché ils gardent leur statut,
+        // donc l'alerte retraite se déclenche dès l'année de retraite ET reste active les années suivantes
+        // (même si le départ date de 2023), accompagnée d'une remarque.
+        $enAttente = DB::table('militaires')
+            ->whereIn('statut_code', [5, 6])
+            ->whereNull('deleted_at')
+            ->whereNotNull('date_naissance')
+            ->select('id', 'matricule', 'nom', 'prenom', 'grade_actuel', 'date_naissance', 'position_actuelle', 'statut_code')
+            ->orderBy('id')
+            ->get();
+        $retraitesDeserteurs = [];
+        foreach ($enAttente as $d) {
+            $ageRetraite = $gradesRetraite[$d->grade_actuel] ?? null;
+            if (!$ageRetraite || str_contains(mb_strtolower((string) $d->position_actuelle), 'otage')) {
+                continue;
+            }
+            $dNaiss = substr((string) $d->date_naissance, 0, 10);
+            $anneeRetraite = (int) substr($dNaiss, 0, 4) + $ageRetraite;
+            if ($anneeRetraite > $nowY) {
+                continue;
+            }
+            $dRetraite = Carbon::parse($dNaiss)->addYears($ageRetraite);
+            $depuis = $nowY - $anneeRetraite;
+            $quoi = $d->statut_code === 6 ? 'Déserteur' : 'Procédure en cours';
+            $remarque = $quoi . ' : âge de retraite atteint en ' . $anneeRetraite
+                . ($depuis > 0 ? " (il y a {$depuis} an" . ($depuis > 1 ? 's' : '') . ')' : '')
+                . ". Statut maintenu tant que la situation n'est pas définitivement tranchée.";
+            $retraitesDeserteurs[] = [
+                'militaire' => ['id' => $d->id, 'matricule' => $d->matricule, 'nom' => $d->nom, 'prenom' => $d->prenom, 'grade_actuel' => $d->grade_actuel],
+                'date_retraite' => $dRetraite->format('Y-m-d'),
+                'date_retraite_formatted' => $dRetraite->format('d/m/Y'),
+                'mois_restants' => $anneeRetraite === $nowY ? max(0, (int) round($now->diffInDays($dRetraite, false) / 30)) : 0,
+                'annee_retraite' => $anneeRetraite,
+                'remarque' => $remarque,
+            ];
+        }
+        $this->viderVersTable('retraites', $retraitesDeserteurs, $version, $totaux);
+
         return [
             'statistiques' => [
                 'total_promotions' => $totaux['promotions'],

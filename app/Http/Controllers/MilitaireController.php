@@ -243,6 +243,7 @@ class MilitaireController extends Controller
                       ->orWhere('militaires.observations', 'not ilike', '%otage%');
                 })
                 ->where('militaires.est_disparu', 0)
+                ->whereIn('militaires.statut_code', Effectif::CODES_RETRAITABLES)
                 ->whereNull('militaires.deleted_at');
 
             $retraitesN = (int) $baseRetraiteQuery()
@@ -2127,7 +2128,8 @@ class MilitaireController extends Controller
                   $q->whereNull('militaires.observations')
                     ->orWhere('militaires.observations', 'not ilike', '%otage%');
               })
-              ->where('militaires.est_disparu', 0);
+              ->where('militaires.est_disparu', 0)
+              ->whereIn('militaires.statut_code', Effectif::CODES_RETRAITABLES);
 
         $query->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + g_retraite.retraite_obligatoire = {$anneeCible})");
     }
@@ -2152,6 +2154,8 @@ class MilitaireController extends Controller
                       ->orWhere('militaires.observations', 'not ilike', '%otage%');
                 })
                 ->where('militaires.est_disparu', 0)
+                ->whereIn('militaires.statut_code', Effectif::CODES_RETRAITABLES)
+                ->whereNull('militaires.deleted_at')
                 ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCible})")
                 ->pluck('militaires.id')
                 ->toArray();

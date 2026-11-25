@@ -446,6 +446,9 @@ class AlerteController extends Controller
             $msg = ($mois > 0)
                 ? "Retraite dans {$mois} mois (le {$dateFmt})"
                 : "Retraite échue le {$dateFmt} (année {$now->year})";
+            if (!empty($r['remarque'])) {
+                $msg .= ' — ' . $r['remarque'];
+            }
 
             $allAlertes[] = [
                 'militaire_id'  => $r['militaire']['id'],
@@ -490,7 +493,8 @@ class AlerteController extends Controller
             SELECT m.id 
             FROM militaires m
             JOIN grades g ON m.grade_id = g.id
-            WHERE m.statut_code = 1
+            WHERE m.statut_code IN (1, 2, 3, 4)
+              AND m.deleted_at IS NULL
               AND m.date_naissance IS NOT NULL
               AND g.retraite_obligatoire IS NOT NULL
               AND (m.position_actuelle IS NULL OR LOWER(m.position_actuelle) NOT LIKE '%otage%')

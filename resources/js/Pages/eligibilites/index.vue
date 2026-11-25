@@ -634,6 +634,14 @@ onMounted(() => {
                                     :style="getMoisRestantsStyle(slotProps.data.mois_restants)" />
                             </template>
                         </Column>
+                        <Column header="Remarque">
+                            <template #body="slotProps">
+                                <span v-if="slotProps.data.remarque"
+                                    class="text-xs px-2 py-1 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                                    {{ slotProps.data.remarque }}
+                                </span>
+                            </template>
+                        </Column>
                     </DataTable>
                     <div class="p-3 text-sm text-gray-600 text-center border-t">
                         Affichage de {{ retraites.length }} résultat(s) sur {{ totalItems }}
