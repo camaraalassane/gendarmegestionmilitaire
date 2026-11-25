@@ -55,9 +55,13 @@ class CarteController extends Controller
         $cas = fn (string $motif) => 'SUM(CASE WHEN ' . Effectif::sqlStatut($motif) . ' THEN 1 ELSE 0 END)';
 
         $grmId = Effectif::idOrganismeGrm();
-        $sqlDetache = "(COALESCE(statut_code, 0) = 2 OR COALESCE(position_id, 0) = 26 OR (organisme_detachement_id IS NOT NULL AND organisme_detachement_id != {$grmId}) OR LOWER(COALESCE(position_actuelle,'')) LIKE '%détach%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%detach%')";
-        $sqlMission = "(COALESCE(position_id, 0) = 29 OR LOWER(COALESCE(position_actuelle,'')) LIKE '%miss%' OR COALESCE(statut_code, 0) = 3)";
-        $sqlStage = "(COALESCE(position_id, 0) = 28 OR LOWER(COALESCE(position_actuelle,'')) LIKE '%stag%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%format%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%cours-sup%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%ecole%' OR COALESCE(statut_code, 0) = 4)";
+        $posDetacheId = \App\Models\Position::idDetachement();
+        $posMissionId = \App\Models\Position::idMission();
+        $posStageId = \App\Models\Position::idStage();
+
+        $sqlDetache = "(COALESCE(statut_code, 0) = 2 OR COALESCE(position_id, 0) = {$posDetacheId} OR (organisme_detachement_id IS NOT NULL AND organisme_detachement_id != {$grmId}) OR LOWER(COALESCE(position_actuelle,'')) LIKE '%détach%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%detach%')";
+        $sqlMission = "(COALESCE(position_id, 0) = {$posMissionId} OR LOWER(COALESCE(position_actuelle,'')) LIKE '%miss%' OR COALESCE(statut_code, 0) = 3)";
+        $sqlStage = "(COALESCE(position_id, 0) = {$posStageId} OR LOWER(COALESCE(position_actuelle,'')) LIKE '%stag%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%format%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%cours-sup%' OR LOWER(COALESCE(position_actuelle,'')) LIKE '%ecole%' OR COALESCE(statut_code, 0) = 4)";
         $sqlActifStrict = "(NOT ({$sqlDetache}) AND NOT ({$sqlMission}) AND NOT ({$sqlStage}))";
 
         $lignes = Militaire::query()
@@ -126,9 +130,9 @@ class CarteController extends Controller
                 $q->whereNull('organisme_detachement_id')
                   ->orWhere('organisme_detachement_id', $grmId);
             })
-            ->where(function ($q) {
+            ->where(function ($q) use ($posDetacheId) {
                 $q->where('position_actuelle', '!=', 'En détachement')
-                  ->where('position_id', '!=', 26)
+                  ->where('position_id', '!=', $posDetacheId)
                   ->where('statut', '!=', 'détaché')
                   ->where('statut_code', '!=', 2);
             })
@@ -140,11 +144,11 @@ class CarteController extends Controller
         // Organismes et structures de détachement (SPA / Ministères / Présidence...) classés à part
         $organismesDetachement = \App\Models\OrganismeDetachement::where('code', '!=', 'GRM')
             ->where('est_actif', true)
-            ->withCount(['militaires' => function ($q) {
+            ->withCount(['militaires' => function ($q) use ($posDetacheId) {
                 $q->whereNull('deleted_at')
-                  ->where(function ($sq) {
+                  ->where(function ($sq) use ($posDetacheId) {
                       $sq->where('position_actuelle', 'En détachement')
-                         ->orWhere('position_id', 26)
+                         ->orWhere('position_id', $posDetacheId)
                          ->orWhere('statut', 'détaché')
                          ->orWhere('statut_code', 2);
                   });

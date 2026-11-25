@@ -2506,17 +2506,17 @@ const lignesFiltrees = computed(() => {
 
                                 <!-- CAS A : MODE THÉÂTRES D'OPÉRATIONS (DISPOSITIF TACTIQUE DIRECTEMENT SUR LA CARTE DU MALI SANS CHEVAUCHEMENT) -->
                                 <template v-if="carteMode === 'theatres'">
-                                    <!-- 1. Halos tactiques proportionnels aux effectifs -->
+                                    <!-- 1. Halos tactiques proportionnels aux effectifs (seulement le théâtre sélectionné si filtre actif) -->
                                     <circle
-                                        v-for="t in tacticalTheatres"
+                                        v-for="t in (selTheatre ? tacticalTheatres.filter(th => th.code === selTheatre) : tacticalTheatres)"
                                         :key="'halo-' + t.code"
                                         :cx="t.px"
                                         :cy="t.py"
                                         :r="t.haloR"
                                         :fill="t.couleur"
-                                        fill-opacity="0.18"
+                                        :fill-opacity="selTheatre ? 0.28 : 0.18"
                                         :stroke="t.couleur"
-                                        stroke-opacity="0.5"
+                                        :stroke-opacity="selTheatre ? 0.9 : 0.5"
                                         stroke-dasharray="3 2"
                                     />
 
@@ -2533,9 +2533,9 @@ const lignesFiltrees = computed(() => {
                                         class="pointer-events-none"
                                     />
 
-                                    <!-- 3. Points de commandement (PC) sur la carte avec étoile ★ -->
+                                    <!-- 3. Points de commandement (PC) sur la carte avec étoile ★ (seulement le théâtre sélectionné si filtre actif) -->
                                     <g
-                                        v-for="t in tacticalTheatres"
+                                        v-for="t in (selTheatre ? tacticalTheatres.filter(th => th.code === selTheatre) : tacticalTheatres)"
                                         :key="'mk-' + t.code"
                                         class="cursor-pointer transition-transform duration-150 select-none"
                                         :transform="`translate(${t.px}, ${t.py})`"

@@ -116,8 +116,9 @@ class Effectif
     {
         $p = $prefix ? rtrim($prefix, '.') . '.' : '';
         $grmId = self::idOrganismeGrm();
-        return $query->where(function ($q) use ($p, $grmId) {
-            $q->where("{$p}position_id", 26)
+        $posDetacheId = \App\Models\Position::idDetachement();
+        return $query->where(function ($q) use ($p, $grmId, $posDetacheId) {
+            $q->where("{$p}position_id", $posDetacheId)
               ->orWhere("{$p}position_actuelle", 'ILIKE', '%détach%')
               ->orWhere("{$p}position_actuelle", 'ILIKE', '%detach%')
               ->orWhere("{$p}statut_code", 2)
@@ -134,8 +135,9 @@ class Effectif
     public static function appliquerFiltreStages($query, string $prefix = '')
     {
         $p = $prefix ? rtrim($prefix, '.') . '.' : '';
-        return $query->where(function ($q) use ($p) {
-            $q->where("{$p}position_id", 28)
+        $posStageId = \App\Models\Position::idStage();
+        return $query->where(function ($q) use ($p, $posStageId) {
+            $q->where("{$p}position_id", $posStageId)
               ->orWhere("{$p}position_actuelle", 'ILIKE', '%stag%')
               ->orWhere("{$p}position_actuelle", 'ILIKE', '%format%')
               ->orWhere("{$p}position_actuelle", 'ILIKE', '%cours-sup%')
@@ -150,8 +152,9 @@ class Effectif
     public static function appliquerFiltreMissions($query, string $prefix = '')
     {
         $p = $prefix ? rtrim($prefix, '.') . '.' : '';
-        return $query->where(function ($q) use ($p) {
-            $q->where("{$p}position_id", 29)
+        $posMissionId = \App\Models\Position::idMission();
+        return $query->where(function ($q) use ($p, $posMissionId) {
+            $q->where("{$p}position_id", $posMissionId)
               ->orWhere("{$p}position_actuelle", 'ILIKE', '%miss%')
               ->orWhere("{$p}statut_code", 3);
         });
@@ -164,27 +167,31 @@ class Effectif
     {
         $p = $prefix ? rtrim($prefix, '.') . '.' : '';
         $grmId = self::idOrganismeGrm();
+        $posDetacheId = \App\Models\Position::idDetachement();
+        $posMissionId = \App\Models\Position::idMission();
+        $posStageId = \App\Models\Position::idStage();
+
         return $query->where(function ($q) use ($p) {
             $q->where("{$p}statut_code", 1)->orWhereRaw("LOWER(TRIM(COALESCE({$p}statut, ''))) = 'actif'");
         })->where(function ($q) use ($p, $grmId) {
             $q->where("{$p}organisme_detachement_id", $grmId)
               ->orWhereNull("{$p}organisme_detachement_id");
-        })->where(function ($q) use ($p) {
-            $q->where("{$p}position_id", '!=', 26)->orWhereNull("{$p}position_id");
+        })->where(function ($q) use ($p, $posDetacheId) {
+            $q->where("{$p}position_id", '!=', $posDetacheId)->orWhereNull("{$p}position_id");
         })->where(function ($q) use ($p) {
             $q->where(function ($sq) use ($p) {
                 $sq->where("{$p}position_actuelle", 'NOT ILIKE', '%détach%')
                    ->where("{$p}position_actuelle", 'NOT ILIKE', '%detach%');
             })->orWhereNull("{$p}position_actuelle");
-        })->where(function ($q) use ($p) {
-            $q->where("{$p}position_id", '!=', 29)->orWhereNull("{$p}position_id");
+        })->where(function ($q) use ($p, $posMissionId) {
+            $q->where("{$p}position_id", '!=', $posMissionId)->orWhereNull("{$p}position_id");
         })->where(function ($q) use ($p) {
             $q->where("{$p}position_actuelle", 'NOT ILIKE', '%miss%')
                ->orWhereNull("{$p}position_actuelle");
         })->where(function ($q) use ($p) {
             $q->where("{$p}statut_code", '!=', 3)->orWhereNull("{$p}statut_code");
-        })->where(function ($q) use ($p) {
-            $q->where("{$p}position_id", '!=', 28)->orWhereNull("{$p}position_id");
+        })->where(function ($q) use ($p, $posStageId) {
+            $q->where("{$p}position_id", '!=', $posStageId)->orWhereNull("{$p}position_id");
         })->where(function ($q) use ($p) {
             $q->where("{$p}position_actuelle", 'NOT ILIKE', '%stag%')
                ->where("{$p}position_actuelle", 'NOT ILIKE', '%format%')

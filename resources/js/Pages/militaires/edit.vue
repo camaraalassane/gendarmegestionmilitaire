@@ -564,9 +564,16 @@ const normalizeStatut = (val) => {
     return 'actif';
 };
 
+const posUnite = localPositions.value.find(p => p.code === 'UNITE' || p.nom?.toLowerCase().includes('unité'));
+const posDetache = localPositions.value.find(p => p.code === 'DETACHEMENT' || p.nom?.toLowerCase().includes('détach'));
+const posOtage = localPositions.value.find(p => p.code === 'OTAGE' || p.nom?.toLowerCase().includes('otage'));
+const posConge = localPositions.value.find(p => p.code === 'CONGE' || p.nom?.toLowerCase().includes('convalesc') || p.nom?.toLowerCase().includes('congé'));
+const posDesertion = localPositions.value.find(p => p.code === 'DESERTION' || p.nom?.toLowerCase().includes('désert'));
+const posProcedure = localPositions.value.find(p => p.code === 'PROCEDURE' || p.nom?.toLowerCase().includes('procédure'));
+
 const rawStatut = (props.militaire.statut || '').toLowerCase().trim();
 const isRawDetache = (props.militaire.organisme_detachement_id && props.militaire.organisme_detachement_id !== 1)
-    || props.militaire.position_id === 26
+    || (posDetache && props.militaire.position_id === posDetache.id)
     || (props.militaire.position_actuelle || '').toLowerCase().includes('détach')
     || (props.militaire.position_actuelle || '').toLowerCase().includes('detach');
 
@@ -575,22 +582,22 @@ const initialStatut = (rawStatut === 'détaché' || rawStatut === 'detache' || !
     ? 'actif'
     : normalizeStatut(props.militaire.statut);
 
-const isRawOtage = props.militaire.position_id === 31
+const isRawOtage = (posOtage && props.militaire.position_id === posOtage.id)
     || props.militaire.est_disparu === 1
     || ((props.militaire.position_actuelle || '').toLowerCase().includes('otage') && !(props.militaire.position_actuelle || '').toLowerCase().includes('ex-otage') && !(props.militaire.position_actuelle || '').toLowerCase().includes('ex otage'))
     || ((props.militaire.observations || '').toLowerCase().includes('otage') && !(props.militaire.observations || '').toLowerCase().includes('ex-otage') && !(props.militaire.observations || '').toLowerCase().includes('ex otage'))
     || (props.militaire.position_actuelle || '').toLowerCase().includes('disparu');
 
-const isRawConvalescence = props.militaire.position_id === 32
+const isRawConvalescence = (posConge && props.militaire.position_id === posConge.id)
     || (props.militaire.position_actuelle || '').toLowerCase().includes('convalesc');
 
 const initialPositionId = props.militaire.position_id 
-    ?? (isRawOtage ? 31 : null)
-    ?? (isRawDetache ? 26 : null)
-    ?? (isRawConvalescence ? 32 : null)
+    ?? (isRawOtage ? posOtage?.id : null)
+    ?? (isRawDetache ? posDetache?.id : null)
+    ?? (isRawConvalescence ? posConge?.id : null)
     ?? (props.positions.find(p => p.nom?.toLowerCase() === (props.militaire.position_actuelle || '').toLowerCase())?.id ?? null)
     ?? (props.positions.find(p => p.nom?.toLowerCase().includes((props.militaire.position_actuelle || '').toLowerCase()))?.id ?? null)
-    ?? (initialStatut === 'actif' ? 21 : null);
+    ?? (initialStatut === 'actif' ? posUnite?.id : null);
 
 const normalizeSexe = (s, code) => {
     if (code === 2) return 'Féminin';
@@ -639,7 +646,7 @@ const form = reactive({
     date_derniere_promotion: parsePropDate(props.militaire.date_derniere_promotion),
     specialite: props.militaire.specialite || '',
     origine_formation: props.militaire.origine_formation || '',
-    position_id: (props.militaire.position_actuelle || '').match(/r[eéè]int[eéè]gr/i) ? 21 : initialPositionId,
+    position_id: (props.militaire.position_actuelle || '').match(/r[eéè]int[eéè]gr/i) ? posUnite?.id : initialPositionId,
     position_actuelle: initialPositionNom.match(/r[eéè]int[eéè]gr/i) ? "À l'Unité / Au Poste" : initialPositionNom,
     unite_id: props.militaire.organisme_detachement_id ? null : (props.militaire.unite_id ?? (props.unites.find(u => u.nom === props.militaire.unite)?.id ?? null)),
     unite: initialUnite,
@@ -773,6 +780,40 @@ watch(() => form.grade_actuel, (newGrade, oldGrade) => {
     }
 });
 
+// Synchronisation bidirectionnelle Statut <-> Position
+watch(() => form.statut, (newStatut) => {
+    if (!newStatut) return;
+    const lower = newStatut.toLowerCase().trim();
+    if (lower === 'déserteur' || lower === 'deserteur') {
+        const pDes = localPositions.value.find(p => p.code === 'DESERTION' || p.nom?.toLowerCase().includes('désert'));
+        if (pDes) {
+            form.position_id = pDes.id;
+            form.position_actuelle = pDes.nom;
+        }
+    } else if (lower === 'procédure en cours' || lower === 'procedure en cours') {
+        const pProc = localPositions.value.find(p => p.code === 'PROCEDURE' || p.nom?.toLowerCase().includes('procédure'));
+        if (pProc) {
+            form.position_id = pProc.id;
+            form.position_actuelle = pProc.nom;
+        }
+    }
+});
+
+watch(() => form.position_id, (newPosId) => {
+    if (!newPosId) return;
+    const p = localPositions.value.find(item => item.id === newPosId);
+    if (!p) return;
+    if (p.code === 'DESERTION' || p.nom?.toLowerCase().includes('désert')) {
+        form.statut = 'déserteur';
+    } else if (p.code === 'PROCEDURE' || p.nom?.toLowerCase().includes('procédure')) {
+        form.statut = 'procédure en cours';
+    } else if (p.code === 'DETACHEMENT' || p.nom?.toLowerCase().includes('détach')) {
+        if (!['déserteur', 'procédure en cours', 'retraité', 'radié', 'décédé'].includes(form.statut?.toLowerCase())) {
+            form.statut = 'détaché';
+        }
+    }
+});
+
 const onPhotoSelected = (event) => {
     const file = event.target.files[0];
     if (file) {
@@ -839,8 +880,8 @@ const isPositionSpeciale = computed(() => {
 });
 
 const isOtage = computed(() => {
-    if (form.position_id === 31) return true;
     const pos = localPositions.value.find(p => p.id === form.position_id);
+    if (pos?.code === 'OTAGE') return true;
     const nom = (pos?.nom || form.position_actuelle || '').toLowerCase();
     const obs = (form.observations || '').toLowerCase();
     const isExOtage = nom.includes('ex-otage') || nom.includes('ex otage') || obs.includes('ex-otage') || obs.includes('ex otage');
@@ -849,10 +890,10 @@ const isOtage = computed(() => {
 });
 
 const setDefaultPositionUnite = () => {
-    const posUnite = localPositions.value.find(p => p.id === 21 || p.nom?.toLowerCase().includes('unité') || p.nom?.toLowerCase().includes('poste'));
-    if (posUnite) {
-        form.position_id = posUnite.id;
-        form.position_actuelle = posUnite.nom;
+    const pUnite = localPositions.value.find(p => p.code === 'UNITE' || p.nom?.toLowerCase().includes('unité') || p.nom?.toLowerCase().includes('poste')) || localPositions.value[0];
+    if (pUnite) {
+        form.position_id = pUnite.id;
+        form.position_actuelle = pUnite.nom;
     }
     form.organisme_detachement_id = null;
 };

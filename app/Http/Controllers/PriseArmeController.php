@@ -496,9 +496,10 @@ class PriseArmeController extends Controller
                 $militaire->status_sanitaire = 'Apte';
             } elseif ($registre->type_registre_code === RegistreOperationnel::TYPE_DISPARU) {
                 $militaire->est_disparu = 0;
-                if ($militaire->position_actuelle === "Cas d'otage" || $militaire->position_id === 31) {
+                $otageId = Position::idOtage();
+                if ($militaire->position_actuelle === "Cas d'otage" || $militaire->position_id === $otageId) {
                     $militaire->position_actuelle = "À l'Unité / Au Poste";
-                    $militaire->position_id = 21;
+                    $militaire->position_id = Position::idUnite();
                 }
             } elseif ($registre->type_registre_code === RegistreOperationnel::TYPE_GRAND_MALADE) {
                 $militaire->est_non_mobilisable = 0;
@@ -572,7 +573,7 @@ class PriseArmeController extends Controller
             $militaire->est_blesse_guerre = 0;
             $militaire->est_non_mobilisable = 0;
             $militaire->position_actuelle = "Cas d'otage";
-            $militaire->position_id = 31;
+            $militaire->position_id = Position::idOtage();
             $militaire->status_sanitaire = 'Porté disparu / Otage';
         } elseif ($type === RegistreOperationnel::TYPE_GRAND_MALADE) {
             $militaire->est_non_mobilisable = 1;
@@ -581,7 +582,7 @@ class PriseArmeController extends Controller
             $militaire->status_sanitaire = $registre->nature_pathologie ?: 'Inaptitude constatée médicalement';
         } elseif ($type === RegistreOperationnel::TYPE_DECEDE) {
             $militaire->statut = 'décédé';
-            $militaire->statut_code = 5;
+            $militaire->statut_code = 9;
             $militaire->date_deces = $registre->date_evenement;
             $militaire->circonstances_deces = $registre->circonstances;
         } elseif ($type === RegistreOperationnel::TYPE_DESERTEUR) {

@@ -121,6 +121,44 @@ class Militaire extends Model
                 $militaire->statut_code = 7;
             }
 
+            // Synchronisation bidirectionnelle Statut <-> Position pour les déserteurs et procédures
+            $posDesertionId = Position::idDesertion();
+            $posProcedureId = Position::idProcedure();
+
+            // A. Déserteurs (statut_code 6)
+            if ($militaire->statut === 'déserteur' || $militaire->statut_code === 6) {
+                $militaire->statut = 'déserteur';
+                $militaire->statut_code = 6;
+                if ($posDesertionId && ($militaire->isDirty('statut') || $militaire->isDirty('statut_code') || empty($militaire->position_id) || $militaire->position_id === Position::idUnite())) {
+                    $militaire->position_id = $posDesertionId;
+                    $militaire->position_actuelle = 'En désertion';
+                }
+            } elseif ($posDesertionId && $militaire->position_id === $posDesertionId && $militaire->isDirty('position_id')) {
+                $militaire->statut = 'déserteur';
+                $militaire->statut_code = 6;
+            }
+
+            // B. Procédures en cours (statut_code 5)
+            if ($militaire->statut === 'procédure en cours' || $militaire->statut_code === 5) {
+                $militaire->statut = 'procédure en cours';
+                $militaire->statut_code = 5;
+                if ($posProcedureId && ($militaire->isDirty('statut') || $militaire->isDirty('statut_code') || empty($militaire->position_id) || $militaire->position_id === Position::idUnite())) {
+                    $militaire->position_id = $posProcedureId;
+                    $militaire->position_actuelle = 'Procédure en cours';
+                }
+            } elseif ($posProcedureId && $militaire->position_id === $posProcedureId && $militaire->isDirty('position_id')) {
+                $militaire->statut = 'procédure en cours';
+                $militaire->statut_code = 5;
+            }
+
+            // C. Réactivation : si le militaire quitte l'état déserteur ou procédure pour redevenir actif
+            if (in_array($militaire->getOriginal('statut_code'), [5, 6]) && in_array($militaire->statut_code, [1, 2, 3, 4])) {
+                if ($militaire->position_id === $posDesertionId || $militaire->position_id === $posProcedureId) {
+                    $militaire->position_id = Position::idUnite();
+                    $militaire->position_actuelle = "À l'Unité / Au Poste";
+                }
+            }
+
             // Déduction automatique de la position administrative pour les détachés si non renseignée
             $isHorsActivite = in_array($militaire->statut, ['déserteur', 'radié', 'décédé', 'retraité'])
                 || in_array($militaire->statut_code, [6, 7, 8, 9]);

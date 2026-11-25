@@ -730,7 +730,7 @@ class MilitaireController extends Controller
             stripos((string)$militaire->position_actuelle, 'detach') !== false ||
             $militaire->statut === 'détaché' ||
             (int)$militaire->statut_code === 2 ||
-            (int)$militaire->position_id === 26
+            (int)$militaire->position_id === Position::idDetachement()
         );
 
         $plusRecenteAff = $militaire->affectations->sortByDesc('date_mutation')->first();
@@ -935,7 +935,7 @@ class MilitaireController extends Controller
         $uniteNom = $militaire->unite;
         $uniteId = $militaire->unite_id;
         $isDetache = ($militaire->position_actuelle && (stripos($militaire->position_actuelle, 'détach') !== false || stripos($militaire->position_actuelle, 'detach') !== false))
-            || $militaire->position_id === 26;
+            || (int)$militaire->position_id === Position::idDetachement();
         if ($isDetache && $militaire->organisme_detachement_id) {
             $orgDetache = $organismes->firstWhere('id', $militaire->organisme_detachement_id);
             if ($orgDetache) {
@@ -1384,7 +1384,7 @@ class MilitaireController extends Controller
         $grmId = Effectif::idOrganismeGrm();
         $isDetache = (!empty($data['organisme_detachement_id']) && (int)$data['organisme_detachement_id'] !== $grmId)
             || (!empty($data['position_actuelle']) && (stripos($data['position_actuelle'], 'détach') !== false || stripos($data['position_actuelle'], 'detach') !== false))
-            || (!empty($data['position_id']) && (int) $data['position_id'] === 26)
+            || (!empty($data['position_id']) && (int) $data['position_id'] === Position::idDetachement())
             || (!empty($data['statut']) && in_array(mb_strtolower(trim($data['statut'])), ['détaché', 'detache']))
             || (!empty($data['statut_code']) && (int) $data['statut_code'] === 2);
 
@@ -1424,7 +1424,7 @@ class MilitaireController extends Controller
             stripos((string)$militaire->position_actuelle, 'detach') !== false ||
             $militaire->statut === 'détaché' ||
             (int)$militaire->statut_code === 2 ||
-            (int)$militaire->position_id === 26
+            (int)$militaire->position_id === Position::idDetachement()
         );
 
         if ($isDetache) {
@@ -2151,7 +2151,8 @@ class MilitaireController extends Controller
                 });
             });
         } else {
-            $query->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + g_retraite.retraite_obligatoire = {$anneeCible})");
+            $query->whereIn('militaires.statut_code', Effectif::CODES_RETRAITABLES)
+                  ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + g_retraite.retraite_obligatoire = {$anneeCible})");
         }
     }
 
@@ -2190,7 +2191,8 @@ class MilitaireController extends Controller
                     });
                 });
             } else {
-                $q->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCible})");
+                $q->whereIn('militaires.statut_code', Effectif::CODES_RETRAITABLES)
+                  ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCible})");
             }
 
             return $q->pluck('militaires.id')->toArray();

@@ -202,9 +202,10 @@ class DashboardController extends Controller
         $allPositions = Position::orderBy('id')->get(['id', 'nom', 'code']);
 
         // Comptage groupé par position_id entier (utilise l'index btree militaires_position_id_idx)
-        // Prend en compte tous les militaires non supprimés (actifs, déserteurs, retrait d'emploi, etc.)
+        // Prend en compte tous les militaires du fichier actif (actifs, déserteurs, procédures, etc.)
         $countsByPositionId = DB::table('militaires')
             ->whereNull('deleted_at')
+            ->whereIn('statut_code', Effectif::CODES_RETRAITABLES)
             ->whereNotNull('position_id')
             ->groupBy('position_id')
             ->selectRaw('position_id, count(*) as total')
@@ -214,6 +215,7 @@ class DashboardController extends Controller
         // Militaires sans position_id explicite mais avec une unité => rattachés à "À l'Unité / Au Poste"
         $sansPosition = (int) DB::table('militaires')
             ->whereNull('deleted_at')
+            ->whereIn('statut_code', Effectif::CODES_RETRAITABLES)
             ->whereNull('position_id')
             ->count();
 

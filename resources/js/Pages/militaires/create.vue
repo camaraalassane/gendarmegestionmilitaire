@@ -27,6 +27,7 @@ const props = defineProps({
 const localRegions = ref([...(props.regions || [])]);
 const localUnites = ref([...(props.unites || [])]);
 const localPositions = ref([...(props.positions || [])].filter(p => !p.nom?.match(/r[eéè]int[eéè]gr/i)));
+const posUniteRef = computed(() => localPositions.value.find(p => p.code === 'UNITE' || p.nom?.toLowerCase().includes('unité')) || localPositions.value[0]);
 const localOrganismes = ref([...(props.organismes_detachement || [])].filter(o => o.code !== 'GRM'));
 
 const toast = useToast();
@@ -480,8 +481,8 @@ const form = reactive({
     date_derniere_promotion: null,
     specialite: '',
     origine_formation: '',
-    position_id: 21,
-    position_actuelle: "À l'Unité / Au Poste",
+    position_id: localPositions.value.find(p => p.code === 'UNITE' || p.nom?.toLowerCase().includes('unité'))?.id ?? null,
+    position_actuelle: localPositions.value.find(p => p.code === 'UNITE' || p.nom?.toLowerCase().includes('unité'))?.nom ?? "À l'Unité / Au Poste",
     unite_id: null,
     unite: '',
     region_id: null,
@@ -590,6 +591,40 @@ watch(() => form.grade_actuel, (newGrade) => {
     }
 });
 
+// Synchronisation bidirectionnelle Statut <-> Position
+watch(() => form.statut, (newStatut) => {
+    if (!newStatut) return;
+    const lower = newStatut.toLowerCase().trim();
+    if (lower === 'déserteur' || lower === 'deserteur') {
+        const pDes = localPositions.value.find(p => p.code === 'DESERTION' || p.nom?.toLowerCase().includes('désert'));
+        if (pDes) {
+            form.position_id = pDes.id;
+            form.position_actuelle = pDes.nom;
+        }
+    } else if (lower === 'procédure en cours' || lower === 'procedure en cours') {
+        const pProc = localPositions.value.find(p => p.code === 'PROCEDURE' || p.nom?.toLowerCase().includes('procédure'));
+        if (pProc) {
+            form.position_id = pProc.id;
+            form.position_actuelle = pProc.nom;
+        }
+    }
+});
+
+watch(() => form.position_id, (newPosId) => {
+    if (!newPosId) return;
+    const p = localPositions.value.find(item => item.id === newPosId);
+    if (!p) return;
+    if (p.code === 'DESERTION' || p.nom?.toLowerCase().includes('désert')) {
+        form.statut = 'déserteur';
+    } else if (p.code === 'PROCEDURE' || p.nom?.toLowerCase().includes('procédure')) {
+        form.statut = 'procédure en cours';
+    } else if (p.code === 'DETACHEMENT' || p.nom?.toLowerCase().includes('détach')) {
+        if (!['déserteur', 'procédure en cours', 'retraité', 'radié', 'décédé'].includes(form.statut?.toLowerCase())) {
+            form.statut = 'détaché';
+        }
+    }
+});
+
 const onPhotoSelected = (event) => {
     const file = event.target.files[0];
     if (file) {
@@ -656,8 +691,8 @@ const isPositionSpeciale = computed(() => {
 });
 
 const isOtage = computed(() => {
-    if (form.position_id === 31) return true;
     const pos = localPositions.value.find(p => p.id === form.position_id);
+    if (pos?.code === 'OTAGE') return true;
     const nom = (pos?.nom || form.position_actuelle || '').toLowerCase();
     const obs = (form.observations || '').toLowerCase();
     const isExOtage = nom.includes('ex-otage') || nom.includes('ex otage') || obs.includes('ex-otage') || obs.includes('ex otage');
@@ -666,7 +701,7 @@ const isOtage = computed(() => {
 });
 
 const setDefaultPositionUnite = () => {
-    const posUnite = localPositions.value.find(p => p.id === 21 || p.nom?.toLowerCase().includes('unité') || p.nom?.toLowerCase().includes('poste'));
+    const posUnite = localPositions.value.find(p => p.code === 'UNITE' || p.nom?.toLowerCase().includes('unité') || p.nom?.toLowerCase().includes('poste')) || localPositions.value[0];
     if (posUnite) {
         form.position_id = posUnite.id;
         form.position_actuelle = posUnite.nom;

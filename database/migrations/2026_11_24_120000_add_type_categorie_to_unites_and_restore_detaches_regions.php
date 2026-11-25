@@ -27,10 +27,20 @@ return new class extends Migration
         }
 
         // 2. Créer ou s'assurer de l'existence des unités de détachement manquantes dans la région 1 (District de Bamako)
+        $bamakoRegionId = DB::table('regions')->where('code', 'R1')->orWhere('nom', 'like', '%Bamako%')->value('id');
+        if (!$bamakoRegionId) {
+            $bamakoRegionId = DB::table('regions')->insertGetId([
+                'code' => 'R1',
+                'nom' => 'District de Bamako',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
         $prmUnitId = DB::table('unites')->where('code', 'PRM')->value('id');
         if (!$prmUnitId) {
             $prmUnitId = DB::table('unites')->insertGetId([
-                'region_id' => 1,
+                'region_id' => $bamakoRegionId,
                 'nom' => 'Présidence de la République (Palais de Koulouba)',
                 'code' => 'PRM',
                 'type' => 'Détachement / Ministère',
@@ -47,7 +57,7 @@ return new class extends Migration
         $splpalUnitId = DB::table('unites')->where('code', 'SPLPAL')->value('id');
         if (!$splpalUnitId) {
             $splpalUnitId = DB::table('unites')->insertGetId([
-                'region_id' => 1,
+                'region_id' => $bamakoRegionId,
                 'nom' => 'Secrétariat Permanent de Lutte contre la Prolifération des Armes Légères (SPLPAL)',
                 'code' => 'SPLPAL',
                 'type' => 'Détachement / Ministère',
@@ -64,7 +74,7 @@ return new class extends Migration
         $mesrsUnitId = DB::table('unites')->where('code', 'MESRS')->value('id');
         if (!$mesrsUnitId) {
             $mesrsUnitId = DB::table('unites')->insertGetId([
-                'region_id' => 1,
+                'region_id' => $bamakoRegionId,
                 'nom' => "Ministère de l'Enseignement Supérieur et de la Recherche Scientifique",
                 'code' => 'MESRS',
                 'type' => 'Détachement / Ministère',
