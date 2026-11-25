@@ -38,9 +38,7 @@ class PrewarmDashboardCacheJob implements ShouldQueue
             $eligibiliteCtrl = app(\App\Http\Controllers\EligibiliteController::class);
             $eligibiliteCtrl->assurerCalcul();
 
-            // 3. Pré-calcul Avancements session courante
-            $avancementCtrl = app(\App\Http\Controllers\AvancementController::class);
-            $avancementCtrl->buildCandidatesList($annee);
+            // Avancements : paginés en SQL depuis eligibilites_calculees, rien à pré-charger (évite de charger tous les candidats en mémoire).
 
             Log::info("PrewarmDashboardCacheJob : Caches lourds (v{$v}) pré-calculés avec succès en tâche de fond.");
         } catch (\Throwable $e) {

@@ -218,7 +218,11 @@ class AvancementController extends Controller
                       ->limit($safePerPage)
                       ->get();
 
-        $enriched = $this->enrichRows($rows, $annee, $officierGrades);
+        // Enrichissement par lots de 2 000 : évite la limite de 65 535 paramètres et borne la mémoire (export complet).
+        $enriched = [];
+        foreach ($rows->chunk(2000) as $partie) {
+            $enriched = array_merge($enriched, $this->enrichRows($partie, $annee, $officierGrades));
+        }
 
         return [
             'data' => $enriched,
@@ -391,22 +395,6 @@ class AvancementController extends Controller
         }
 
         return $result;
-    }
-
-    /**
-     * Calcule ou récupère en mémoire le payload complet des candidats et métriques pour la session.
-     */
-    public function getCandidatesPayload(int $annee): array
-    {
-        $stats = $this->getStats($annee);
-        $candidates = $this->buildCandidatesList($annee);
-
-        return [
-            'candidates' => $candidates,
-            'gradesOfficiers' => $stats['gradesOfficiers'],
-            'gradesSousOfficiers' => $stats['gradesSousOfficiers'],
-            'stats' => $stats['stats'],
-        ];
     }
 
     /**
@@ -585,7 +573,14 @@ class AvancementController extends Controller
         $gradeFiltre = $request->input('grade', 'all');
         $tab = $request->input('tab', 'all'); // 'officiers', 'sous_officiers', 'all'
 
-        $candidates = $this->getPaginatedCandidates($annee, $tab, $gradeFiltre, '', 1, 999999)['data'];
+        // Garde-fou mémoire : PhpSpreadsheet garde tout le classeur en RAM. Au-delà, exporter par onglet ou par grade.
+        $limite = 30000;
+        $total = $this->getPaginatedCandidates($annee, $tab, $gradeFiltre, '', 1, 1)['total'];
+        if ($total > $limite) {
+            abort(422, "Export limité à {$limite} lignes ({$total} candidats). Filtrez par onglet ou par grade.");
+        }
+
+        $candidates = $this->getPaginatedCandidates($annee, $tab, $gradeFiltre, '', 1, $limite)['data'];
 
         $suffix = '';
         if ($tab === 'officiers') {
@@ -796,14 +791,6 @@ class AvancementController extends Controller
                 'message' => 'Une erreur est survenue lors de l\'importation. Veuillez vérifier la structure du fichier.'
             ], 500);
         }
-    }
-
-    /**
-     * Construit la liste optimisée des candidats
-     */
-    public function buildCandidatesList(int $annee): array
-    {
-        return $this->getPaginatedCandidates($annee, 'all', 'all', '', 1, 999999)['data'];
     }
 
     /**
