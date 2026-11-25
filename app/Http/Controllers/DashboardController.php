@@ -68,7 +68,7 @@ class DashboardController extends Controller
         $v ??= \App\Models\Militaire::getCacheVersion();
 
         return Cache::remember("v{$v}:dashboard:statistiques_summary", 86400, function () use ($anneeCourante, $v) {
-            // 1. Départs en retraite année N (calcul SQL ultra-rapide sans charger les listes)
+            // 1. Départs en retraite année N (incluant déserteurs et procédures échus)
             $totalRetraitesN = \Illuminate\Support\Facades\DB::table('militaires')
                 ->join('grades', 'militaires.grade_id', '=', 'grades.id')
                 ->whereNotNull('militaires.date_naissance')
@@ -84,7 +84,15 @@ class DashboardController extends Controller
                 ->where('militaires.est_disparu', 0)
                 ->whereIn('militaires.statut_code', \App\Support\Effectif::CODES_RETRAITABLES)
                 ->whereNull('militaires.deleted_at')
-                ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCourante})")
+                ->where(function ($q) use ($anneeCourante) {
+                    $q->where(function ($sq) use ($anneeCourante) {
+                        $sq->whereIn('militaires.statut_code', [1, 2, 3, 4])
+                           ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCourante})");
+                    })->orWhere(function ($sq) use ($anneeCourante) {
+                        $sq->whereIn('militaires.statut_code', [5, 6])
+                           ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire <= {$anneeCourante})");
+                    });
+                })
                 ->count();
 
             // 2. Proposables avancement année N (source unique d'éligibilités calculées pour performance ultra-rapide)
@@ -391,8 +399,15 @@ class DashboardController extends Controller
             $anneeCourante = (int) $aujourdhui->year;
             $anneeN1 = $anneeCourante + 1;
 
-            $mapRetraite = function ($m) {
+            $mapRetraite = function ($m) use ($anneeCourante) {
                 $dRetraite = Carbon::parse($m->date_naissance)->addYears($m->retraite_obligatoire);
+                $anneeRetraite = (int) $dRetraite->year;
+                $remarque = null;
+                if (in_array((int) $m->statut_code, [5, 6], true) && $anneeRetraite < $anneeCourante) {
+                    $quoi = (int) $m->statut_code === 6 ? 'Déserteur' : 'Procédure en cours';
+                    $depuis = $anneeCourante - $anneeRetraite;
+                    $remarque = "{$quoi} : âge de retraite atteint en {$anneeRetraite} (il y a {$depuis} an" . ($depuis > 1 ? 's' : '') . ")";
+                }
                 return [
                     'id' => $m->id,
                     'matricule' => $m->matricule,
@@ -403,6 +418,7 @@ class DashboardController extends Controller
                     'statut' => $m->statut,
                     'date_retraite' => $dRetraite->format('Y-m-d'),
                     'date_retraite_formatted' => $dRetraite->format('d/m/Y'),
+                    'remarque' => $remarque,
                 ];
             };
 
@@ -423,12 +439,20 @@ class DashboardController extends Controller
                 ->whereNull('militaires.deleted_at')
                 ->select([
                     'militaires.id', 'militaires.matricule', 'militaires.nom', 'militaires.prenom',
-                    'militaires.grade_actuel', 'militaires.statut', 'militaires.date_naissance',
+                    'militaires.grade_actuel', 'militaires.statut', 'militaires.statut_code', 'militaires.date_naissance',
                     'grades.retraite_obligatoire'
                 ]);
 
             $retN = $baseQuery()
-                ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCourante})")
+                ->where(function ($q) use ($anneeCourante) {
+                    $q->where(function ($sq) use ($anneeCourante) {
+                        $sq->whereIn('militaires.statut_code', [1, 2, 3, 4])
+                           ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCourante})");
+                    })->orWhere(function ($sq) use ($anneeCourante) {
+                        $sq->whereIn('militaires.statut_code', [5, 6])
+                           ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire <= {$anneeCourante})");
+                    });
+                })
                 ->get()
                 ->map($mapRetraite)
                 ->all();

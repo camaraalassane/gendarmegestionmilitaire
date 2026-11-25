@@ -247,7 +247,15 @@ class MilitaireController extends Controller
                 ->whereNull('militaires.deleted_at');
 
             $retraitesN = (int) $baseRetraiteQuery()
-                ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeN})")
+                ->where(function ($q) use ($anneeN) {
+                    $q->where(function ($sq) use ($anneeN) {
+                        $sq->whereIn('militaires.statut_code', [1, 2, 3, 4])
+                           ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeN})");
+                    })->orWhere(function ($sq) use ($anneeN) {
+                        $sq->whereIn('militaires.statut_code', [5, 6])
+                           ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire <= {$anneeN})");
+                    });
+                })
                 ->count();
 
             $retraitesN1 = (int) $baseRetraiteQuery()
@@ -2131,7 +2139,20 @@ class MilitaireController extends Controller
               ->where('militaires.est_disparu', 0)
               ->whereIn('militaires.statut_code', Effectif::CODES_RETRAITABLES);
 
-        $query->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + g_retraite.retraite_obligatoire = {$anneeCible})");
+        $anneeCourante = (int) Carbon::now()->year;
+        if ($anneeCible <= $anneeCourante) {
+            $query->where(function ($q) use ($anneeCible) {
+                $q->where(function ($sq) use ($anneeCible) {
+                    $sq->whereIn('militaires.statut_code', [1, 2, 3, 4])
+                       ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + g_retraite.retraite_obligatoire = {$anneeCible})");
+                })->orWhere(function ($sq) use ($anneeCible) {
+                    $sq->whereIn('militaires.statut_code', [5, 6])
+                       ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + g_retraite.retraite_obligatoire <= {$anneeCible})");
+                });
+            });
+        } else {
+            $query->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + g_retraite.retraite_obligatoire = {$anneeCible})");
+        }
     }
 
     /**
@@ -2140,8 +2161,9 @@ class MilitaireController extends Controller
     private function getIdsRetraitePourAnnee(int $anneeCible): array
     {
         $v = Militaire::getCacheVersion();
-        return Cache::remember("v{$v}:militaires:ids_retraite_{$anneeCible}", 1800, function () use ($anneeCible) {
-            return DB::table('militaires')
+        $anneeCourante = (int) Carbon::now()->year;
+        return Cache::remember("v{$v}:militaires:ids_retraite_{$anneeCible}", 1800, function () use ($anneeCible, $anneeCourante) {
+            $q = DB::table('militaires')
                 ->join('grades', 'militaires.grade_id', '=', 'grades.id')
                 ->whereNotNull('militaires.date_naissance')
                 ->whereNotNull('grades.retraite_obligatoire')
@@ -2155,10 +2177,23 @@ class MilitaireController extends Controller
                 })
                 ->where('militaires.est_disparu', 0)
                 ->whereIn('militaires.statut_code', Effectif::CODES_RETRAITABLES)
-                ->whereNull('militaires.deleted_at')
-                ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCible})")
-                ->pluck('militaires.id')
-                ->toArray();
+                ->whereNull('militaires.deleted_at');
+
+            if ($anneeCible <= $anneeCourante) {
+                $q->where(function ($sq) use ($anneeCible) {
+                    $sq->where(function ($ssq) use ($anneeCible) {
+                        $ssq->whereIn('militaires.statut_code', [1, 2, 3, 4])
+                            ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCible})");
+                    })->orWhere(function ($ssq) use ($anneeCible) {
+                        $ssq->whereIn('militaires.statut_code', [5, 6])
+                            ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire <= {$anneeCible})");
+                    });
+                });
+            } else {
+                $q->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$anneeCible})");
+            }
+
+            return $q->pluck('militaires.id')->toArray();
         });
     }
 }

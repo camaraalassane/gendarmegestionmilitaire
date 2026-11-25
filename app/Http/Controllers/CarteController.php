@@ -88,7 +88,7 @@ class CarteController extends Controller
             ->get()
             ->keyBy(fn ($l) => $l->region_id ?? 0);
 
-        // Retraites de l'année : calcul direct et groupé par région en SQL
+        // Retraites de l'année : calcul direct et groupé par région en SQL (incluant déserteurs et procédures échus)
         $retraitesParRegion = \Illuminate\Support\Facades\DB::table('militaires')
             ->join('grades', 'militaires.grade_id', '=', 'grades.id')
             ->whereNotNull('militaires.date_naissance')
@@ -96,7 +96,15 @@ class CarteController extends Controller
             ->where('militaires.est_disparu', 0)
             ->whereIn('militaires.statut_code', \App\Support\Effectif::CODES_RETRAITABLES)
             ->whereNull('militaires.deleted_at')
-            ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$annee})")
+            ->where(function ($q) use ($annee) {
+                $q->where(function ($sq) use ($annee) {
+                    $sq->whereIn('militaires.statut_code', [1, 2, 3, 4])
+                       ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire = {$annee})");
+                })->orWhere(function ($sq) use ($annee) {
+                    $sq->whereIn('militaires.statut_code', [5, 6])
+                       ->whereRaw("(EXTRACT(YEAR FROM militaires.date_naissance) + grades.retraite_obligatoire <= {$annee})");
+                });
+            })
             ->groupBy('militaires.region_id')
             ->selectRaw('militaires.region_id, count(*) as cnt')
             ->pluck('cnt', 'region_id')
