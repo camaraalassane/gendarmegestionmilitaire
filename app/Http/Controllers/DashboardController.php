@@ -197,92 +197,38 @@ class DashboardController extends Controller
             ];
         }
 
-        // 2. STATISTIQUES PAR POSITION (Où se trouvent les personnels ACTIFS sur le terrain)
-        $allConfiguredPositions = Position::orderBy('nom')->pluck('nom')->toArray();
-        $dbPositions = $this->enActivite()
-            ->whereNotNull('position_actuelle')
-            ->where('position_actuelle', '!=', '')
-            ->selectRaw('position_actuelle, count(*) as count')
-            ->groupBy('position_actuelle')
-            ->pluck('count', 'position_actuelle')
+        // 2. STATISTIQUES PAR POSITION (Comptage SQL pur par ID numérique entier position_id)
+        $uniteId = Position::idUnite();
+        $allPositions = Position::orderBy('id')->get(['id', 'nom', 'code']);
+
+        // Comptage groupé par position_id entier (utilise l'index btree militaires_position_id_idx)
+        // Prend en compte tous les militaires non supprimés (actifs, déserteurs, retrait d'emploi, etc.)
+        $countsByPositionId = DB::table('militaires')
+            ->whereNull('deleted_at')
+            ->whereNotNull('position_id')
+            ->groupBy('position_id')
+            ->selectRaw('position_id, count(*) as total')
+            ->pluck('total', 'position_id')
             ->toArray();
 
-        $positionsDistribution = [];
-        $handledPositions = [];
+        // Militaires sans position_id explicite mais avec une unité => rattachés à "À l'Unité / Au Poste"
+        $sansPosition = (int) DB::table('militaires')
+            ->whereNull('deleted_at')
+            ->whereNull('position_id')
+            ->count();
 
-        foreach ($allConfiguredPositions as $posNom) {
-            $val = 0;
-            foreach ($dbPositions as $dbPos => $c) {
-                if (strcasecmp(trim($dbPos), trim($posNom)) === 0) {
-                    $val += (int) $c;
-                }
+        $positionsDistribution = [];
+        foreach ($allPositions as $p) {
+            $val = (int) ($countsByPositionId[$p->id] ?? 0);
+            if ($p->id === $uniteId) {
+                $val += $sansPosition;
             }
             $positionsDistribution[] = [
-                'label' => $posNom,
-                'value' => (int) $val,
+                'id' => (int) $p->id,
+                'label' => $p->nom,
+                'code' => $p->code,
+                'value' => $val,
             ];
-            $handledPositions[] = mb_strtolower(trim($posNom));
-        }
-
-        foreach ($dbPositions as $posNom => $count) {
-            if (!in_array(mb_strtolower(trim($posNom)), $handledPositions)) {
-                // Agrégation dans "À l'Unité / Au Poste" pour ne pas créer de positions fantômes
-                foreach ($positionsDistribution as &$pos) {
-                    if (strcasecmp($pos['label'], "À l'Unité / Au Poste") === 0) {
-                        $pos['value'] += (int) $count;
-                        break;
-                    }
-                }
-                unset($pos);
-            }
-        }
-
-        // Traitement des militaires actifs sans position renseignée
-        $actifsSansPositionAvecUnite = $this->enActivite()
-            ->where(function ($q) {
-                $q->whereNull('position_actuelle')->orWhere('position_actuelle', '');
-            })
-            ->where(function ($q) {
-                $q->whereNotNull('unite_id')->orWhere(function ($sq) {
-                    $sq->whereNotNull('unite')->where('unite', '!=', '');
-                });
-            })->count();
-
-        if ($actifsSansPositionAvecUnite > 0) {
-            $found = false;
-            foreach ($positionsDistribution as &$pos) {
-                if (strcasecmp($pos['label'], "À l'Unité / Au Poste") === 0) {
-                    $pos['value'] += $actifsSansPositionAvecUnite;
-                    $found = true;
-                    break;
-                }
-            }
-            unset($pos);
-            if (!$found) {
-                $positionsDistribution[] = [
-                    'label' => "À l'Unité / Au Poste",
-                    'value' => (int) $actifsSansPositionAvecUnite,
-                ];
-            }
-        }
-
-        $actifsEnAttenteAffectation = $this->enActivite()
-            ->where(function ($q) {
-                $q->whereNull('position_actuelle')->orWhere('position_actuelle', '');
-            })
-            ->whereNull('unite_id')
-            ->where(function ($q) {
-                $q->whereNull('unite')->orWhere('unite', '');
-            })->count();
-
-        if ($actifsEnAttenteAffectation > 0) {
-            foreach ($positionsDistribution as &$pos) {
-                if (strcasecmp($pos['label'], "À l'Unité / Au Poste") === 0) {
-                    $pos['value'] += (int) $actifsEnAttenteAffectation;
-                    break;
-                }
-            }
-            unset($pos);
         }
 
         // Tri : d'abord les positions occupées par ordre décroissant, puis alphabétique

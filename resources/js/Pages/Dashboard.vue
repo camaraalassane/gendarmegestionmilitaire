@@ -60,10 +60,14 @@ const refreshDashboard = () => {
     });
 };
 
-const navigateToPosition = (label) => {
-    if (!label) return;
-    if (label.includes('Non assigné')) {
+const navigateToPosition = (pos) => {
+    if (!pos) return;
+    const label = typeof pos === 'string' ? pos : pos.label;
+    const id = typeof pos === 'object' && pos.id ? pos.id : null;
+    if (label && label.includes('Non assigné')) {
         router.visit(route('militaires.index', { position: 'Non assigné / En attente' }));
+    } else if (id) {
+        router.visit(route('militaires.index', { position_id: id }));
     } else {
         router.visit(route('militaires.index', { search: label, position: label }));
     }
@@ -215,6 +219,15 @@ const positionChartOptions = {
     maintainAspectRatio: false,
     layout: {
         padding: { right: 30 }
+    },
+    onClick: (evt, elements) => {
+        if (!elements.length) return;
+        const item = positionsDisplayList.value[elements[0].index];
+        if (item) navigateToPosition(item);
+    },
+    onHover: (evt, elements) => {
+        const el = evt.native?.target;
+        if (el) el.style.cursor = elements.length ? 'pointer' : 'default';
     },
     plugins: {
         legend: { display: false },
@@ -894,7 +907,7 @@ const horizontalBarOptions = {
                         <div class="max-h-28 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
                             <div v-for="pos in (props.chartsData?.positions || [])"
                                  :key="pos.label"
-                                 @click="navigateToPosition(pos.label)"
+                                 @click="navigateToPosition(pos)"
                                  class="flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-xs cursor-pointer transition-colors"
                                  :class="pos.value > 0 ? 'bg-sky-50/70 border-sky-200 text-sky-900 font-medium hover:bg-sky-100' : 'bg-slate-50/50 border-slate-100 text-slate-500 hover:bg-slate-100'">
                                 <div class="flex items-center gap-2 truncate">
