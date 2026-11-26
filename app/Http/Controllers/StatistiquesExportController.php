@@ -141,8 +141,10 @@ class StatistiquesExportController extends Controller
     public function dashboard()
     {
         $dash = app(DashboardController::class);
-        $s = $dash->statistiquesResume();
-        $c = $dash->donneesGraphiques();
+        // Export officiel : toujours des chiffres frais (jamais la version « stale » servie à l'écran)
+        $v = \App\Models\Militaire::getCacheVersion();
+        $s = $dash->calculerStatistiquesResume((int) now()->year, $v);
+        $c = $dash->calculerDonneesGraphiques($v);
         $annee = $s['annee'] ?? now()->year;
 
         $tableau = function (string $titre, string $intitule, string $premiereColonne, array $items) {

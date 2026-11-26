@@ -32,12 +32,12 @@ class PrewarmDashboardCacheJob implements ShouldQueue
             // 1. Pré-calcul Dashboard et mise à jour immédiate du Stale-While-Revalidate
             $dashboardCtrl = app(\App\Http\Controllers\DashboardController::class);
             $stats = $dashboardCtrl->calculerStatistiquesResume($annee, $v);
-            \Illuminate\Support\Facades\Cache::put("v{$v}:dashboard:statistiques_summary", $stats, 86400);
-            \Illuminate\Support\Facades\Cache::put('dashboard:statistiques_summary:last_ready', $stats, 86400);
+            \Illuminate\Support\Facades\Cache::put("v{$v}:dashboard:statistiques_summary", $stats, 604800);
+            \Illuminate\Support\Facades\Cache::put('dashboard:statistiques_summary:last_ready', $stats, 604800);
 
             $charts = $dashboardCtrl->calculerDonneesGraphiques($v);
-            \Illuminate\Support\Facades\Cache::put("v{$v}:dashboard:charts_data", $charts, 86400);
-            \Illuminate\Support\Facades\Cache::put('dashboard:charts_data:last_ready', $charts, 86400);
+            \Illuminate\Support\Facades\Cache::put("v{$v}:dashboard:charts_data", $charts, 604800);
+            \Illuminate\Support\Facades\Cache::put('dashboard:charts_data:last_ready', $charts, 604800);
 
             // 2. Pré-calcul Éligibilités
             $eligibiliteCtrl = app(\App\Http\Controllers\EligibiliteController::class);

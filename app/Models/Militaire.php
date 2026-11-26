@@ -550,23 +550,44 @@ class Militaire extends Model
         }
     }
 
+    private static ?int $versionMemo = null;
+
     /**
-     * Numéro de version global du cache pour invalidation atomique en O(1).
+     * Numéro de version global du cache (stocké en base, donc stable après cache:clear).
      */
     public static function getCacheVersion(): int
     {
-        return (int) \Illuminate\Support\Facades\Cache::get('militaires:cache_v', 1);
+        if (static::$versionMemo !== null) {
+            return static::$versionMemo;
+        }
+        try {
+            $v = \Illuminate\Support\Facades\DB::table('cache_versions')->where('cle', 'militaires')->value('valeur');
+            if ($v === null) {
+                \Illuminate\Support\Facades\DB::table('cache_versions')->insertOrIgnore(['cle' => 'militaires', 'valeur' => 1]);
+                $v = 1;
+            }
+            return static::$versionMemo = (int) $v;
+        } catch (\Throwable $e) {
+            // Table absente (migration pas encore passée) : ancien compteur en cache
+            return (int) \Illuminate\Support\Facades\Cache::get('militaires:cache_v', 1);
+        }
     }
 
     /**
-     * Incrémente la version de cache et purge les clés directes critiques.
+     * Incrémente la version de cache (en base) et purge les clés directes critiques.
      */
     public static function incrementCacheVersion(): void
     {
-        if (!\Illuminate\Support\Facades\Cache::has('militaires:cache_v')) {
-            \Illuminate\Support\Facades\Cache::forever('militaires:cache_v', 2);
-        } else {
-            \Illuminate\Support\Facades\Cache::increment('militaires:cache_v');
+        try {
+            \Illuminate\Support\Facades\DB::table('cache_versions')->insertOrIgnore(['cle' => 'militaires', 'valeur' => 1]);
+            \Illuminate\Support\Facades\DB::table('cache_versions')->where('cle', 'militaires')->increment('valeur');
+            static::$versionMemo = null;
+        } catch (\Throwable $e) {
+            if (!\Illuminate\Support\Facades\Cache::has('militaires:cache_v')) {
+                \Illuminate\Support\Facades\Cache::forever('militaires:cache_v', 2);
+            } else {
+                \Illuminate\Support\Facades\Cache::increment('militaires:cache_v');
+            }
         }
 
         // Purge explicite des clés directes non versionnées
@@ -576,14 +597,23 @@ class Militaire extends Model
         \Illuminate\Support\Facades\Cache::forget('dashboard:grades_distribution');
         \Illuminate\Support\Facades\Cache::forget('dashboard:statistiques_cards');
 
-        // Pré-réchauffement des caches lourds en arrière-plan sans ralentir la réponse HTTP
-        // Limite : au plus un pré-calcul toutes les 2 minutes (évite N calculs lourds pour N fiches enregistrées).
-        if (!static::$isImporting && \Illuminate\Support\Facades\Cache::add('prewarm:dashboard:lock', 1, 120)) {
+        if (!static::$isImporting) {
+            static::planifierPrewarm();
+        }
+    }
+
+    /**
+     * Pré-réchauffement des caches lourds en arrière-plan sans ralentir la réponse HTTP.
+     * Limite : au plus un pré-calcul toutes les 2 minutes (évite N calculs lourds pour N fiches enregistrées).
+     */
+    public static function planifierPrewarm(): void
+    {
+        if (\Illuminate\Support\Facades\Cache::add('prewarm:dashboard:lock', 1, 120)) {
             $job = new \App\Jobs\PrewarmDashboardCacheJob();
             if (config('queue.default') === 'sync') {
                 dispatch($job)->afterResponse(); // pas de worker : exécuté après l'envoi de la réponse
             } else {
-                dispatch($job)->delay(now()->addSeconds(2)); // vrai arrière-plan via le worker
+                dispatch($job)->delay(now()->addSeconds(20)); // vrai arrière-plan via le worker
             }
         }
     }

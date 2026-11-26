@@ -51,9 +51,17 @@ class DashboardController extends Controller
         $anneeCourante = (int) $aujourdhui->year;
         $v = \App\Models\Militaire::getCacheVersion();
 
+        // Rendu direct si une version (courante ou précédente) est en cache : premier chargement instantané.
+        // Différé seulement au tout premier calcul (aucune donnée en cache), pour ne jamais bloquer la page.
+        $pret = fn (string $cle, string $derniere) => Cache::has($cle) || Cache::has($derniere);
+
         return Inertia::render('Dashboard', [
-            'statistiques' => $this->statistiquesResume($anneeCourante, $v),
-            'chartsData' => Inertia::defer(fn () => $this->donneesGraphiques($v)),
+            'statistiques' => $pret("v{$v}:dashboard:statistiques_summary", 'dashboard:statistiques_summary:last_ready')
+                ? $this->statistiquesResume($anneeCourante, $v)
+                : Inertia::defer(fn () => $this->statistiquesResume($anneeCourante, $v)),
+            'chartsData' => $pret("v{$v}:dashboard:charts_data", 'dashboard:charts_data:last_ready')
+                ? $this->donneesGraphiques($v)
+                : Inertia::defer(fn () => $this->donneesGraphiques($v)),
         ]);
     }
 
@@ -95,8 +103,8 @@ class DashboardController extends Controller
 
         // 3. Fallback : premier démarrage absolu sans aucun cache préalable
         $data = $this->calculerStatistiquesResume($anneeCourante, $v);
-        Cache::put($key, $data, 86400);
-        Cache::put('dashboard:statistiques_summary:last_ready', $data, 86400);
+        Cache::put($key, $data, 604800);
+        Cache::put('dashboard:statistiques_summary:last_ready', $data, 604800);
 
         return $data;
     }
@@ -214,8 +222,8 @@ class DashboardController extends Controller
 
         // 3. Fallback : premier démarrage absolu sans aucun cache préalable
         $data = $this->calculerDonneesGraphiques($v);
-        Cache::put($key, $data, 86400);
-        Cache::put('dashboard:charts_data:last_ready', $data, 86400);
+        Cache::put($key, $data, 604800);
+        Cache::put('dashboard:charts_data:last_ready', $data, 604800);
 
         return $data;
     }

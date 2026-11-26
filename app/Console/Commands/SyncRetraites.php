@@ -76,7 +76,10 @@ class SyncRetraites extends Command
 
         // Vider tous les caches pour actualiser instantanément le Dashboard et la liste Militaires
         // Pas de Cache::flush() : il remettrait à zéro le compteur de version et les verrous. On invalide par version.
-        Militaire::incrementCacheVersion();
+        // Seulement si des fiches ont changé : sinon on garde les caches chauds (premier chargement rapide)
+        if ($basculesEnRetraite + $retablisEnActif > 0) {
+            Militaire::incrementCacheVersion();
+        }
 
         $this->newLine();
         $this->info("Bilan de la synchronisation :");
